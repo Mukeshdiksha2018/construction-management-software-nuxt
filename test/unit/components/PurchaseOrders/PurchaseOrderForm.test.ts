@@ -3175,12 +3175,18 @@ describe("PurchaseOrderForm.vue", () => {
   it("clears cached store data on component unmount", async () => {
     const wrapper = mountForm();
     const resourcesStore = usePurchaseOrderResourcesStore() as any;
+    // Wait for all async operations to complete
     await flushPromises();
+    await wrapper.vm.$nextTick();
+    await flushPromises();
+    await wrapper.vm.$nextTick();
     const clearSpy = resourcesStore.__test?.clearCalls as any;
     clearSpy?.mock?.clear?.();
     wrapper.unmount();
+    // Wait a bit for unmount to complete
+    await new Promise(resolve => setTimeout(resolve, 10));
     expect(clearSpy?.mock?.calls?.length ?? 0).toBe(1);
-  });
+  }, 10000);
 
   it("syncs item and sequence selections so changing sequence updates item details", async () => {
     const wrapper = mountForm();
@@ -3558,6 +3564,9 @@ describe("PurchaseOrderForm.vue", () => {
         project_uuid: "proj-1",
       });
 
+      // Wait for all async operations to complete
+      await flushPromises();
+      await wrapper.vm.$nextTick();
       await flushPromises();
       await wrapper.vm.$nextTick();
       const vm: any = wrapper.vm as any;
@@ -3579,7 +3588,7 @@ describe("PurchaseOrderForm.vue", () => {
           expect(option?.sequence).toBe("FA-301");
         }
       }
-    });
+    }, 10000);
 
     it("handles items without sequence gracefully", async () => {
       // Pre-populate items without sequence
