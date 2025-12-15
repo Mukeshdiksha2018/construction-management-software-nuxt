@@ -3570,31 +3570,127 @@ watch(() => props.projectUuid, async (newProjectUuid) => {
   }
 }, { immediate: true })
 
-// Watch for deletedUuids prop changes (e.g., when loading a saved estimate)
+// Watch for deletedUuids prop changes (e.g., when loading a saved estimate or when cost codes are added/removed)
 watch(() => props.deletedUuids, (newDeletedUuids) => {
   // Update local set
   deletedUuidsLocal.value = new Set(newDeletedUuids || [])
   
-  // Re-filter the hierarchy to remove deleted items
-  if (deletedUuidsLocal.value.size > 0 && hierarchicalDataRef.value.length > 0) {
-    const filteredData = hierarchicalDataRef.value.map((division: any) => {
-      if (!division.costCodes || !Array.isArray(division.costCodes)) {
-        return division
+  // Always rebuild from hierarchicalData to include newly selected cost codes
+  // This ensures that when cost codes are removed from removed_cost_code_uuids,
+  // they are properly added back to the hierarchical data
+  if (hierarchicalData.value && hierarchicalData.value.length > 0) {
+    // Create a map of existing estimate values to preserve them
+    const existingEstimatesMap = new Map<string, any>()
+    
+    const collectEstimates = (node: any) => {
+      if (node.uuid && !deletedUuidsLocal.value.has(node.uuid)) {
+        // Only preserve estimates for nodes that are not being deleted
+        const estimate = {
+          labor_amount: node.labor_amount,
+          material_amount: node.material_amount,
+          total_amount: node.total_amount,
+          estimation_type: node.estimation_type,
+          labor_amount_per_room: node.labor_amount_per_room,
+          labor_rooms_count: node.labor_rooms_count,
+          labor_amount_per_sqft: node.labor_amount_per_sqft,
+          labor_sq_ft_count: node.labor_sq_ft_count,
+          material_items: node.material_items,
+          contingency_enabled: node.contingency_enabled,
+          contingency_percentage: node.contingency_percentage
+        }
+        existingEstimatesMap.set(node.uuid, estimate)
       }
       
-      const filteredCostCodes = division.costCodes
-        .map((costCode: any) => filterDeletedCostCodes(costCode))
-        .filter((costCode: any) => costCode !== null)
-      
-      return {
-        ...division,
-        costCodes: filteredCostCodes
+      if (node.subCostCodes) {
+        node.subCostCodes.forEach((sub: any) => collectEstimates(sub))
       }
-    }).filter((division: any) => 
+      if (node.subSubCostCodes) {
+        node.subSubCostCodes.forEach((subSub: any) => collectEstimates(subSub))
+      }
+    }
+    
+    // Collect existing estimates from current hierarchicalDataRef
+    hierarchicalDataRef.value.forEach((division: any) => {
+      division.costCodes?.forEach((costCode: any) => collectEstimates(costCode))
+    })
+    
+    // Rebuild from hierarchicalData and filter out deleted items
+    const clonedData = JSON.parse(JSON.stringify(hierarchicalData.value))
+    
+    const restoreEstimates = (node: any) => {
+      const existing = existingEstimatesMap.get(node.uuid)
+      if (existing) {
+        // Restore existing estimate values
+        node.labor_amount = existing.labor_amount || 0
+        node.material_amount = existing.material_amount || 0
+        node.total_amount = existing.total_amount || 0
+        node.estimation_type = existing.estimation_type || 'manual'
+        node.labor_amount_per_room = existing.labor_amount_per_room || 0
+        node.labor_rooms_count = existing.labor_rooms_count || 0
+        node.labor_amount_per_sqft = existing.labor_amount_per_sqft || 0
+        node.labor_sq_ft_count = existing.labor_sq_ft_count || 0
+        node.material_items = existing.material_items || []
+        node.contingency_enabled = existing.contingency_enabled === true
+        node.contingency_percentage = existing.contingency_percentage
+      }
+      
+      if (node.subCostCodes) {
+        node.subCostCodes.forEach((sub: any) => restoreEstimates(sub))
+      }
+      if (node.subSubCostCodes) {
+        node.subSubCostCodes.forEach((subSub: any) => restoreEstimates(subSub))
+      }
+    }
+    
+    // Filter out deleted cost codes and restore estimates
+    clonedData.forEach((division: any) => {
+      if (division.costCodes && Array.isArray(division.costCodes)) {
+        division.costCodes = division.costCodes
+          .map((costCode: any) => {
+            const filtered = filterDeletedCostCodes(costCode)
+            if (filtered) {
+              restoreEstimates(filtered)
+            }
+            return filtered
+          })
+          .filter((costCode: any) => costCode !== null)
+      }
+    })
+    
+    // Filter out empty divisions
+    const filteredData = clonedData.filter((division: any) => 
       division.costCodes && Array.isArray(division.costCodes) && division.costCodes.length > 0
     )
     
     hierarchicalDataRef.value = filteredData
+    
+    // Update appliedCostCodes set to mark cost codes with values as applied
+    const markApplied = (node: any) => {
+      if (node.uuid) {
+        const hasLabor = parseFloat(node.labor_amount) > 0
+        const hasMaterial = parseFloat(node.material_amount) > 0
+        const hasTotal = parseFloat(node.total_amount) > 0
+        if (hasLabor || hasMaterial || hasTotal) {
+          appliedCostCodes.value.add(node.uuid)
+        } else {
+          // Remove from applied set if no values
+          appliedCostCodes.value.delete(node.uuid)
+        }
+      }
+      
+      if (node.subCostCodes) {
+        node.subCostCodes.forEach((sub: any) => markApplied(sub))
+      }
+      if (node.subSubCostCodes) {
+        node.subSubCostCodes.forEach((subSub: any) => markApplied(subSub))
+      }
+    }
+    
+    // Mark cost codes as applied based on their values
+    filteredData.forEach((division: any) => {
+      division.costCodes?.forEach((costCode: any) => markApplied(costCode))
+    })
+    
     emitLineItemsUpdate()
   }
 }, { immediate: true })
