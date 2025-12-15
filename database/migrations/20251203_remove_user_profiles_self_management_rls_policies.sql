@@ -12,6 +12,8 @@ GRANT ALL ON public.user_profiles TO service_role;
 GRANT ALL ON public.user_profiles TO postgres;
 GRANT ALL ON public.roles TO service_role;
 GRANT ALL ON public.roles TO postgres;
+GRANT ALL ON public.properties TO service_role;
+GRANT ALL ON public.properties TO postgres;
 
 -- Drop existing policy if it exists, then create a policy that allows service_role to bypass RLS
 -- This is a safeguard in case service role doesn't automatically bypass RLS
@@ -30,7 +32,15 @@ CREATE POLICY "Service role can manage all roles" ON public.roles
     USING (true)
     WITH CHECK (true);
 
--- Note: RLS is still enabled on the table, but now only server-side API endpoints
--- with service role key can manage user profiles. This ensures proper access control.
--- The service_role should bypass RLS automatically, but we add explicit grants and policy as safeguards.
+-- Create a policy that allows service_role to access properties (corporations) table
+DROP POLICY IF EXISTS "Service role can manage all properties" ON public.properties;
+CREATE POLICY "Service role can manage all properties" ON public.properties
+    FOR ALL
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
+
+-- Note: RLS is still enabled on the tables, but now only server-side API endpoints
+-- with service role key can manage user profiles, roles, and properties. This ensures proper access control.
+-- The service_role should bypass RLS automatically, but we add explicit grants and policies as safeguards.
 

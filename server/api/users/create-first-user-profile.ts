@@ -57,16 +57,46 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // Create the user profile with Super Admin role
+    // Fetch all corporations to grant Super Admin access to all of them
+    // Using service role key so this works even if user is not authenticated yet
+    const { data: corporations, error: corporationsError } = await supabaseServer
+      .from("properties")
+      .select("uuid");
+
+    if (corporationsError) {
+      console.error("Error fetching corporations:", corporationsError);
+      // Log the full error for debugging
+      console.error("Corporations error details:", {
+        message: corporationsError.message,
+        code: corporationsError.code,
+        details: corporationsError.details,
+        hint: corporationsError.hint
+      });
+      // Don't fail if corporations don't exist yet - just use empty array
+    }
+
+    // Extract corporation UUIDs and ensure they're valid UUIDs
+    const corporationUuids = corporations?.map(corp => corp.uuid).filter(Boolean) || [];
+    
+    console.log("=== Corporation Fetch Debug ===");
+    console.log("Fetched corporations count:", corporations?.length || 0);
+    console.log("Fetched corporations:", JSON.stringify(corporations, null, 2));
+    console.log("Extracted corporation UUIDs:", JSON.stringify(corporationUuids, null, 2));
+    console.log("Corporation UUIDs array length:", corporationUuids.length);
+
+    // Create the user profile with Super Admin role and access to all corporations
     const profileData = {
       user_id: userId,
       first_name: username,
       role_id: superAdminRole.id,
       status: 'active',
-      corporation_access: [], // Will be set by admin later
+      corporation_access: corporationUuids, // Always set the array, even if empty
     };
 
-    // console.log("Creating user profile with data:", profileData);
+    console.log("=== Profile Data Before Insert ===");
+    console.log("Creating user profile with data:", JSON.stringify(profileData, null, 2));
+    console.log("corporation_access type:", typeof profileData.corporation_access);
+    console.log("corporation_access is array:", Array.isArray(profileData.corporation_access));
 
     const { data: profile, error: profileError } = await supabaseServer
       .from('user_profiles')
@@ -74,7 +104,8 @@ export default defineEventHandler(async (event) => {
       .select()
       .single();
 
-    // console.log("Profile creation result:", { profile, profileError });
+    console.log("Profile creation result:", { profile, profileError });
+    console.log("Saved corporation_access:", profile?.corporation_access);
 
     if (profileError) {
       console.error("Error creating user profile:", profileError);
@@ -87,6 +118,11 @@ export default defineEventHandler(async (event) => {
     return {
       success: true,
       data: profile,
+      debug: {
+        corporationsFetched: corporations?.length || 0,
+        corporationUuids: corporationUuids,
+        savedCorporationAccess: profile?.corporation_access,
+      }
     };
   } catch (error: any) {
     console.error("Create first user profile error:", error);
