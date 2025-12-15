@@ -208,8 +208,8 @@ const handleSave = async () => {
       });
     }
 
-    // Navigate back to list
-    router.push('/corporation?tab=cost-codes&subTab=cost-codes-configuration');
+    // Navigate back to where user came from (typically the cost codes configuration list)
+    router.back();
   } catch (error) {
     console.error('Error saving cost code configuration:', error);
     toast.add({
