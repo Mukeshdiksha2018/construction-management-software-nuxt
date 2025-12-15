@@ -1,0 +1,3958 @@
+<template>
+  <div class="flex flex-col gap-4">
+    <div class="flex flex-col lg:flex-row gap-4">
+      <!-- Main Form -->
+      <div class="flex-1">
+        <UCard variant="soft">
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+            <!-- Skeleton Loaders -->
+            <template v-if="loading">
+              <!-- Corporation -->
+              <div>
+                <USkeleton class="h-3 w-24 mb-1" />
+                <USkeleton class="h-9 w-full" />
+              </div>
+              <!-- Project Name -->
+              <div>
+                <USkeleton class="h-3 w-24 mb-1" />
+                <USkeleton class="h-9 w-full" />
+              </div>
+              <!-- Bill Date -->
+              <div>
+                <USkeleton class="h-3 w-20 mb-1" />
+                <USkeleton class="h-9 w-full" />
+              </div>
+              <!-- Number -->
+              <div>
+                <USkeleton class="h-3 w-16 mb-1" />
+                <USkeleton class="h-9 w-full" />
+              </div>
+              <!-- Invoice Type -->
+              <div>
+                <USkeleton class="h-3 w-24 mb-1" />
+                <USkeleton class="h-9 w-full" />
+              </div>
+              <!-- Vendor -->
+              <div>
+                <USkeleton class="h-3 w-20 mb-1" />
+                <USkeleton class="h-9 w-full" />
+              </div>
+              <!-- Credit Days -->
+              <div>
+                <USkeleton class="h-3 w-24 mb-1" />
+                <USkeleton class="h-9 w-full" />
+              </div>
+              <!-- Due Date -->
+              <div>
+                <USkeleton class="h-3 w-20 mb-1" />
+                <USkeleton class="h-9 w-full" />
+              </div>
+              <!-- PO Number -->
+              <div>
+                <USkeleton class="h-3 w-20 mb-1" />
+                <USkeleton class="h-9 w-full" />
+              </div>
+              <!-- Holdback -->
+              <div>
+                <USkeleton class="h-3 w-20 mb-1" />
+                <USkeleton class="h-9 w-full" />
+              </div>
+            </template>
+            
+            <!-- Actual Form Fields -->
+            <template v-else>
+            <!-- Corporation -->
+            <div>
+              <label class="block text-xs font-medium text-default mb-1">
+                Corporation <span class="text-red-500">*</span>
+              </label>
+              <UInput
+                :model-value="getCorporationName"
+                disabled
+                size="sm"
+                class="w-full"
+                icon="i-heroicons-building-office-2-solid"
+              />
+            </div>
+
+            <!-- Project Name -->
+            <div>
+              <label class="block text-xs font-medium text-default mb-1">
+                Project Name <span class="text-red-500">*</span>
+              </label>
+              <ProjectSelect
+                :model-value="form.project_uuid"
+                :corporation-uuid="corpStore.selectedCorporation?.uuid"
+                :disabled="!corpStore.selectedCorporation || props.readonly"
+                placeholder="Select project"
+                size="sm"
+                class="w-full"
+                @update:model-value="handleProjectChange"
+              />
+            </div>
+
+            <!-- Bill Date -->
+            <div>
+              <label class="block text-xs font-medium text-default mb-1">
+                Bill Date <span class="text-red-500">*</span>
+              </label>
+              <UPopover :disabled="props.readonly">
+                <UButton 
+                  color="neutral" 
+                  variant="outline" 
+                  icon="i-heroicons-calendar-days"
+                  class="w-full justify-start"
+                  size="sm"
+                  :disabled="props.readonly"
+                >
+                  {{ billDateDisplayText }}
+                </UButton>
+                <template #content>
+                  <UCalendar v-model="billDateValue" class="p-2" :disabled="props.readonly" />
+                </template>
+              </UPopover>
+            </div>
+
+            <!-- Invoice Number -->
+            <div>
+              <label class="block text-xs font-medium text-default mb-1">
+                Invoice Number
+              </label>
+              <UInput
+                :model-value="form.number"
+                placeholder="Auto-generated"
+                size="sm"
+                class="w-full"
+                disabled
+                icon="i-heroicons-hashtag"
+              />
+            </div>
+
+            <!-- Invoice Type -->
+            <div>
+              <label class="block text-xs font-medium text-default mb-1">
+                Invoice type <span class="text-red-500">*</span>
+              </label>
+              <USelectMenu
+                v-model="invoiceTypeOption"
+                :items="invoiceTypeOptions"
+                placeholder="Select invoice type"
+                size="sm"
+                class="w-full"
+                value-key="value"
+                :disabled="!form.project_uuid || props.readonly"
+              />
+            </div>
+
+            <!-- Vendor -->
+            <div>
+              <label class="block text-xs font-medium text-default mb-1">
+                Vendor <span class="text-red-500">*</span>
+              </label>
+              <VendorSelect
+                :model-value="form.vendor_uuid"
+                :corporation-uuid="corpStore.selectedCorporation?.uuid"
+                :disabled="!corpStore.selectedCorporation || areSubsequentFieldsDisabled"
+                placeholder="Select vendor"
+                size="sm"
+                class="w-full"
+                @update:model-value="handleVendorChange"
+                @change="handleVendorChange"
+              />
+            </div>
+
+            <!-- Credit Days -->
+            <div>
+              <label class="block text-xs font-medium text-default mb-1">
+                Credit Days <span class="text-red-500">*</span>
+              </label>
+              <USelectMenu
+                v-model="creditDaysOption"
+                :items="creditDaysOptions"
+                placeholder="Select credit days"
+                size="sm"
+                class="w-full"
+                value-key="value"
+                :disabled="areSubsequentFieldsDisabled"
+              />
+            </div>
+
+            <!-- Due Date -->
+            <div>
+              <label class="block text-xs font-medium text-default mb-1">
+                Due Date <span class="text-red-500">*</span>
+              </label>
+              <UPopover v-model:open="dueDatePopoverOpen" :disabled="areSubsequentFieldsDisabled">
+                <UButton 
+                  color="neutral" 
+                  variant="outline" 
+                  icon="i-heroicons-calendar-days"
+                  class="w-full justify-start"
+                  size="sm"
+                  :disabled="areSubsequentFieldsDisabled"
+                >
+                  {{ dueDateDisplayText }}
+                </UButton>
+                <template #content>
+                  <UCalendar v-model="dueDateValue" class="p-2" :disabled="areSubsequentFieldsDisabled" @update:model-value="dueDatePopoverOpen = false" />
+                </template>
+              </UPopover>
+            </div>
+
+            <!-- PO Number (only visible when invoice type is "Against PO") -->
+            <div v-if="isAgainstPO">
+              <label class="block text-xs font-medium text-default mb-1">
+                PO Number <span class="text-red-500">*</span>
+              </label>
+              <POCOSelect
+                :model-value="form.po_co_uuid || (form.purchase_order_uuid ? `PO:${form.purchase_order_uuid}` : undefined)"
+                :project-uuid="form.project_uuid"
+                :corporation-uuid="corpStore.selectedCorporation?.uuid"
+                :vendor-uuid="form.vendor_uuid"
+                :show-invoice-summary="true"
+                :showOnlyPOs="true"
+                :disabled="areSubsequentFieldsDisabled"
+                placeholder="Select purchase order"
+                size="sm"
+                class="w-full"
+                @update:model-value="handlePOCOModelValue"
+                @change="handlePOCOChangeForPO"
+              />
+            </div>
+
+            <!-- CO Number (only visible when invoice type is "Against CO") -->
+            <div v-if="isAgainstCO">
+              <label class="block text-xs font-medium text-default mb-1">
+                CO Number <span class="text-red-500">*</span>
+              </label>
+              <POCOSelect
+                :model-value="form.po_co_uuid || (form.change_order_uuid ? `CO:${form.change_order_uuid}` : undefined)"
+                :project-uuid="form.project_uuid"
+                :corporation-uuid="corpStore.selectedCorporation?.uuid"
+                :vendor-uuid="form.vendor_uuid"
+                :show-invoice-summary="true"
+                :showOnlyCOs="true"
+                :disabled="areSubsequentFieldsDisabled"
+                placeholder="Select change order"
+                size="sm"
+                class="w-full"
+                @update:model-value="handlePOCOModelValue"
+                @change="handlePOCOChangeForCO"
+              />
+            </div>
+
+            <!-- PO/CO Select (only visible when invoice type is "Against Advance Payment") -->
+            <div v-if="isAgainstAdvancePayment">
+              <label class="block text-xs font-medium text-default mb-1">
+                Select PO/CO <span class="text-red-500">*</span>
+              </label>
+              <POCOSelect
+                :model-value="form.po_co_uuid"
+                :project-uuid="form.project_uuid"
+                :corporation-uuid="corpStore.selectedCorporation?.uuid"
+                :vendor-uuid="form.vendor_uuid"
+                :disabled="areSubsequentFieldsDisabled"
+                placeholder="Select PO or CO"
+                size="sm"
+                class="w-full"
+                @update:model-value="handlePOCOModelValue"
+                @change="handlePOCOChange"
+              />
+            </div>
+
+            <!-- Total Invoice Amount -->
+            <div>
+              <label class="block text-xs font-medium text-default mb-1">
+                Total Invoice Amount <span class="text-red-500">*</span>
+              </label>
+              <div class="relative">
+                <UInput
+                  :model-value="amountInputValue"
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  size="sm"
+                  class="w-full"
+                  :disabled="true"
+                  readonly
+                />
+              </div>
+            </div>
+
+            <!-- Holdback (only for Against PO or Against CO) -->
+            <div v-if="isAgainstPO || isAgainstCO">
+              <label class="block text-xs font-medium text-default mb-1">
+                Holdback
+              </label>
+              <div class="relative">
+                <UInput
+                  :model-value="holdbackInputValue"
+                  type="number"
+                  step="0.01"
+                  placeholder="0"
+                  size="sm"
+                  class="w-full pr-8"
+                  :disabled="areSubsequentFieldsDisabled"
+                  @update:model-value="handleHoldbackChange"
+                />
+                <div class="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs text-gray-500 font-medium pointer-events-none bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded border border-default">
+                  %
+                </div>
+              </div>
+            </div>
+            </template>
+          </div>
+        </UCard>
+      </div>
+    </div>
+
+    <!-- Advance Payment Cost Codes Table (only for Against Advance Payment) -->
+    <AdvancePaymentCostCodesTable
+      v-if="isAgainstAdvancePayment"
+      :po-co-uuid="form.po_co_uuid"
+      :po-co-type="poCoType"
+      :corporation-uuid="corpStore.selectedCorporation?.uuid"
+      :readonly="props.readonly"
+      :model-value="advancePaymentCostCodes"
+      :removed-cost-codes="removedAdvancePaymentCostCodes"
+      @update:model-value="handleAdvancePaymentCostCodesUpdate"
+      @update:removed-cost-codes="handleRemovedCostCodesUpdate"
+    />
+
+    <!-- PO Items Table (only for Against PO) -->
+    <div v-if="isAgainstPO" class="mt-6">
+      <POItemsTableWithEstimates
+        :key="`po-items-${form.purchase_order_uuid || 'none'}-${poItemsKey}-${poItems.length}`"
+        title="Purchase Order Items"
+        :description="form.purchase_order_uuid ? 'Items from the selected purchase order' : 'Select a purchase order to view items'"
+        :items="poItems"
+        :loading="poItemsLoading"
+        :error="poItemsError"
+        :corporation-uuid="corpStore.selectedCorporation?.uuid"
+        :project-uuid="form.project_uuid"
+        :show-estimate-values="false"
+        :show-invoice-values="true"
+        :readonly="props.readonly"
+        :hide-approval-checks="true"
+        :hide-model-number="true"
+        :hide-location="true"
+        @invoice-unit-price-change="handleInvoiceUnitPriceChange"
+        @invoice-quantity-change="handleInvoiceQuantityChange"
+        @invoice-total-change="handleInvoiceTotalChange"
+        @approval-checks-change="handlePOItemApprovalChecksChange"
+      />
+
+      <!-- Advance Payment Breakdown Table -->
+      <AdvancePaymentBreakdownTable
+        :purchase-order-uuid="form.purchase_order_uuid"
+        :current-invoice-uuid="form.uuid"
+      />
+    </div>
+
+    <!-- CO Items Table (only for Against CO) -->
+    <div v-if="isAgainstCO" class="mt-6">
+      <COItemsTableFromOriginal
+        :key="`co-items-${form.change_order_uuid || 'none'}-${coItemsKey}-${coItems.length}`"
+        title="Change Order Items"
+        :description="form.change_order_uuid ? 'Items from the selected change order' : 'Select a change order to view items'"
+        :items="coItems"
+        :loading="coItemsLoading"
+        :error="coItemsError"
+        :show-invoice-values="true"
+        :readonly="props.readonly"
+        :hide-approval-checks="true"
+        @invoice-unit-price-change="handleCOInvoiceUnitPriceChange"
+        @invoice-quantity-change="handleCOInvoiceQuantityChange"
+        @invoice-total-change="handleCOInvoiceTotalChange"
+      />
+
+      <!-- Advance Payment Breakdown Table -->
+      <AdvancePaymentBreakdownTable
+        :change-order-uuid="form.change_order_uuid"
+        :current-invoice-uuid="form.uuid"
+      />
+    </div>
+
+    <!-- Line Items Table (only for Direct Invoice) -->
+    <div v-if="isDirectInvoice" class="mt-6">
+      <DirectVendorInvoiceLineItemsTable
+        :items="lineItems"
+        :corporation-uuid="corpStore.selectedCorporation?.uuid"
+        :readonly="props.readonly"
+        @add-row="handleAddLineItem"
+        @remove-row="handleRemoveLineItem"
+        @cost-code-change="handleLineItemCostCodeChange"
+        @sequence-change="handleLineItemSequenceChange"
+        @item-change="handleLineItemItemChange"
+        @description-change="handleLineItemDescriptionChange"
+        @unit-price-change="handleLineItemUnitPriceChange"
+        @quantity-change="handleLineItemQuantityChange"
+      />
+    </div>
+
+    <!-- File Upload and Financial Breakdown Section (for Advance Payment Invoice) -->
+    <div v-if="isAgainstAdvancePayment" class="mt-6 flex flex-col lg:flex-row gap-6">
+      <!-- File Upload Section (Left) -->
+      <div class="w-full lg:w-auto lg:flex-shrink-0 lg:max-w-md">
+        <!-- Upload Section -->
+        <UCard variant="soft" class="mb-3">
+          <div class="flex justify-between items-center mb-3">
+            <h4 class="text-base font-bold text-default flex items-center gap-2 border-b border-default/60 pb-2">
+              <UIcon name="i-heroicons-cloud-arrow-up-solid" class="w-5 h-5 text-primary-500" />
+              File Upload
+            </h4>
+            <span class="text-xs text-muted bg-elevated px-2 py-1 rounded border border-default/60">
+              {{ totalAttachmentCount }} files
+              <span
+                v-if="uploadedAttachmentCount > 0"
+                class="text-success-600 dark:text-success-400"
+              >
+                ({{ uploadedAttachmentCount }} uploaded)
+              </span>
+            </span>
+          </div>
+
+          <UFileUpload
+            v-slot="{ open }"
+            v-model="uploadedFiles"
+            accept=".pdf,.png,.jpg,.jpeg"
+            multiple
+          >
+            <div class="space-y-2">
+              <UButton
+                :label="isUploading ? 'Uploading...' : (uploadedFiles.length > 0 ? 'Add more files' : 'Choose files')"
+                color="primary"
+                variant="solid"
+                size="sm"
+                :icon="isUploading ? 'i-heroicons-arrow-path' : 'i-heroicons-document-plus'"
+                :loading="isUploading"
+                :disabled="isUploading || props.readonly"
+                @click="open()"
+              />
+
+              <p
+                v-if="fileUploadErrorMessage"
+                class="text-xs text-error-600 flex items-center gap-1 p-2 bg-error-50 rounded border border-error-200 dark:bg-error-500/10 dark:border-error-500/30"
+              >
+                <UIcon name="i-heroicons-exclamation-triangle" class="w-3 h-3 flex-shrink-0" />
+                <span class="truncate">{{ fileUploadErrorMessage }}</span>
+              </p>
+
+              <p class="text-[11px] text-muted text-center">
+                PDF or image files · Maximum size 10MB each
+              </p>
+            </div>
+          </UFileUpload>
+        </UCard>
+
+        <!-- Uploaded Files List -->
+        <UCard variant="soft">
+          <div class="flex justify-between items-center mb-3">
+            <h4 class="text-base font-bold text-default flex items-center gap-2 border-b border-default/60 pb-2">
+              <UIcon name="i-heroicons-document-text-solid" class="w-5 h-5 text-primary-500" />
+              Uploaded Files
+            </h4>
+          </div>
+
+          <div
+            v-if="!form.attachments || form.attachments.length === 0"
+            class="flex flex-col items-center justify-center min-h-[200px] text-muted p-6"
+          >
+            <UIcon name="i-heroicons-document" class="w-12 h-12 mb-3 text-muted" />
+            <p class="text-sm font-medium mb-1">No files uploaded</p>
+            <p class="text-xs text-muted text-center">
+              Use the button above to attach invoice documents.
+            </p>
+          </div>
+
+          <div v-else class="max-h-[300px] overflow-y-auto">
+            <div class="space-y-2">
+              <div
+                v-for="(attachment, index) in form.attachments"
+                :key="attachment.uuid || attachment.tempId || `attachment-${index}`"
+                class="flex items-center gap-2 p-2 bg-elevated rounded-md border border-default text-xs hover:bg-accented transition-colors"
+              >
+                <UIcon
+                  :name="attachment.uuid || attachment.isUploaded ? 'i-heroicons-check-circle' : 'i-heroicons-arrow-up-tray'"
+                  class="w-3 h-3"
+                  :class="attachment.uuid || attachment.isUploaded ? 'text-success-600' : 'text-warning-500'"
+                />
+                <span class="truncate flex-1 text-default">
+                  {{ attachment.document_name || attachment.name || `File ${index + 1}` }}
+                </span>
+                <span class="text-[11px] text-muted">
+                  {{ formatFileSize(attachment.size || attachment.file_size) }}
+                </span>
+                <div class="flex items-center gap-1">
+                  <UButton
+                    icon="i-heroicons-eye-solid"
+                    color="neutral"
+                    variant="soft"
+                    size="xs"
+                    class="p-1 h-auto text-xs"
+                    @click.stop="previewFile(attachment)"
+                  />
+                  <UButton
+                    icon="mingcute:delete-fill"
+                    color="error"
+                    variant="soft"
+                    size="xs"
+                    class="p-1 h-auto text-xs"
+                    :disabled="props.readonly"
+                    @click.stop="removeFile(index)"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </UCard>
+      </div>
+
+      <!-- Financial Breakdown (Right) -->
+      <div class="w-full lg:flex-1 flex justify-start lg:justify-end">
+        <div class="w-full lg:w-auto lg:min-w-[520px]">
+          <FinancialBreakdown
+            :item-total="advancePaymentTotal"
+            :form-data="form"
+            :read-only="props.readonly"
+            item-total-label="Advance Payment Total"
+            total-label="Total Invoice Amount"
+            total-field-name="amount"
+            :hide-charges="true"
+            :show-total-amount="true"
+            total-amount-label="Total Amount"
+            :allow-edit-total="false"
+            @update="handleFinancialBreakdownUpdate"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- File Upload and Financial Breakdown Section (for Direct Invoice) -->
+    <div v-if="isDirectInvoice" class="mt-6 flex flex-col lg:flex-row gap-6">
+      <!-- File Upload Section (Left) -->
+      <div class="w-full lg:w-auto lg:flex-shrink-0 lg:max-w-md">
+        <!-- Upload Section -->
+        <UCard variant="soft" class="mb-3">
+          <div class="flex justify-between items-center mb-3">
+            <h4 class="text-base font-bold text-default flex items-center gap-2 border-b border-default/60 pb-2">
+              <UIcon name="i-heroicons-cloud-arrow-up-solid" class="w-5 h-5 text-primary-500" />
+              File Upload
+            </h4>
+            <span class="text-xs text-muted bg-elevated px-2 py-1 rounded border border-default/60">
+              {{ totalAttachmentCount }} files
+              <span
+                v-if="uploadedAttachmentCount > 0"
+                class="text-success-600 dark:text-success-400"
+              >
+                ({{ uploadedAttachmentCount }} uploaded)
+              </span>
+            </span>
+          </div>
+
+          <UFileUpload
+            v-slot="{ open }"
+            v-model="uploadedFiles"
+            accept=".pdf,.png,.jpg,.jpeg"
+            multiple
+          >
+            <div class="space-y-2">
+              <UButton
+                :label="isUploading ? 'Uploading...' : (uploadedFiles.length > 0 ? 'Add more files' : 'Choose files')"
+                color="primary"
+                variant="solid"
+                size="sm"
+                :icon="isUploading ? 'i-heroicons-arrow-path' : 'i-heroicons-document-plus'"
+                :loading="isUploading"
+                :disabled="isUploading || props.readonly"
+                @click="open()"
+              />
+
+              <p
+                v-if="fileUploadErrorMessage"
+                class="text-xs text-error-600 flex items-center gap-1 p-2 bg-error-50 rounded border border-error-200 dark:bg-error-500/10 dark:border-error-500/30"
+              >
+                <UIcon name="i-heroicons-exclamation-triangle" class="w-3 h-3 flex-shrink-0" />
+                <span class="truncate">{{ fileUploadErrorMessage }}</span>
+              </p>
+
+              <p class="text-[11px] text-muted text-center">
+                PDF or image files · Maximum size 10MB each
+              </p>
+            </div>
+          </UFileUpload>
+        </UCard>
+
+        <!-- Uploaded Files List -->
+        <UCard variant="soft">
+          <div class="flex justify-between items-center mb-3">
+            <h4 class="text-base font-bold text-default flex items-center gap-2 border-b border-default/60 pb-2">
+              <UIcon name="i-heroicons-document-text-solid" class="w-5 h-5 text-primary-500" />
+              Uploaded Files
+            </h4>
+          </div>
+
+          <div
+            v-if="!form.attachments || form.attachments.length === 0"
+            class="flex flex-col items-center justify-center min-h-[200px] text-muted p-6"
+          >
+            <UIcon name="i-heroicons-document" class="w-12 h-12 mb-3 text-muted" />
+            <p class="text-sm font-medium mb-1">No files uploaded</p>
+            <p class="text-xs text-muted text-center">
+              Use the button above to attach invoice documents.
+            </p>
+          </div>
+
+          <div v-else class="max-h-[300px] overflow-y-auto">
+            <div class="space-y-2">
+              <div
+                v-for="(attachment, index) in form.attachments"
+                :key="attachment.uuid || attachment.tempId || `attachment-${index}`"
+                class="flex items-center gap-2 p-2 bg-elevated rounded-md border border-default text-xs hover:bg-accented transition-colors"
+              >
+                <UIcon
+                  :name="attachment.uuid || attachment.isUploaded ? 'i-heroicons-check-circle' : 'i-heroicons-arrow-up-tray'"
+                  class="w-3 h-3"
+                  :class="attachment.uuid || attachment.isUploaded ? 'text-success-600' : 'text-warning-500'"
+                />
+                <span class="truncate flex-1 text-default">
+                  {{ attachment.document_name || attachment.name || `File ${index + 1}` }}
+                </span>
+                <span class="text-[11px] text-muted">
+                  {{ formatFileSize(attachment.size || attachment.file_size) }}
+                </span>
+                <div class="flex items-center gap-1">
+                  <UButton
+                    icon="i-heroicons-eye-solid"
+                    color="neutral"
+                    variant="soft"
+                    size="xs"
+                    class="p-1 h-auto text-xs"
+                    @click.stop="previewFile(attachment)"
+                  />
+                  <UButton
+                    icon="mingcute:delete-fill"
+                    color="error"
+                    variant="soft"
+                    size="xs"
+                    class="p-1 h-auto text-xs"
+                    :disabled="props.readonly"
+                    @click.stop="removeFile(index)"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </UCard>
+      </div>
+
+      <!-- Financial Breakdown (Right) -->
+      <div class="w-full lg:flex-1 flex justify-start lg:justify-end">
+        <div class="w-full lg:w-auto lg:min-w-[520px]">
+          <FinancialBreakdown
+            :item-total="lineItemsTotal"
+            :form-data="form"
+            :read-only="props.readonly"
+            item-total-label="Item Total"
+            total-label="Total Invoice Amount"
+            total-field-name="amount"
+            :show-total-amount="true"
+            total-amount-label="Total Amount"
+            :allow-edit-total="false"
+            @update="handleFinancialBreakdownUpdate"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- File Upload and Financial Breakdown Section (for Against PO) -->
+    <div v-if="isAgainstPO" class="mt-6 flex flex-col lg:flex-row gap-6">
+      <!-- File Upload Section (Left) -->
+      <div class="w-full lg:w-auto lg:flex-shrink-0 lg:max-w-md">
+        <!-- Upload Section -->
+        <UCard variant="soft" class="mb-3">
+          <div class="flex justify-between items-center mb-3">
+            <h4 class="text-base font-bold text-default flex items-center gap-2 border-b border-default/60 pb-2">
+              <UIcon name="i-heroicons-cloud-arrow-up-solid" class="w-5 h-5 text-primary-500" />
+              File Upload
+            </h4>
+            <span class="text-xs text-muted bg-elevated px-2 py-1 rounded border border-default/60">
+              {{ totalAttachmentCount }} files
+              <span
+                v-if="uploadedAttachmentCount > 0"
+                class="text-success-600 dark:text-success-400"
+              >
+                ({{ uploadedAttachmentCount }} uploaded)
+              </span>
+            </span>
+          </div>
+
+          <UFileUpload
+            v-slot="{ open }"
+            v-model="uploadedFiles"
+            accept=".pdf,.png,.jpg,.jpeg"
+            multiple
+          >
+            <div class="space-y-2">
+              <UButton
+                :label="isUploading ? 'Uploading...' : (uploadedFiles.length > 0 ? 'Add more files' : 'Choose files')"
+                color="primary"
+                variant="solid"
+                size="sm"
+                :icon="isUploading ? 'i-heroicons-arrow-path' : 'i-heroicons-document-plus'"
+                :loading="isUploading"
+                :disabled="isUploading || props.readonly"
+                @click="open()"
+              />
+
+              <p
+                v-if="fileUploadErrorMessage"
+                class="text-xs text-error-600 flex items-center gap-1 p-2 bg-error-50 rounded border border-error-200 dark:bg-error-500/10 dark:border-error-500/30"
+              >
+                <UIcon name="i-heroicons-exclamation-triangle" class="w-3 h-3 flex-shrink-0" />
+                <span class="truncate">{{ fileUploadErrorMessage }}</span>
+              </p>
+
+              <p class="text-[11px] text-muted text-center">
+                PDF or image files · Maximum size 10MB each
+              </p>
+            </div>
+          </UFileUpload>
+        </UCard>
+
+        <!-- Uploaded Files List -->
+        <UCard variant="soft">
+          <div class="flex justify-between items-center mb-3">
+            <h4 class="text-base font-bold text-default flex items-center gap-2 border-b border-default/60 pb-2">
+              <UIcon name="i-heroicons-document-text-solid" class="w-5 h-5 text-primary-500" />
+              Uploaded Files
+            </h4>
+          </div>
+
+          <div
+            v-if="!form.attachments || form.attachments.length === 0"
+            class="flex flex-col items-center justify-center min-h-[200px] text-muted p-6"
+          >
+            <UIcon name="i-heroicons-document" class="w-12 h-12 mb-3 text-muted" />
+            <p class="text-sm font-medium mb-1">No files uploaded</p>
+            <p class="text-xs text-muted text-center">
+              Use the button above to attach invoice documents.
+            </p>
+          </div>
+
+          <div v-else class="max-h-[300px] overflow-y-auto">
+            <div class="space-y-2">
+              <div
+                v-for="(attachment, index) in form.attachments"
+                :key="attachment.uuid || attachment.tempId || `attachment-${index}`"
+                class="flex items-center gap-2 p-2 bg-elevated rounded-md border border-default text-xs hover:bg-accented transition-colors"
+              >
+                <UIcon
+                  :name="attachment.uuid || attachment.isUploaded ? 'i-heroicons-check-circle' : 'i-heroicons-arrow-up-tray'"
+                  class="w-3 h-3"
+                  :class="attachment.uuid || attachment.isUploaded ? 'text-success-600' : 'text-warning-500'"
+                />
+                <span class="truncate flex-1 text-default">
+                  {{ attachment.document_name || attachment.name || `File ${index + 1}` }}
+                </span>
+                <span class="text-[11px] text-muted">
+                  {{ formatFileSize(attachment.size || attachment.file_size) }}
+                </span>
+                <div class="flex items-center gap-1">
+                  <UButton
+                    icon="i-heroicons-eye-solid"
+                    color="neutral"
+                    variant="soft"
+                    size="xs"
+                    class="p-1 h-auto text-xs"
+                    @click.stop="previewFile(attachment)"
+                  />
+                  <UButton
+                    icon="mingcute:delete-fill"
+                    color="error"
+                    variant="soft"
+                    size="xs"
+                    class="p-1 h-auto text-xs"
+                    :disabled="props.readonly"
+                    @click.stop="removeFile(index)"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </UCard>
+      </div>
+
+      <!-- Financial Breakdown (Right) -->
+      <div class="w-full lg:flex-1 flex justify-start lg:justify-end">
+        <div class="w-full lg:w-auto lg:min-w-[520px]">
+          <FinancialBreakdown
+            :item-total="poItemsTotal"
+            :form-data="form"
+            :read-only="props.readonly"
+            item-total-label="Invoice Items Total"
+            total-label="Total Invoice Amount"
+            total-field-name="amount"
+            :show-total-amount="true"
+            total-amount-label="Total Amount"
+            :allow-edit-total="false"
+            :total-invoice-amount-error="props.totalInvoiceAmountError"
+            :advance-payment-deduction="poAdvancePaid"
+            :holdback-deduction="poHoldbackAmount"
+            @update="handleFinancialBreakdownUpdate"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- File Upload and Financial Breakdown Section (for Against CO) -->
+    <div v-if="isAgainstCO" class="mt-6 flex flex-col lg:flex-row gap-6">
+      <!-- File Upload Section (Left) -->
+      <div class="w-full lg:w-auto lg:flex-shrink-0 lg:max-w-md">
+        <!-- Upload Section -->
+        <UCard variant="soft" class="mb-3">
+          <div class="flex justify-between items-center mb-3">
+            <h4 class="text-base font-bold text-default flex items-center gap-2 border-b border-default/60 pb-2">
+              <UIcon name="i-heroicons-cloud-arrow-up-solid" class="w-5 h-5 text-primary-500" />
+              File Upload
+            </h4>
+            <span class="text-xs text-muted bg-elevated px-2 py-1 rounded border border-default/60">
+              {{ totalAttachmentCount }} files
+              <span
+                v-if="uploadedAttachmentCount > 0"
+                class="text-success-600 dark:text-success-400"
+              >
+                ({{ uploadedAttachmentCount }} uploaded)
+              </span>
+            </span>
+          </div>
+
+          <UFileUpload
+            v-slot="{ open }"
+            v-model="uploadedFiles"
+            accept=".pdf,.png,.jpg,.jpeg"
+            multiple
+          >
+            <div class="space-y-2">
+              <UButton
+                :label="isUploading ? 'Uploading...' : (uploadedFiles.length > 0 ? 'Add more files' : 'Choose files')"
+                color="primary"
+                variant="solid"
+                size="sm"
+                :icon="isUploading ? 'i-heroicons-arrow-path' : 'i-heroicons-document-plus'"
+                :loading="isUploading"
+                :disabled="isUploading || props.readonly"
+                @click="open()"
+              />
+
+              <p
+                v-if="fileUploadErrorMessage"
+                class="text-xs text-error-600 flex items-center gap-1 p-2 bg-error-50 rounded border border-error-200 dark:bg-error-500/10 dark:border-error-500/30"
+              >
+                <UIcon name="i-heroicons-exclamation-triangle" class="w-3 h-3 flex-shrink-0" />
+                <span class="truncate">{{ fileUploadErrorMessage }}</span>
+              </p>
+
+              <p class="text-[11px] text-muted text-center">
+                PDF or image files · Maximum size 10MB each
+              </p>
+            </div>
+          </UFileUpload>
+        </UCard>
+
+        <!-- Uploaded Files List -->
+        <UCard variant="soft">
+          <div class="flex justify-between items-center mb-3">
+            <h4 class="text-base font-bold text-default flex items-center gap-2 border-b border-default/60 pb-2">
+              <UIcon name="i-heroicons-document-text-solid" class="w-5 h-5 text-primary-500" />
+              Uploaded Files
+            </h4>
+          </div>
+
+          <div
+            v-if="!form.attachments || form.attachments.length === 0"
+            class="flex flex-col items-center justify-center min-h-[200px] text-muted p-6"
+          >
+            <UIcon name="i-heroicons-document" class="w-12 h-12 mb-3 text-muted" />
+            <p class="text-sm font-medium mb-1">No files uploaded</p>
+            <p class="text-xs text-muted text-center">
+              Use the button above to attach invoice documents.
+            </p>
+          </div>
+
+          <div v-else class="max-h-[300px] overflow-y-auto">
+            <div class="space-y-2">
+              <div
+                v-for="(attachment, index) in form.attachments"
+                :key="attachment.uuid || attachment.tempId || `attachment-${index}`"
+                class="flex items-center gap-2 p-2 bg-elevated rounded-md border border-default text-xs hover:bg-accented transition-colors"
+              >
+                <UIcon
+                  :name="attachment.uuid || attachment.isUploaded ? 'i-heroicons-check-circle' : 'i-heroicons-arrow-up-tray'"
+                  class="w-3 h-3"
+                  :class="attachment.uuid || attachment.isUploaded ? 'text-success-600' : 'text-warning-500'"
+                />
+                <span class="truncate flex-1 text-default">
+                  {{ attachment.document_name || attachment.name || `File ${index + 1}` }}
+                </span>
+                <span class="text-[11px] text-muted">
+                  {{ formatFileSize(attachment.size || attachment.file_size) }}
+                </span>
+                <div class="flex items-center gap-1">
+                  <UButton
+                    icon="i-heroicons-eye-solid"
+                    color="neutral"
+                    variant="soft"
+                    size="xs"
+                    class="p-1 h-auto text-xs"
+                    @click.stop="previewFile(attachment)"
+                  />
+                  <UButton
+                    icon="mingcute:delete-fill"
+                    color="error"
+                    variant="soft"
+                    size="xs"
+                    class="p-1 h-auto text-xs"
+                    :disabled="props.readonly"
+                    @click.stop="removeFile(index)"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </UCard>
+      </div>
+
+      <!-- Financial Breakdown (Right) -->
+      <div class="w-full lg:flex-1 flex justify-start lg:justify-end">
+        <div class="w-full lg:w-auto lg:min-w-[520px]">
+          <FinancialBreakdown
+            :item-total="coItemsTotal"
+            :form-data="form"
+            :read-only="props.readonly"
+            item-total-label="CO Items Total"
+            total-label="Total Invoice Amount"
+            total-field-name="amount"
+            :show-total-amount="true"
+            total-amount-label="Total Amount"
+            :allow-edit-total="false"
+            :total-invoice-amount-error="props.totalInvoiceAmountError"
+            :advance-payment-deduction="coAdvancePaid"
+            :holdback-deduction="coHoldbackAmount"
+            @update="handleFinancialBreakdownUpdate"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- File Preview Modal -->
+    <UModal v-model:open="showFilePreviewModal">
+      <template #header>
+        <div class="flex items-center justify-between w-full">
+          <h3 class="text-base font-semibold text-gray-900 dark:text-white">File Preview</h3>
+          <UButton icon="i-heroicons-x-mark" size="xs" variant="solid" color="neutral" @click="closeFilePreview" />
+        </div>
+      </template>
+      <template #body>
+        <div class="h-[70vh]">
+          <FilePreview :attachment="selectedFileForPreview" />
+        </div>
+      </template>
+    </UModal>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, watch, onMounted, nextTick } from "vue";
+import { CalendarDate, DateFormatter, getLocalTimeZone } from "@internationalized/date";
+import { useCorporationStore } from "@/stores/corporations";
+import { useVendorStore } from "@/stores/vendors";
+import { useProjectsStore } from "@/stores/projects";
+import { useVendorInvoicesStore } from "@/stores/vendorInvoices";
+import { useCostCodeConfigurationsStore } from "@/stores/costCodeConfigurations";
+import { useUTCDateFormat } from '@/composables/useUTCDateFormat';
+import ProjectSelect from '@/components/Shared/ProjectSelect.vue';
+import VendorSelect from '@/components/Shared/VendorSelect.vue';
+import PurchaseOrderSelect from '@/components/Shared/PurchaseOrderSelect.vue';
+import POCOSelect from '@/components/Shared/POCOSelect.vue';
+import FilePreview from '@/components/Shared/FilePreview.vue';
+import DirectVendorInvoiceLineItemsTable from '@/components/Payables/DirectVendorInvoiceLineItemsTable.vue';
+import AdvancePaymentCostCodesTable from '@/components/Payables/AdvancePaymentCostCodesTable.vue';
+import AdvancePaymentBreakdownTable from '@/components/Payables/AdvancePaymentBreakdownTable.vue';
+import FinancialBreakdown from '@/components/PurchaseOrders/FinancialBreakdown.vue';
+import POItemsTableWithEstimates from '@/components/PurchaseOrders/POItemsTableWithEstimates.vue';
+import COItemsTableFromOriginal from '@/components/ChangeOrders/COItemsTableFromOriginal.vue';
+
+// Props
+interface Props {
+  form: any;
+  editingInvoice: boolean;
+  loading?: boolean;
+  readonly?: boolean;
+  totalInvoiceAmountError?: string | null;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  loading: false,
+  readonly: false,
+  totalInvoiceAmountError: null
+});
+
+// Emits
+const emit = defineEmits<{
+  'update:form': [value: any];
+  'file-upload': [files: File[]];
+}>();
+
+// Stores
+const corpStore = useCorporationStore();
+const vendorStore = useVendorStore();
+const projectsStore = useProjectsStore();
+const vendorInvoicesStore = useVendorInvoicesStore();
+const costCodeConfigurationsStore = useCostCodeConfigurationsStore();
+const { toUTCString, fromUTCString } = useUTCDateFormat();
+
+// Helper functions for numeric parsing and rounding (same as PurchaseOrderForm)
+const parseNumericInput = (value: any): number => {
+  if (value === null || value === undefined || value === '') return 0
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0
+  }
+  const normalized = String(value).replace(/,/g, '').trim()
+  if (!normalized) return 0
+  const numeric = Number(normalized)
+  return Number.isFinite(numeric) ? numeric : 0
+}
+
+const roundCurrencyValue = (value: number): number => {
+  if (!Number.isFinite(value)) return 0
+  return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
+// Generate next Invoice number with pattern INV-<n>, starting at 1
+function generateInvoiceNumber() {
+  // Do not override if already set (e.g., editing)
+  if (props.form.number && String(props.form.number).trim() !== '') return;
+  const corporationId = corpStore.selectedCorporation?.uuid || corpStore.selectedCorporationId;
+  if (!corporationId) return;
+
+  // Ensure vendor invoices are available in store
+  const existing = (vendorInvoicesStore.vendorInvoices || []).filter((inv: any) => inv.corporation_uuid === corporationId);
+  let maxNum = 0;
+  for (const inv of existing) {
+    const num = parseInt(String(inv.number || '').replace(/^INV-/i, ''), 10);
+    if (!isNaN(num)) maxNum = Math.max(maxNum, num);
+  }
+  const next = maxNum + 1;
+  handleFormUpdate('number', `INV-${next}`);
+}
+
+// Date formatter
+const df = new DateFormatter('en-US', {
+  dateStyle: 'medium'
+});
+
+// Invoice type options
+const invoiceTypeOptions = [
+  { label: 'Enter Direct Invoice', value: 'ENTER_DIRECT_INVOICE' },
+  { label: 'Against PO', value: 'AGAINST_PO' },
+  { label: 'Against CO', value: 'AGAINST_CO' },
+  { label: 'Against Advance Payment', value: 'AGAINST_ADVANCE_PAYMENT' },
+  { label: 'Against the hold back amount', value: 'AGAINST_HOLDBACK_AMOUNT' },
+];
+
+// Credit days options
+const creditDaysOptions = [
+  { label: 'Net 15', value: 'NET_15' },
+  { label: 'Net 25', value: 'NET_25' },
+  { label: 'Net 30', value: 'NET_30' },
+  { label: 'Net 45', value: 'NET_45' },
+  { label: 'Net 60', value: 'NET_60' },
+];
+
+// Computed properties
+const getCorporationName = computed(() => {
+  return corpStore.selectedCorporation?.corporation_name || 'Select Corporation';
+});
+
+// Check if invoice type is selected
+const isInvoiceTypeSelected = computed(() => {
+  return !!props.form.invoice_type && String(props.form.invoice_type).trim() !== '';
+});
+
+// Check if invoice type is "Against PO"
+const isAgainstPO = computed(() => {
+  return String(props.form.invoice_type || '').toUpperCase() === 'AGAINST_PO';
+});
+
+// Check if invoice type is "Against CO"
+const isAgainstCO = computed(() => {
+  return String(props.form.invoice_type || '').toUpperCase() === 'AGAINST_CO';
+});
+
+// Check if invoice type is "Enter Direct Invoice"
+const isDirectInvoice = computed(() => {
+  return String(props.form.invoice_type || '').toUpperCase() === 'ENTER_DIRECT_INVOICE';
+});
+
+// Check if invoice type is "Against Advance Payment"
+const isAgainstAdvancePayment = computed(() => {
+  return String(props.form.invoice_type || '').toUpperCase() === 'AGAINST_ADVANCE_PAYMENT';
+});
+
+// Determine PO/CO type from po_co_uuid
+const poCoType = computed<'PO' | 'CO' | null>(() => {
+  const poCoUuid = props.form.po_co_uuid
+  if (!poCoUuid || typeof poCoUuid !== 'string') {
+    return null
+  }
+  
+  if (poCoUuid.startsWith('PO:')) {
+    return 'PO'
+  }
+  if (poCoUuid.startsWith('CO:')) {
+    return 'CO'
+  }
+  return null
+});
+
+// Advance payment cost codes
+const advancePaymentCostCodes = computed(() => {
+  return Array.isArray(props.form.advance_payment_cost_codes) 
+    ? props.form.advance_payment_cost_codes 
+    : []
+});
+
+// Removed advance payment cost codes (for persistence)
+const removedAdvancePaymentCostCodes = computed(() => {
+  return Array.isArray(props.form.removed_advance_payment_cost_codes) 
+    ? props.form.removed_advance_payment_cost_codes 
+    : []
+});
+
+// Computed property to determine if subsequent fields should be disabled
+const areSubsequentFieldsDisabled = computed(() => {
+  return !isInvoiceTypeSelected.value || props.readonly;
+});
+
+// Date computed properties
+const billDateValue = computed({
+  get: () => {
+    if (!props.form.bill_date) return null;
+    const src = String(props.form.bill_date);
+    const localYmd = src.includes('T') ? fromUTCString(src) : src;
+    const parts = localYmd.split('-');
+    if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10);
+      const day = parseInt(parts[2], 10);
+      if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+        return new CalendarDate(year, month, day);
+      }
+    }
+    return null;
+  },
+  set: (value: CalendarDate | null) => {
+    if (value) {
+      const dateString = `${value.year}-${String(value.month).padStart(2, '0')}-${String(value.day).padStart(2, '0')}`;
+      handleFormUpdate('bill_date', toUTCString(dateString));
+    } else {
+      handleFormUpdate('bill_date', null);
+    }
+  }
+});
+
+const dueDateValue = computed({
+  get: () => {
+    if (!props.form.due_date) return null;
+    const src = String(props.form.due_date);
+    const localYmd = src.includes('T') ? fromUTCString(src) : src;
+    const parts = localYmd.split('-');
+    if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10);
+      const day = parseInt(parts[2], 10);
+      if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+        return new CalendarDate(year, month, day);
+      }
+    }
+    return null;
+  },
+  set: (value: CalendarDate | null) => {
+    if (value) {
+      const dateString = `${value.year}-${String(value.month).padStart(2, '0')}-${String(value.day).padStart(2, '0')}`;
+      handleFormUpdate('due_date', toUTCString(dateString));
+    } else {
+      handleFormUpdate('due_date', null);
+    }
+  }
+});
+
+// Display text for dates
+const billDateDisplayText = computed(() => {
+  if (!billDateValue.value) return 'Select bill date';
+  return df.format(billDateValue.value.toDate(getLocalTimeZone()));
+});
+
+const dueDateDisplayText = computed(() => {
+  if (!dueDateValue.value) return 'Select due date';
+  return df.format(dueDateValue.value.toDate(getLocalTimeZone()));
+});
+
+// Invoice type option
+const invoiceTypeOption = computed<any>({
+  get: () => {
+    const v = props.form.invoice_type
+    if (!v) return undefined
+    const target = String(v).toUpperCase()
+    return invoiceTypeOptions.find(opt => String(opt.value).toUpperCase() === target)
+  },
+  set: (val) => {
+    const value = typeof val === 'string' ? val : (val?.value || '')
+    handleFormUpdate('invoice_type', value)
+  }
+});
+
+// Credit days option
+const creditDaysOption = computed<any>({
+  get: () => {
+    const v = props.form.credit_days
+    if (!v) return undefined
+    const target = String(v).toLowerCase()
+    let found = creditDaysOptions.find(opt => String(opt.value).toLowerCase() === target)
+    if (!found) {
+      found = creditDaysOptions.find(opt => opt.label.toLowerCase() === target.replace(/_/g, ' '))
+    }
+    return found
+  },
+  set: (val) => {
+    const value = typeof val === 'string' ? val : (val?.value || '')
+    handleFormUpdate('credit_days', value)
+  }
+});
+
+// Amount input value
+const amountInputValue = computed(() => {
+  const amount = props.form.amount
+  if (amount === null || amount === undefined || amount === '') return ''
+  return String(amount)
+});
+
+// Holdback input value
+const holdbackInputValue = computed(() => {
+  const holdback = props.form.holdback
+  if (holdback === null || holdback === undefined || holdback === '') return ''
+  return String(holdback)
+});
+
+// Line items for direct invoice
+const lineItems = computed(() => {
+  return Array.isArray(props.form.line_items) ? props.form.line_items : [];
+});
+
+// Watch line_items to ensure reactivity (same pattern as PurchaseOrderForm)
+watch(
+  () => props.form.line_items,
+  (newItems, oldItems) => {
+    if (newItems !== oldItems) {
+      if (Array.isArray(newItems)) {
+        // Force lineItemsTotal to recalculate by accessing it
+        // This ensures the FinancialBreakdown component's watcher fires
+        const _ = lineItemsTotal.value
+      }
+    }
+  },
+  { deep: true }
+)
+
+// Watch for po_invoice_items to become available and re-map PO items if needed
+// This fixes the race condition where items are loaded before invoice items are available
+watch(
+  () => props.form.po_invoice_items,
+  async (newInvoiceItems, oldInvoiceItems) => {
+    // Only re-map if:
+    // 1. This is an existing invoice (has uuid)
+    // 2. We have PO items already loaded
+    // 3. Invoice items just became available (were undefined/null before, now defined)
+    // 4. We're in Against PO mode
+    // 5. We have a purchase order UUID
+    const wasUndefined = !oldInvoiceItems || (Array.isArray(oldInvoiceItems) && oldInvoiceItems.length === 0);
+    const isNowDefined = Array.isArray(newInvoiceItems);
+    
+    if (
+      props.form.uuid &&
+      isAgainstPO.value &&
+      props.form.purchase_order_uuid &&
+      poItems.value.length > 0 &&
+      wasUndefined &&
+      isNowDefined
+    ) {
+      console.log('[VIF] po_invoice_items became available, re-mapping PO items with saved invoice values');
+      // Re-fetch PO items to re-map with saved invoice values
+      await fetchPOItems(props.form.purchase_order_uuid);
+    }
+  },
+  { immediate: false }
+)
+
+// Watch for co_invoice_items to become available and re-map CO items if needed
+// This fixes the race condition where items are loaded before invoice items are available
+watch(
+  () => props.form.co_invoice_items,
+  async (newInvoiceItems, oldInvoiceItems) => {
+    // Only re-map if:
+    // 1. This is an existing invoice (has uuid)
+    // 2. We have CO items already loaded
+    // 3. Invoice items just became available (were undefined/null before, now defined)
+    // 4. We're in Against CO mode
+    // 5. We have a change order UUID
+    const wasUndefined = !oldInvoiceItems || (Array.isArray(oldInvoiceItems) && oldInvoiceItems.length === 0);
+    const isNowDefined = Array.isArray(newInvoiceItems);
+    
+    if (
+      props.form.uuid &&
+      isAgainstCO.value &&
+      props.form.change_order_uuid &&
+      coItems.value.length > 0 &&
+      wasUndefined &&
+      isNowDefined
+    ) {
+      console.log('[VIF] co_invoice_items became available, re-mapping CO items with saved invoice values');
+      // Re-fetch CO items to re-map with saved invoice values
+      await fetchCOItems(props.form.change_order_uuid);
+    }
+  },
+  { immediate: false }
+)
+
+// File upload functionality
+const uploadedFiles = ref<File[]>([]);
+const fileUploadError = ref<string | null>(null);
+const isUploading = ref(false);
+const dueDatePopoverOpen = ref(false);
+
+// File preview functionality
+const showFilePreviewModal = ref(false);
+const selectedFileForPreview = ref<any>(null);
+
+// PO items state (for Against PO invoice type)
+const poItems = ref<any[]>([]);
+const poItemsLoading = ref(false);
+const poItemsError = ref<string | null>(null);
+const poItemsKey = ref(0); // Key to force re-render of POItemsTableWithEstimates
+const poAdvancePaid = ref<number>(0); // Total advance payments made for the selected PO
+
+// CO items state (for Against CO invoice type)
+const coItems = ref<any[]>([]);
+const coItemsLoading = ref(false);
+const coItemsError = ref<string | null>(null);
+const coItemsKey = ref(0); // Key to force re-render of COItemsTableFromOriginal
+const isUpdatingCOInvoiceItems = ref(false); // Guard flag to prevent infinite loops when syncing CO invoice items
+const coAdvancePaid = ref<number>(0); // Total advance payments made for the selected CO
+
+// Computed property for file upload error message
+const fileUploadErrorMessage = computed(() => {
+  return fileUploadError.value;
+});
+
+const totalAttachmentCount = computed(() =>
+  Array.isArray(props.form.attachments) ? props.form.attachments.length : 0
+);
+
+const uploadedAttachmentCount = computed(() =>
+  Array.isArray(props.form.attachments)
+    ? props.form.attachments.filter((att: any) => att?.uuid || att?.isUploaded).length
+    : 0
+);
+
+// Methods
+const handleFormUpdate = (field: string, value: any) => {
+  // Ensure deep cloning for nested arrays to trigger reactivity (same pattern as PurchaseOrderForm)
+  const updatedForm = { ...props.form };
+  
+  if (field === 'line_items' && Array.isArray(value)) {
+    // Always create a new array reference with deep-cloned items to ensure Vue tracks changes
+    // This ensures that nested property changes (like unit_price, quantity, total) trigger reactivity
+    updatedForm[field] = value.map((item: any) => ({
+      ...item,
+    }));
+  } else if (field === 'po_invoice_items' && Array.isArray(value)) {
+    // Always create a new array reference with deep-cloned items to ensure Vue tracks changes
+    updatedForm[field] = value.map((item: any) => ({
+      ...item,
+    }));
+  } else if (field === 'co_invoice_items' && Array.isArray(value)) {
+    // Always create a new array reference with deep-cloned items to ensure Vue tracks changes
+    updatedForm[field] = value.map((item: any) => ({
+      ...item,
+    }));
+  } else if (field === 'advance_payment_cost_codes' && Array.isArray(value)) {
+    // Always create a new array reference with deep-cloned items to ensure Vue tracks changes
+    updatedForm[field] = value.map((item: any) => ({
+      ...item,
+    }));
+  } else if (field === 'removed_advance_payment_cost_codes') {
+    // Always create a new array reference with deep-cloned items to ensure Vue tracks changes
+    const arrayValue = Array.isArray(value) ? value : []
+    updatedForm[field] = arrayValue.map((item: any) => ({
+      ...item,
+    }));
+  } else {
+    updatedForm[field] = value;
+  }
+  
+  emit('update:form', updatedForm);
+};
+
+const handleProjectChange = async (projectUuid?: string | null) => {
+  const normalizedProjectUuid = projectUuid || '';
+  handleFormUpdate('project_uuid', normalizedProjectUuid);
+};
+
+const handleVendorChange = (value: any) => {
+  const vendorUuid = typeof value === 'string' ? value : (value && typeof value === 'object' ? value.value : '');
+  handleFormUpdate('vendor_uuid', vendorUuid || '');
+};
+
+const handlePOChange = async (value: any) => {
+  // Extract UUID - handle both string and object formats
+  let poUuid: string | null = null;
+  
+  if (typeof value === 'string') {
+    poUuid = value || null;
+  } else if (value && typeof value === 'object') {
+    // Try different possible properties
+    poUuid = value.value || value.uuid || value.id || null;
+    
+    // Also check if it's a purchaseOrder object
+    if (!poUuid && value.purchaseOrder) {
+      poUuid = value.purchaseOrder.uuid || value.purchaseOrder.value || null;
+    }
+  }
+  
+  // Update purchase_order_uuid - ensure it's a string or null, not empty string
+  const finalPoUuid = poUuid && poUuid.trim() ? poUuid.trim() : null;
+  handleFormUpdate('purchase_order_uuid', finalPoUuid);
+  
+  // Also update po_number if we have the purchase order object
+  if (value && typeof value === 'object' && value.purchaseOrder) {
+    handleFormUpdate('po_number', value.purchaseOrder.po_number || '');
+  } else if (!finalPoUuid) {
+    handleFormUpdate('po_number', '');
+    poItems.value = [];
+    poItemsError.value = null;
+    return;
+  }
+  
+  // Fetch PO items when PO is selected (for Against PO invoice type)
+  // We fetch directly here to ensure it happens immediately, and the watcher will also handle it
+  if (finalPoUuid && isAgainstPO.value) {
+    await fetchPOItems(finalPoUuid);
+  } else if (!finalPoUuid) {
+    // Clear items if PO is cleared
+    poItems.value = [];
+    poItemsError.value = null;
+    poItemsKey.value += 1; // Force re-render when clearing
+  }
+};
+
+
+// Fetch PO items and financial breakdown
+const fetchPOItems = async (poUuid: string) => {
+  if (!poUuid) {
+    poItems.value = [];
+    return;
+  }
+  
+  poItemsLoading.value = true;
+  poItemsError.value = null;
+  
+  try {
+    // Fetch both PO items and PO details (for financial breakdown)
+    // Try purchase-order-forms first, then fallback to purchase-orders
+    let poResponse: { data: any } | null = null;
+    try {
+      poResponse = await $fetch<{ data: any }>(`/api/purchase-order-forms/${poUuid}`);
+    } catch (error1) {
+      console.warn('[VendorInvoiceForm] Failed to fetch from purchase-order-forms, trying purchase-orders:', error1);
+      try {
+        const response = await $fetch<{ data: any }>(`/api/purchase-orders?uuid=${poUuid}`);
+        poResponse = response;
+      } catch (error2) {
+        console.warn('[VendorInvoiceForm] Failed to fetch from purchase-orders:', error2);
+      }
+    }
+    
+    const itemsResponse = await $fetch<{ data: any[] }>(`/api/purchase-order-items?purchase_order_uuid=${poUuid}`);
+    const items = Array.isArray(itemsResponse?.data) ? itemsResponse.data : [];
+    
+    // Check if we have saved invoice items for this invoice
+    let savedInvoiceItems: any[] = [];
+    if (props.form.uuid && props.form.po_invoice_items && Array.isArray(props.form.po_invoice_items)) {
+      savedInvoiceItems = props.form.po_invoice_items;
+    }
+    
+    // Create a map of saved invoice items by po_item_uuid for quick lookup
+    const invoiceItemsMap = new Map<string, any>();
+    savedInvoiceItems.forEach((invoiceItem: any) => {
+      if (invoiceItem.po_item_uuid) {
+        invoiceItemsMap.set(invoiceItem.po_item_uuid, invoiceItem);
+      }
+    });
+    
+    // Map items to the format expected by POItemsTableWithEstimates
+    const mappedItems = items.map((item: any, index: number) => {
+      const poItemUuid = item.uuid;
+      const savedInvoiceItem = invoiceItemsMap.get(poItemUuid);
+      
+      if (props.form.uuid && poItemUuid) {
+        console.log('[VIF] Mapping item:', poItemUuid, 
+          'savedInvoiceItem exists:', !!savedInvoiceItem,
+          'saved invoice_unit_price:', savedInvoiceItem?.invoice_unit_price,
+          'saved invoice_quantity:', savedInvoiceItem?.invoice_quantity);
+      }
+      
+      return {
+      id: item.uuid || item.id || `po-item-${index}`,
+        po_item_uuid: poItemUuid, // Store reference to original PO item for saving
+      cost_code_uuid: item.cost_code_uuid || null,
+      cost_code_label: item.cost_code_label || 
+        (item.cost_code_number && item.cost_code_name 
+          ? `${item.cost_code_number} ${item.cost_code_name}`.trim()
+          : null),
+      cost_code_number: item.cost_code_number || '',
+      cost_code_name: item.cost_code_name || '',
+      item_type_uuid: item.item_type_uuid || null,
+      item_type_label: item.item_type_label || '',
+      item_uuid: item.item_uuid || null,
+      description: item.description || '',
+      model_number: item.model_number || '',
+      location_uuid: item.location_uuid || null,
+      location: item.location || '',
+      unit_uuid: item.unit_uuid || null,
+      unit_label: item.unit_label || item.unit || '',
+      quantity: item.quantity || null,
+      unit_price: item.unit_price || null,
+      total: item.total || null,
+      po_unit_price: item.po_unit_price || item.unit_price || null,
+      po_quantity: item.po_quantity || item.quantity || null,
+      po_total: item.po_total || item.total || null,
+        // For new invoices: show empty fields (null)
+        // For existing invoices: 
+        //   - If savedInvoiceItem exists: use its values (even if null/undefined)
+        //   - If savedInvoiceItems exist but no match: use null (empty field)
+        //   - If no savedInvoiceItems at all: fall back to PO values
+        invoice_unit_price: props.form.uuid 
+          ? (savedInvoiceItem 
+              ? (savedInvoiceItem.invoice_unit_price !== undefined ? savedInvoiceItem.invoice_unit_price : null)
+              : (savedInvoiceItems.length > 0 ? null : (item.po_unit_price ?? item.unit_price ?? null)))
+          : null,
+        invoice_quantity: props.form.uuid 
+          ? (savedInvoiceItem 
+              ? (savedInvoiceItem.invoice_quantity !== undefined ? savedInvoiceItem.invoice_quantity : null)
+              : (savedInvoiceItems.length > 0 ? null : (item.po_quantity ?? item.quantity ?? null)))
+          : null,
+        invoice_total: props.form.uuid 
+          ? (savedInvoiceItem 
+              ? (savedInvoiceItem.invoice_total !== undefined ? savedInvoiceItem.invoice_total : null)
+              : (savedInvoiceItems.length > 0 ? null : (item.po_total ?? item.total ?? null)))
+          : null,
+      approval_checks: props.form.uuid && savedInvoiceItem
+        ? (savedInvoiceItem.approval_checks || [])
+        : (item.approval_checks || item.approval_checks_uuids || []),
+      options: item.options || []
+      };
+    });
+    
+    // Set loading to false BEFORE setting items to ensure component is ready
+    poItemsLoading.value = false;
+    
+    // Wait for next tick to ensure component state is updated
+    await nextTick();
+    
+    // Create a completely new array with new object references to ensure Vue reactivity
+    poItems.value = mappedItems.map(item => ({ ...item }));
+    
+    // Immediately sync poItems to form.po_invoice_items for saving
+    // This ensures the data is available even if the watcher hasn't fired yet
+    if (isAgainstPO.value && poItems.value.length > 0) {
+      const poInvoiceItems = poItems.value.map((item: any, index: number) => ({
+        order_index: index,
+        po_item_uuid: item.po_item_uuid || item.id || null,
+        cost_code_uuid: item.cost_code_uuid || null,
+        cost_code_label: item.cost_code_label || null,
+        cost_code_number: item.cost_code_number || '',
+        cost_code_name: item.cost_code_name || '',
+        division_name: item.division_name || null,
+        item_type_uuid: item.item_type_uuid || null,
+        item_type_label: item.item_type_label || '',
+        item_uuid: item.item_uuid || null,
+        item_name: item.item_name || item.description || '',
+        description: item.description || '',
+        model_number: item.model_number || '',
+        location_uuid: item.location_uuid || null,
+        location_label: item.location || item.location_label || null,
+        unit_uuid: item.unit_uuid || null,
+        unit_label: item.unit_label || '',
+        // Use the invoice values from the mapped items (which are already set correctly based on new vs existing invoice)
+        invoice_quantity: item.invoice_quantity !== undefined ? item.invoice_quantity : null,
+        invoice_unit_price: item.invoice_unit_price !== undefined ? item.invoice_unit_price : null,
+        invoice_total: item.invoice_total !== undefined ? item.invoice_total : null,
+        approval_checks: item.approval_checks || [],
+        metadata: item.metadata || {}
+      }));
+      
+      // Update form with po_invoice_items
+      isUpdatingPOInvoiceItems.value = true;
+      try {
+        handleFormUpdate('po_invoice_items', poInvoiceItems);
+      } finally {
+        await nextTick();
+        isUpdatingPOInvoiceItems.value = false;
+      }
+    }
+    
+    // Fetch advance payment summary for this PO
+    // If viewing an existing invoice, include advance payments adjusted against it
+    try {
+      const queryParams = new URLSearchParams({ purchase_order_uuid: poUuid });
+      if (props.form.uuid) {
+        queryParams.append('currentInvoiceUuid', props.form.uuid);
+      }
+      const summaryResponse = await $fetch<{ data: any }>(
+        `/api/purchase-orders/invoice-summary?${queryParams.toString()}`
+      );
+      if (summaryResponse?.data) {
+        poAdvancePaid.value = parseFloat(summaryResponse.data.advance_paid || '0') || 0;
+      } else {
+        poAdvancePaid.value = 0;
+      }
+    } catch (error) {
+      console.warn('[VendorInvoiceForm] Failed to fetch advance payment summary:', error);
+      poAdvancePaid.value = 0;
+    }
+    
+    // Increment key to force component re-render
+    poItemsKey.value += 1;
+    
+    // Force another tick to ensure the component receives the update and re-renders
+    await nextTick();
+    
+    // Populate financial breakdown from PO if available
+    if (poResponse?.data) {
+      const po = poResponse.data;
+      
+      // Try to get financial breakdown from JSON field first
+      let poFinancialBreakdown = po.financial_breakdown || po.financialBreakdown;
+      
+      // If financial_breakdown is a string, parse it
+      if (typeof poFinancialBreakdown === 'string') {
+        try {
+          poFinancialBreakdown = JSON.parse(poFinancialBreakdown);
+        } catch (e) {
+          console.warn('[VendorInvoiceForm] Failed to parse financial_breakdown string:', e);
+          poFinancialBreakdown = null;
+        }
+      }
+      
+      // If no financial breakdown JSON, build it from individual fields
+      if (!poFinancialBreakdown || (typeof poFinancialBreakdown === 'object' && Object.keys(poFinancialBreakdown).length === 0)) {
+        poFinancialBreakdown = {
+          charges: {
+            freight: {
+              percentage: po.freight_charges_percentage ?? null,
+              amount: po.freight_charges_amount ?? null,
+              taxable: po.freight_charges_taxable ?? false
+            },
+            packing: {
+              percentage: po.packing_charges_percentage ?? null,
+              amount: po.packing_charges_amount ?? null,
+              taxable: po.packing_charges_taxable ?? false
+            },
+            custom_duties: {
+              percentage: po.custom_duties_percentage ?? null,
+              amount: po.custom_duties_amount ?? null,
+              taxable: po.custom_duties_taxable ?? false
+            },
+            other: {
+              percentage: po.other_charges_percentage ?? null,
+              amount: po.other_charges_amount ?? null,
+              taxable: po.other_charges_taxable ?? false
+            }
+          },
+          sales_taxes: {
+            sales_tax_1: {
+              percentage: po.sales_tax_1_percentage ?? null,
+              amount: po.sales_tax_1_amount ?? null
+            },
+            sales_tax_2: {
+              percentage: po.sales_tax_2_percentage ?? null,
+              amount: po.sales_tax_2_amount ?? null
+            }
+          },
+          totals: {
+            item_total: po.item_total ?? poItemsTotal.value ?? null,
+            charges_total: po.charges_total ?? null,
+            tax_total: po.tax_total ?? null,
+            total_po_amount: po.total_po_amount ?? null
+          }
+        };
+      }
+      
+      if (poFinancialBreakdown && typeof poFinancialBreakdown === 'object') {
+        // For existing invoices, check if there's a saved financial breakdown
+        // If there is, use the saved charges and taxes instead of PO values
+        let savedFinancialBreakdown = null;
+        if (props.form.uuid) {
+          // This is an existing invoice - check for saved financial breakdown
+          savedFinancialBreakdown = props.form.financial_breakdown;
+          if (typeof savedFinancialBreakdown === 'string') {
+            try {
+              savedFinancialBreakdown = JSON.parse(savedFinancialBreakdown);
+            } catch (e) {
+              console.warn('[VendorInvoiceForm] Failed to parse saved financial_breakdown:', e);
+              savedFinancialBreakdown = null;
+            }
+          }
+        }
+        
+        // Use saved financial breakdown if available (for existing invoices with saved charges/taxes)
+        // Otherwise, use PO financial breakdown (for new invoices or invoices without saved values)
+        // Only use saved if it has charges or sales_taxes defined (not just totals)
+        const hasSavedChargesOrTaxes = savedFinancialBreakdown && typeof savedFinancialBreakdown === 'object' && 
+          (savedFinancialBreakdown.charges || savedFinancialBreakdown.sales_taxes);
+        
+        const sourceFinancialBreakdown = hasSavedChargesOrTaxes 
+          ? savedFinancialBreakdown 
+          : poFinancialBreakdown;
+        
+        // Deep clone the financial breakdown to avoid mutating the original
+        const financialBreakdown = JSON.parse(JSON.stringify(sourceFinancialBreakdown));
+        
+        // Ensure the structure matches what FinancialBreakdown expects
+        if (!financialBreakdown.charges) {
+          financialBreakdown.charges = {
+            freight: { percentage: null, amount: null, taxable: false },
+            packing: { percentage: null, amount: null, taxable: false },
+            custom_duties: { percentage: null, amount: null, taxable: false },
+            other: { percentage: null, amount: null, taxable: false },
+          };
+        }
+        
+        if (!financialBreakdown.sales_taxes) {
+          financialBreakdown.sales_taxes = {
+            sales_tax_1: { percentage: null, amount: null },
+            sales_tax_2: { percentage: null, amount: null },
+          };
+        }
+        
+        if (!financialBreakdown.totals) {
+          financialBreakdown.totals = {
+            item_total: null,
+            charges_total: null,
+            tax_total: null,
+            total_po_amount: null,
+          };
+        }
+        
+        // Update totals with PO items total if not already set
+        if (!financialBreakdown.totals.item_total && poItemsTotal.value > 0) {
+          financialBreakdown.totals.item_total = poItemsTotal.value;
+        }
+        
+        // DO NOT map total_po_amount to total_invoice_amount
+        // total_invoice_amount should only be calculated from invoice item values + charges + taxes
+        // The FinancialBreakdown component will calculate total_invoice_amount automatically
+        // We keep total_po_amount for reference only
+        
+        // Flatten the financial breakdown structure for the form
+        // The FinancialBreakdown component expects flat fields like freight_charges_percentage, etc.
+        const updatedForm = { ...props.form };
+        
+        // Explicitly preserve purchase_order_uuid and other critical fields
+        // IMPORTANT: Use the poUuid parameter passed to this function, not props.form.purchase_order_uuid
+        // because props.form might not have been updated yet due to timing/reactivity
+        const preservedFields = {
+          purchase_order_uuid: poUuid || props.form.purchase_order_uuid || null,
+          change_order_uuid: props.form.change_order_uuid,
+          po_co_uuid: props.form.po_co_uuid,
+          po_number: props.form.po_number,
+          co_number: props.form.co_number,
+          invoice_type: props.form.invoice_type,
+          project_uuid: props.form.project_uuid,
+          vendor_uuid: props.form.vendor_uuid,
+        };
+        
+        // Update financial_breakdown object
+        updatedForm.financial_breakdown = financialBreakdown;
+        
+        // Explicitly preserve critical fields - this ensures purchase_order_uuid is not lost
+        Object.assign(updatedForm, preservedFields);
+        
+        // Flatten charge fields
+        if (financialBreakdown.charges) {
+          updatedForm.freight_charges_percentage = financialBreakdown.charges.freight?.percentage ?? null;
+          updatedForm.freight_charges_amount = financialBreakdown.charges.freight?.amount ?? null;
+          updatedForm.freight_charges_taxable = financialBreakdown.charges.freight?.taxable ?? false;
+          
+          updatedForm.packing_charges_percentage = financialBreakdown.charges.packing?.percentage ?? null;
+          updatedForm.packing_charges_amount = financialBreakdown.charges.packing?.amount ?? null;
+          updatedForm.packing_charges_taxable = financialBreakdown.charges.packing?.taxable ?? false;
+          
+          updatedForm.custom_duties_charges_percentage = financialBreakdown.charges.custom_duties?.percentage ?? null;
+          updatedForm.custom_duties_charges_amount = financialBreakdown.charges.custom_duties?.amount ?? null;
+          updatedForm.custom_duties_charges_taxable = financialBreakdown.charges.custom_duties?.taxable ?? false;
+          
+          updatedForm.other_charges_percentage = financialBreakdown.charges.other?.percentage ?? null;
+          updatedForm.other_charges_amount = financialBreakdown.charges.other?.amount ?? null;
+          updatedForm.other_charges_taxable = financialBreakdown.charges.other?.taxable ?? false;
+        }
+        
+        // Flatten sales tax fields
+        if (financialBreakdown.sales_taxes) {
+          updatedForm.sales_tax_1_percentage = financialBreakdown.sales_taxes.sales_tax_1?.percentage ?? null;
+          updatedForm.sales_tax_1_amount = financialBreakdown.sales_taxes.sales_tax_1?.amount ?? null;
+          
+          updatedForm.sales_tax_2_percentage = financialBreakdown.sales_taxes.sales_tax_2?.percentage ?? null;
+          updatedForm.sales_tax_2_amount = financialBreakdown.sales_taxes.sales_tax_2?.amount ?? null;
+        }
+        
+        // Flatten totals fields
+        if (financialBreakdown.totals) {
+          updatedForm.item_total = financialBreakdown.totals.item_total ?? null;
+          updatedForm.charges_total = financialBreakdown.totals.charges_total ?? null;
+          updatedForm.tax_total = financialBreakdown.totals.tax_total ?? null;
+        }
+        
+        // For existing invoices (Against PO):
+        // Since we fetched advance payment BEFORE building financial breakdown,
+        // the FinancialBreakdown component will automatically recalculate with:
+        // - item_total (from saved invoice values via poItemsTotal)
+        // - charges and taxes (from saved financial breakdown)
+        // - current advance payment (poAdvancePaid - fetched above)
+        // - current holdback (poHoldbackAmount)
+        // So we don't need to clear or manipulate the amount - just let it flow naturally
+        
+        updatedForm.financial_breakdown = financialBreakdown
+        
+        // Emit the complete updated form with all flattened fields
+        emit('update:form', updatedForm);
+      } else {
+        console.warn('[VendorInvoiceForm] No valid financial breakdown found in PO');
+      }
+    } else {
+      console.warn('[VendorInvoiceForm] No PO data received from API');
+    }
+  } catch (error) {
+    console.error('[VendorInvoiceForm] Error fetching PO items:', error);
+    poItemsError.value = 'Failed to load purchase order items';
+    poItems.value = [];
+    poItemsLoading.value = false;
+  }
+};
+
+// Reset advance paid when PO changes
+watch(
+  () => props.form.purchase_order_uuid,
+  (newPoUuid, oldPoUuid) => {
+    if (newPoUuid !== oldPoUuid) {
+      poAdvancePaid.value = 0;
+    }
+  }
+);
+
+// Fetch CO items and financial breakdown
+const fetchCOItems = async (coUuid: string) => {
+  if (!coUuid) {
+    coItems.value = [];
+    return;
+  }
+  
+  coItemsLoading.value = true;
+  coItemsError.value = null;
+  
+  // Fetch advance payment summary FIRST before fetching CO items
+  // This ensures coAdvancePaid is set before FinancialBreakdown calculates totals
+  // If viewing an existing invoice, include advance payments adjusted against it
+  try {
+    const queryParams = new URLSearchParams({ change_order_uuid: coUuid });
+    if (props.form.uuid) {
+      queryParams.append('currentInvoiceUuid', props.form.uuid);
+    }
+    const summaryResponse = await $fetch<{ data: any }>(
+      `/api/change-orders/invoice-summary?${queryParams.toString()}`
+    );
+    if (summaryResponse?.data) {
+      coAdvancePaid.value = parseFloat(summaryResponse.data.advance_paid || '0') || 0;
+    } else {
+      coAdvancePaid.value = 0;
+    }
+  } catch (error) {
+    console.warn('[VendorInvoiceForm] Failed to fetch CO advance payment summary:', error);
+    coAdvancePaid.value = 0;
+  }
+  
+  try {
+    // Fetch both CO items and CO details (for financial breakdown)
+    const coResponse = await $fetch<{ data: any }>(`/api/change-orders/${coUuid}`);
+    const itemsResponse = await $fetch<{ data: any[] }>(`/api/change-order-items?change_order_uuid=${coUuid}`);
+    const items = Array.isArray(itemsResponse?.data) ? itemsResponse.data : [];
+    
+    // Check if we have saved invoice items for this invoice
+    let savedInvoiceItems: any[] = [];
+    if (props.form.uuid && props.form.co_invoice_items && Array.isArray(props.form.co_invoice_items)) {
+      savedInvoiceItems = props.form.co_invoice_items;
+    }
+    
+    // Create a map of saved invoice items by co_item_uuid for quick lookup
+    const invoiceItemsMap = new Map<string, any>();
+    savedInvoiceItems.forEach((invoiceItem: any) => {
+      if (invoiceItem.co_item_uuid) {
+        invoiceItemsMap.set(invoiceItem.co_item_uuid, invoiceItem);
+      }
+    });
+    
+    // Map items to the format expected by COItemsTableFromOriginal
+    // Original values: unit_price, quantity, total (from PO)
+    // CO values: co_unit_price, co_quantity, co_total
+    // Invoice values: invoice_unit_price, invoice_quantity, invoice_total
+    const mappedItems = items.map((item: any, index: number) => {
+      const coItemUuid = item.uuid;
+      const savedInvoiceItem = invoiceItemsMap.get(coItemUuid);
+      
+      // Extract metadata (cost code info might be in metadata)
+      const metadata = item.metadata || item.display_metadata || item.displayMetadata || {};
+      
+      // Fetch sequence from cost code configurations store using item_uuid (similar to ChangeOrderForm)
+      const itemUuid = item.item_uuid || null;
+      const itemFromStore = itemUuid ? costCodeConfigurationsStore.getItemById(itemUuid) : null;
+      const sequence = itemFromStore?.item_sequence || item.item_sequence || item.sequence || null;
+      
+      // Get cost code UUID from item or metadata
+      const costCodeUuid = item.cost_code_uuid || metadata.cost_code_uuid || null;
+      
+      // Fetch cost code information from the cost code configurations store using cost_code_uuid
+      // This is the primary source of truth for cost code information
+      let costCodeNumber = '';
+      let costCodeName = '';
+      let costCodeLabel = null;
+      
+      if (costCodeUuid) {
+        const costCodeConfig = costCodeConfigurationsStore.getConfigurationById(costCodeUuid);
+        if (costCodeConfig) {
+          // Use store values as primary source
+          costCodeNumber = costCodeConfig.cost_code_number || '';
+          costCodeName = costCodeConfig.cost_code_name || '';
+          // Construct label from number + name
+          costCodeLabel = [costCodeNumber, costCodeName].filter(Boolean).join(' ').trim() || null;
+        }
+      }
+      
+      // Fallback to item/metadata values if store doesn't have them
+      if (!costCodeNumber) {
+        costCodeNumber = item.cost_code_number || metadata.cost_code_number || '';
+      }
+      if (!costCodeName) {
+        costCodeName = item.cost_code_name || metadata.cost_code_name || '';
+      }
+      if (!costCodeLabel) {
+        // Construct cost_code_label from item/metadata or constructed from number + name
+        costCodeLabel = item.cost_code_label || 
+          metadata.cost_code_label || 
+          metadata.cost_code ||
+          [costCodeNumber, costCodeName].filter(Boolean).join(' ').trim() ||
+          null;
+      }
+      
+      return {
+        id: item.uuid || item.id || `co-item-${index}`,
+        co_item_uuid: coItemUuid, // Store reference to original CO item for saving
+        cost_code_uuid: costCodeUuid,
+        cost_code_label: costCodeLabel,
+        cost_code_number: costCodeNumber,
+        cost_code_name: costCodeName,
+        item_type_uuid: item.item_type_uuid || null,
+        item_type_label: item.item_type_label || '',
+        item_uuid: itemUuid,
+        name: item.item_name || item.name || item.description || '',
+        description: item.description || '',
+        model_number: item.model_number || '',
+        sequence: sequence,
+        location_uuid: item.location_uuid || null,
+        location: item.location_label || item.location || '',
+        unit_uuid: item.unit_uuid || null,
+        unit_label: item.unit_label || item.unit || '',
+        // Original values (from PO)
+        unit_price: item.unit_price || null,
+        quantity: item.quantity || null,
+        total: item.total || null,
+        // CO values
+        co_unit_price: item.co_unit_price || null,
+        co_quantity: item.co_quantity || null,
+        co_total: item.co_total || null,
+        // For new invoices: show empty fields (null)
+        // For existing invoices: 
+        //   - If savedInvoiceItem exists: use its values (even if null/undefined)
+        //   - If savedInvoiceItems exist but no match: use null (empty field)
+        //   - If no savedInvoiceItems at all: fall back to CO values
+        invoice_unit_price: props.form.uuid 
+          ? (savedInvoiceItem 
+              ? (savedInvoiceItem.invoice_unit_price !== undefined ? savedInvoiceItem.invoice_unit_price : null)
+              : (savedInvoiceItems.length > 0 ? null : (item.co_unit_price ?? null)))
+          : null,
+        invoice_quantity: props.form.uuid 
+          ? (savedInvoiceItem 
+              ? (savedInvoiceItem.invoice_quantity !== undefined ? savedInvoiceItem.invoice_quantity : null)
+              : (savedInvoiceItems.length > 0 ? null : (item.co_quantity ?? null)))
+          : null,
+        invoice_total: props.form.uuid 
+          ? (savedInvoiceItem 
+              ? (savedInvoiceItem.invoice_total !== undefined ? savedInvoiceItem.invoice_total : null)
+              : (savedInvoiceItems.length > 0 ? null : (item.co_total ?? null)))
+          : null,
+        approval_checks: item.approval_checks || [],
+        options: item.options || []
+      };
+    });
+    
+    // Set loading to false BEFORE setting items to ensure component is ready
+    coItemsLoading.value = false;
+    
+    // Wait for next tick to ensure component state is updated
+    await nextTick();
+    
+    // Create a completely new array with new object references to ensure Vue reactivity
+    coItems.value = mappedItems.map(item => ({ ...item }));
+    
+    // Immediately sync coItems to form.co_invoice_items for saving
+    // This ensures the data is available even if the watcher hasn't fired yet
+    if (isAgainstCO.value && coItems.value.length > 0) {
+      const coInvoiceItems = coItems.value.map((item: any, index: number) => ({
+        order_index: index,
+        co_item_uuid: item.co_item_uuid || item.id || null,
+        cost_code_uuid: item.cost_code_uuid || null,
+        cost_code_label: item.cost_code_label || null,
+        cost_code_number: item.cost_code_number || '',
+        cost_code_name: item.cost_code_name || '',
+        division_name: item.division_name || null,
+        item_type_uuid: item.item_type_uuid || null,
+        item_type_label: item.item_type_label || '',
+        item_uuid: item.item_uuid || null,
+        item_name: item.item_name || item.name || item.description || '',
+        description: item.description || '',
+        model_number: item.model_number || '',
+        location_uuid: item.location_uuid || null,
+        location_label: item.location || item.location_label || null,
+        unit_uuid: item.unit_uuid || null,
+        unit_label: item.unit_label || '',
+        // Use the invoice values from the mapped items (which are already set correctly based on new vs existing invoice)
+        invoice_quantity: item.invoice_quantity !== undefined ? item.invoice_quantity : null,
+        invoice_unit_price: item.invoice_unit_price !== undefined ? item.invoice_unit_price : null,
+        invoice_total: item.invoice_total !== undefined ? item.invoice_total : null,
+        metadata: item.metadata || {}
+      }));
+      
+      // Update form with co_invoice_items
+      isUpdatingCOInvoiceItems.value = true;
+      try {
+        handleFormUpdate('co_invoice_items', coInvoiceItems);
+      } finally {
+        await nextTick();
+        isUpdatingCOInvoiceItems.value = false;
+      }
+    }
+    
+    // Increment key to force component re-render
+    coItemsKey.value += 1;
+    
+    // Force another tick to ensure the component receives the update and re-renders
+    await nextTick();
+    
+    // Populate financial breakdown from CO if available
+    if (coResponse?.data) {
+      const co = coResponse.data;
+      
+      // Try to get financial breakdown from JSON field first
+      let coFinancialBreakdown = co.financial_breakdown || co.financialBreakdown;
+      
+      // If financial_breakdown is a string, parse it
+      if (typeof coFinancialBreakdown === 'string') {
+        try {
+          coFinancialBreakdown = JSON.parse(coFinancialBreakdown);
+        } catch (e) {
+          console.warn('[VendorInvoiceForm] Failed to parse financial_breakdown string:', e);
+          coFinancialBreakdown = null;
+        }
+      }
+      
+      // If no financial breakdown JSON, build it from individual fields
+      if (!coFinancialBreakdown || (typeof coFinancialBreakdown === 'object' && Object.keys(coFinancialBreakdown).length === 0)) {
+        coFinancialBreakdown = {
+          charges: {
+            freight: {
+              percentage: co.freight_charges_percentage ?? null,
+              amount: co.freight_charges_amount ?? null,
+              taxable: co.freight_charges_taxable ?? false
+            },
+            packing: {
+              percentage: co.packing_charges_percentage ?? null,
+              amount: co.packing_charges_amount ?? null,
+              taxable: co.packing_charges_taxable ?? false
+            },
+            custom_duties: {
+              percentage: co.custom_duties_charges_percentage ?? null,
+              amount: co.custom_duties_charges_amount ?? null,
+              taxable: co.custom_duties_charges_taxable ?? false
+            },
+            other: {
+              percentage: co.other_charges_percentage ?? null,
+              amount: co.other_charges_amount ?? null,
+              taxable: co.other_charges_taxable ?? false
+            }
+          },
+          sales_taxes: {
+            sales_tax_1: {
+              percentage: co.sales_tax_1_percentage ?? null,
+              amount: co.sales_tax_1_amount ?? null
+            },
+            sales_tax_2: {
+              percentage: co.sales_tax_2_percentage ?? null,
+              amount: co.sales_tax_2_amount ?? null
+            }
+          },
+          totals: {
+            // Always use invoice values (coItemsTotal) instead of CO values (co.item_total)
+            // coItemsTotal is calculated from invoice_unit_price * invoice_quantity
+            item_total: coItemsTotal.value ?? null,
+            charges_total: co.charges_total ?? null,
+            tax_total: co.tax_total ?? null,
+            total_co_amount: co.total_co_amount ?? null
+          }
+        };
+      }
+      
+      if (coFinancialBreakdown && typeof coFinancialBreakdown === 'object') {
+        // For existing invoices, check if there's a saved financial breakdown
+        // If there is, use the saved charges and taxes instead of CO values
+        let savedFinancialBreakdown = null;
+        if (props.form.uuid) {
+          // This is an existing invoice - check for saved financial breakdown
+          savedFinancialBreakdown = props.form.financial_breakdown;
+          if (typeof savedFinancialBreakdown === 'string') {
+            try {
+              savedFinancialBreakdown = JSON.parse(savedFinancialBreakdown);
+            } catch (e) {
+              console.warn('[VendorInvoiceForm] Failed to parse saved financial_breakdown:', e);
+              savedFinancialBreakdown = null;
+            }
+          }
+        }
+        
+        // Use saved financial breakdown if available (for existing invoices with saved charges/taxes)
+        // Otherwise, use CO financial breakdown (for new invoices or invoices without saved values)
+        // Only use saved if it has charges or sales_taxes defined (not just totals)
+        const hasSavedChargesOrTaxes = savedFinancialBreakdown && typeof savedFinancialBreakdown === 'object' && 
+          (savedFinancialBreakdown.charges || savedFinancialBreakdown.sales_taxes);
+        
+        // If we have saved financial breakdown with charges/taxes, use it
+        // Otherwise, use CO financial breakdown
+        let sourceFinancialBreakdown = coFinancialBreakdown;
+        if (hasSavedChargesOrTaxes) {
+          sourceFinancialBreakdown = savedFinancialBreakdown;
+        }
+        
+        // Deep clone the financial breakdown to avoid mutating the original
+        const financialBreakdown = JSON.parse(JSON.stringify(sourceFinancialBreakdown));
+        
+        // If we're using saved financial breakdown, ensure we preserve all saved totals
+        // Merge in any missing structure from CO breakdown, but preserve saved values
+        if (hasSavedChargesOrTaxes && coFinancialBreakdown) {
+          // Ensure we have the full structure, but preserve saved values
+          if (!financialBreakdown.totals && coFinancialBreakdown.totals) {
+            financialBreakdown.totals = { ...coFinancialBreakdown.totals };
+          } else if (financialBreakdown.totals && coFinancialBreakdown.totals) {
+            // Merge: saved totals take precedence, but fill in missing fields from CO
+            financialBreakdown.totals = {
+              ...coFinancialBreakdown.totals,
+              ...financialBreakdown.totals, // Saved totals override CO totals
+            };
+          }
+        }
+        
+        // Ensure the structure matches what FinancialBreakdown expects
+        if (!financialBreakdown.charges) {
+          financialBreakdown.charges = {
+            freight: { percentage: null, amount: null, taxable: false },
+            packing: { percentage: null, amount: null, taxable: false },
+            custom_duties: { percentage: null, amount: null, taxable: false },
+            other: { percentage: null, amount: null, taxable: false },
+          };
+        }
+        
+        if (!financialBreakdown.sales_taxes) {
+          financialBreakdown.sales_taxes = {
+            sales_tax_1: { percentage: null, amount: null },
+            sales_tax_2: { percentage: null, amount: null },
+          };
+        }
+        
+        if (!financialBreakdown.totals) {
+          financialBreakdown.totals = {
+            item_total: null,
+            charges_total: null,
+            tax_total: null,
+            total_co_amount: null,
+          };
+        }
+        
+        // Update totals with CO items total (from invoice values) if not already set
+        // For existing invoices with saved financial breakdown, preserve the saved totals
+        // For new invoices or invoices without saved totals, use coItemsTotal
+        // coItemsTotal is calculated from invoice_unit_price * invoice_quantity (or invoice_total)
+        if (hasSavedChargesOrTaxes && financialBreakdown.totals.item_total !== null && financialBreakdown.totals.item_total !== undefined) {
+          // Preserve saved item_total from the invoice's financial breakdown
+          // Don't overwrite it
+        } else if (!financialBreakdown.totals.item_total && coItemsTotal.value > 0) {
+          // Only update if not already set and we have invoice items total
+          financialBreakdown.totals.item_total = coItemsTotal.value;
+        }
+        
+        // DO NOT map total_co_amount to total_invoice_amount
+        // total_invoice_amount should only be calculated from invoice item values + charges + taxes
+        // The FinancialBreakdown component will calculate total_invoice_amount automatically
+        // We keep total_co_amount for reference only
+        
+        // Flatten the financial breakdown structure for the form
+        const updatedForm = { ...props.form };
+        
+        // Explicitly preserve change_order_uuid and other critical fields
+        const preservedFields = {
+          change_order_uuid: coUuid || props.form.change_order_uuid || null,
+          purchase_order_uuid: props.form.purchase_order_uuid,
+          po_co_uuid: props.form.po_co_uuid,
+          po_number: props.form.po_number,
+          co_number: props.form.co_number,
+          invoice_type: props.form.invoice_type,
+          project_uuid: props.form.project_uuid,
+          vendor_uuid: props.form.vendor_uuid,
+        };
+        
+        // Update financial_breakdown object
+        updatedForm.financial_breakdown = financialBreakdown;
+        
+        // Explicitly preserve critical fields
+        Object.assign(updatedForm, preservedFields);
+        
+        // Flatten charge fields
+        if (financialBreakdown.charges) {
+          updatedForm.freight_charges_percentage = financialBreakdown.charges.freight?.percentage ?? null;
+          updatedForm.freight_charges_amount = financialBreakdown.charges.freight?.amount ?? null;
+          updatedForm.freight_charges_taxable = financialBreakdown.charges.freight?.taxable ?? false;
+          
+          updatedForm.packing_charges_percentage = financialBreakdown.charges.packing?.percentage ?? null;
+          updatedForm.packing_charges_amount = financialBreakdown.charges.packing?.amount ?? null;
+          updatedForm.packing_charges_taxable = financialBreakdown.charges.packing?.taxable ?? false;
+          
+          updatedForm.custom_duties_charges_percentage = financialBreakdown.charges.custom_duties?.percentage ?? null;
+          updatedForm.custom_duties_charges_amount = financialBreakdown.charges.custom_duties?.amount ?? null;
+          updatedForm.custom_duties_charges_taxable = financialBreakdown.charges.custom_duties?.taxable ?? false;
+          
+          updatedForm.other_charges_percentage = financialBreakdown.charges.other?.percentage ?? null;
+          updatedForm.other_charges_amount = financialBreakdown.charges.other?.amount ?? null;
+          updatedForm.other_charges_taxable = financialBreakdown.charges.other?.taxable ?? false;
+        }
+        
+        // Flatten sales tax fields
+        if (financialBreakdown.sales_taxes) {
+          updatedForm.sales_tax_1_percentage = financialBreakdown.sales_taxes.sales_tax_1?.percentage ?? null;
+          updatedForm.sales_tax_1_amount = financialBreakdown.sales_taxes.sales_tax_1?.amount ?? null;
+          
+          updatedForm.sales_tax_2_percentage = financialBreakdown.sales_taxes.sales_tax_2?.percentage ?? null;
+          updatedForm.sales_tax_2_amount = financialBreakdown.sales_taxes.sales_tax_2?.amount ?? null;
+        }
+        
+        // Flatten totals fields
+        if (financialBreakdown.totals) {
+          updatedForm.item_total = financialBreakdown.totals.item_total ?? null;
+          updatedForm.charges_total = financialBreakdown.totals.charges_total ?? null;
+          updatedForm.tax_total = financialBreakdown.totals.tax_total ?? null;
+        }
+        
+        // For existing invoices (Against CO):
+        // Since we fetched advance payment BEFORE building financial breakdown,
+        // the FinancialBreakdown component will automatically recalculate with:
+        // - item_total (from saved invoice values via coItemsTotal)
+        // - charges and taxes (from saved financial breakdown)
+        // - current advance payment (coAdvancePaid - fetched above)
+        // - current holdback (coHoldbackAmount)
+        // So we don't need to clear or manipulate the amount - just let it flow naturally
+        
+        updatedForm.financial_breakdown = financialBreakdown
+        
+        // Emit the complete updated form with all flattened fields
+        emit('update:form', updatedForm);
+      } else {
+        console.warn('[VendorInvoiceForm] No valid financial breakdown found in CO');
+      }
+    } else {
+      console.warn('[VendorInvoiceForm] No CO data received from API');
+    }
+  } catch (error) {
+    console.error('[VendorInvoiceForm] Error fetching CO items:', error);
+    coItemsError.value = 'Failed to load change order items';
+    coItems.value = [];
+  } finally {
+    coItemsLoading.value = false;
+  }
+};
+
+// Handle update:model-value event (string value like "PO:uuid" or "CO:uuid")
+const handlePOCOModelValue = (value: string | undefined) => {
+  // Just update the po_co_uuid for the component binding
+  // The actual UUID extraction will be handled by handlePOCOChange
+  handleFormUpdate('po_co_uuid', value || null);
+}
+
+// Handle POCO change specifically for Against PO invoices
+const handlePOCOChangeForPO = async (value: any) => {
+  // Set flag to prevent watcher from interfering
+  isUpdatingFromPOCOSelect.value = true;
+  
+  try {
+    // Extract PO UUID from the value
+    if (!value || typeof value !== 'object') {
+      handleFormUpdate('purchase_order_uuid', null);
+      handleFormUpdate('po_number', '');
+      handleFormUpdate('po_co_uuid', null);
+      poItems.value = [];
+      poItemsError.value = null;
+      return;
+    }
+    
+    const optionValue = value.value; // This should be "PO:uuid"
+    const optionOrder = value.order; // The full PO object
+    
+    if (optionValue && typeof optionValue === 'string' && optionValue.startsWith('PO:')) {
+      const extractedUuid = optionValue.replace(/^PO:/, '').trim();
+      if (extractedUuid && extractedUuid.length > 0) {
+        // Update all fields in a single form update to ensure consistency
+        const updatedForm = { ...props.form };
+        updatedForm.purchase_order_uuid = extractedUuid;
+        updatedForm.po_co_uuid = optionValue;
+        
+        // Extract PO number
+        if (optionOrder) {
+          updatedForm.po_number = optionOrder.po_number || value.number || '';
+        } else {
+          updatedForm.po_number = value.number || '';
+        }
+        
+        emit('update:form', updatedForm);
+        
+        // Fetch PO items
+        if (isAgainstPO.value) {
+          await fetchPOItems(extractedUuid);
+        }
+      }
+    } else {
+      const updatedForm = { ...props.form };
+      updatedForm.purchase_order_uuid = null;
+      updatedForm.po_number = '';
+      updatedForm.po_co_uuid = null;
+      emit('update:form', updatedForm);
+      poItems.value = [];
+      poItemsError.value = null;
+    }
+  } finally {
+    // Reset flag after updates are complete
+    await nextTick();
+    isUpdatingFromPOCOSelect.value = false;
+  }
+}
+
+// Handle POCO change specifically for Against CO invoices
+const handlePOCOChangeForCO = async (value: any) => {
+  // Set flag to prevent watcher from interfering
+  isUpdatingFromPOCOSelect.value = true;
+  
+  try {
+    // Extract CO UUID from the value
+    if (!value || typeof value !== 'object') {
+      handleFormUpdate('change_order_uuid', null);
+      handleFormUpdate('co_number', '');
+      handleFormUpdate('po_co_uuid', null);
+      coItems.value = [];
+      coItemsError.value = null;
+      return;
+    }
+    
+    const optionValue = value.value; // This should be "CO:uuid"
+    const optionOrder = value.order; // The full CO object
+    
+    if (optionValue && typeof optionValue === 'string' && optionValue.startsWith('CO:')) {
+      const extractedUuid = optionValue.replace(/^CO:/, '').trim();
+      if (extractedUuid && extractedUuid.length > 0) {
+        // Update all fields in a single form update to ensure consistency
+        const updatedForm = { ...props.form };
+        updatedForm.change_order_uuid = extractedUuid;
+        updatedForm.po_co_uuid = optionValue;
+        
+        // Extract CO number
+        if (optionOrder) {
+          updatedForm.co_number = optionOrder.co_number || value.number || '';
+        } else {
+          updatedForm.co_number = value.number || '';
+        }
+        
+        emit('update:form', updatedForm);
+        
+        // Fetch CO items
+        if (isAgainstCO.value) {
+          await fetchCOItems(extractedUuid);
+        }
+      }
+    } else {
+      const updatedForm = { ...props.form };
+      updatedForm.change_order_uuid = null;
+      updatedForm.co_number = '';
+      updatedForm.po_co_uuid = null;
+      emit('update:form', updatedForm);
+      coItems.value = [];
+      coItemsError.value = null;
+    }
+  } finally {
+    // Reset flag after updates are complete
+    await nextTick();
+    isUpdatingFromPOCOSelect.value = false;
+  }
+}
+
+// Handle change event (full option object with all details)
+const handlePOCOChange = (value: any) => {
+  // The value from change event is an object with { value: "PO:uuid" or "CO:uuid", order: {...}, type: "PO" or "CO", ... }
+  if (!value || typeof value !== 'object') {
+    // If value is cleared/undefined, clear everything
+    handleFormUpdate('po_co_uuid', null);
+    handleFormUpdate('purchase_order_uuid', null);
+    handleFormUpdate('change_order_uuid', null);
+    handleFormUpdate('po_number', '');
+    handleFormUpdate('co_number', '');
+    return;
+  }
+  
+  const optionValue = value.value; // This should be "PO:uuid" or "CO:uuid"
+  const optionType = value.type; // This should be "PO" or "CO"
+  const optionOrder = value.order; // The full PO or CO object
+  
+  let poCoUuid = '';
+  let poNumber = '';
+  let coNumber = '';
+  let purchaseOrderUuid: string | null = null;
+  let changeOrderUuid: string | null = null;
+  
+  // Extract UUIDs based on the option value
+  if (optionValue && typeof optionValue === 'string' && optionValue.length > 0) {
+    if (optionValue.startsWith('PO:')) {
+      poCoUuid = optionValue;
+      const extractedUuid = optionValue.replace(/^PO:/, '').trim();
+      // Only set if we have a valid UUID (non-empty after removing prefix)
+      if (extractedUuid && extractedUuid.length > 0) {
+        purchaseOrderUuid = extractedUuid;
+      } else {
+        purchaseOrderUuid = null;
+      }
+      changeOrderUuid = null; // Clear change order when PO is selected
+      
+      // Extract PO number
+      if (optionOrder) {
+        poNumber = optionOrder.po_number || value.number || '';
+      } else {
+        poNumber = value.number || '';
+      }
+      coNumber = '';
+    } else if (optionValue.startsWith('CO:')) {
+      poCoUuid = optionValue;
+      const extractedUuid = optionValue.replace(/^CO:/, '').trim();
+      // Only set if we have a valid UUID (non-empty after removing prefix)
+      if (extractedUuid && extractedUuid.length > 0) {
+        changeOrderUuid = extractedUuid;
+      } else {
+        changeOrderUuid = null;
+      }
+      purchaseOrderUuid = null; // Clear purchase order when CO is selected
+      
+      // Extract CO number
+      if (optionOrder) {
+        coNumber = optionOrder.co_number || value.number || '';
+      } else {
+        coNumber = value.number || '';
+      }
+      poNumber = '';
+    } else {
+      console.warn('[VendorInvoiceForm] Invalid optionValue format:', optionValue);
+    }
+  } else {
+    console.warn('[VendorInvoiceForm] Missing or invalid optionValue:', optionValue);
+  }
+  
+  // Set flag to prevent watcher from interfering
+  isUpdatingFromPOCOSelect.value = true;
+  
+  // Update all fields in a single form update to ensure consistency
+  // This prevents race conditions where multiple handleFormUpdate calls might overwrite each other
+  const updatedForm = { ...props.form };
+  updatedForm.po_co_uuid = poCoUuid || null;
+  updatedForm.purchase_order_uuid = purchaseOrderUuid;
+  updatedForm.change_order_uuid = changeOrderUuid;
+  updatedForm.po_number = poNumber;
+  updatedForm.co_number = coNumber;
+  
+  emit('update:form', updatedForm);
+  
+  // Reset flag after updates are complete
+  nextTick(() => {
+    isUpdatingFromPOCOSelect.value = false;
+  });
+};
+
+const handleAmountChange = (value: string | null) => {
+  let numericValue = 0;
+  if (value !== null && value !== undefined && value !== '') {
+    numericValue = parseFloat(value);
+    if (isNaN(numericValue)) {
+      numericValue = 0;
+    }
+  }
+  
+  handleFormUpdate('amount', numericValue);
+  
+  // If invoice type is AGAINST_ADVANCE_PAYMENT, also update financial_breakdown
+  if (isAgainstAdvancePayment.value) {
+    updateFinancialBreakdownForAdvancePayment(numericValue);
+  }
+};
+
+const handleHoldbackChange = (value: string | null) => {
+  if (value === null || value === undefined || value === '') {
+    handleFormUpdate('holdback', null);
+    return;
+  }
+  const numericValue = parseFloat(value);
+  if (!isNaN(numericValue)) {
+    handleFormUpdate('holdback', numericValue);
+  }
+};
+
+// Handle advance payment cost codes update
+const handleAdvancePaymentCostCodesUpdate = (value: any[]) => {
+  handleFormUpdate('advance_payment_cost_codes', value);
+};
+
+// Handle removed cost codes update
+const handleRemovedCostCodesUpdate = (value: any[]) => {
+  // Ensure we're passing an array
+  const arrayValue = Array.isArray(value) ? value : []
+  handleFormUpdate('removed_advance_payment_cost_codes', arrayValue);
+};
+
+// Helper function to update financial_breakdown for advance payment invoices
+// skipGuard: if true, skip the guard check (used when called from watcher that already has guard)
+const updateFinancialBreakdownForAdvancePayment = (amount: number, skipGuard = false) => {
+  // Skip if we're already updating to prevent recursive updates (unless skipGuard is true)
+  if (!skipGuard && isUpdatingAdvancePaymentAmount.value) {
+    return;
+  }
+  
+  const updatedForm = { ...props.form };
+  
+  // Deep clone financial_breakdown to avoid mutating the original
+  if (!updatedForm.financial_breakdown) {
+    updatedForm.financial_breakdown = {
+      charges: {
+        freight: { percentage: null, amount: null, taxable: false },
+        packing: { percentage: null, amount: null, taxable: false },
+        custom_duties: { percentage: null, amount: null, taxable: false },
+        other: { percentage: null, amount: null, taxable: false },
+      },
+      sales_taxes: {
+        sales_tax_1: { percentage: null, amount: null },
+        sales_tax_2: { percentage: null, amount: null },
+      },
+      totals: {
+        item_total: null,
+        charges_total: null,
+        tax_total: null,
+        total_invoice_amount: null,
+      },
+    };
+  } else {
+    // Deep clone existing financial_breakdown
+    updatedForm.financial_breakdown = JSON.parse(JSON.stringify(updatedForm.financial_breakdown));
+  }
+  
+  // Ensure totals object exists
+  if (!updatedForm.financial_breakdown.totals) {
+    updatedForm.financial_breakdown.totals = {
+      item_total: null,
+      charges_total: null,
+      tax_total: null,
+      total_invoice_amount: null,
+    };
+  }
+  
+  // Only update if the amount actually changed to avoid unnecessary updates
+  const currentTotal = updatedForm.financial_breakdown.totals.total_invoice_amount || 0;
+  if (Math.abs(amount - currentTotal) > 0.01) {
+    // Set totals as numbers (not null) to ensure they're saved
+    updatedForm.financial_breakdown.totals.total_invoice_amount = amount || 0;
+    updatedForm.financial_breakdown.totals.item_total = amount || 0; // For advance payment, item total equals the amount
+    updatedForm.financial_breakdown.totals.charges_total = 0;
+    updatedForm.financial_breakdown.totals.tax_total = 0;
+    
+    emit('update:form', updatedForm);
+  }
+};
+
+// Line items handlers
+const createEmptyLineItem = () => ({
+  id: Date.now() + Math.random().toString(36).substring(2),
+  cost_code_uuid: null,
+  sequence_uuid: null,
+  item_uuid: null,
+  description: '',
+  unit_price: null,
+  uom: '',
+  quantity: null,
+  total: null,
+});
+
+const handleAddLineItem = (index: number) => {
+  const currentItems = [...lineItems.value];
+  const newItem = createEmptyLineItem();
+  const insertIndex = index === -1 ? currentItems.length : Math.min(index + 1, currentItems.length);
+  currentItems.splice(insertIndex, 0, newItem);
+  handleFormUpdate('line_items', currentItems);
+};
+
+const handleRemoveLineItem = (index: number) => {
+  const currentItems = [...lineItems.value];
+  if (index >= 0 && index < currentItems.length) {
+    currentItems.splice(index, 1);
+    handleFormUpdate('line_items', currentItems);
+  }
+};
+
+const handleLineItemCostCodeChange = ({ index, value, option }: { index: number; value: string | null; option?: any }) => {
+  const currentItems = [...lineItems.value];
+  if (index >= 0 && index < currentItems.length) {
+    const item = { ...currentItems[index] };
+    item.cost_code_uuid = value;
+    
+    // If cost code changes, clear sequence and item
+    if (item.cost_code_uuid !== value) {
+      item.sequence_uuid = null;
+      item.item_uuid = null;
+    }
+    
+    currentItems[index] = item;
+    handleFormUpdate('line_items', currentItems);
+  }
+};
+
+const handleLineItemSequenceChange = ({ index, value, option }: { index: number; value: string | null; option?: any }) => {
+  const currentItems = [...lineItems.value];
+  if (index >= 0 && index < currentItems.length) {
+    const item = { ...currentItems[index] };
+    item.sequence_uuid = value;
+    item.item_uuid = value; // Sequence select uses item_uuid
+    
+    // Populate item data from option if available
+    const raw = option?.raw || option?.option?.raw;
+    if (raw) {
+      item.description = raw.description || item.description || '';
+      item.unit_price = raw.unit_price || item.unit_price || null;
+      item.uom = raw.unit_label || raw.unit || raw.short_name || item.uom || '';
+      item.unit_label = raw.unit_label || raw.unit || raw.short_name || '';
+    }
+    
+    currentItems[index] = item;
+    handleFormUpdate('line_items', currentItems);
+  }
+};
+
+const handleLineItemItemChange = ({ index, value, option }: { index: number; value: string | null; option?: any }) => {
+  const currentItems = [...lineItems.value];
+  if (index >= 0 && index < currentItems.length) {
+    const item = { ...currentItems[index] };
+    item.item_uuid = value;
+    item.sequence_uuid = value; // Keep sequence_uuid in sync with item_uuid
+    
+    // Populate item data from option if available
+    const raw = option?.raw || option?.option?.raw;
+    if (raw) {
+      item.description = raw.description || raw.item_name || item.description || '';
+      item.unit_price = raw.unit_price || item.unit_price || null;
+      item.uom = raw.unit_label || raw.unit || raw.short_name || item.uom || '';
+      item.unit_label = raw.unit_label || raw.unit || raw.short_name || '';
+    }
+    
+    currentItems[index] = item;
+    handleFormUpdate('line_items', currentItems);
+  }
+};
+
+const handleLineItemDescriptionChange = ({ index, value }: { index: number; value: string }) => {
+  const currentItems = [...lineItems.value];
+  if (index >= 0 && index < currentItems.length) {
+    const item = { ...currentItems[index] };
+    item.description = value;
+    currentItems[index] = item;
+    handleFormUpdate('line_items', currentItems);
+  }
+};
+
+const updateLineItems = (items: any[]) => {
+  // Always create a new array reference with deep-cloned items to ensure Vue tracks changes
+  // This ensures that nested property changes (like unit_price, quantity, total) trigger reactivity
+  const clonedItems = items.map((item: any) => ({
+    ...item,
+  }))
+  
+  // Use nextTick to ensure the update happens after any pending updates (same pattern as PurchaseOrderForm)
+  nextTick(() => {
+    handleFormUpdate('line_items', clonedItems);
+    // Force lineItemsTotal to recalculate immediately after update
+    const _ = lineItemsTotal.value
+  });
+}
+
+const handleLineItemUnitPriceChange = ({ index, value, numericValue, computedTotal }: { index: number; value: number | null; numericValue: number; computedTotal: number }) => {
+  const currentItems = Array.isArray(lineItems.value) ? [...lineItems.value] : [];
+  
+  if (!currentItems.length) {
+    return;
+  }
+
+  const targetIndex = Math.min(Math.max(index, 0), currentItems.length - 1);
+  const item = { ...currentItems[targetIndex] };
+  const isEmpty = value === null || value === undefined;
+
+  item.unit_price = isEmpty ? null : numericValue;
+  item.total = computedTotal;
+
+  currentItems[targetIndex] = item;
+  updateLineItems(currentItems);
+};
+
+const handleLineItemQuantityChange = ({ index, value, numericValue, computedTotal }: { index: number; value: number | null; numericValue: number; computedTotal: number }) => {
+  const currentItems = Array.isArray(lineItems.value) ? [...lineItems.value] : [];
+  
+  if (!currentItems.length) {
+    return;
+  }
+
+  const targetIndex = Math.min(Math.max(index, 0), currentItems.length - 1);
+  const item = { ...currentItems[targetIndex] };
+  const isEmpty = value === null || value === undefined;
+
+  item.quantity = isEmpty ? null : numericValue;
+  item.total = computedTotal;
+
+  currentItems[targetIndex] = item;
+  updateLineItems(currentItems);
+};
+
+// Handle invoice unit price changes for PO items
+// Similar to how direct invoice handles line item unit price changes
+// The poItemsTotal computed property will automatically recalculate, and FinancialBreakdown will update
+const handleInvoiceUnitPriceChange = ({ index, value, numericValue, computedTotal }: { index: number; value: string | number | null | undefined; numericValue: number; computedTotal: number }) => {
+  const currentItems = [...poItems.value];
+  if (index >= 0 && index < currentItems.length) {
+    const item = { ...currentItems[index] };
+    item.invoice_unit_price = numericValue;
+    item.invoice_total = computedTotal;
+    currentItems[index] = item;
+    poItems.value = currentItems;
+    // poItemsTotal computed property will automatically update
+    // FinancialBreakdown watches itemTotal and will recalculate charges/taxes automatically
+    // This matches the behavior of direct invoices - no manual amount update needed
+  }
+};
+
+// Handle invoice quantity changes for PO items
+// Similar to how direct invoice handles line item quantity changes
+// The poItemsTotal computed property will automatically recalculate, and FinancialBreakdown will update
+const handleInvoiceQuantityChange = ({ index, value, numericValue, computedTotal }: { index: number; value: string | number | null | undefined; numericValue: number; computedTotal: number }) => {
+  const currentItems = [...poItems.value];
+  if (index >= 0 && index < currentItems.length) {
+    const item = { ...currentItems[index] };
+    item.invoice_quantity = numericValue;
+    item.invoice_total = computedTotal;
+    currentItems[index] = item;
+    poItems.value = currentItems;
+    // poItemsTotal computed property will automatically update
+    // FinancialBreakdown watches itemTotal and will recalculate charges/taxes automatically
+    // This matches the behavior of direct invoices - no manual amount update needed
+  }
+};
+
+// Handle invoice total changes for PO items
+// Similar to how direct invoice handles line item total changes
+// The poItemsTotal computed property will automatically recalculate, and FinancialBreakdown will update
+const handleInvoiceTotalChange = ({ index, value }: { index: number; value: number }) => {
+  const currentItems = [...poItems.value];
+  if (index >= 0 && index < currentItems.length) {
+    const item = { ...currentItems[index] };
+    item.invoice_total = value;
+    currentItems[index] = item;
+    poItems.value = currentItems;
+    // poItemsTotal computed property will automatically update
+    // FinancialBreakdown watches itemTotal and will recalculate charges/taxes automatically
+    // This matches the behavior of direct invoices - no manual amount update needed
+  }
+};
+
+// Handle approval checks changes for PO items
+const handlePOItemApprovalChecksChange = ({ index, value }: { index: number; value: string[] }) => {
+  const currentItems = [...poItems.value];
+  if (index >= 0 && index < currentItems.length) {
+    const item = { ...currentItems[index] };
+    item.approval_checks = Array.isArray(value) ? value : [];
+    currentItems[index] = item;
+    poItems.value = currentItems;
+  }
+};
+
+// Handle invoice unit price changes for CO items
+// Similar to how PO items handle invoice unit price changes
+// The coItemsTotal computed property will automatically recalculate, and FinancialBreakdown will update
+const handleCOInvoiceUnitPriceChange = async ({ index, value, numericValue, computedTotal }: { index: number; value: string | number | null | undefined; numericValue: number; computedTotal: number }) => {
+  const currentItems = [...coItems.value];
+  if (index >= 0 && index < currentItems.length) {
+    const item = { ...currentItems[index] };
+    item.invoice_unit_price = numericValue;
+    item.invoice_total = computedTotal;
+    currentItems[index] = item;
+    coItems.value = currentItems;
+    // Wait for nextTick to ensure watcher fires
+    await nextTick();
+    // coItemsTotal computed property will automatically update
+    // FinancialBreakdown watches itemTotal and will recalculate charges/taxes automatically
+    // This matches the behavior of direct invoices - no manual amount update needed
+  }
+};
+
+// Handle invoice quantity changes for CO items
+// Similar to how PO items handle invoice quantity changes
+// The coItemsTotal computed property will automatically recalculate, and FinancialBreakdown will update
+const handleCOInvoiceQuantityChange = async ({ index, value, numericValue, computedTotal }: { index: number; value: string | number | null | undefined; numericValue: number; computedTotal: number }) => {
+  const currentItems = [...coItems.value];
+  if (index >= 0 && index < currentItems.length) {
+    const item = { ...currentItems[index] };
+    item.invoice_quantity = numericValue;
+    item.invoice_total = computedTotal;
+    currentItems[index] = item;
+    coItems.value = currentItems;
+    // Wait for nextTick to ensure watcher fires
+    await nextTick();
+    // coItemsTotal computed property will automatically update
+    // FinancialBreakdown watches itemTotal and will recalculate charges/taxes automatically
+    // This matches the behavior of direct invoices - no manual amount update needed
+  }
+};
+
+// Handle invoice total changes for CO items
+// Similar to how PO items handle invoice total changes
+// The coItemsTotal computed property will automatically recalculate, and FinancialBreakdown will update
+const handleCOInvoiceTotalChange = ({ index, value }: { index: number; value: number }) => {
+  const currentItems = [...coItems.value];
+  if (index >= 0 && index < currentItems.length) {
+    const item = { ...currentItems[index] };
+    item.invoice_total = value;
+    currentItems[index] = item;
+    coItems.value = currentItems;
+    // coItemsTotal computed property will automatically update
+    // FinancialBreakdown watches itemTotal and will recalculate charges/taxes automatically
+    // This matches the behavior of direct invoices - no manual amount update needed
+  }
+};
+
+// Helper function to compute effective total for a line item (same pattern as computePoItemEffectiveTotal)
+const computeLineItemEffectiveTotal = (item: any): number => {
+  const hasUnitPrice =
+    item?.unit_price !== null &&
+    item?.unit_price !== undefined &&
+    item?.unit_price !== ''
+  const hasQuantity =
+    item?.quantity !== null &&
+    item?.quantity !== undefined &&
+    item?.quantity !== ''
+
+  if (hasUnitPrice && hasQuantity) {
+    const unitPrice = parseNumericInput(item?.unit_price)
+    const quantity = parseNumericInput(item?.quantity)
+    return roundCurrencyValue(unitPrice * quantity)
+  }
+
+  const itemTotal = parseNumericInput(item?.total)
+  if (itemTotal) {
+    return roundCurrencyValue(itemTotal)
+  }
+
+  return 0
+}
+
+// Calculate total from line items - directly access properties for maximum reactivity (same pattern as itemTotal in PurchaseOrderForm)
+const lineItemsTotal = computed(() => {
+  // Access props.form.line_items directly to ensure reactivity (same as PurchaseOrderForm accesses props.form.po_items)
+  const items = Array.isArray(props.form.line_items) ? props.form.line_items : []
+  
+  // Access deep properties to ensure Vue tracks changes
+  // Iterate through all items and access their properties to ensure reactivity
+  const total = items.reduce((sum: number, item: any, index: number) => {
+    // Force reactivity by accessing the specific fields that affect the total
+    // Accessing these properties ensures Vue tracks changes to them
+    const unitPrice = item?.unit_price
+    const quantity = item?.quantity
+    const itemTotal = item?.total
+    
+    // Also access the item itself and its index to ensure array changes are tracked
+    const _ = item && index
+    
+    const effectiveTotal = computeLineItemEffectiveTotal(item)
+    return sum + effectiveTotal
+  }, 0)
+  
+  return roundCurrencyValue(total)
+})
+
+// Calculate total from advance payment cost codes
+const advancePaymentTotal = computed(() => {
+  const costCodes = Array.isArray(props.form.advance_payment_cost_codes) 
+    ? props.form.advance_payment_cost_codes 
+    : []
+  
+  const total = costCodes.reduce((sum: number, row: any) => {
+    // Handle both camelCase and snake_case field names
+    const advanceAmount = row.advanceAmount !== undefined 
+      ? row.advanceAmount 
+      : (row.advance_amount !== undefined ? row.advance_amount : null)
+    
+    if (advanceAmount === null || advanceAmount === undefined || advanceAmount === '') {
+      return sum
+    }
+    
+    const numericValue = parseNumericInput(advanceAmount)
+    return sum + numericValue
+  }, 0)
+  
+  return roundCurrencyValue(total)
+})
+
+// Calculate total from PO items (for Against PO invoice type)
+// Always use invoice values (invoice qty and unit price) when showInvoiceValues is enabled
+// This matches how direct invoices calculate from line items
+// For new invoices, invoice values are null, so return 0 (don't fall back to PO values)
+const poItemsTotal = computed(() => {
+  const items = poItems.value || []
+  
+  const total = items.reduce((sum: number, item: any) => {
+    // Only use invoice values - don't fall back to PO values
+    // For new invoices, invoice_unit_price and invoice_quantity are null, so return 0 for that item
+    const hasInvoiceUnitPrice = item.invoice_unit_price !== null && item.invoice_unit_price !== undefined
+    const hasInvoiceQuantity = item.invoice_quantity !== null && item.invoice_quantity !== undefined
+    
+    // Calculate from invoice unit price and quantity if both are available
+    if (hasInvoiceUnitPrice && hasInvoiceQuantity) {
+      const invoiceUnitPrice = parseNumericInput(item.invoice_unit_price)
+      const invoiceQuantity = parseNumericInput(item.invoice_quantity)
+      if (invoiceUnitPrice > 0 && invoiceQuantity > 0) {
+        return sum + roundCurrencyValue(invoiceUnitPrice * invoiceQuantity)
+      }
+    }
+    
+    // Fallback to invoice_total if available (and invoice_unit_price/invoice_quantity are not set)
+    if (item.invoice_total !== null && item.invoice_total !== undefined) {
+      const invoiceTotal = parseNumericInput(item.invoice_total)
+      if (invoiceTotal > 0) {
+        return sum + roundCurrencyValue(invoiceTotal)
+      }
+    }
+    
+    // For new invoices, invoice values are null, so return 0 (don't add anything to sum)
+    return sum
+  }, 0)
+  
+  return roundCurrencyValue(total)
+})
+
+// Calculate total from CO items (for Against CO invoice type)
+// Always use invoice values (invoice qty and unit price) when showInvoiceValues is enabled
+// This matches how direct invoices calculate from line items
+// For new invoices, invoice values are null, so return 0 (don't fall back to CO values)
+const coItemsTotal = computed(() => {
+  const items = coItems.value || []
+  
+  const total = items.reduce((sum: number, item: any) => {
+    // Only use invoice values - don't fall back to CO values
+    // For new invoices, invoice_unit_price and invoice_quantity are null, so return 0 for that item
+    const hasInvoiceUnitPrice = item.invoice_unit_price !== null && item.invoice_unit_price !== undefined
+    const hasInvoiceQuantity = item.invoice_quantity !== null && item.invoice_quantity !== undefined
+    
+    // Calculate from invoice unit price and quantity if both are available
+    if (hasInvoiceUnitPrice && hasInvoiceQuantity) {
+      const invoiceUnitPrice = parseNumericInput(item.invoice_unit_price)
+      const invoiceQuantity = parseNumericInput(item.invoice_quantity)
+      if (invoiceUnitPrice > 0 && invoiceQuantity > 0) {
+        return sum + roundCurrencyValue(invoiceUnitPrice * invoiceQuantity)
+      }
+    }
+    
+    // Fallback to invoice_total if available (and invoice_unit_price/invoice_quantity are not set)
+    if (item.invoice_total !== null && item.invoice_total !== undefined) {
+      const invoiceTotal = parseNumericInput(item.invoice_total)
+      if (invoiceTotal > 0) {
+        return sum + roundCurrencyValue(invoiceTotal)
+      }
+    }
+    
+    // For new invoices, invoice values are null, so return 0 (don't add anything to sum)
+    return sum
+  }, 0)
+  
+  return roundCurrencyValue(total)
+})
+
+const updateInvoiceAmount = () => {
+  // Update amount based on invoice type
+  if (isAgainstAdvancePayment.value) {
+    // For advance payment invoices, use the sum of advance amounts
+    handleFormUpdate('amount', advancePaymentTotal.value);
+  } else if (isDirectInvoice.value) {
+    // For direct invoices, use line items total (will be overridden by FinancialBreakdown if used)
+    handleFormUpdate('amount', lineItemsTotal.value);
+  }
+};
+
+// Handler for financial breakdown component updates
+const handleFinancialBreakdownUpdate = (updates: Record<string, any>) => {
+  // The FinancialBreakdown component handles all calculations
+  // We just need to update the form with the updates
+  const updatedForm = { ...props.form };
+  Object.keys(updates).forEach((key) => {
+    updatedForm[key] = updates[key];
+  });
+  emit('update:form', updatedForm);
+};
+
+const previewFile = (attachment: any) => {
+  selectedFileForPreview.value = {
+    id: attachment.uuid || attachment.tempId,
+    file_name: attachment.document_name || attachment.name,
+    name: attachment.document_name || attachment.name,
+    file_type: attachment.mime_type || attachment.type,
+    type: attachment.mime_type || attachment.type,
+    file_size: attachment.file_size || attachment.size,
+    size: attachment.file_size || attachment.size,
+    file_url: attachment.file_url || attachment.url || attachment.fileData,
+    url: attachment.file_url || attachment.url || attachment.fileData
+  };
+  showFilePreviewModal.value = true;
+};
+
+const closeFilePreview = () => {
+  showFilePreviewModal.value = false;
+  selectedFileForPreview.value = null;
+};
+
+const formatFileSize = (size?: number | null) => {
+  if (!size || size <= 0) return "0 KB";
+  const kb = size / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  return `${(kb / 1024).toFixed(1)} MB`;
+};
+
+const removeFile = async (index: number) => {
+  const attachment = props.form.attachments[index];
+
+  if (!attachment) return;
+
+  if (attachment?.uuid && props.editingInvoice && props.form.uuid) {
+    try {
+      const response = await $fetch<{ attachments: any[] }>("/api/vendor-invoices/documents/remove", {
+        method: "POST",
+        body: {
+          invoice_uuid: props.form.uuid,
+          attachment_uuid: attachment.uuid,
+        },
+      });
+      handleFormUpdate("attachments", response?.attachments ?? []);
+      return;
+    } catch (error) {
+      console.error("Error deleting file from storage:", error);
+      fileUploadError.value = "Failed to delete file. Please try again.";
+      return;
+    }
+  }
+
+  const updatedAttachments = [...(props.form.attachments || [])];
+  updatedAttachments.splice(index, 1);
+  handleFormUpdate("attachments", updatedAttachments);
+
+  if (attachment?.tempId) {
+    const fileIndex = uploadedFiles.value.findIndex(
+      (file) => file.name === attachment.name
+    );
+    if (fileIndex !== -1) {
+      uploadedFiles.value.splice(fileIndex, 1);
+    }
+  }
+};
+
+// Auto-calculate due date when bill date or credit days change
+const calculateDueDate = (billDate: CalendarDate | null, creditDays: string | null) => {
+  if (!billDate || !creditDays) return null;
+  
+  const creditDaysMap: Record<string, number> = {
+    'NET_15': 15,
+    'NET_25': 25,
+    'NET_30': 30,
+    'NET_45': 45,
+    'NET_60': 60,
+  };
+  
+  const days = creditDaysMap[String(creditDays).toUpperCase()] || 30;
+  const dueDate = billDate.add({ days });
+  return dueDate;
+};
+
+// Watch for invoice type changes to clear PO Number if not "Against PO" and initialize line items for direct invoice
+watch(
+  () => props.form.invoice_type,
+  async (newInvoiceType, oldInvoiceType) => {
+    // If switching away from "Against PO", clear the PO UUID and items
+    const wasAgainstPO = String(oldInvoiceType || '').toUpperCase() === 'AGAINST_PO';
+    const isNowAgainstPO = String(newInvoiceType || '').toUpperCase() === 'AGAINST_PO';
+    
+    if (wasAgainstPO && !isNowAgainstPO) {
+      handleFormUpdate('purchase_order_uuid', null);
+      handleFormUpdate('po_number', '');
+      poItems.value = [];
+      poItemsError.value = null;
+    }
+    
+    // If switching to "Against PO", fetch PO items if PO is already selected
+    if (!wasAgainstPO && isNowAgainstPO && props.form.purchase_order_uuid) {
+      await fetchPOItems(props.form.purchase_order_uuid);
+      // Update amount after fetching items (will be handled by poItemsTotal watcher)
+      nextTick(() => {
+        if (poItemsTotal.value > 0) {
+          handleFormUpdate('amount', poItemsTotal.value);
+        }
+      });
+    }
+    
+    // If switching away from "Against CO", clear the CO UUID and items
+    const wasAgainstCO = String(oldInvoiceType || '').toUpperCase() === 'AGAINST_CO';
+    const isNowAgainstCO = String(newInvoiceType || '').toUpperCase() === 'AGAINST_CO';
+    
+    if (wasAgainstCO && !isNowAgainstCO) {
+      handleFormUpdate('change_order_uuid', null);
+      handleFormUpdate('co_number', '');
+      coItems.value = [];
+      coItemsError.value = null;
+    }
+    
+    // If switching to "Against CO", fetch CO items if CO is already selected
+    if (!wasAgainstCO && isNowAgainstCO && props.form.change_order_uuid) {
+      await fetchCOItems(props.form.change_order_uuid);
+      // Update amount after fetching items (will be handled by coItemsTotal watcher)
+      nextTick(() => {
+        if (coItemsTotal.value > 0) {
+          handleFormUpdate('amount', coItemsTotal.value);
+        }
+      });
+    }
+    
+    // If switching away from "Against Advance Payment", clear PO/CO selection and advance payment cost codes
+    const wasAgainstAdvancePayment = String(oldInvoiceType || '').toUpperCase() === 'AGAINST_ADVANCE_PAYMENT';
+    const isNowAgainstAdvancePayment = String(newInvoiceType || '').toUpperCase() === 'AGAINST_ADVANCE_PAYMENT';
+    
+    if (wasAgainstAdvancePayment && !isNowAgainstAdvancePayment) {
+      handleFormUpdate('po_co_uuid', null);
+      handleFormUpdate('purchase_order_uuid', null);
+      handleFormUpdate('change_order_uuid', null);
+      handleFormUpdate('po_number', '');
+      handleFormUpdate('co_number', '');
+      handleFormUpdate('advance_payment_cost_codes', []);
+    }
+    
+    // If switching to "Enter Direct Invoice", initialize line items if empty
+    const isNowDirectInvoice = String(newInvoiceType || '').toUpperCase() === 'ENTER_DIRECT_INVOICE';
+    if (isNowDirectInvoice && (!props.form.line_items || props.form.line_items.length === 0)) {
+      handleFormUpdate('line_items', [createEmptyLineItem()]);
+    }
+    
+    // If switching away from "Enter Direct Invoice", clear line items
+    const wasDirectInvoice = String(oldInvoiceType || '').toUpperCase() === 'ENTER_DIRECT_INVOICE';
+    if (wasDirectInvoice && !isNowDirectInvoice) {
+      handleFormUpdate('line_items', []);
+      handleFormUpdate('amount', 0);
+    }
+    
+    // Update amount based on new invoice type
+    if (isAgainstAdvancePayment.value) {
+      // If switching to advance payment, update amount from advance payment total
+      const newTotal = advancePaymentTotal.value;
+      handleFormUpdate('amount', newTotal);
+      updateFinancialBreakdownForAdvancePayment(newTotal);
+    } else if (isDirectInvoice.value) {
+      // If switching to direct invoice, update amount from line items total
+      handleFormUpdate('amount', lineItemsTotal.value);
+    }
+  }
+);
+
+// Watch for project changes to clear dependent fields
+watch(
+  () => props.form.project_uuid,
+  (newProjectUuid, oldProjectUuid) => {
+    // If project is cleared, clear invoice type and all subsequent fields
+    if (!newProjectUuid && oldProjectUuid) {
+      handleFormUpdate('invoice_type', null);
+      handleFormUpdate('vendor_uuid', null);
+      handleFormUpdate('credit_days', null);
+      handleFormUpdate('due_date', null);
+      handleFormUpdate('purchase_order_uuid', null);
+      handleFormUpdate('po_number', '');
+      handleFormUpdate('po_co_uuid', null);
+      handleFormUpdate('change_order_uuid', null);
+      handleFormUpdate('co_number', '');
+    }
+    // If project changed and we have a PO selected, clear it
+    else if (newProjectUuid !== oldProjectUuid && props.form.purchase_order_uuid) {
+      handleFormUpdate('purchase_order_uuid', null);
+      handleFormUpdate('po_number', '');
+    }
+    // If project changed and we have a CO selected, clear it
+    else if (newProjectUuid !== oldProjectUuid && props.form.change_order_uuid) {
+      handleFormUpdate('change_order_uuid', null);
+      handleFormUpdate('co_number', '');
+    }
+    // If project changed and we have a PO/CO selected (for advance payment), clear it
+    else if (newProjectUuid !== oldProjectUuid && props.form.po_co_uuid) {
+      handleFormUpdate('po_co_uuid', null);
+      handleFormUpdate('purchase_order_uuid', null);
+      handleFormUpdate('change_order_uuid', null);
+      handleFormUpdate('po_number', '');
+      handleFormUpdate('co_number', '');
+    }
+  }
+);
+
+// Watch for vendor changes to clear PO if it doesn't match the new vendor
+watch(
+  () => props.form.vendor_uuid,
+  (newVendorUuid, oldVendorUuid) => {
+    // If vendor changed and we have a PO selected, clear it
+    if (newVendorUuid !== oldVendorUuid && props.form.purchase_order_uuid) {
+      handleFormUpdate('purchase_order_uuid', null);
+      handleFormUpdate('po_number', '');
+    }
+    // If vendor changed and we have a CO selected, clear it
+    if (newVendorUuid !== oldVendorUuid && props.form.change_order_uuid) {
+      handleFormUpdate('change_order_uuid', null);
+      handleFormUpdate('co_number', '');
+    }
+    // If vendor changed and we have a PO/CO selected (for advance payment), clear it
+    if (newVendorUuid !== oldVendorUuid && props.form.po_co_uuid) {
+      handleFormUpdate('po_co_uuid', null);
+      handleFormUpdate('purchase_order_uuid', null);
+      handleFormUpdate('change_order_uuid', null);
+      handleFormUpdate('po_number', '');
+      handleFormUpdate('co_number', '');
+    }
+  }
+);
+
+// Watch for purchase_order_uuid changes to fetch PO items (for Against PO invoices)
+watch(
+  () => props.form.purchase_order_uuid,
+  async (newPoUuid, oldPoUuid) => {
+    // Skip if we're currently updating from POCOSelect to avoid duplicate fetches
+    if (isUpdatingFromPOCOSelect.value) {
+      return;
+    }
+    
+    if (isAgainstPO.value && newPoUuid && newPoUuid !== oldPoUuid) {
+      await fetchPOItems(newPoUuid);
+    } else if (!newPoUuid) {
+      poItems.value = [];
+      poItemsError.value = null;
+      poItemsKey.value += 1; // Force re-render when clearing
+    }
+  }
+);
+
+// Watch for change_order_uuid changes to fetch CO items (for Against CO invoices)
+watch(
+  () => props.form.change_order_uuid,
+  async (newCoUuid, oldCoUuid) => {
+    // Skip if we're currently updating from POCOSelect to avoid duplicate fetches
+    if (isUpdatingFromPOCOSelect.value) {
+      return;
+    }
+    
+    if (isAgainstCO.value && newCoUuid && newCoUuid !== oldCoUuid) {
+      await fetchCOItems(newCoUuid);
+    } else if (!newCoUuid) {
+      coItems.value = [];
+      coItemsError.value = null;
+      coItemsKey.value += 1; // Force re-render when clearing
+    }
+  }
+);
+
+// Watch for purchase_order_uuid or change_order_uuid changes to update po_co_uuid for POCOSelect component
+// This is mainly for when loading existing invoices, not for user selections (which are handled by handlePOCOChange)
+// We use a flag to prevent circular updates when handlePOCOChange is setting values
+const isUpdatingFromPOCOSelect = ref(false);
+const isUpdatingAdvancePaymentAmount = ref(false); // Guard flag to prevent recursive updates
+const isUpdatingDueDate = ref(false); // Guard flag to prevent recursive updates when calculating due date
+
+watch(
+  [() => props.form.purchase_order_uuid, () => props.form.change_order_uuid, () => props.form.invoice_type],
+  ([newPurchaseOrderUuid, newChangeOrderUuid, invoiceType], [oldPurchaseOrderUuid, oldChangeOrderUuid, oldInvoiceType]) => {
+    // Skip if we're currently updating from POCOSelect to avoid circular updates
+    if (isUpdatingFromPOCOSelect.value) {
+      return;
+    }
+    
+    // Only update if we're in "Against Advance Payment" mode (not "Against PO")
+    const isAgainstAdvancePayment = String(invoiceType || '').toUpperCase() === 'AGAINST_ADVANCE_PAYMENT';
+    const isAgainstPO = String(invoiceType || '').toUpperCase() === 'AGAINST_PO';
+    
+    // Skip if we're in Against PO mode - handlePOCOChangeForPO handles that
+    if (isAgainstPO) {
+      return;
+    }
+    
+    if (isAgainstAdvancePayment) {
+      // Only update po_co_uuid if it's not already set correctly (to avoid circular updates)
+      const currentPoCoUuid = props.form.po_co_uuid;
+      
+      // If purchase_order_uuid is set and po_co_uuid doesn't match, update it
+      if (newPurchaseOrderUuid && currentPoCoUuid !== `PO:${newPurchaseOrderUuid}`) {
+        handleFormUpdate('po_co_uuid', `PO:${newPurchaseOrderUuid}`);
+      }
+      // If change_order_uuid is set and po_co_uuid doesn't match, update it
+      else if (newChangeOrderUuid && currentPoCoUuid !== `CO:${newChangeOrderUuid}`) {
+        handleFormUpdate('po_co_uuid', `CO:${newChangeOrderUuid}`);
+      }
+      // If both are cleared, clear po_co_uuid
+      else if (!newPurchaseOrderUuid && !newChangeOrderUuid && (oldPurchaseOrderUuid || oldChangeOrderUuid)) {
+        handleFormUpdate('po_co_uuid', null);
+      }
+    }
+  },
+  { immediate: true } // Run immediately when component mounts to handle initial load
+);
+
+// Watch for advance payment cost codes changes to update amount and financial_breakdown
+// Watch the array directly to catch all changes including initial mount
+watch(
+  () => props.form.advance_payment_cost_codes,
+  (newCostCodes, oldCostCodes) => {
+    // Skip if we're already updating to prevent recursive updates
+    if (isUpdatingAdvancePaymentAmount.value) {
+      return;
+    }
+    
+    // Skip if invoice type is not advance payment
+    if (!isAgainstAdvancePayment.value) {
+      return;
+    }
+    
+    const newTotal = advancePaymentTotal.value;
+    const currentAmount = props.form.amount || 0;
+    
+    // Only update if the total actually changed to avoid unnecessary updates
+    // Skip if we're in the middle of an update (to prevent recursion)
+    const shouldUpdate = Math.abs(newTotal - currentAmount) > 0.01;
+    
+    if (shouldUpdate) {
+      isUpdatingAdvancePaymentAmount.value = true;
+      try {
+        handleFormUpdate('amount', newTotal);
+        updateFinancialBreakdownForAdvancePayment(newTotal, true); // Pass skipGuard=true since we already have guard
+      } finally {
+        // Reset flag after a short delay to allow the update to complete
+        nextTick(() => {
+          isUpdatingAdvancePaymentAmount.value = false;
+        });
+      }
+    }
+  },
+  { immediate: true, deep: true } // Immediate and deep watch to catch initial values and nested property changes
+);
+
+// Calculate holdback amount from percentage for PO invoices
+// Holdback is calculated from: itemTotal + chargesTotal + taxTotal (before advance payment deduction)
+// This needs to be reactive to changes in financial breakdown totals
+const poHoldbackAmount = computed(() => {
+  if (!isAgainstPO.value || !props.form.holdback) {
+    return 0
+  }
+  
+  // Get the base total (item total + charges + taxes) from financial breakdown
+  // If financial breakdown is not available yet, calculate from poItemsTotal
+  let baseTotal = poItemsTotal.value
+  
+  // Try to get charges and taxes from financial breakdown if available
+  const financialBreakdown = props.form.financial_breakdown
+  if (financialBreakdown) {
+    let fb = financialBreakdown
+    if (typeof fb === 'string') {
+      try {
+        fb = JSON.parse(fb)
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+    
+    if (fb && typeof fb === 'object' && fb.totals) {
+      const itemTotal = parseNumericInput(fb.totals.item_total || poItemsTotal.value)
+      const chargesTotal = parseNumericInput(fb.totals.charges_total || 0)
+      const taxTotal = parseNumericInput(fb.totals.tax_total || 0)
+      baseTotal = itemTotal + chargesTotal + taxTotal
+    }
+  }
+  
+  const holdbackPercentage = parseNumericInput(props.form.holdback)
+  if (holdbackPercentage <= 0 || baseTotal <= 0) {
+    return 0
+  }
+  
+  return roundCurrencyValue((baseTotal * holdbackPercentage) / 100)
+})
+
+// Calculate holdback amount from percentage for CO invoices
+// Holdback is calculated from: itemTotal + chargesTotal + taxTotal (before advance payment deduction)
+// This needs to be reactive to changes in financial breakdown totals
+const coHoldbackAmount = computed(() => {
+  if (!isAgainstCO.value || !props.form.holdback) {
+    return 0
+  }
+  
+  // Get the base total (item total + charges + taxes) from financial breakdown
+  // If financial breakdown is not available yet, calculate from coItemsTotal
+  let baseTotal = coItemsTotal.value
+  
+  // Try to get charges and taxes from financial breakdown if available
+  const financialBreakdown = props.form.financial_breakdown
+  if (financialBreakdown) {
+    let fb = financialBreakdown
+    if (typeof fb === 'string') {
+      try {
+        fb = JSON.parse(fb)
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+    
+    if (fb && typeof fb === 'object' && fb.totals) {
+      const itemTotal = parseNumericInput(fb.totals.item_total || coItemsTotal.value)
+      const chargesTotal = parseNumericInput(fb.totals.charges_total || 0)
+      const taxTotal = parseNumericInput(fb.totals.tax_total || 0)
+      baseTotal = itemTotal + chargesTotal + taxTotal
+    }
+  }
+  
+  const holdbackPercentage = parseNumericInput(props.form.holdback)
+  if (holdbackPercentage <= 0 || baseTotal <= 0) {
+    return 0
+  }
+  
+  return roundCurrencyValue((baseTotal * holdbackPercentage) / 100)
+})
+
+// Watch for financial_breakdown changes to sync amount for Against PO and Against CO invoices
+// For Against PO and Against CO, the FinancialBreakdown calculates: item_total (from invoice values) + charges + taxes - advances - holdbacks
+// The calculated NET total is stored in financial_breakdown.totals.amount (via totalFieldName="amount")
+watch(
+  () => props.form.financial_breakdown,
+  (newBreakdown) => {
+    if ((isAgainstPO.value || isAgainstCO.value)) {
+      // Parse financial_breakdown if it's a string
+      let financialBreakdown = newBreakdown
+      if (typeof financialBreakdown === 'string') {
+        try {
+          financialBreakdown = JSON.parse(financialBreakdown)
+        } catch (e) {
+          console.warn('[VendorInvoiceForm] Failed to parse financial_breakdown in watcher:', e)
+          return
+        }
+      }
+      
+      if (financialBreakdown?.totals) {
+        // For Against PO and Against CO, the FinancialBreakdown component sets totals.amount
+        // (using totalFieldName="amount") which is the NET total after all deductions
+        // For backwards compatibility, also check total_invoice_amount (used in older saved invoices)
+        const calculatedAmount = financialBreakdown.totals.amount ?? 
+                           financialBreakdown.totals.total_invoice_amount
+        
+        // Only update if there's a valid calculated amount
+        if (calculatedAmount !== null && calculatedAmount !== undefined && calculatedAmount !== '') {
+          const calculatedAmountNum = parseNumericInput(calculatedAmount)
+          const currentAmount = parseNumericInput(props.form.amount || 0)
+          
+          // Update amount to match the calculated NET total from FinancialBreakdown
+          // This ensures the amount field reflects: (invoice_item_total + charges + taxes - advances - holdbacks)
+          if (Math.abs(calculatedAmountNum - currentAmount) > 0.01) {
+            handleFormUpdate('amount', calculatedAmountNum)
+          }
+        } else {
+          // If calculated amount is null/undefined/empty, set amount to 0
+          // This happens when there are no invoice values entered yet
+          if (props.form.amount !== 0 && props.form.amount !== null) {
+            handleFormUpdate('amount', 0)
+          }
+        }
+      }
+    }
+  },
+  { deep: true, immediate: true }
+);
+
+// Watch poItemsTotal to ensure FinancialBreakdown recalculates when invoice values change
+// This matches the behavior of direct invoices where lineItemsTotal changes trigger recalculation
+// The FinancialBreakdown component watches itemTotal prop and will automatically recalculate charges/taxes
+watch(
+  () => poItemsTotal.value,
+  (newTotal, oldTotal) => {
+    if (isAgainstPO.value && newTotal !== oldTotal) {
+      // FinancialBreakdown component automatically watches itemTotal and recalculates
+      // No manual intervention needed - same as direct invoices
+    }
+  }
+);
+
+// Watch coItemsTotal to ensure FinancialBreakdown recalculates when invoice values change
+// This matches the behavior of PO invoices where poItemsTotal changes trigger recalculation
+// The FinancialBreakdown component watches itemTotal prop and will automatically recalculate charges/taxes
+watch(
+  () => coItemsTotal.value,
+  (newTotal, oldTotal) => {
+    if (isAgainstCO.value && newTotal !== oldTotal) {
+      // FinancialBreakdown component automatically watches itemTotal and recalculates
+      // No manual intervention needed - same as PO invoices
+    }
+  }
+);
+
+// Watch poItems to sync invoice values to form.po_invoice_items for saving
+// This ensures the invoice items are saved to the database when the form is submitted
+const isUpdatingPOInvoiceItems = ref(false);
+watch(
+  () => poItems.value,
+  (newItems) => {
+    // Skip if we're already updating to prevent infinite loops
+    if (isUpdatingPOInvoiceItems.value) return;
+    
+    if (isAgainstPO.value && Array.isArray(newItems) && newItems.length > 0) {
+      // Convert poItems to po_invoice_items format for saving
+      const poInvoiceItems = newItems.map((item: any, index: number) => ({
+        order_index: index,
+        po_item_uuid: item.po_item_uuid || item.id || null,
+        cost_code_uuid: item.cost_code_uuid || null,
+        cost_code_label: item.cost_code_label || null,
+        cost_code_number: item.cost_code_number || '',
+        cost_code_name: item.cost_code_name || '',
+        division_name: item.division_name || null,
+        item_type_uuid: item.item_type_uuid || null,
+        item_type_label: item.item_type_label || '',
+        item_uuid: item.item_uuid || null,
+        item_name: item.item_name || item.description || '',
+        description: item.description || '',
+        model_number: item.model_number || '',
+        location_uuid: item.location_uuid || null,
+        location_label: item.location || item.location_label || null,
+        unit_uuid: item.unit_uuid || null,
+        unit_label: item.unit_label || '',
+        invoice_quantity: item.invoice_quantity ?? item.po_quantity ?? null,
+        invoice_unit_price: item.invoice_unit_price ?? item.po_unit_price ?? null,
+        invoice_total: item.invoice_total ?? item.po_total ?? null,
+        approval_checks: item.approval_checks || [],
+        metadata: item.metadata || {}
+      }));
+      
+      // Update form with po_invoice_items
+      isUpdatingPOInvoiceItems.value = true;
+      try {
+        handleFormUpdate('po_invoice_items', poInvoiceItems);
+      } finally {
+        nextTick(() => {
+          isUpdatingPOInvoiceItems.value = false;
+        });
+      }
+    } else if (isAgainstPO.value && (!newItems || newItems.length === 0)) {
+      // Clear po_invoice_items if no items
+      isUpdatingPOInvoiceItems.value = true;
+      try {
+        handleFormUpdate('po_invoice_items', []);
+      } finally {
+        nextTick(() => {
+          isUpdatingPOInvoiceItems.value = false;
+        });
+      }
+    }
+  },
+  { deep: true }
+);
+
+// Watch coItems to sync invoice values to form.co_invoice_items for saving
+// This ensures the invoice items are saved to the database when the form is submitted
+watch(
+  () => coItems.value,
+  (newItems) => {
+    // Skip if we're already updating to prevent infinite loops
+    if (isUpdatingCOInvoiceItems.value) return;
+    
+    if (isAgainstCO.value && Array.isArray(newItems) && newItems.length > 0) {
+      // Convert coItems to co_invoice_items format for saving
+      const coInvoiceItems = newItems.map((item: any, index: number) => ({
+        order_index: index,
+        co_item_uuid: item.co_item_uuid || item.id || null,
+        cost_code_uuid: item.cost_code_uuid || null,
+        cost_code_label: item.cost_code_label || null,
+        cost_code_number: item.cost_code_number || '',
+        cost_code_name: item.cost_code_name || '',
+        division_name: item.division_name || null,
+        item_type_uuid: item.item_type_uuid || null,
+        item_type_label: item.item_type_label || '',
+        item_uuid: item.item_uuid || null,
+        item_name: item.item_name || item.name || item.description || '',
+        description: item.description || '',
+        model_number: item.model_number || '',
+        location_uuid: item.location_uuid || null,
+        location_label: item.location || item.location_label || null,
+        unit_uuid: item.unit_uuid || null,
+        unit_label: item.unit_label || '',
+        invoice_quantity: item.invoice_quantity !== null && item.invoice_quantity !== undefined ? item.invoice_quantity : null,
+        invoice_unit_price: item.invoice_unit_price !== null && item.invoice_unit_price !== undefined ? item.invoice_unit_price : null,
+        invoice_total: item.invoice_total !== null && item.invoice_total !== undefined ? item.invoice_total : null,
+        metadata: item.metadata || {}
+      }));
+      
+      // Update form with co_invoice_items
+      isUpdatingCOInvoiceItems.value = true;
+      try {
+        handleFormUpdate('co_invoice_items', coInvoiceItems);
+      } finally {
+        nextTick(() => {
+          isUpdatingCOInvoiceItems.value = false;
+        });
+      }
+    } else if (isAgainstCO.value && (!newItems || newItems.length === 0)) {
+      // Clear co_invoice_items if no items
+      isUpdatingCOInvoiceItems.value = true;
+      try {
+        handleFormUpdate('co_invoice_items', []);
+      } finally {
+        nextTick(() => {
+          isUpdatingCOInvoiceItems.value = false;
+        });
+      }
+    }
+  },
+  { deep: true }
+);
+
+// Watch for PO items total changes - DO NOT auto-update amount for Against PO invoices
+// For Against PO, the amount should only come from financial_breakdown.totals.total_invoice_amount
+// or be manually entered by the user (for partial payments)
+// This watcher is intentionally disabled for Against PO to allow partial payments
+
+// Watch for line items changes to update amount (for direct invoices)
+watch(
+  () => lineItemsTotal.value,
+  (newTotal) => {
+    if (isDirectInvoice.value) {
+      // Only update if financial breakdown is not being used
+      // Financial breakdown will override this if it's active
+      if (!props.form.financial_breakdown || 
+          !props.form.financial_breakdown.totals || 
+          !props.form.financial_breakdown.totals.total_invoice_amount) {
+        handleFormUpdate('amount', newTotal);
+      }
+    }
+  }
+);
+
+// Watch for bill date and credit days changes to auto-calculate due date
+watch(
+  [() => billDateValue.value, () => props.form.credit_days],
+  ([newBillDate, newCreditDays], [oldBillDate, oldCreditDays]) => {
+    // Skip if we're already updating to prevent recursive updates
+    if (isUpdatingDueDate.value) {
+      return;
+    }
+    
+    // Only auto-calculate if both bill date and credit days are set
+    if (newBillDate && newCreditDays) {
+      // Check if due date was manually set (different from calculated)
+      const calculatedDueDate = calculateDueDate(newBillDate, newCreditDays);
+      if (calculatedDueDate) {
+        // Calculate the new due date string
+        const newDueDateString = `${calculatedDueDate.year}-${String(calculatedDueDate.month).padStart(2, '0')}-${String(calculatedDueDate.day).padStart(2, '0')}`;
+        const newDueDateUTC = toUTCString(newDueDateString);
+        
+        // Get current due date from form (avoid reading computed property to prevent recursion)
+        const currentDueDateUTC = props.form.due_date;
+        
+        // Calculate old due date if we had both old values
+        let oldCalculatedDueDateUTC: string | null = null;
+        if (oldBillDate && oldCreditDays) {
+          const oldCalculated = calculateDueDate(oldBillDate, oldCreditDays);
+          if (oldCalculated) {
+            const oldDateString = `${oldCalculated.year}-${String(oldCalculated.month).padStart(2, '0')}-${String(oldCalculated.day).padStart(2, '0')}`;
+            oldCalculatedDueDateUTC = toUTCString(oldDateString);
+          }
+        }
+        
+        // Check if bill date changed (by comparing the date strings)
+        const billDateChanged = oldBillDate && newBillDate && 
+          (oldBillDate.year !== newBillDate.year || 
+           oldBillDate.month !== newBillDate.month || 
+           oldBillDate.day !== newBillDate.day);
+        
+        // Check if credit days changed (handle empty/null/undefined cases)
+        const creditDaysChanged = String(oldCreditDays || '') !== String(newCreditDays || '');
+        
+        // Update if:
+        // 1. Due date is empty/null, OR
+        // 2. Bill date changed (always recalculate when bill date changes), OR
+        // 3. Credit days changed (always recalculate when credit days changes), OR
+        // 4. Current due date matches the old calculated value (meaning it was auto-calculated, not manually set)
+        const shouldUpdate = !currentDueDateUTC || 
+                            billDateChanged ||
+                            creditDaysChanged ||
+                            (oldCalculatedDueDateUTC && currentDueDateUTC === oldCalculatedDueDateUTC);
+        
+        // Only update if the new value is different from current
+        if (shouldUpdate && currentDueDateUTC !== newDueDateUTC) {
+          isUpdatingDueDate.value = true;
+          try {
+            handleFormUpdate('due_date', newDueDateUTC);
+          } finally {
+            // Reset flag after a short delay to allow the update to complete
+            nextTick(() => {
+              isUpdatingDueDate.value = false;
+            });
+          }
+        }
+      }
+    } else if (!newBillDate || !newCreditDays) {
+      // If either bill date or credit days is cleared, clear due date only if it was auto-calculated
+      // We can't easily determine if it was manually set, so we'll leave it as is to avoid clearing user input
+    }
+  },
+  { flush: 'post' }
+);
+
+// Watch for uploaded files changes
+watch(() => uploadedFiles.value, async () => {
+  fileUploadError.value = null;
+
+  if (uploadedFiles.value.length === 0) {
+    return;
+  }
+
+  if (isUploading.value) {
+    return;
+  }
+
+  const allowedTypes = [
+    "application/pdf",
+    "image/png",
+    "image/jpeg",
+    "image/jpg",
+  ];
+  const maxSize = 10 * 1024 * 1024; // 10MB
+
+  for (const file of uploadedFiles.value) {
+    if (!allowedTypes.includes(file.type)) {
+      fileUploadError.value = "Invalid file type. Only PDF or image files are allowed.";
+      uploadedFiles.value = [];
+      return;
+    }
+
+    if (file.size > maxSize) {
+      fileUploadError.value = "File size too large. Maximum size is 10MB.";
+      uploadedFiles.value = [];
+      return;
+    }
+  }
+
+  isUploading.value = true;
+  try {
+    const pendingAttachments = await Promise.all(
+      uploadedFiles.value.map(
+        (file) =>
+          new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              const fileData = e.target?.result;
+              if (typeof fileData !== "string") {
+                reject(new Error("Failed to read file"));
+                return;
+              }
+
+              resolve({
+                name: file.name,
+                type: file.type,
+                size: file.size,
+                fileData,
+                tempId: Date.now() + Math.random().toString(36).substring(2),
+              });
+            };
+            reader.onerror = () => reject(new Error("Failed to read file"));
+            reader.readAsDataURL(file);
+          })
+      )
+    );
+
+    if (props.editingInvoice && props.form.uuid) {
+      try {
+        const response = await $fetch<{
+          attachments: any[];
+          errors?: Array<{ fileName: string; error: string }>;
+        }>("/api/vendor-invoices/documents/upload", {
+          method: "POST",
+          body: {
+            invoice_uuid: props.form.uuid,
+            files: pendingAttachments.map((file: any) => ({
+              name: file.name,
+              type: file.type,
+              size: file.size,
+              fileData: file.fileData,
+            })),
+          },
+        });
+
+        handleFormUpdate("attachments", response?.attachments ?? []);
+        uploadedFiles.value = [];
+
+        if (response?.errors?.length) {
+          fileUploadError.value = response.errors
+            .map((err) => err.error)
+            .join(", ");
+        } else {
+          fileUploadError.value = null;
+        }
+      } catch (error) {
+        console.error("Error uploading invoice files:", error);
+        fileUploadError.value = "Failed to upload files. Please try again.";
+      }
+      return;
+    }
+
+    const allAttachments = [
+      ...(props.form.attachments || []),
+      ...pendingAttachments.map((file: any) => ({
+        ...file,
+        isUploaded: false,
+      })),
+    ];
+
+    handleFormUpdate("attachments", allAttachments);
+    uploadedFiles.value = [];
+  } catch (error) {
+    console.error("Error processing files:", error);
+    fileUploadError.value = "Failed to process files. Please try again.";
+  } finally {
+    isUploading.value = false;
+  }
+}, { deep: true });
+
+// Watch for corporation changes to regenerate invoice number if needed
+watch(
+  () => corpStore.selectedCorporation?.uuid,
+  async (newCorpUuid) => {
+    if (newCorpUuid) {
+      // Fetch vendor invoices and cost code configurations for the new corporation
+      await Promise.allSettled([
+        vendorInvoicesStore.fetchVendorInvoices(newCorpUuid),
+        costCodeConfigurationsStore.fetchConfigurations(newCorpUuid),
+      ]);
+      
+      // Regenerate invoice number if creating new invoice and number is empty
+      if (!props.form.uuid && (!props.form.number || String(props.form.number).trim() === '')) {
+        generateInvoiceNumber();
+      }
+    }
+  }
+);
+
+// Initialize
+onMounted(async () => {
+  const corpUuid = corpStore.selectedCorporation?.uuid;
+  if (corpUuid) {
+    await Promise.allSettled([
+      vendorStore.fetchVendors(corpUuid),
+      projectsStore.fetchProjectsMetadata(corpUuid),
+      vendorInvoicesStore.fetchVendorInvoices(corpUuid),
+      costCodeConfigurationsStore.fetchConfigurations(corpUuid),
+    ]);
+  }
+  
+  // Wait for all async operations and computed values to be ready
+  await nextTick();
+  await new Promise(resolve => setTimeout(resolve, 10));
+  
+  // Initialize amount based on invoice type first (before invoice number generation)
+  // to ensure it's set correctly on mount
+  if (isAgainstAdvancePayment.value) {
+    const total = advancePaymentTotal.value;
+    // Always update on mount if there's a total, regardless of current amount
+    // The watcher will handle subsequent changes
+    if (total > 0) {
+      isUpdatingAdvancePaymentAmount.value = true;
+      try {
+        handleFormUpdate('amount', total);
+        updateFinancialBreakdownForAdvancePayment(total, true); // Pass skipGuard=true since we already have guard
+      } finally {
+        nextTick(() => {
+          isUpdatingAdvancePaymentAmount.value = false;
+        });
+      }
+    }
+  } else if (isDirectInvoice.value) {
+    const total = lineItemsTotal.value;
+    if (total > 0) {
+      handleFormUpdate('amount', total);
+    }
+  }
+  
+  // If creating and number empty, generate initial number (after amount is set)
+  if (!props.form.uuid && (!props.form.number || String(props.form.number).trim() === '')) {
+    generateInvoiceNumber();
+  }
+  
+  // If loading an existing invoice with Against PO type and PO selected, fetch PO items
+  if (isAgainstPO.value && props.form.purchase_order_uuid) {
+    await fetchPOItems(props.form.purchase_order_uuid);
+  }
+  
+  // If loading an existing invoice with Against CO type and CO selected, fetch CO items
+  if (isAgainstCO.value && props.form.change_order_uuid) {
+    await fetchCOItems(props.form.change_order_uuid);
+  }
+  
+  // Note: We don't need to manually initialize amount for Against PO/CO invoices in onMounted
+  // The watch function on financial_breakdown (lines 3546-3591) handles syncing the amount
+  // from financial_breakdown.totals.amount automatically, both for new and existing invoices
+});
+
+</script>
+

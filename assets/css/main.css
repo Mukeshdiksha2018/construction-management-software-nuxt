@@ -1,0 +1,126 @@
+/* Theme Version: 3.1 - Brand Color #3D5C7C Only - Early Definition */
+/* Define brand colors first, before any imports */
+:root {
+  --color-brand-50: #f0f4f8;
+  --color-brand-100: #d9e3ed;
+  --color-brand-200: #b8c9db;
+  --color-brand-300: #8fa5c2;
+  --color-brand-400: #6b85a8;
+  --color-brand-500: #5a7294;
+  --color-brand-600: #3D5C7C;
+  --color-brand-700: #324d6a;
+  --color-brand-800: #2a4058;
+  --color-brand-900: #25364a;
+  --color-brand-950: #1a2532;
+  
+  /* Map primary to brand immediately */
+  --color-primary-50: #f0f4f8;
+  --color-primary-100: #d9e3ed;
+  --color-primary-200: #b8c9db;
+  --color-primary-300: #8fa5c2;
+  --color-primary-400: #6b85a8;
+  --color-primary-500: #5a7294;
+  --color-primary-600: #3D5C7C;
+  --color-primary-700: #324d6a;
+  --color-primary-800: #2a4058;
+  --color-primary-900: #25364a;
+  --color-primary-950: #1a2532;
+  --color-primary: #3D5C7C;
+  
+  /* Override indigo with brand */
+  --color-indigo-50: #f0f4f8;
+  --color-indigo-100: #d9e3ed;
+  --color-indigo-200: #b8c9db;
+  --color-indigo-300: #8fa5c2;
+  --color-indigo-400: #6b85a8;
+  --color-indigo-500: #5a7294;
+  --color-indigo-600: #3D5C7C;
+  --color-indigo-700: #324d6a;
+  --color-indigo-800: #2a4058;
+  --color-indigo-900: #25364a;
+  --color-indigo-950: #1a2532;
+}
+
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+@theme {
+  /* Custom color palette based on #3D5C7C */
+  --color-brand-50: #f0f4f8;
+  --color-brand-100: #d9e3ed;
+  --color-brand-200: #b8c9db;
+  --color-brand-300: #8fa5c2;
+  --color-brand-400: #6b85a8;
+  --color-brand-500: #5a7294;
+  --color-brand-600: #3D5C7C;
+  --color-brand-700: #324d6a;
+  --color-brand-800: #2a4058;
+  --color-brand-900: #25364a;
+  --color-brand-950: #1a2532;
+}
+
+:root {
+  --ui-radius: 0.5rem;
+  
+  /* Ensure primary colors are set (already defined above, but ensure they persist) */
+  --color-primary-50: #f0f4f8;
+  --color-primary-100: #d9e3ed;
+  --color-primary-200: #b8c9db;
+  --color-primary-300: #8fa5c2;
+  --color-primary-400: #6b85a8;
+  --color-primary-500: #5a7294;
+  --color-primary-600: #3D5C7C;
+  --color-primary-700: #324d6a;
+  --color-primary-800: #2a4058;
+  --color-primary-900: #25364a;
+  --color-primary-950: #1a2532;
+  --color-primary: #3D5C7C;
+}
+
+/* Force override Nuxt UI's internal color variables */
+:root, .light, .dark {
+  /* Override Nuxt UI's --ui-color-primary-* variables */
+  --ui-color-primary-50: #f0f4f8 !important;
+  --ui-color-primary-100: #d9e3ed !important;
+  --ui-color-primary-200: #b8c9db !important;
+  --ui-color-primary-300: #8fa5c2 !important;
+  --ui-color-primary-400: #6b85a8 !important;
+  --ui-color-primary-500: #5a7294 !important;
+  --ui-color-primary-600: #3D5C7C !important;
+  --ui-color-primary-700: #324d6a !important;
+  --ui-color-primary-800: #2a4058 !important;
+  --ui-color-primary-900: #25364a !important;
+  --ui-color-primary-950: #1a2532 !important;
+  
+  /* Override Nuxt UI's main UI variables */
+  --ui-primary: #3D5C7C !important;
+}
+
+/* Force override any dynamically injected indigo/purple colors - map them to brand */
+html, html.dark, html.light, body {
+  --color-indigo-50: #f0f4f8 !important;
+  --color-indigo-100: #d9e3ed !important;
+  --color-indigo-200: #b8c9db !important;
+  --color-indigo-300: #8fa5c2 !important;
+  --color-indigo-400: #6b85a8 !important;
+  --color-indigo-500: #5a7294 !important;
+  --color-indigo-600: #3D5C7C !important;
+  --color-indigo-700: #324d6a !important;
+  --color-indigo-800: #2a4058 !important;
+  --color-indigo-900: #25364a !important;
+  --color-indigo-950: #1a2532 !important;
+  
+  --color-primary-50: #f0f4f8 !important;
+  --color-primary-100: #d9e3ed !important;
+  --color-primary-200: #b8c9db !important;
+  --color-primary-300: #8fa5c2 !important;
+  --color-primary-400: #6b85a8 !important;
+  --color-primary-500: #5a7294 !important;
+  --color-primary-600: #3D5C7C !important;
+  --color-primary-700: #324d6a !important;
+  --color-primary-800: #2a4058 !important;
+  --color-primary-900: #25364a !important;
+  --color-primary-950: #1a2532 !important;
+  --color-primary: #3D5C7C !important;
+}
+
