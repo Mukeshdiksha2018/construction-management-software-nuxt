@@ -27,6 +27,10 @@ vi.mock('@/utils/supabaseClient', () => ({
   useSupabaseClient: () => mockSupabaseClient
 }))
 
+// Mock $fetch for API calls
+const mockFetch = vi.fn()
+vi.stubGlobal('$fetch', mockFetch)
+
 // Mock auth store
 const mockAuthStore = {
   syncAuthState: vi.fn(),
@@ -133,6 +137,18 @@ describe('Signup Page - Completion Flow', () => {
         })
       })
     })
+
+    // Mock $fetch for complete-signup API endpoint
+    mockFetch.mockResolvedValue({
+      success: true,
+      data: {
+        user_id: 'user-123',
+        first_name: 'John',
+        last_name: 'Doe',
+        status: 'active'
+      },
+      message: 'Signup completed successfully'
+    })
   })
 
   afterEach(() => {
@@ -158,6 +174,7 @@ describe('Signup Page - Completion Flow', () => {
     it('should show success toast notification after successful signup', async () => {
       // Clear any calls from onMounted
       mockRouterPush.mockClear()
+      mockFetch.mockClear()
       
       wrapper = mountComponent()
       
@@ -175,46 +192,17 @@ describe('Signup Page - Completion Flow', () => {
       vm.form.password = 'password123'
       vm.form.confirmPassword = 'password123'
 
-      // Mock successful profile update
-      const updateSelect = vi.fn().mockResolvedValue({
-        data: [{ id: 1 }],
-        error: null
-      })
-      const updateEq = vi.fn().mockReturnValue({
-        select: updateSelect
-      })
-      mockUpdate.mockReturnValue({
-        eq: updateEq
-      })
-
-      // Mock profile verification (for after signup completes)
-      const verifySingle = vi.fn().mockResolvedValue({
+      // Mock successful API response
+      mockFetch.mockResolvedValue({
+        success: true,
         data: {
+          user_id: 'user-123',
           first_name: 'John',
           last_name: 'Doe',
           status: 'active'
         },
-        error: null
+        message: 'Signup completed successfully'
       })
-      const verifyEq = vi.fn().mockReturnValue({
-        single: verifySingle
-      })
-      const verifySelect = vi.fn().mockReturnValue({
-        eq: verifyEq
-      })
-      
-      // Setup from mock to return update chain first, then select chain for verification
-      mockFrom
-        .mockReturnValueOnce({
-          update: mockUpdate,
-          select: mockSelect,
-          insert: mockInsert
-        })
-        .mockReturnValueOnce({
-          select: verifySelect,
-          update: mockUpdate,
-          insert: mockInsert
-        })
 
       // Trigger signup
       await wrapper.vm.handleSignup()
@@ -222,6 +210,17 @@ describe('Signup Page - Completion Flow', () => {
       // Wait for async operations
       await nextTick()
       vi.advanceTimersByTime(100)
+
+      // Verify API was called
+      expect(mockFetch).toHaveBeenCalledWith('/api/users/complete-signup', {
+        method: 'POST',
+        body: {
+          userId: 'user-123',
+          firstName: 'John',
+          lastName: 'Doe',
+          password: 'password123'
+        }
+      })
 
       // Verify toast was called with correct parameters
       expect(mockToastAdd).toHaveBeenCalledWith({
@@ -235,6 +234,7 @@ describe('Signup Page - Completion Flow', () => {
     it('should redirect to login page (/) after successful signup', async () => {
       // Clear any calls from onMounted
       mockRouterPush.mockClear()
+      mockFetch.mockClear()
       
       wrapper = mountComponent()
       
@@ -252,49 +252,17 @@ describe('Signup Page - Completion Flow', () => {
       vm.form.password = 'password123'
       vm.form.confirmPassword = 'password123'
 
-      // Mock successful profile update
-      const updateSelect = vi.fn().mockResolvedValue({
-        data: [{ id: 1 }],
-        error: null
-      })
-      const updateEq = vi.fn().mockReturnValue({
-        select: updateSelect
-      })
-      mockUpdate.mockReturnValue({
-        eq: updateEq
-      })
-
-      // Mock profile verification (for after signup completes)
-      // The verification uses select().eq().single(), so we need to set up the chain
-      // First call is for onMounted (already handled in beforeEach)
-      // Second call is for verification after signup
-      const verifySingle = vi.fn().mockResolvedValue({
+      // Mock successful API response
+      mockFetch.mockResolvedValue({
+        success: true,
         data: {
+          user_id: 'user-123',
           first_name: 'John',
           last_name: 'Doe',
           status: 'active'
         },
-        error: null
+        message: 'Signup completed successfully'
       })
-      const verifyEq = vi.fn().mockReturnValue({
-        single: verifySingle
-      })
-      const verifySelect = vi.fn().mockReturnValue({
-        eq: verifyEq
-      })
-      
-      // Setup from mock to return update chain first, then select chain for verification
-      mockFrom
-        .mockReturnValueOnce({
-          update: mockUpdate,
-          select: mockSelect,
-          insert: mockInsert
-        })
-        .mockReturnValueOnce({
-          select: verifySelect,
-          update: mockUpdate,
-          insert: mockInsert
-        })
 
       // Trigger signup
       await wrapper.vm.handleSignup()
@@ -315,6 +283,7 @@ describe('Signup Page - Completion Flow', () => {
     it('should redirect after 1500ms delay', async () => {
       // Clear any calls from onMounted
       mockRouterPush.mockClear()
+      mockFetch.mockClear()
       
       wrapper = mountComponent()
       
@@ -332,46 +301,17 @@ describe('Signup Page - Completion Flow', () => {
       vm.form.password = 'password123'
       vm.form.confirmPassword = 'password123'
 
-      // Mock successful profile update
-      const updateSelect = vi.fn().mockResolvedValue({
-        data: [{ id: 1 }],
-        error: null
-      })
-      const updateEq = vi.fn().mockReturnValue({
-        select: updateSelect
-      })
-      mockUpdate.mockReturnValue({
-        eq: updateEq
-      })
-
-      // Mock profile verification (for after signup completes)
-      const verifySingle = vi.fn().mockResolvedValue({
+      // Mock successful API response
+      mockFetch.mockResolvedValue({
+        success: true,
         data: {
+          user_id: 'user-123',
           first_name: 'John',
           last_name: 'Doe',
           status: 'active'
         },
-        error: null
+        message: 'Signup completed successfully'
       })
-      const verifyEq = vi.fn().mockReturnValue({
-        single: verifySingle
-      })
-      const verifySelect = vi.fn().mockReturnValue({
-        eq: verifyEq
-      })
-      
-      // Setup from mock to return update chain first, then select chain for verification
-      mockFrom
-        .mockReturnValueOnce({
-          update: mockUpdate,
-          select: mockSelect,
-          insert: mockInsert
-        })
-        .mockReturnValueOnce({
-          select: verifySelect,
-          update: mockUpdate,
-          insert: mockInsert
-        })
 
       // Trigger signup
       await wrapper.vm.handleSignup()
@@ -396,6 +336,7 @@ describe('Signup Page - Completion Flow', () => {
     it('should update user profile before showing toast and redirecting', async () => {
       // Clear any calls from onMounted
       mockRouterPush.mockClear()
+      mockFetch.mockClear()
       
       wrapper = mountComponent()
       
@@ -406,19 +347,6 @@ describe('Signup Page - Completion Flow', () => {
       // Clear any redirects from onMounted
       mockRouterPush.mockClear()
       
-      const updateSelect = vi.fn().mockResolvedValue({
-        data: [{ id: 1 }],
-        error: null
-      })
-
-      const updateEq = vi.fn().mockReturnValue({
-        select: updateSelect
-      })
-
-      mockUpdate.mockReturnValue({
-        eq: updateEq
-      })
-
       // Set form values via component instance
       const vm = wrapper.vm
       vm.form.firstName = 'John'
@@ -426,51 +354,43 @@ describe('Signup Page - Completion Flow', () => {
       vm.form.password = 'password123'
       vm.form.confirmPassword = 'password123'
 
-      // Mock profile verification (for after signup completes)
-      const verifySingle = vi.fn().mockResolvedValue({
+      // Mock successful API response
+      mockFetch.mockResolvedValue({
+        success: true,
         data: {
+          user_id: 'user-123',
           first_name: 'John',
           last_name: 'Doe',
           status: 'active'
         },
-        error: null
+        message: 'Signup completed successfully'
       })
-      const verifyEq = vi.fn().mockReturnValue({
-        single: verifySingle
-      })
-      const verifySelect = vi.fn().mockReturnValue({
-        eq: verifyEq
-      })
-      
-      // Setup from mock to return update chain first, then select chain for verification
-      mockFrom
-        .mockReturnValueOnce({
-          update: mockUpdate,
-          select: mockSelect,
-          insert: mockInsert
-        })
-        .mockReturnValueOnce({
-          select: verifySelect,
-          update: mockUpdate,
-          insert: mockInsert
-        })
 
       // Trigger signup
       await wrapper.vm.handleSignup()
 
       await nextTick()
 
-      // Verify profile was updated
-      expect(mockUpdate).toHaveBeenCalled()
-      expect(updateEq).toHaveBeenCalledWith('user_id', 'user-123')
+      // Verify API was called with correct data
+      expect(mockFetch).toHaveBeenCalledWith('/api/users/complete-signup', {
+        method: 'POST',
+        body: {
+          userId: 'user-123',
+          firstName: 'John',
+          lastName: 'Doe',
+          password: 'password123'
+        }
+      })
       
-      // Verify profile was verified
-      expect(verifySingle).toHaveBeenCalled()
+      // Verify auth store fetchUser was called
+      expect(mockAuthStore.fetchUser).toHaveBeenCalled()
     })
 
     it('should fetch user data from auth store after successful signup', async () => {
       // Clear any calls from onMounted
       mockRouterPush.mockClear()
+      mockFetch.mockClear()
+      mockAuthStore.fetchUser.mockClear()
       
       wrapper = mountComponent()
       
@@ -488,46 +408,17 @@ describe('Signup Page - Completion Flow', () => {
       vm.form.password = 'password123'
       vm.form.confirmPassword = 'password123'
 
-      // Mock successful profile update
-      const updateSelect = vi.fn().mockResolvedValue({
-        data: [{ id: 1 }],
-        error: null
-      })
-      const updateEq = vi.fn().mockReturnValue({
-        select: updateSelect
-      })
-      mockUpdate.mockReturnValue({
-        eq: updateEq
-      })
-
-      // Mock profile verification (for after signup completes)
-      const verifySingle = vi.fn().mockResolvedValue({
+      // Mock successful API response
+      mockFetch.mockResolvedValue({
+        success: true,
         data: {
+          user_id: 'user-123',
           first_name: 'John',
           last_name: 'Doe',
           status: 'active'
         },
-        error: null
+        message: 'Signup completed successfully'
       })
-      const verifyEq = vi.fn().mockReturnValue({
-        single: verifySingle
-      })
-      const verifySelect = vi.fn().mockReturnValue({
-        eq: verifyEq
-      })
-      
-      // Setup from mock to return update chain first, then select chain for verification
-      mockFrom
-        .mockReturnValueOnce({
-          update: mockUpdate,
-          select: mockSelect,
-          insert: mockInsert
-        })
-        .mockReturnValueOnce({
-          select: verifySelect,
-          update: mockUpdate,
-          insert: mockInsert
-        })
 
       // Trigger signup
       await wrapper.vm.handleSignup()
@@ -539,6 +430,8 @@ describe('Signup Page - Completion Flow', () => {
     })
 
     it('should update user password during signup', async () => {
+      mockFetch.mockClear()
+      
       wrapper = mountComponent()
       
       // Set form values via component instance
@@ -548,32 +441,16 @@ describe('Signup Page - Completion Flow', () => {
       vm.form.password = 'password123'
       vm.form.confirmPassword = 'password123'
 
-      // Mock successful profile update
-      mockUpdate.mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          select: vi.fn().mockResolvedValue({
-            data: [{ id: 1 }],
-            error: null
-          })
-        })
-      })
-
-      // Mock profile verification (for after signup completes)
-      // We need to reset the mock to return complete profile for verification
-      mockSingle.mockResolvedValueOnce({
+      // Mock successful API response
+      mockFetch.mockResolvedValue({
+        success: true,
         data: {
-          first_name: null,
-          last_name: null,
-          status: 'pending'
-        },
-        error: null
-      }).mockResolvedValueOnce({
-        data: {
+          user_id: 'user-123',
           first_name: 'John',
           last_name: 'Doe',
           status: 'active'
         },
-        error: null
+        message: 'Signup completed successfully'
       })
 
       // Trigger signup
@@ -581,13 +458,21 @@ describe('Signup Page - Completion Flow', () => {
 
       await nextTick()
 
-      // Verify password was updated (updateUser should be called twice: once for metadata, once for password)
-      expect(mockUpdateUser).toHaveBeenCalledWith({
-        password: 'password123'
+      // Verify API was called with password in the body
+      expect(mockFetch).toHaveBeenCalledWith('/api/users/complete-signup', {
+        method: 'POST',
+        body: {
+          userId: 'user-123',
+          firstName: 'John',
+          lastName: 'Doe',
+          password: 'password123'
+        }
       })
     })
 
     it('should update user metadata with first and last name', async () => {
+      mockFetch.mockClear()
+      
       wrapper = mountComponent()
       
       // Set form values via component instance
@@ -597,32 +482,16 @@ describe('Signup Page - Completion Flow', () => {
       vm.form.password = 'password123'
       vm.form.confirmPassword = 'password123'
 
-      // Mock successful profile update
-      mockUpdate.mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          select: vi.fn().mockResolvedValue({
-            data: [{ id: 1 }],
-            error: null
-          })
-        })
-      })
-
-      // Mock profile verification (for after signup completes)
-      // We need to reset the mock to return complete profile for verification
-      mockSingle.mockResolvedValueOnce({
+      // Mock successful API response
+      mockFetch.mockResolvedValue({
+        success: true,
         data: {
-          first_name: null,
-          last_name: null,
-          status: 'pending'
-        },
-        error: null
-      }).mockResolvedValueOnce({
-        data: {
+          user_id: 'user-123',
           first_name: 'John',
           last_name: 'Doe',
           status: 'active'
         },
-        error: null
+        message: 'Signup completed successfully'
       })
 
       // Trigger signup
@@ -630,11 +499,14 @@ describe('Signup Page - Completion Flow', () => {
 
       await nextTick()
 
-      // Verify user metadata was updated
-      expect(mockUpdateUser).toHaveBeenCalledWith({
-        data: {
-          first_name: 'John',
-          last_name: 'Doe'
+      // Verify API was called with first and last name in the body
+      expect(mockFetch).toHaveBeenCalledWith('/api/users/complete-signup', {
+        method: 'POST',
+        body: {
+          userId: 'user-123',
+          firstName: 'John',
+          lastName: 'Doe',
+          password: 'password123'
         }
       })
     })
@@ -644,6 +516,7 @@ describe('Signup Page - Completion Flow', () => {
     it('should not show toast or redirect if signup fails', async () => {
       // Clear any calls from onMounted
       mockRouterPush.mockClear()
+      mockFetch.mockClear()
       
       wrapper = mountComponent()
       
@@ -661,11 +534,8 @@ describe('Signup Page - Completion Flow', () => {
       vm.form.password = 'password123'
       vm.form.confirmPassword = 'password123'
 
-      // Mock password update error
-      mockUpdateUser.mockResolvedValueOnce({ error: null }) // First call for metadata succeeds
-      mockUpdateUser.mockResolvedValueOnce({ 
-        error: { message: 'Password update failed' } 
-      }) // Second call for password fails
+      // Mock API error
+      mockFetch.mockRejectedValue(new Error('API call failed'))
 
       // Trigger signup
       await wrapper.vm.handleSignup()
@@ -685,6 +555,7 @@ describe('Signup Page - Completion Flow', () => {
     it('should not show toast or redirect if profile update fails', async () => {
       // Clear any calls from onMounted
       mockRouterPush.mockClear()
+      mockFetch.mockClear()
       
       wrapper = mountComponent()
       
@@ -702,14 +573,10 @@ describe('Signup Page - Completion Flow', () => {
       vm.form.password = 'password123'
       vm.form.confirmPassword = 'password123'
 
-      // Mock profile update error
-      mockUpdate.mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          select: vi.fn().mockResolvedValue({
-            data: null,
-            error: { message: 'Profile update failed' }
-          })
-        })
+      // Mock API error response
+      mockFetch.mockResolvedValue({
+        success: false,
+        message: 'Profile update failed'
       })
 
       // Trigger signup
@@ -730,6 +597,8 @@ describe('Signup Page - Completion Flow', () => {
     it('should not show toast or redirect if no session exists', async () => {
       // Clear any calls from onMounted
       mockRouterPush.mockClear()
+      mockFetch.mockClear()
+      mockToastAdd.mockClear()
       
       wrapper = mountComponent()
       
@@ -737,8 +606,10 @@ describe('Signup Page - Completion Flow', () => {
       await nextTick()
       await nextTick()
       
-      // Clear any redirects from onMounted
+      // Clear any redirects and API calls from onMounted
       mockRouterPush.mockClear()
+      mockToastAdd.mockClear()
+      mockFetch.mockClear() // Clear fetch calls from onMounted
       
       // Set form values via component instance
       const vm = wrapper.vm
@@ -747,30 +618,28 @@ describe('Signup Page - Completion Flow', () => {
       vm.form.password = 'password123'
       vm.form.confirmPassword = 'password123'
 
-      // Mock no session (for handleSignup, not onMounted)
-      // We need to reset the mock after onMounted has run
-      mockGetSession.mockResolvedValueOnce({
-        data: {
-          session: {
-            user: {
-              id: 'user-123',
-              email: 'test@example.com'
-            }
-          }
-        },
-        error: null
-      }).mockResolvedValue({
+      // Mock no session for handleSignup
+      // Reset mockGetSession to return no session for handleSignup call
+      // The onMounted already ran with a session, now handleSignup should get no session
+      mockGetSession.mockReset()
+      mockGetSession.mockResolvedValue({
         data: { session: null },
         error: null
       })
 
-      // Trigger signup
+      // Trigger signup - should throw error and not call API
       await wrapper.vm.handleSignup()
 
       await nextTick()
       vi.advanceTimersByTime(1500)
       await nextTick()
 
+      // Verify no complete-signup API call was made (handleSignup should throw before calling API)
+      const completeSignupCalls = mockFetch.mock.calls.filter(
+        call => Array.isArray(call) && call.length > 0 && call[0] === '/api/users/complete-signup'
+      )
+      expect(completeSignupCalls.length).toBe(0)
+      
       // Verify toast was not called
       expect(mockToastAdd).not.toHaveBeenCalled()
       
