@@ -200,9 +200,11 @@ const fetchAllPurchaseOrdersPages = async (
   let hasMore = true;
 
   while (hasMore) {
+    // When forcing refresh, always fetch from API (skip cache check)
+    // For subsequent pages, only force if we're forcing everything
     await purchaseOrdersStore.fetchPurchaseOrders(
       corporationId,
-      force && currentPage === 1, // Only force refresh on first page
+      force, // Force refresh all pages when force=true
       currentPage,
       pageSize
     );
@@ -234,9 +236,11 @@ const fetchAllChangeOrdersPages = async (
   let hasMore = true;
 
   while (hasMore) {
+    // When forcing refresh, always fetch from API (skip cache check)
+    // For subsequent pages, only force if we're forcing everything
     await changeOrdersStore.fetchChangeOrders(
       corporationId,
-      force && currentPage === 1, // Only force refresh on first page
+      force, // Force refresh all pages when force=true
       currentPage,
       pageSize
     );
