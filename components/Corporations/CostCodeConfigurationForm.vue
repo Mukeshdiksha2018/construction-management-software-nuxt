@@ -110,14 +110,14 @@
                 <label class="block text-xs font-medium text-default mb-1">
                   Preferred Vendor
                 </label>
-                <div class="flex items-center gap-2">
+                <div class="flex items-stretch gap-0 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 overflow-hidden focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/40 transition-colors">
                   <VendorSelect
                     :model-value="form.preferred_vendor_uuid"
                     placeholder="Select Vendor"
                     size="sm"
                     :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
                     :local-vendors="localVendors"
-                    class="flex-1"
+                    class="flex-1 border-0 rounded-none bg-transparent [&>button]:border-0 [&>button]:rounded-none [&>button]:bg-transparent"
                     @change="(vendor) => handleVendorChange(vendor)"
                   />
                   <UButton
@@ -125,7 +125,7 @@
                     size="xs"
                     color="primary"
                     variant="soft"
-                    class="shrink-0"
+                    class="shrink-0 rounded-none border-l border-gray-300 dark:border-gray-600 h-auto m-0"
                     :disabled="!form.corporation_uuid && !corpStore.selectedCorporation"
                     @click="openVendorModal"
                     title="Add new vendor"
