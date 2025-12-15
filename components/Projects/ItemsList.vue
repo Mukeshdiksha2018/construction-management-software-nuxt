@@ -149,6 +149,10 @@
                 <p class="text-sm text-gray-900 dark:text-gray-100 mt-1 font-mono">{{ itemToView.item_sequence || '-' }}</p>
               </div>
               <div>
+                <label class="text-sm font-medium text-gray-500 dark:text-gray-400">Model Number</label>
+                <p class="text-sm text-gray-900 dark:text-gray-100 mt-1">{{ itemToView.model_number || '-' }}</p>
+              </div>
+              <div>
                 <label class="text-sm font-medium text-gray-500 dark:text-gray-400">Cost Code</label>
                 <p class="text-sm text-gray-900 dark:text-gray-100 mt-1">{{ itemToView.cost_code_number || '' }} - {{ itemToView.cost_code_name || '-' }}</p>
               </div>
@@ -325,6 +329,18 @@
                 class="w-full"
               />
               <p class="text-xs text-gray-500 mt-1">Optional alphanumeric identifier (letters, numbers, and symbols like -)</p>
+            </div>
+            
+            <div>
+              <label class="block text-sm font-medium text-default mb-1">
+                Model Number
+              </label>
+              <UInput
+                v-model="itemForm.model_number"
+                placeholder="Enter model number"
+                size="sm"
+                class="w-full"
+              />
             </div>
             
             <div>
@@ -687,6 +703,7 @@ const itemForm = ref({
   cost_code_configuration_uuid: '',
   item_name: '',
   item_sequence: '',
+  model_number: '',
   item_type_uuid: '',
   project_uuid: '',
   corporation_uuid: '',
@@ -779,6 +796,7 @@ const filteredItems = computed(() => {
       const searchableFields = [
         item.item_name || '',
         item.item_sequence || '',
+        item.model_number || '',
         item.cost_code_number || '',
         item.cost_code_name || '',
         item.unit || '',
@@ -874,6 +892,21 @@ const makeItemsColumns = (rowsRef: any): TableColumn<any>[] => [
       placeholder: 'Seq',
       'onUpdate:modelValue': (v: string) => rowsRef.value[row.index].item_sequence = v
     })
+  },
+  {
+    accessorKey: 'model_number',
+    header: 'Model Number',
+    enableSorting: false,
+    meta: { class: { th: 'w-40', td: 'w-40' } },
+    cell: ({ row }: any) => h('div', { class: 'min-w-[8rem]' }, [
+      h(UInput as any, {
+        modelValue: row.original.model_number || '',
+        size: 'xs',
+        class: 'w-full',
+        placeholder: 'Model #',
+        'onUpdate:modelValue': (v: string) => rowsRef.value[row.index].model_number = v
+      })
+    ])
   },
   {
     accessorKey: 'item_name',
@@ -1069,6 +1102,7 @@ const makeItemsColumns = (rowsRef: any): TableColumn<any>[] => [
             cost_code_configuration_uuid: '',
             item_name: '',
             item_sequence: '',
+            model_number: '',
             unit_price: '',
             unit: defaultUnit.value,
             description: '',
@@ -1197,6 +1231,7 @@ const saveRowsForItemType = async (rows: any[], itemTypeUuid: string, projectUui
           uuid: r.uuid,
           item_name: r.item_name,
           item_sequence: r.item_sequence || undefined,
+          model_number: r.model_number || undefined,
           item_type_uuid: itemTypeUuid,
           project_uuid: projectUuid,
           corporation_uuid: corporationUuid || '',
@@ -1215,6 +1250,7 @@ const saveRowsForItemType = async (rows: any[], itemTypeUuid: string, projectUui
         existing.push({
           item_name: r.item_name,
           item_sequence: r.item_sequence || undefined,
+          model_number: r.model_number || undefined,
           item_type_uuid: itemTypeUuid,
           project_uuid: projectUuid,
           corporation_uuid: corporationUuid || '',
@@ -1251,6 +1287,13 @@ const columns: TableColumn<any>[] = [
     enableSorting: false,
     meta: { class: { th: 'text-left w-32', td: 'text-left w-32' } },
     cell: ({ row }) => h('div', { class: 'text-xs text-muted font-mono' }, row.original.item_sequence || '-')
+  },
+  {
+    accessorKey: 'model_number',
+    header: 'Model Number',
+    enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
+    cell: ({ row }) => h('div', { class: 'text-xs text-muted' }, row.original.model_number || '-')
   },
   {
     accessorKey: 'cost_code',
@@ -1447,6 +1490,7 @@ const openAddModal = () => {
     cost_code_configuration_uuid: '',
     item_name: '',
     item_sequence: '',
+    model_number: '',
     item_type_uuid: '',
     project_uuid: '',
     corporation_uuid: corpStore.selectedCorporation?.uuid || '',
@@ -1478,6 +1522,7 @@ const editItemAction = async (item: any) => {
     cost_code_configuration_uuid: item.cost_code_configuration_uuid || '',
     item_name: item.item_name,
     item_sequence: item.item_sequence || '',
+    model_number: item.model_number || '',
     item_type_uuid: item.item_type_uuid,
     project_uuid: item.project_uuid || '',
     corporation_uuid: corpStore.selectedCorporation?.uuid || item.corporation_uuid || '',
@@ -1608,6 +1653,7 @@ watch(
       original_cost_code_configuration_uuid: it.cost_code_configuration_uuid || it.configuration_uuid || '',
       item_name: it.item_name || '',
       item_sequence: it.item_sequence || '',
+      model_number: it.model_number || '',
       unit_price: it.unit_price ?? '',
       unit: it.unit || defaultUnit.value,
       description: it.description || '',
@@ -1746,6 +1792,7 @@ const saveItem = async () => {
           ...updatedItems[itemIndex],
           item_name: itemForm.value.item_name,
           item_sequence: itemForm.value.item_sequence || undefined,
+          model_number: itemForm.value.model_number || undefined,
           item_type_uuid: itemForm.value.item_type_uuid,
           project_uuid: itemForm.value.project_uuid,
           corporation_uuid: itemForm.value.corporation_uuid,
