@@ -3614,6 +3614,33 @@ watch(() => props.deletedUuids, (newDeletedUuids) => {
       division.costCodes?.forEach((costCode: any) => collectEstimates(costCode))
     })
     
+    // Also collect estimates from modelValue (line items) to preserve estimates
+    // even when cost codes have been filtered out of hierarchicalDataRef
+    if (props.modelValue && Array.isArray(props.modelValue) && props.modelValue.length > 0) {
+      props.modelValue.forEach((lineItem: any) => {
+        if (lineItem.cost_code_uuid && !deletedUuidsLocal.value.has(lineItem.cost_code_uuid)) {
+          // Only preserve if not being deleted
+          const existing = existingEstimatesMap.get(lineItem.cost_code_uuid)
+          if (!existing || (existing.labor_amount === 0 && existing.material_amount === 0 && existing.total_amount === 0)) {
+            // Use line item data if no existing estimate or existing is empty
+            existingEstimatesMap.set(lineItem.cost_code_uuid, {
+              labor_amount: lineItem.labor_amount || 0,
+              material_amount: lineItem.material_amount || 0,
+              total_amount: lineItem.total_amount || 0,
+              estimation_type: lineItem.estimation_type || 'manual',
+              labor_amount_per_room: lineItem.labor_amount_per_room || 0,
+              labor_rooms_count: lineItem.labor_rooms_count || 0,
+              labor_amount_per_sqft: lineItem.labor_amount_per_sqft || 0,
+              labor_sq_ft_count: lineItem.labor_sq_ft_count || 0,
+              material_items: lineItem.material_items || [],
+              contingency_enabled: lineItem.contingency_enabled === true,
+              contingency_percentage: lineItem.contingency_percentage || null
+            })
+          }
+        }
+      })
+    }
+    
     // Rebuild from hierarchicalData and filter out deleted items
     const clonedData = JSON.parse(JSON.stringify(hierarchicalData.value))
     
