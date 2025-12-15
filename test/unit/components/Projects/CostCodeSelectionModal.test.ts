@@ -75,6 +75,25 @@ describe('CostCodeSelectionModal', () => {
               </div>
             `
           },
+          UTabs: {
+            props: ['items', 'modelValue', 'orientation', 'variant', 'content'],
+            emits: ['update:modelValue'],
+            template: `
+              <div class="tabs-wrapper">
+                <div class="tabs-list">
+                  <button 
+                    v-for="item in items" 
+                    :key="item.value"
+                    :class="{ active: modelValue === item.value }"
+                    @click="$emit('update:modelValue', item.value)"
+                  >
+                    {{ item.label }}
+                  </button>
+                </div>
+                <slot />
+              </div>
+            `
+          },
           UButton: {
             template: '<button @click="$emit(\'click\')"><slot /></button>',
             props: ['color', 'variant', 'size', 'icon']
@@ -109,16 +128,33 @@ describe('CostCodeSelectionModal', () => {
       expect(wrapper.find('.modal')).toBeTruthy()
     })
 
-    it('displays all divisions', () => {
-      const text = wrapper.text()
-      expect(text).toContain('01 General Requirements')
-      expect(text).toContain('03 Concrete')
+    it('displays all divisions', async () => {
+      // With tabs, division names appear in tab buttons
+      const tabsWrapper = wrapper.find('.tabs-wrapper')
+      expect(tabsWrapper.exists()).toBe(true)
+      
+      // Check that tab buttons contain division names
+      const tabButtons = wrapper.findAll('.tabs-list button')
+      expect(tabButtons.length).toBeGreaterThanOrEqual(2)
+      
+      const tabTexts = tabButtons.map(btn => btn.text())
+      expect(tabTexts.some(text => text.includes('01 General Requirements'))).toBe(true)
+      expect(tabTexts.some(text => text.includes('03 Concrete'))).toBe(true)
     })
 
-    it('displays all cost codes', () => {
-      const text = wrapper.text()
+    it('displays all cost codes', async () => {
+      // Initially, first division (01 General Requirements) is active
+      let text = wrapper.text()
       expect(text).toContain('01-100 Mobilization')
       expect(text).toContain('01-200 Temporary Facilities')
+      
+      // Switch to second division tab to see its cost codes
+      const vm = wrapper.vm
+      vm.activeDivisionTab = 'division-2' // Second division's uuid
+      await nextTick()
+      
+      // Now second division's cost codes should be visible
+      text = wrapper.text()
       expect(text).toContain('03-100 Formwork')
     })
 
