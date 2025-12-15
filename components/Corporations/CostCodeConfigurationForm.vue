@@ -110,14 +110,27 @@
                 <label class="block text-xs font-medium text-default mb-1">
                   Preferred Vendor
                 </label>
-              <VendorSelect
-                :model-value="form.preferred_vendor_uuid"
-                placeholder="Select Vendor"
-                size="sm"
-                :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
-                :local-vendors="localVendors"
-                @change="(vendor) => handleVendorChange(vendor)"
-              />
+                <div class="flex items-center gap-2">
+                  <VendorSelect
+                    :model-value="form.preferred_vendor_uuid"
+                    placeholder="Select Vendor"
+                    size="sm"
+                    :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
+                    :local-vendors="localVendors"
+                    class="flex-1"
+                    @change="(vendor) => handleVendorChange(vendor)"
+                  />
+                  <UButton
+                    icon="i-heroicons-plus"
+                    size="xs"
+                    color="primary"
+                    variant="soft"
+                    class="shrink-0"
+                    :disabled="!form.corporation_uuid && !corpStore.selectedCorporation"
+                    @click="openVendorModal"
+                    title="Add new vendor"
+                  />
+                </div>
               </div>
 
               <!-- GL Account -->
@@ -518,6 +531,13 @@
         </div>
       </template>
     </UModal>
+
+    <!-- Vendor Form Modal -->
+    <VendorForm 
+      v-model="showVendorModal" 
+      :vendor="null"
+      @vendor-saved="handleVendorSaved"
+    />
   </div>
 </template>
 
@@ -541,6 +561,7 @@ import ProjectSelect from '@/components/Shared/ProjectSelect.vue';
 import ParentCostCodeSelect from '@/components/Shared/ParentCostCodeSelect.vue';
 import CorporationSelect from '@/components/Shared/CorporationSelect.vue';
 import DivisionSelect from '@/components/Shared/DivisionSelect.vue';
+import VendorForm from '@/components/PurchaseOrders/VendorForm.vue';
 
 // Props
 interface Props {
@@ -581,6 +602,7 @@ const loadingChartOfAccounts = ref(false);
 
 // State
 const showItemModal = ref(false);
+const showVendorModal = ref(false);
 const effectiveDatePopoverOpen = ref(false);
 const itemAsOfDatePopoverOpen = ref(false);
 const editingItemIndex = ref<number | null>(null);
@@ -1109,6 +1131,50 @@ const deleteItem = (index: number) => {
   const items = [...(props.form.preferred_items || [])];
   items.splice(index, 1);
   emit('update:form', { ...props.form, preferred_items: items });
+};
+
+const openVendorModal = () => {
+  const corporationUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
+  if (!corporationUuid) {
+    const toast = useToast();
+    toast.add({
+      title: 'Error',
+      description: 'Please select a corporation first before adding vendors.',
+      icon: 'i-heroicons-exclamation-triangle',
+      color: 'error'
+    });
+    return;
+  }
+  
+  // Ensure the selected corporation matches the form's corporation
+  // VendorForm uses corpStore.selectedCorporation, so we need to ensure they match
+  if (props.form.corporation_uuid && corpStore.selectedCorporation?.uuid !== props.form.corporation_uuid) {
+    const toast = useToast();
+    toast.add({
+      title: 'Warning',
+      description: 'Please ensure the corporation in the form matches the selected corporation.',
+      icon: 'i-heroicons-exclamation-triangle',
+      color: 'warning'
+    });
+    return;
+  }
+  
+  showVendorModal.value = true;
+};
+
+const handleVendorSaved = async () => {
+  const corporationUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
+  if (corporationUuid) {
+    // Refresh vendors list to include the newly created vendor
+    await fetchVendorsForCorporation(corporationUuid);
+    
+    // Also refresh the vendor store for consistency
+    vendorStore.refreshVendorsFromAPI(corporationUuid);
+    
+    // Optionally, you could auto-select the newly created vendor here
+    // by finding the most recently created vendor and setting it
+    // For now, we'll just refresh the list and let the user select manually
+  }
 };
 
 // Form validation
