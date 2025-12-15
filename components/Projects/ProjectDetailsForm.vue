@@ -709,6 +709,7 @@
             v-model="uploadedFiles" 
             accept=".pdf,.doc,.docx"
             multiple
+            :key="fileInputKey"
           >
             <div class="space-y-2">
               <UButton
@@ -1071,6 +1072,7 @@ const {
 // File upload functionality
 const uploadedFiles = ref<File[]>([]);
 const fileUploadError = ref<string | null>(null);
+const fileInputKey = ref(0); // Key to force re-render of file input
 
 // File preview functionality
 const showFilePreviewModal = ref(false);
@@ -1976,13 +1978,32 @@ const removeFile = async (index: number) => {
     }
   }
   
-  // Remove from uploaded files array
-  uploadedFiles.value.splice(index, 1);
+  // Find and remove the corresponding file from uploadedFiles by matching name/size
+  // This handles cases where arrays might be out of sync
+  if (attachment.name || attachment.document_name) {
+    const fileName = attachment.name || attachment.document_name;
+    const fileSize = attachment.size || attachment.file_size;
+    const fileIndex = uploadedFiles.value.findIndex(
+      (file) => file.name === fileName && file.size === fileSize
+    );
+    if (fileIndex !== -1) {
+      uploadedFiles.value.splice(fileIndex, 1);
+    }
+  } else {
+    // Fallback: remove by index if we can't match by name/size
+    if (index < uploadedFiles.value.length) {
+      uploadedFiles.value.splice(index, 1);
+    }
+  }
   
   // Update form attachments
   const updatedAttachments = [...props.form.attachments];
   updatedAttachments.splice(index, 1);
   emit('update:form', { ...props.form, attachments: updatedAttachments });
+  
+  // Reset file input to allow re-selecting the same file
+  // This forces the browser to recognize file selection even if it's the same file
+  fileInputKey.value += 1;
 };
 
 const handleFileUpload = async () => {
