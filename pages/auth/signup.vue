@@ -169,16 +169,21 @@ onMounted(async () => {
   // Check if user is already authenticated
   const { data: { session } } = await supabase.auth.getSession();
   if (session) {
-    // Check if this user has completed their profile setup
+    // Check if this user has completed their profile setup using API endpoint
     try {
-      const { data: profile, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('status, first_name, last_name')
-        .eq('user_id', session.user.id)
-        .single();
+      const response = await $fetch('/api/users/get-profile', {
+        query: {
+          userId: session.user.id,
+        }
+      });
 
-      if (profileError) {
-        console.error('Error fetching user profile:', profileError);
+      if (!response.success) {
+        throw new Error('Failed to fetch profile');
+      }
+
+      const profile = response.data;
+
+      if (!profile) {
         // If no profile found, this might be a new user - let them complete signup
         success.value = 'Welcome! Please complete your profile below to finish setting up your account.';
         return;
@@ -349,126 +354,20 @@ async function handleSignup() {
       throw new Error('No active session found. Please use the invitation link from your email.');
     }
 
-    // Update user metadata with first and last name
-    const { error: updateError } = await supabase.auth.updateUser({
-      data: {
-        first_name: form.value.firstName.trim(),
-        last_name: form.value.lastName.trim()
-      }
-    });
-
-    if (updateError) {
-      console.warn('Failed to update user metadata:', updateError);
-      // Continue anyway as the main signup was successful
-    }
-
-    // Update password
-    const { error: passwordError } = await supabase.auth.updateUser({
-      password: form.value.password
-    });
-
-    if (passwordError) {
-      throw passwordError;
-    }
-
-    // Update user profile status to active and save first/last name
-    try {
-      console.log('Updating user profile for user:', session.user.id);
-      console.log('Profile data:', {
+    // Use API endpoint to complete signup (handles password update and profile creation/update)
+    const response = await $fetch('/api/users/complete-signup', {
+      method: 'POST',
+      body: {
+        userId: session.user.id,
         firstName: form.value.firstName.trim(),
-        lastName: form.value.lastName.trim()
-      });
-
-      // First, try to update the existing profile
-      const { data: updateData, error: profileError } = await supabase
-        .from('user_profiles')
-        .update({ 
-          status: 'active',
-          first_name: form.value.firstName.trim(),
-          last_name: form.value.lastName.trim(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', session.user.id)
-        .select();
-
-      if (profileError) {
-        console.error('Failed to update user profile:', profileError);
-        
-        // If the profile doesn't exist, try to create it
-        if (profileError.code === 'PGRST116' || profileError.message.includes('No rows found') || profileError.message.includes('relation "user_profiles" does not exist')) {
-          console.log('Profile not found, creating new profile...');
-          
-          const { data: insertData, error: insertError } = await supabase
-            .from('user_profiles')
-            .insert({
-              user_id: session.user.id,
-              status: 'active',
-              first_name: form.value.firstName.trim(),
-              last_name: form.value.lastName.trim(),
-              invited_at: new Date().toISOString(),
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            })
-            .select();
-
-          if (insertError) {
-            console.error('Failed to create user profile:', insertError);
-            console.error('Insert error details:', {
-              code: insertError.code,
-              message: insertError.message,
-              details: insertError.details,
-              hint: insertError.hint
-            });
-            
-            // If table doesn't exist, show a helpful error message
-            if (insertError.message.includes('relation "user_profiles" does not exist')) {
-              throw new Error('User profiles table not found. Please contact support to set up the database.');
-            }
-            
-            // If it's a permission error, provide more specific guidance
-            if (insertError.code === '42501') {
-              throw new Error('Permission denied. Please contact support to check your account permissions.');
-            }
-            
-            throw new Error(`Failed to create user profile: ${insertError.message}`);
-          } else {
-            console.log('User profile created successfully:', insertData);
-          }
-        } else {
-          console.error('Update error details:', {
-            code: profileError.code,
-            message: profileError.message,
-            details: profileError.details,
-            hint: profileError.hint
-          });
-          throw new Error(`Failed to update user profile: ${profileError.message}`);
-        }
-      } else {
-        console.log('User profile updated successfully:', updateData);
+        lastName: form.value.lastName.trim(),
+        password: form.value.password,
       }
-    } catch (profileErr: any) {
-      console.error('Error updating user profile:', profileErr);
-      throw new Error(profileErr.message || 'Failed to update user profile. Please try again.');
+    });
+
+    if (!response.success) {
+      throw new Error(response.message || 'Failed to complete signup');
     }
-
-    // Verify the profile was saved correctly
-    const { data: verifyProfile, error: verifyError } = await supabase
-      .from('user_profiles')
-      .select('first_name, last_name, status')
-      .eq('user_id', session.user.id)
-      .single();
-
-    if (verifyError) {
-      console.error('Error verifying profile save:', verifyError);
-      throw new Error('Profile verification failed. Please contact support.');
-    }
-
-    if (!verifyProfile.first_name || !verifyProfile.last_name) {
-      console.error('Profile data not saved correctly:', verifyProfile);
-      throw new Error('Profile data not saved correctly. Please try again.');
-    }
-
-    console.log('Profile verified successfully:', verifyProfile);
 
     // Update the auth store to reflect the new user data
     const authStore = useAuthStore();
@@ -493,7 +392,7 @@ async function handleSignup() {
 
   } catch (err: any) {
     console.error('Signup error:', err);
-    error.value = err.message || 'An error occurred during signup. Please try again.';
+    error.value = err.message || err.data?.message || 'An error occurred during signup. Please try again.';
   } finally {
     loading.value = false;
   }

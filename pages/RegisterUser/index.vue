@@ -176,7 +176,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "vue-router";
 
@@ -195,10 +195,41 @@ const isLoading = ref(false);
 const username = ref("");
 const role = ref("Super Admin");
 const roles = ["Super Admin"]; // Only Super Admin option
+const isFirstUser = ref(false);
+const checkingFirstUser = ref(true);
 
 // Password visibility states
 const showPassword = ref(false);
 const showConfirmPassword = ref(false);
+
+// Check if this is the first user on mount
+onMounted(async () => {
+  try {
+    const checkResponse = await $fetch('/api/users/check-first-user');
+    isFirstUser.value = checkResponse.isFirstUser;
+    
+    // If users already exist, redirect to login
+    if (!isFirstUser.value) {
+      toast.add({
+        title: 'Registration Closed',
+        description: 'User registration is only available for the first user. Please contact an administrator.',
+        icon: 'i-heroicons-exclamation-triangle',
+      });
+      setTimeout(() => {
+        router.push("/");
+      }, 2000);
+    }
+  } catch (error) {
+    console.error("Error checking first user:", error);
+    toast.add({
+      title: 'Error',
+      description: 'Unable to verify registration eligibility. Please try again later.',
+      icon: 'i-heroicons-exclamation-triangle',
+    });
+  } finally {
+    checkingFirstUser.value = false;
+  }
+});
 
 // Computed property for password matching validation
 const passwordsMatch = computed(() => {
@@ -236,6 +267,16 @@ const handleRegister = async () => {
     return;
   }
 
+  // Only allow registration if this is the first user
+  if (!isFirstUser.value) {
+    toast.add({
+      title: 'Registration Closed',
+      description: 'User registration is only available for the first user.',
+      icon: 'i-heroicons-exclamation-triangle',
+    });
+    return;
+  }
+
   isLoading.value = true;
 
   try {
@@ -255,12 +296,12 @@ const handleRegister = async () => {
     // If user was created successfully, create user profile with Super Admin role
     if (authData.user) {
       try {
-        const profileResponse = await $fetch('/api/users/create-profile', {
+        // Use the first-user endpoint since we've verified this is the first user
+        const profileResponse = await $fetch('/api/users/create-first-user-profile', {
           method: 'POST',
           body: {
             userId: authData.user.id,
             username: username.value,
-            roleName: role.value,
           }
         });
 
