@@ -188,6 +188,107 @@ const buildContextSignature = (
   return `${corporationId}::${start}::${end}`;
 };
 
+/**
+ * Fetch all pages of purchase orders for a corporation
+ */
+const fetchAllPurchaseOrdersPages = async (
+  corporationId: string,
+  force: boolean
+): Promise<void> => {
+  const pageSize = 100;
+  let currentPage = 1;
+  let hasMore = true;
+
+  while (hasMore) {
+    await purchaseOrdersStore.fetchPurchaseOrders(
+      corporationId,
+      force && currentPage === 1, // Only force refresh on first page
+      currentPage,
+      pageSize
+    );
+
+    const paginationInfo = purchaseOrdersStore.getPaginationInfo(corporationId);
+    if (paginationInfo) {
+      if (paginationInfo.hasMore && currentPage < paginationInfo.totalPages) {
+        currentPage++;
+        hasMore = true;
+      } else {
+        hasMore = false;
+      }
+    } else {
+      // If no pagination info, assume only one page was returned
+      hasMore = false;
+    }
+  }
+};
+
+/**
+ * Fetch all pages of change orders for a corporation
+ */
+const fetchAllChangeOrdersPages = async (
+  corporationId: string,
+  force: boolean
+): Promise<void> => {
+  const pageSize = 100;
+  let currentPage = 1;
+  let hasMore = true;
+
+  while (hasMore) {
+    await changeOrdersStore.fetchChangeOrders(
+      corporationId,
+      force && currentPage === 1, // Only force refresh on first page
+      currentPage,
+      pageSize
+    );
+
+    const paginationInfo = changeOrdersStore.getPaginationInfo(corporationId);
+    if (paginationInfo) {
+      if (paginationInfo.hasMore && currentPage < paginationInfo.totalPages) {
+        currentPage++;
+        hasMore = true;
+      } else {
+        hasMore = false;
+      }
+    } else {
+      // If no pagination info, assume only one page was returned
+      hasMore = false;
+    }
+  }
+};
+
+/**
+ * Fetch all pages of estimates for a corporation
+ */
+const fetchAllEstimatesPages = async (
+  corporationId: string,
+  force: boolean
+): Promise<void> => {
+  const pageSize = 100;
+  let currentPage = 1;
+  let hasMore = true;
+
+  while (hasMore) {
+    await estimatesStore.refreshEstimatesFromAPI(
+      corporationId,
+      currentPage,
+      pageSize
+    );
+
+    const paginationInfo = estimatesStore.getPaginationInfo(corporationId);
+    if (paginationInfo) {
+      if (paginationInfo.hasMore && currentPage < paginationInfo.totalPages) {
+        currentPage++;
+        hasMore = true;
+      } else {
+        hasMore = false;
+      }
+    } else {
+      // If no pagination info, assume only one page was returned
+      hasMore = false;
+    }
+  }
+};
+
 const ensurePurchaseOrdersForCorporation = async (
   corporationId?: string | null,
   options: { force?: boolean } = {}
@@ -211,8 +312,7 @@ const ensurePurchaseOrdersForCorporation = async (
     return purchaseOrdersPromise;
   }
 
-  purchaseOrdersPromise = purchaseOrdersStore
-    .fetchPurchaseOrders(normalizedId, force, 1, 100) // Fetch only first page (100 records)
+  purchaseOrdersPromise = fetchAllPurchaseOrdersPages(normalizedId, force)
     .then(() => {
       lastFetchedPurchaseOrdersSignature.value = signature;
     })
@@ -295,8 +395,7 @@ const ensureChangeOrdersForCorporation = async (
     return changeOrdersPromise;
   }
 
-  changeOrdersPromise = changeOrdersStore
-    .fetchChangeOrders(normalizedId, force, 1, 100) // Fetch only first page (100 records)
+  changeOrdersPromise = fetchAllChangeOrdersPages(normalizedId, force)
     .then(() => {
       lastFetchedChangeOrdersSignature.value = signature;
     })
@@ -459,11 +558,9 @@ const ensureEstimatesForCorporation = async (
     return estimatesPromise;
   }
 
-  // Use refreshEstimatesFromAPI to fetch from API and update both store and IndexedDB
+  // Fetch all pages of estimates from API and update both store and IndexedDB
   // This ensures the store is updated reactively for the Estimates component
-  // Fetch only first page (100 records) initially
-  estimatesPromise = estimatesStore
-    .refreshEstimatesFromAPI(normalizedId, 1, 100)
+  estimatesPromise = fetchAllEstimatesPages(normalizedId, force)
     .then(() => {
       lastFetchedEstimatesSignature.value = signature;
     })
