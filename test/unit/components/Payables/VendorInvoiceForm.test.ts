@@ -2343,9 +2343,12 @@ describe("VendorInvoiceForm.vue", () => {
       });
 
       await flushPromises();
+      await new Promise(resolve => setTimeout(resolve, 50)); // Wait for watchers to settle
 
       // Update advance payment cost codes
       const advancePaymentTables = wrapper.findAllComponents({ name: "AdvancePaymentCostCodesTable" });
+      expect(advancePaymentTables.length).toBeGreaterThan(0);
+      
       if (advancePaymentTables.length > 0 && advancePaymentTables[0]) {
         await advancePaymentTables[0].vm.$emit("update:modelValue", [
           {
@@ -2358,16 +2361,20 @@ describe("VendorInvoiceForm.vue", () => {
         ]);
 
         await flushPromises();
+        await new Promise(resolve => setTimeout(resolve, 50)); // Wait for watchers to complete
 
         // Amount should be updated to 250.0
         const emittedForms = wrapper.emitted("update:form") as VendorInvoiceFormData[][] | undefined;
-        if (emittedForms && emittedForms.length > 0) {
-          const lastForm = emittedForms[emittedForms.length - 1]?.[0] as VendorInvoiceFormData | undefined;
-          // The amount should be updated based on the new advance payment total
-          if (lastForm?.advance_payment_cost_codes && Array.isArray(lastForm.advance_payment_cost_codes) && lastForm.advance_payment_cost_codes[0]) {
-            expect((lastForm.advance_payment_cost_codes[0] as any).advanceAmount).toBe(250.0);
-          }
-        }
+        expect(emittedForms).toBeTruthy();
+        expect(emittedForms!.length).toBeGreaterThan(0);
+        
+        const lastForm = emittedForms![emittedForms!.length - 1]?.[0] as VendorInvoiceFormData | undefined;
+        expect(lastForm).toBeDefined();
+        expect(lastForm?.advance_payment_cost_codes).toBeDefined();
+        expect(Array.isArray(lastForm?.advance_payment_cost_codes)).toBe(true);
+        expect(lastForm?.advance_payment_cost_codes!.length).toBeGreaterThan(0);
+        // The amount should be updated based on the new advance payment total
+        expect((lastForm!.advance_payment_cost_codes![0] as any).advanceAmount).toBe(250.0);
       }
     });
   });
@@ -7925,8 +7932,10 @@ describe("VendorInvoiceForm.vue", () => {
       });
 
       await flushPromises();
+      await new Promise(resolve => setTimeout(resolve, 50)); // Wait for watchers to settle
 
       const vm = wrapper.vm as any;
+      expect(vm.handleRemovedCostCodesUpdate).toBeDefined();
       
       // Simulate removed cost codes being emitted from AdvancePaymentCostCodesTable
       const removedCostCodes = [
@@ -7937,22 +7946,23 @@ describe("VendorInvoiceForm.vue", () => {
         },
       ];
 
-      if (vm.handleRemovedCostCodesUpdate) {
-        vm.handleRemovedCostCodesUpdate(removedCostCodes);
-        await flushPromises();
+      vm.handleRemovedCostCodesUpdate(removedCostCodes);
+      await flushPromises();
+      await new Promise(resolve => setTimeout(resolve, 50)); // Wait for watchers to complete
 
-        // Check that form update was emitted
-        expect(wrapper.emitted('update:form')).toBeTruthy();
-        const emittedForms = wrapper.emitted('update:form');
-        if (emittedForms && emittedForms.length > 0) {
-          // Get the last emitted form (most recent update)
-          const emittedForm = emittedForms[emittedForms.length - 1]?.[0] as VendorInvoiceFormData;
-          expect(emittedForm?.removed_advance_payment_cost_codes).toBeDefined();
-          expect(Array.isArray(emittedForm?.removed_advance_payment_cost_codes)).toBe(true);
-          expect(emittedForm?.removed_advance_payment_cost_codes?.length).toBe(1);
-          expect(emittedForm?.removed_advance_payment_cost_codes?.[0]?.cost_code_uuid).toBe('cc-1');
-        }
-      }
+      // Check that form update was emitted
+      expect(wrapper.emitted('update:form')).toBeTruthy();
+      const emittedForms = wrapper.emitted('update:form');
+      expect(emittedForms).toBeTruthy();
+      expect(emittedForms!.length).toBeGreaterThan(0);
+      
+      // Get the last emitted form (most recent update)
+      const emittedForm = emittedForms![emittedForms!.length - 1]?.[0] as VendorInvoiceFormData;
+      expect(emittedForm).toBeDefined();
+      expect(emittedForm?.removed_advance_payment_cost_codes).toBeDefined();
+      expect(Array.isArray(emittedForm?.removed_advance_payment_cost_codes)).toBe(true);
+      expect(emittedForm?.removed_advance_payment_cost_codes?.length).toBe(1);
+      expect(emittedForm?.removed_advance_payment_cost_codes?.[0]?.cost_code_uuid).toBe('cc-1');
     });
 
     it('passes removed cost codes prop to AdvancePaymentCostCodesTable', async () => {

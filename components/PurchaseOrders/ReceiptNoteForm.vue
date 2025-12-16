@@ -1924,9 +1924,10 @@ watch(
     // Determine which one changed and handle accordingly
     const isPoChange = poUuid !== oldPoUuid;
     const isCoChange = coUuid !== oldCoUuid;
-    const isReceiptTypeChange = currentReceiptType !== oldReceiptType;
+    const isInitialMount = oldPoUuid === undefined && oldCoUuid === undefined && oldReceiptType === undefined;
+    const isReceiptTypeChange = !isInitialMount && currentReceiptType !== oldReceiptType;
 
-    // If receipt type changed, clear items first
+    // If receipt type changed (but not on initial mount), clear items first
     if (isReceiptTypeChange) {
       await fetchItems(null, null, false);
       // If we have a UUID for the new type, fetch items for it
@@ -1962,11 +1963,12 @@ watch(
     }
 
     // Fetch items and load financial data for the selected source
-    // Show modal for new receipt notes, skip modal for editing existing ones
-    const shouldShowModal = !props.editingReceiptNote;
+    // Show modal for new receipt notes when PO/CO changes after mount, but auto-populate on initial mount
+    // Skip modal for editing existing ones
+    const shouldShowModal = !props.editingReceiptNote && !isInitialMount;
     await fetchItems(sourceUuid, sourceType, shouldShowModal);
     
-    // Only load financial data if we're not showing the modal (editing existing receipt note)
+    // Only load financial data if we're not showing the modal (editing existing receipt note or initial mount)
     if (!shouldShowModal) {
       await loadFinancialDataFromSource(sourceUuid, sourceType);
     }
