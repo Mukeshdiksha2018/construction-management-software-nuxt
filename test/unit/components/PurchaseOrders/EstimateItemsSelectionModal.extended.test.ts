@@ -10,6 +10,7 @@ describe('EstimateItemsSelectionModal - Extended Tests', () => {
       id: 'item-1',
       uuid: 'item-1-uuid',
       item_uuid: 'item-uuid-1',
+      cost_code_uuid: 'cc-uuid-1',
       cost_code_label: 'CC-001',
       cost_code_description: 'Concrete Work',
       item_type_label: 'Material',
@@ -29,6 +30,7 @@ describe('EstimateItemsSelectionModal - Extended Tests', () => {
       id: 'item-2',
       uuid: 'item-2-uuid',
       item_uuid: 'item-uuid-2',
+      cost_code_uuid: 'cc-uuid-2',
       cost_code_label: 'CC-002',
       cost_code_description: 'Steel Work',
       item_type_label: 'Material',
@@ -48,6 +50,7 @@ describe('EstimateItemsSelectionModal - Extended Tests', () => {
       id: 'item-3',
       uuid: 'item-3-uuid',
       item_uuid: 'item-uuid-3',
+      cost_code_uuid: 'cc-uuid-3',
       cost_code_label: 'CC-003',
       cost_code_description: 'Lumber Work',
       item_type_label: 'Material',
@@ -118,6 +121,25 @@ describe('EstimateItemsSelectionModal - Extended Tests', () => {
               </div>
             `,
           },
+          CustomAccordion: {
+            props: ["items", "type", "collapsible"],
+            template: `
+              <div>
+                <div v-for="(item, index) in items" :key="item.key || index">
+                  <slot name="trigger" :item="item" :isOpen="true" />
+                  <slot name="content" :item="item" />
+                </div>
+              </div>
+            `,
+          },
+          UBadge: {
+            props: ["label", "color", "variant", "size"],
+            template: '<span class="badge">{{ label }}</span>',
+          },
+          UIcon: {
+            props: ["name"],
+            template: '<span class="icon"></span>',
+          },
         },
       },
     });
@@ -129,42 +151,29 @@ describe('EstimateItemsSelectionModal - Extended Tests', () => {
 
   describe('Individual Item Selection', () => {
     it('should toggle individual items independently', async () => {
-      const checkboxes = wrapper.findAll('input[type="checkbox"]');
-      // First checkbox is "select all", rest are individual items
-      const firstItemCheckbox = checkboxes[1]; // Second checkbox (index 1)
-      const secondItemCheckbox = checkboxes[2]; // Third checkbox (index 2)
+      const vm = wrapper.vm as any;
+      
+      // Since items are now filtered by cost code, we need to test with items from the same cost code
+      // Or test the logic directly with the selectedItems set
+      const itemId1 = vm.getItemId(mockItems[0], 0);
+      const itemId2 = vm.getItemId(mockItems[1], 1);
 
-      // Check if checkboxes exist
-      if (firstItemCheckbox.exists() && secondItemCheckbox.exists()) {
-        // Initially all should be selected
-        expect(firstItemCheckbox.element.checked).toBe(true);
-        expect(secondItemCheckbox.element.checked).toBe(true);
+      // Initially all should be selected
+      expect(vm.selectedItems.has(itemId1)).toBe(true);
+      expect(vm.selectedItems.has(itemId2)).toBe(true);
 
-        // Uncheck first item
-        await firstItemCheckbox.setValue(false);
-        await wrapper.vm.$nextTick();
+      // Uncheck first item
+      vm.handleToggleItem(itemId1, false);
+      await wrapper.vm.$nextTick();
 
-        // First should be unchecked, second should still be checked
-        expect(firstItemCheckbox.element.checked).toBe(false);
-        expect(secondItemCheckbox.element.checked).toBe(true);
-      } else {
-        // If checkboxes don't exist in the stub, test the logic directly
-        const vm = wrapper.vm as any;
-        const itemId1 = vm.getItemId(mockItems[0], 0);
-        const itemId2 = vm.getItemId(mockItems[1], 1);
-
-        // Initially all should be selected
-        expect(vm.selectedItems.has(itemId1)).toBe(true);
-        expect(vm.selectedItems.has(itemId2)).toBe(true);
-
-        // Uncheck first item
-        vm.handleToggleItem(itemId1, false);
-        await wrapper.vm.$nextTick();
-
-        // First should be unchecked, second should still be checked
-        expect(vm.selectedItems.has(itemId1)).toBe(false);
-        expect(vm.selectedItems.has(itemId2)).toBe(true);
-      }
+      // First should be unchecked, second should still be checked
+      expect(vm.selectedItems.has(itemId1)).toBe(false);
+      expect(vm.selectedItems.has(itemId2)).toBe(true);
+      
+      // Re-check first item
+      vm.handleToggleItem(itemId1, true);
+      await wrapper.vm.$nextTick();
+      expect(vm.selectedItems.has(itemId1)).toBe(true);
     })
 
     it('should use unique IDs for each item', async () => {
