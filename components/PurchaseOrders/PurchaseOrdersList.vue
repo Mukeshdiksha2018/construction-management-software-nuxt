@@ -1470,16 +1470,22 @@ const submitWithStatus = async (status: 'Draft' | 'Ready' | 'Approved') => {
   
   poForm.value.status = status
   
-  // Check for exceeded quantities before saving
-  const { hasExceeded, items } = checkForExceededQuantities()
+  // Only check for exceeded quantities and show modal for NEW purchase orders
+  // For existing purchase orders, skip the modal and save directly
+  const isNewPurchaseOrder = !poForm.value?.uuid
   
-  if (hasExceeded) {
-    exceededItems.value = items
-    pendingSaveAction.value = async () => {
-      await savePurchaseOrder()
+  if (isNewPurchaseOrder) {
+    // Check for exceeded quantities before saving
+    const { hasExceeded, items } = checkForExceededQuantities()
+    
+    if (hasExceeded) {
+      exceededItems.value = items
+      pendingSaveAction.value = async () => {
+        await savePurchaseOrder()
+      }
+      showExceededQuantityModal.value = true
+      return
     }
-    showExceededQuantityModal.value = true
-    return
   }
   
   await savePurchaseOrder()
