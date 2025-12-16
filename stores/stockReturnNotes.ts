@@ -18,6 +18,7 @@ export interface StockReturnNote {
   notes?: string | null;
   status: "Waiting" | "Returned";
   total_return_amount?: number | null;
+  financial_breakdown?: Record<string, any> | null;
   attachments?: any[];
   metadata?: Record<string, any> | null;
   is_active?: boolean;

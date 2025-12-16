@@ -612,6 +612,9 @@ export default defineEventHandler(async (event: H3Event) => {
           body.total_return_amount === ""
             ? null
             : parseFloat(body.total_return_amount),
+        financial_breakdown: body.financial_breakdown && typeof body.financial_breakdown === "object"
+          ? body.financial_breakdown
+          : {},
         attachments,
         metadata: body.metadata && typeof body.metadata === "object"
           ? body.metadata
@@ -1023,6 +1026,13 @@ export default defineEventHandler(async (event: H3Event) => {
           Number.isNaN(Number(body.total_return_amount))
             ? null
             : parseFloat(body.total_return_amount);
+      }
+
+      if (body.financial_breakdown !== undefined) {
+        updatePayload.financial_breakdown =
+          body.financial_breakdown && typeof body.financial_breakdown === "object"
+            ? body.financial_breakdown
+            : {};
       }
 
       maybeSet("attachments", updatedAttachments);
