@@ -941,6 +941,58 @@ const ensureVendorsLoaded = async () => {
   }
 };
 
+// Fetch purchase orders directly via API (independent from global store)
+const fetchLocalPurchaseOrders = async (corporationUuid: string) => {
+  if (!corporationUuid) return;
+  
+  try {
+    const response: any = await $fetch("/api/purchase-order-forms", {
+      method: "GET",
+      query: {
+        corporation_uuid: corporationUuid,
+      },
+    });
+    
+    // Handle different response formats
+    const orders = Array.isArray(response)
+      ? response
+      : Array.isArray(response?.data)
+      ? response.data
+      : [];
+    
+    localPurchaseOrders.value = orders;
+  } catch (error: any) {
+    console.error("[ReceiptNoteForm] Failed to fetch purchase orders:", error);
+    localPurchaseOrders.value = [];
+  }
+};
+
+// Fetch change orders directly via API (independent from global store)
+const fetchLocalChangeOrders = async (corporationUuid: string) => {
+  if (!corporationUuid) return;
+  
+  try {
+    const response: any = await $fetch("/api/change-orders", {
+      method: "GET",
+      query: {
+        corporation_uuid: corporationUuid,
+      },
+    });
+    
+    // Handle different response formats
+    const orders = Array.isArray(response)
+      ? response
+      : Array.isArray(response?.data)
+      ? response.data
+      : [];
+    
+    localChangeOrders.value = orders;
+  } catch (error: any) {
+    console.error("[ReceiptNoteForm] Failed to fetch change orders:", error);
+    localChangeOrders.value = [];
+  }
+};
+
 watch(
   [() => props.form.corporation_uuid, selectedCorporationUuid],
   async ([formCorpUuid]) => {
@@ -1039,58 +1091,6 @@ const updateFormField = (field: string, value: any, base?: Record<string, any>) 
   const next = { ...source, [field]: value };
   emit("update:form", next);
   return next;
-};
-
-// Fetch purchase orders directly via API (independent from global store)
-const fetchLocalPurchaseOrders = async (corporationUuid: string) => {
-  if (!corporationUuid) return;
-  
-  try {
-    const response: any = await $fetch("/api/purchase-order-forms", {
-      method: "GET",
-      query: {
-        corporation_uuid: corporationUuid,
-      },
-    });
-    
-    // Handle different response formats
-    const orders = Array.isArray(response)
-      ? response
-      : Array.isArray(response?.data)
-      ? response.data
-      : [];
-    
-    localPurchaseOrders.value = orders;
-  } catch (error: any) {
-    console.error("[ReceiptNoteForm] Failed to fetch purchase orders:", error);
-    localPurchaseOrders.value = [];
-  }
-};
-
-// Fetch change orders directly via API (independent from global store)
-const fetchLocalChangeOrders = async (corporationUuid: string) => {
-  if (!corporationUuid) return;
-  
-  try {
-    const response: any = await $fetch("/api/change-orders", {
-      method: "GET",
-      query: {
-        corporation_uuid: corporationUuid,
-      },
-    });
-    
-    // Handle different response formats
-    const orders = Array.isArray(response)
-      ? response
-      : Array.isArray(response?.data)
-      ? response.data
-      : [];
-    
-    localChangeOrders.value = orders;
-  } catch (error: any) {
-    console.error("[ReceiptNoteForm] Failed to fetch change orders:", error);
-    localChangeOrders.value = [];
-  }
 };
 
 const handleCorporationChange = async (corporationUuid?: string | null) => {
