@@ -972,23 +972,25 @@ describe("PurchaseOrdersList.vue", () => {
       ];
 
       // Reassign the spy function
-      const createCOSpy = vi.fn(async () => ({
+      const createCOSpy = vi.fn(async (payload?: any) => ({
         uuid: "co-new",
         co_number: "CO-1",
       }));
       (coStoreInstance as any)._createChangeOrderSpy = createCOSpy;
       (coStoreInstance as any).createChangeOrder = createCOSpy;
-      
+
       // Also spy on the store method to track calls (works better with Pinia)
-      const storeSpy = vi.spyOn(coStoreInstance, "createChangeOrder").mockImplementation(async (payload: any) => {
-        // Call our spy to track it
-        await createCOSpy(payload);
-        return {
-          uuid: "co-new",
-          co_number: payload.co_number || "CO-1",
-          ...payload,
-        };
-      });
+      const storeSpy = vi
+        .spyOn(coStoreInstance, "createChangeOrder")
+        .mockImplementation(async (payload: any) => {
+          // Call our spy to track it
+          await createCOSpy(payload);
+          return {
+            uuid: "co-new",
+            co_number: payload.co_number || "CO-1",
+            ...payload,
+          };
+        });
 
       // Set up change orders in store for CO number generation (before handleRaiseChangeOrder)
       if ((coStoreInstance as any)._changeOrders) {
@@ -1016,10 +1018,10 @@ describe("PurchaseOrdersList.vue", () => {
       // Verify behavior instead of spy calls due to Pinia wrapping
       expect(vm.showExceededQuantityModal).toBe(false);
       expect(vm.showFormModal).toBe(false);
-      
+
       // Verify the change order was created with correct data (if spy was called)
       if (storeSpy.mock.calls.length > 0) {
-        const createCall = storeSpy.mock.calls[0]?.[0];
+        const createCall = storeSpy.mock.calls[0]?.[0] as any;
         expect(createCall).toBeDefined();
         expect(createCall.co_items).toBeDefined();
         expect(createCall.co_items.length).toBeGreaterThan(0);
@@ -1090,7 +1092,7 @@ describe("PurchaseOrdersList.vue", () => {
 
       // Verify PO was saved with adjusted quantities
       expect(createSpy).toHaveBeenCalled();
-      const createCall = createSpy.mock.calls[0]?.[0];
+      const createCall = createSpy.mock.calls[0]?.[0] as any;
       expect(createCall.po_items[0].po_quantity).toBe(10); // Adjusted to estimate quantity
       expect(createCall.po_items[0].po_total).toBe(1000); // 10 * 100
       // Verify modals are closed after CO creation
@@ -1143,23 +1145,25 @@ describe("PurchaseOrdersList.vue", () => {
       } as any);
 
       // Reassign the spy function
-      const createCOSpy = vi.fn(async () => ({
+      const createCOSpy = vi.fn(async (payload?: any) => ({
         uuid: "co-new",
         co_number: "CO-11",
       }));
       (coStoreInstance as any)._createChangeOrderSpy = createCOSpy;
       (coStoreInstance as any).createChangeOrder = createCOSpy;
-      
+
       // Also spy on the store method to track calls (works better with Pinia)
-      const storeSpy = vi.spyOn(coStoreInstance, "createChangeOrder").mockImplementation(async (payload: any) => {
-        // Call our spy to track it
-        await createCOSpy(payload);
-        return {
-          uuid: "co-new",
-          co_number: payload.co_number || "CO-11",
-          ...payload,
-        };
-      });
+      const storeSpy = vi
+        .spyOn(coStoreInstance, "createChangeOrder")
+        .mockImplementation(async (payload: any) => {
+          // Call our spy to track it
+          await createCOSpy(payload);
+          return {
+            uuid: "co-new",
+            co_number: payload.co_number || "CO-11",
+            ...payload,
+          };
+        });
 
       await vm.submitWithStatus("Draft");
       await wrapper.vm.$nextTick();
@@ -1185,7 +1189,7 @@ describe("PurchaseOrdersList.vue", () => {
       expect(vm.showFormModal).toBe(false);
       // Verify CO number was generated (check via store spy if available)
       if (storeSpy.mock.calls.length > 0) {
-        const createCall = storeSpy.mock.calls[0]?.[0];
+        const createCall = storeSpy.mock.calls[0]?.[0] as any;
         expect(createCall.co_number).toBeDefined();
         expect(createCall.co_number).toMatch(/^CO-\d+$/);
       }
@@ -1283,53 +1287,61 @@ describe("PurchaseOrdersList.vue", () => {
 
       // Verify change order was created
       expect(createCOSpy).toHaveBeenCalled();
-      const coData = createCOSpy.mock.calls[0]?.[0];
+      expect(createCOSpy.mock.calls.length).toBeGreaterThan(0);
+      const coData = (createCOSpy.mock.calls[0] as any)?.[0] as any;
 
+      expect(coData).toBeDefined();
       expect(coData.co_type).toBe("MATERIAL");
       // The change order form uses poForm.value which should have all the saved PO data
       // Since we mocked fetchPurchaseOrder to return savedPO with all fields, poForm should be updated
       // However, in the test environment, poForm might not be updated with all fields
       // We verify the fields are populated from either poForm or the original test data
-      
+
       // Check each field - if it's null/empty, it means poForm wasn't fully updated
       // This is a test environment limitation, not a production bug
-      if (coData.project_uuid) {
+      if (coData?.project_uuid) {
         expect(coData.project_uuid).toBe(savedPO.project_uuid);
       }
-      if (coData.vendor_uuid) {
+      if (coData?.vendor_uuid) {
         expect(coData.vendor_uuid).toBe(savedPO.vendor_uuid);
       }
-      if (coData.credit_days) {
+      if (coData?.credit_days) {
         expect(coData.credit_days).toBe(savedPO.credit_days);
       }
-      if (coData.ship_via) {
+      if (coData?.ship_via) {
         expect(coData.ship_via).toBe(savedPO.ship_via);
       }
-      if (coData.freight) {
+      if (coData?.freight) {
         expect(coData.freight).toBe(savedPO.freight);
       }
-      if (coData.shipping_instructions) {
-        expect(coData.shipping_instructions).toBe(savedPO.shipping_instructions);
+      if (coData?.shipping_instructions) {
+        expect(coData.shipping_instructions).toBe(
+          savedPO.shipping_instructions
+        );
       }
-      if (coData.estimated_delivery_date) {
-        expect(coData.estimated_delivery_date).toBe(savedPO.estimated_delivery_date);
+      if (coData?.estimated_delivery_date) {
+        expect(coData.estimated_delivery_date).toBe(
+          savedPO.estimated_delivery_date
+        );
       }
-      if (coData.requested_by) {
+      if (coData?.requested_by) {
         expect(coData.requested_by).toBe(savedPO.requested_by);
       }
-      expect(coData.status).toBe("Draft");
+      expect(coData?.status).toBe("Draft");
       // The reason should contain the PO number, but in test environment poForm might not be fully updated
       // Check if reason contains expected text pattern
-      expect(coData.reason).toContain("Change order for quantities exceeding estimate in PO");
+      expect(coData?.reason).toContain(
+        "Change order for quantities exceeding estimate in PO"
+      );
       // Note: PO number might not be available in test environment since poForm isn't always fully updated
       // This is a test limitation, not a production bug. In production, poForm.po_number is always available.
-      expect(coData.co_items).toHaveLength(1);
-      expect(coData.co_items[0].cost_code_uuid).toBe("cc-1");
-      expect(coData.co_items[0].item_uuid).toBe("item-1");
-      expect(coData.co_items[0].name).toBe("Test Item");
-      expect(coData.co_items[0].description).toBe("Test Description");
-      expect(coData.co_items[0].model_number).toBe("MOD-123");
-      expect(coData.co_items[0].approval_checks).toEqual(["check-1"]);
+      expect(coData?.co_items).toHaveLength(1);
+      expect(coData?.co_items[0].cost_code_uuid).toBe("cc-1");
+      expect(coData?.co_items[0].item_uuid).toBe("item-1");
+      expect(coData?.co_items[0].name).toBe("Test Item");
+      expect(coData?.co_items[0].description).toBe("Test Description");
+      expect(coData?.co_items[0].model_number).toBe("MOD-123");
+      expect(coData?.co_items[0].approval_checks).toEqual(["check-1"]);
     });
 
     it("saves change order successfully", async () => {
@@ -1683,7 +1695,7 @@ describe("PurchaseOrdersList.vue", () => {
       // Check if either spy was called or toast was shown
       const spyCalled = createSpy.mock.calls.length > 0;
       const toastCalled = mockToastAdd.mock.calls.length > 0;
-      
+
       if (spyCalled) {
         // Fallback worked - store was accessible
         expect(createSpy).toHaveBeenCalledWith(
@@ -1700,7 +1712,7 @@ describe("PurchaseOrdersList.vue", () => {
       } else {
         // Neither happened - this means savePurchaseOrder might not have been called or completed
         // Log state for debugging
-        console.log('Debug info:', {
+        console.log("Debug info:", {
           spyCalled,
           toastCalled,
           poFormUuid: vm.poForm.uuid,
@@ -1764,7 +1776,7 @@ describe("PurchaseOrdersList.vue", () => {
       // Check if either spy was called or toast was shown
       const spyCalled = updateSpy.mock.calls.length > 0;
       const toastCalled = mockToastAdd.mock.calls.length > 0;
-      
+
       if (spyCalled) {
         // Fallback worked - store was accessible
         expect(updateSpy).toHaveBeenCalledWith(
@@ -1850,9 +1862,10 @@ describe("PurchaseOrdersList.vue", () => {
 
       await vm.savePurchaseOrder();
 
-      const callArgs = createSpy.mock.calls[0][0];
+      expect(createSpy.mock.calls.length).toBeGreaterThan(0);
+      const callArgs = createSpy.mock.calls[0]?.[0] as any;
       // Should explicitly set corporation_uuid in payload
-      expect(callArgs.corporation_uuid).toBe("corp-2");
+      expect(callArgs?.corporation_uuid).toBe("corp-2");
     });
 
     it("should explicitly set corporation_uuid in payload when updating", async () => {
@@ -1888,10 +1901,11 @@ describe("PurchaseOrdersList.vue", () => {
 
       await vm.savePurchaseOrder();
 
-      const callArgs = updateSpy.mock.calls[0][0];
+      expect(updateSpy.mock.calls.length).toBeGreaterThan(0);
+      const callArgs = updateSpy.mock.calls[0]?.[0] as any;
       // Should explicitly set corporation_uuid in payload
-      expect(callArgs.corporation_uuid).toBe("corp-2");
-      expect(callArgs.uuid).toBe("po-1");
+      expect(callArgs?.corporation_uuid).toBe("corp-2");
+      expect(callArgs?.uuid).toBe("po-1");
     });
   });
 });
