@@ -1,5 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import tailwindcss from "@tailwindcss/vite";
+import "@dotenvx/dotenvx/config";
 
 export default defineNuxtConfig({
   devtools: { enabled: true },
@@ -25,12 +26,7 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       SUPABASE_URL: process.env.NUXT_SUPABASE_URL,
-      SUPABASE_ANON_KEY: process.env.NUXT_SUPABASE_ANON_KEY,
-      BASE_URL:
-        process.env.NUXT_BASE_URL ||
-        (process.env.NODE_ENV === "production"
-          ? "https://construction.kodefast.com"
-          : "http://localhost:3000"),
+      SUPABASE_ANON_KEY: process.env.NUXT_SUPABASE_ANON_KEY
     },
     SUPABASE_SERVICE_ROLE_KEY: process.env.NUXT_SUPABASE_SERVICE_ROLE_KEY,
   },
