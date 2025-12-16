@@ -344,7 +344,6 @@ describe("PurchaseOrderForm - Labor Items Modal Behavior", () => {
       const wrapper = mountForm({
         po_type: "LABOR",
         po_type_uuid: "LABOR",
-        raise_against: "CUSTOM",
         labor_po_items: [
           {
             id: "labor-1",
@@ -379,7 +378,6 @@ describe("PurchaseOrderForm - Labor Items Modal Behavior", () => {
       const wrapper = mountForm({
         po_type: "LABOR",
         po_type_uuid: "LABOR",
-        raise_against: "AGAINST_ESTIMATE",
         project_uuid: "project-1",
         labor_po_items: [
           {
@@ -407,22 +405,41 @@ describe("PurchaseOrderForm - Labor Items Modal Behavior", () => {
     });
 
     it("should open modal when clicking Edit Selection button for existing labor PO", async () => {
+      // Mock estimate line items API call (Labor PO always uses estimate)
       fetchMock.mockResolvedValue({
         data: [
           {
-            uuid: "cc-1",
+            cost_code_uuid: "cc-1",
             cost_code_number: "01",
             cost_code_name: "Cost Code 1",
-            is_active: true,
+            labor_amount: 1200,
           },
         ],
       });
 
+      // Set up estimate in the store so latestProjectEstimate is available
+      const state = purchaseOrderResourcesStoreInstance.getOrCreateProjectState?.("corp-1", undefined);
+      if (state) {
+        state.estimates = [
+          {
+            uuid: "est-1",
+            project_uuid: "project-1",
+            estimate_number: "EST-001",
+            status: "approved",
+            estimate_date: "2025-01-15",
+            total_amount: 5000,
+            final_amount: 4500,
+            line_items: [],
+          },
+        ];
+        state.estimatesLoaded = true;
+      }
+
       const wrapper = mountForm({
         po_type: "LABOR",
         po_type_uuid: "LABOR",
-        raise_against: "CUSTOM",
         corporation_uuid: "corp-1",
+        project_uuid: "project-1",
         labor_po_items: [
           {
             id: "labor-1",
@@ -456,38 +473,59 @@ describe("PurchaseOrderForm - Labor Items Modal Behavior", () => {
       // Modal should now be open after clicking the button
       // Note: The modal opens after data is loaded, so we need to wait for that
       expect(vm.showLaborItemsModal).toBe(true);
+      
+      // Verify the correct API endpoint was called
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/estimate-line-items",
+        expect.objectContaining({
+          method: "GET",
+          query: expect.objectContaining({
+            project_uuid: "project-1",
+            estimate_uuid: "est-1",
+            corporation_uuid: "corp-1",
+          }),
+        })
+      );
     });
   });
 
   describe("Modal Opening for New Labor POs", () => {
-    it("should open modal when creating new labor PO with CUSTOM option", async () => {
-      fetchMock.mockResolvedValueOnce({
+    it("should open modal when creating new labor PO", async () => {
+      // Mock estimate line items API call (Labor PO always uses estimate)
+      fetchMock.mockResolvedValue({
         data: [
           {
-            uuid: "cc-1",
+            cost_code_uuid: "cc-1",
             cost_code_number: "01",
             cost_code_name: "Cost Code 1",
-            is_active: true,
+            labor_amount: 1200,
           },
         ],
       });
 
-      fetchMock.mockResolvedValueOnce({
-        data: [
+      // Set up estimate in the store
+      const state = purchaseOrderResourcesStoreInstance.getOrCreateProjectState?.("corp-1", undefined);
+      if (state) {
+        state.estimates = [
           {
-            uuid: "cc-1",
-            cost_code_number: "01",
-            cost_code_name: "Cost Code 1",
-            is_active: true,
+            uuid: "est-1",
+            project_uuid: "project-1",
+            estimate_number: "EST-001",
+            status: "approved",
+            estimate_date: "2025-01-15",
+            total_amount: 5000,
+            final_amount: 4500,
+            line_items: [],
           },
-        ],
-      });
+        ];
+        state.estimatesLoaded = true;
+      }
 
       const wrapper = mountForm({
         po_type: "LABOR",
         po_type_uuid: "LABOR",
-        raise_against: "CUSTOM",
         corporation_uuid: "corp-1",
+        project_uuid: "project-1",
         labor_po_items: [],
       });
 
@@ -507,7 +545,6 @@ describe("PurchaseOrderForm - Labor Items Modal Behavior", () => {
       const wrapper = mountForm({
         po_type: "LABOR",
         po_type_uuid: "LABOR",
-        raise_against: "CUSTOM",
         labor_po_items: [],
       });
 
@@ -630,14 +667,16 @@ describe("PurchaseOrderForm - Labor Items Modal Behavior", () => {
   });
 
   describe("loadAllCostCodes and loadLaborItemsFromEstimateLineItems skip logic", () => {
-    it("should not open modal when loadAllCostCodes is called for existing PO", async () => {
+    it("should not open modal when loadLaborItemsFromEstimateLineItems is called for existing PO", async () => {
+      // Note: loadAllCostCodes is no longer used for Labor PO (always uses estimate)
+      // This test verifies that existing POs with items skip auto-opening the modal
       fetchMock.mockResolvedValueOnce({
         data: [
           {
-            uuid: "cc-1",
+            cost_code_uuid: "cc-1",
             cost_code_number: "01",
             cost_code_name: "Cost Code 1",
-            is_active: true,
+            labor_amount: 1200,
           },
         ],
       });
@@ -645,8 +684,8 @@ describe("PurchaseOrderForm - Labor Items Modal Behavior", () => {
       const wrapper = mountForm({
         po_type: "LABOR",
         po_type_uuid: "LABOR",
-        raise_against: "CUSTOM",
         corporation_uuid: "corp-1",
+        project_uuid: "project-1",
         labor_po_items: [
           {
             id: "labor-1",
