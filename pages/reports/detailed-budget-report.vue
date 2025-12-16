@@ -17,9 +17,9 @@
         </div>
 
         <!-- Right side: Corporation, Project Selection, Date Range, Show and Print buttons -->
-        <div class="flex items-center gap-3 flex-wrap">
+        <div class="flex items-end gap-3 flex-wrap">
           <!-- Corporation Select -->
-          <div class="flex items-center gap-2">
+          <div class="flex flex-col gap-1">
             <label class="text-sm font-medium text-default whitespace-nowrap">
               Corporation <span class="text-red-500">*</span>
             </label>
@@ -32,7 +32,7 @@
           </div>
 
           <!-- Project Select -->
-          <div class="flex items-center gap-2">
+          <div class="flex flex-col gap-1">
             <label class="text-sm font-medium text-default whitespace-nowrap">
               Project <span class="text-red-500">*</span>
             </label>
@@ -47,7 +47,7 @@
           </div>
 
           <!-- Start Date -->
-          <div class="flex items-center gap-2">
+          <div class="flex flex-col gap-1">
             <label class="text-sm font-medium text-default whitespace-nowrap">
               Start Date <span class="text-red-500">*</span>
             </label>
@@ -72,7 +72,7 @@
           </div>
 
           <!-- End Date -->
-          <div class="flex items-center gap-2">
+          <div class="flex flex-col gap-1">
             <label class="text-sm font-medium text-default whitespace-nowrap">
               End Date <span class="text-red-500">*</span>
             </label>
