@@ -15,30 +15,33 @@ vi.mock("@/stores/corporations", () => {
   return { useCorporationStore };
 });
 
+const purchaseOrdersData = ref([
+  {
+    uuid: "po-1",
+    po_number: "PO-1",
+    project_uuid: "project-keep",
+    vendor_uuid: "vendor-1",
+    corporation_uuid: "corp-1",
+    total_po_amount: 1000,
+    status: "Approved",
+    po_type: "MATERIAL",
+  },
+  {
+    uuid: "po-2",
+    po_number: "PO-2",
+    project_uuid: "project-other",
+    vendor_uuid: "vendor-2",
+    corporation_uuid: "corp-1",
+    total_po_amount: 500,
+    status: "Approved",
+    po_type: "LABOR",
+  },
+]);
+
 vi.mock("@/stores/purchaseOrders", () => {
   const usePurchaseOrdersStore = defineStore("purchaseOrders", () => {
-    const purchaseOrders = ref([
-      {
-        uuid: "po-1",
-        po_number: "PO-1",
-        project_uuid: "project-keep",
-        vendor_uuid: "vendor-1",
-        total_po_amount: 1000,
-        status: "Approved",
-        po_type: "MATERIAL",
-      },
-      {
-        uuid: "po-2",
-        po_number: "PO-2",
-        project_uuid: "project-other",
-        vendor_uuid: "vendor-2",
-        total_po_amount: 500,
-        status: "Approved",
-        po_type: "LABOR",
-      },
-    ]);
     return {
-      purchaseOrders,
+      purchaseOrders: purchaseOrdersData,
       fetchPurchaseOrders: fetchPurchaseOrdersMock,
       loading: ref(false),
     };
@@ -46,30 +49,33 @@ vi.mock("@/stores/purchaseOrders", () => {
   return { usePurchaseOrdersStore };
 });
 
+const changeOrdersData = ref([
+  {
+    uuid: "co-1",
+    co_number: "CO-1",
+    project_uuid: "project-keep",
+    vendor_uuid: "vendor-1",
+    corporation_uuid: "corp-1",
+    total_co_amount: 800,
+    status: "Approved",
+    co_type: "MATERIAL",
+  },
+  {
+    uuid: "co-2",
+    co_number: "CO-2",
+    project_uuid: "project-other",
+    vendor_uuid: "vendor-2",
+    corporation_uuid: "corp-1",
+    total_co_amount: 400,
+    status: "Approved",
+    co_type: "LABOR",
+  },
+]);
+
 vi.mock("@/stores/changeOrders", () => {
   const useChangeOrdersStore = defineStore("changeOrders", () => {
-    const changeOrders = ref([
-      {
-        uuid: "co-1",
-        co_number: "CO-1",
-        project_uuid: "project-keep",
-        vendor_uuid: "vendor-1",
-        total_co_amount: 800,
-        status: "Approved",
-        co_type: "MATERIAL",
-      },
-      {
-        uuid: "co-2",
-        co_number: "CO-2",
-        project_uuid: "project-other",
-        vendor_uuid: "vendor-2",
-        total_co_amount: 400,
-        status: "Approved",
-        co_type: "LABOR",
-      },
-    ]);
     return {
-      changeOrders,
+      changeOrders: changeOrdersData,
       fetchChangeOrders: vi.fn(),
     };
   });
@@ -253,8 +259,20 @@ const uiStubs = {
   },
 };
 
-// Mock $fetch
-vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ data: [] }));
+// Mock $fetch for useLocalPOCOData
+const mockFetch = vi.fn();
+vi.stubGlobal('$fetch', mockFetch);
+
+// Default mock implementation
+mockFetch.mockImplementation((url: string) => {
+  if (url.includes("/api/purchase-order-forms")) {
+    return Promise.resolve({ data: purchaseOrdersData.value });
+  }
+  if (url.includes("/api/change-orders")) {
+    return Promise.resolve({ data: changeOrdersData.value });
+  }
+  return Promise.resolve({ data: [] });
+});
 
 const mountForm = (formOverrides: Record<string, any> = {}) => {
   const form = {
@@ -298,6 +316,17 @@ describe("ReceiptNoteForm", () => {
     setActivePinia(createPinia());
     users.value = [];
     hasData.value = false;
+    
+    // Reset $fetch mock
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/purchase-order-forms")) {
+        return Promise.resolve({ data: purchaseOrdersData.value });
+      }
+      if (url.includes("/api/change-orders")) {
+        return Promise.resolve({ data: changeOrdersData.value });
+      }
+      return Promise.resolve({ data: [] });
+    });
   });
 
   afterEach(() => {
@@ -338,10 +367,15 @@ describe("ReceiptNoteForm", () => {
       purchase_order_uuid: "po-1",
     });
 
+    // Wait for component to mount and fetch purchase orders
+    await flushPromises();
+    await new Promise(resolve => setTimeout(resolve, 100));
+
     await wrapper
       .find("[data-test='project-select']")
       .setValue("project-keep");
     await flushPromises();
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     const emissions = wrapper.emitted("update:form") ?? [];
     const lastEmission = emissions[emissions.length - 1]?.[0] as Record<string, any>;

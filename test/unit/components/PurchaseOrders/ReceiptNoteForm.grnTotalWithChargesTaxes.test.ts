@@ -17,32 +17,34 @@ vi.mock("@/stores/corporations", () => {
   return { useCorporationStore };
 });
 
+const purchaseOrdersData = ref([
+  {
+    uuid: "po-1",
+    po_number: "PO-1",
+    project_uuid: "project-1",
+    vendor_uuid: "vendor-1",
+    corporation_uuid: "corp-1",
+    total_po_amount: 1500,
+    status: "Approved",
+    po_type: "MATERIAL",
+    // Charges and taxes percentages
+    freight_charges_percentage: 10,
+    freight_charges_taxable: true,
+    packing_charges_percentage: 10,
+    packing_charges_taxable: true,
+    custom_duties_charges_percentage: 10,
+    custom_duties_charges_taxable: false,
+    other_charges_percentage: 10,
+    other_charges_taxable: false,
+    sales_tax_1_percentage: 10,
+    sales_tax_2_percentage: 0,
+  },
+]);
+
 vi.mock("@/stores/purchaseOrders", () => {
   const usePurchaseOrdersStore = defineStore("purchaseOrders", () => {
-    const purchaseOrders = ref([
-      {
-        uuid: "po-1",
-        po_number: "PO-1",
-        project_uuid: "project-1",
-        vendor_uuid: "vendor-1",
-        total_po_amount: 1500,
-        status: "Approved",
-        po_type: "MATERIAL",
-        // Charges and taxes percentages
-        freight_charges_percentage: 10,
-        freight_charges_taxable: true,
-        packing_charges_percentage: 10,
-        packing_charges_taxable: true,
-        custom_duties_charges_percentage: 10,
-        custom_duties_charges_taxable: false,
-        other_charges_percentage: 10,
-        other_charges_taxable: false,
-        sales_tax_1_percentage: 10,
-        sales_tax_2_percentage: 0,
-      },
-    ]);
     return {
-      purchaseOrders,
+      purchaseOrders: purchaseOrdersData,
       fetchPurchaseOrders: fetchPurchaseOrdersMock,
       loading: ref(false),
     };
@@ -50,32 +52,34 @@ vi.mock("@/stores/purchaseOrders", () => {
   return { usePurchaseOrdersStore };
 });
 
+const changeOrdersData = ref([
+  {
+    uuid: "co-1",
+    co_number: "CO-1",
+    project_uuid: "project-1",
+    vendor_uuid: "vendor-1",
+    corporation_uuid: "corp-1",
+    total_co_amount: 2000,
+    status: "Approved",
+    co_type: "MATERIAL",
+    // Charges and taxes percentages
+    freight_charges_percentage: 10,
+    freight_charges_taxable: true,
+    packing_charges_percentage: 10,
+    packing_charges_taxable: true,
+    custom_duties_charges_percentage: 10,
+    custom_duties_charges_taxable: false,
+    other_charges_percentage: 10,
+    other_charges_taxable: false,
+    sales_tax_1_percentage: 10,
+    sales_tax_2_percentage: 0,
+  },
+]);
+
 vi.mock("@/stores/changeOrders", () => {
   const useChangeOrdersStore = defineStore("changeOrders", () => {
-    const changeOrders = ref([
-      {
-        uuid: "co-1",
-        co_number: "CO-1",
-        project_uuid: "project-1",
-        vendor_uuid: "vendor-1",
-        total_co_amount: 2000,
-        status: "Approved",
-        co_type: "MATERIAL",
-        // Charges and taxes percentages
-        freight_charges_percentage: 10,
-        freight_charges_taxable: true,
-        packing_charges_percentage: 10,
-        packing_charges_taxable: true,
-        custom_duties_charges_percentage: 10,
-        custom_duties_charges_taxable: false,
-        other_charges_percentage: 10,
-        other_charges_taxable: false,
-        sales_tax_1_percentage: 10,
-        sales_tax_2_percentage: 0,
-      },
-    ]);
     return {
-      changeOrders,
+      changeOrders: changeOrdersData,
       fetchChangeOrders: fetchChangeOrdersMock,
     };
   });
@@ -359,8 +363,14 @@ describe("ReceiptNoteForm - GRN Total with Charges and Taxes", () => {
       },
     ]);
     
-    // Mock CO items
+    // Mock $fetch to return purchase orders, change orders, and items
     mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/purchase-order-forms")) {
+        return Promise.resolve({ data: purchaseOrdersData.value });
+      }
+      if (url.includes("/api/change-orders")) {
+        return Promise.resolve({ data: changeOrdersData.value });
+      }
       if (url.includes("/api/change-order-items")) {
         return Promise.resolve({
           data: [
@@ -468,6 +478,7 @@ describe("ReceiptNoteForm - GRN Total with Charges and Taxes", () => {
       await flushPromises();
       await nextTick();
       await flushPromises();
+      await new Promise(resolve => setTimeout(resolve, 200)); // Wait for loadFinancialDataFromSource
 
       const emissions = wrapper.emitted("update:form") ?? [];
       
@@ -562,6 +573,7 @@ describe("ReceiptNoteForm - GRN Total with Charges and Taxes", () => {
       await flushPromises();
       await nextTick();
       await flushPromises();
+      await new Promise(resolve => setTimeout(resolve, 200)); // Wait for loadFinancialDataFromSource
 
       const emissions = wrapper.emitted("update:form") ?? [];
       

@@ -1088,20 +1088,24 @@ const handleProjectChange = (projectUuid?: string | null) => {
   const currentChangeOrderUuid = nextForm.change_order_uuid;
 
   if (projectUuid) {
-    // Clear PO if it doesn't match the selected project
-    const matchingPOOption = poOptions.value.find(
-      (option) => option.value === currentPurchaseOrderUuid
-    );
-    if (!matchingPOOption && currentPurchaseOrderUuid) {
-      updateFormField("purchase_order_uuid", null, nextForm);
+    // Check PO's project_uuid directly from localPurchaseOrders instead of poOptions
+    // because poOptions is filtered by project_uuid and might not include the current PO
+    // when the project changes
+    if (currentPurchaseOrderUuid) {
+      const po = localPurchaseOrders.value.find((p: any) => p.uuid === currentPurchaseOrderUuid);
+      if (!po || po.project_uuid !== projectUuid) {
+        updateFormField("purchase_order_uuid", null, nextForm);
+      }
     }
 
-    // Clear CO if it doesn't match the selected project
-    const matchingCOOption = coOptions.value.find(
-      (option) => option.value === currentChangeOrderUuid
-    );
-    if (!matchingCOOption && currentChangeOrderUuid) {
-      updateFormField("change_order_uuid", null, nextForm);
+    // Check CO's project_uuid directly from localChangeOrders instead of coOptions
+    // because coOptions is filtered by project_uuid and might not include the current CO
+    // when the project changes
+    if (currentChangeOrderUuid) {
+      const co = localChangeOrders.value.find((c: any) => c.uuid === currentChangeOrderUuid);
+      if (!co || co.project_uuid !== projectUuid) {
+        updateFormField("change_order_uuid", null, nextForm);
+      }
     }
   } else {
     // Clear both PO and CO when no project is selected

@@ -19,6 +19,7 @@ const purchaseOrders = ref([
     po_number: "PO-APPROVED",
     project_uuid: "project-1",
     vendor_uuid: "vendor-1",
+    corporation_uuid: "corp-1",
     total_po_amount: 1000,
     status: "Approved",
     po_type: "MATERIAL",
@@ -28,6 +29,7 @@ const purchaseOrders = ref([
     po_number: "PO-PARTIAL",
     project_uuid: "project-1",
     vendor_uuid: "vendor-1",
+    corporation_uuid: "corp-1",
     total_po_amount: 2000,
     status: "Partially_Received",
     po_type: "MATERIAL",
@@ -37,6 +39,7 @@ const purchaseOrders = ref([
     po_number: "PO-COMPLETED",
     project_uuid: "project-1",
     vendor_uuid: "vendor-1",
+    corporation_uuid: "corp-1",
     total_po_amount: 3000,
     status: "Completed",
     po_type: "MATERIAL",
@@ -46,6 +49,7 @@ const purchaseOrders = ref([
     po_number: "PO-DRAFT",
     project_uuid: "project-1",
     vendor_uuid: "vendor-1",
+    corporation_uuid: "corp-1",
     total_po_amount: 4000,
     status: "Draft",
     po_type: "MATERIAL",
@@ -55,6 +59,7 @@ const purchaseOrders = ref([
     po_number: "PO-READY",
     project_uuid: "project-1",
     vendor_uuid: "vendor-1",
+    corporation_uuid: "corp-1",
     total_po_amount: 5000,
     status: "Ready",
     po_type: "MATERIAL",
@@ -64,6 +69,7 @@ const purchaseOrders = ref([
     po_number: "PO-REJECTED",
     project_uuid: "project-1",
     vendor_uuid: "vendor-1",
+    corporation_uuid: "corp-1",
     total_po_amount: 6000,
     status: "Rejected",
     po_type: "MATERIAL",
@@ -86,6 +92,7 @@ const changeOrders = ref([
     co_number: "CO-APPROVED",
     project_uuid: "project-1",
     vendor_uuid: "vendor-1",
+    corporation_uuid: "corp-1",
     total_co_amount: 1000,
     status: "Approved",
     co_type: "MATERIAL",
@@ -95,6 +102,7 @@ const changeOrders = ref([
     co_number: "CO-PARTIAL",
     project_uuid: "project-1",
     vendor_uuid: "vendor-1",
+    corporation_uuid: "corp-1",
     total_co_amount: 2000,
     status: "Partially_Received",
     co_type: "MATERIAL",
@@ -104,6 +112,7 @@ const changeOrders = ref([
     co_number: "CO-COMPLETED",
     project_uuid: "project-1",
     vendor_uuid: "vendor-1",
+    corporation_uuid: "corp-1",
     total_co_amount: 3000,
     status: "Completed",
     co_type: "MATERIAL",
@@ -113,6 +122,7 @@ const changeOrders = ref([
     co_number: "CO-DRAFT",
     project_uuid: "project-1",
     vendor_uuid: "vendor-1",
+    corporation_uuid: "corp-1",
     total_co_amount: 4000,
     status: "Draft",
     co_type: "MATERIAL",
@@ -122,6 +132,7 @@ const changeOrders = ref([
     co_number: "CO-READY",
     project_uuid: "project-1",
     vendor_uuid: "vendor-1",
+    corporation_uuid: "corp-1",
     total_co_amount: 5000,
     status: "Ready",
     co_type: "MATERIAL",
@@ -131,6 +142,7 @@ const changeOrders = ref([
     co_number: "CO-REJECTED",
     project_uuid: "project-1",
     vendor_uuid: "vendor-1",
+    corporation_uuid: "corp-1",
     total_co_amount: 6000,
     status: "Rejected",
     co_type: "MATERIAL",
@@ -306,8 +318,20 @@ const ReceiptNoteItemsTableStub = {
   template: `<div class="receipt-note-items-table-stub"></div>`,
 };
 
-// Mock $fetch
-vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ data: [] }));
+// Mock $fetch to return purchase orders and change orders
+const mockFetch = vi.fn();
+vi.stubGlobal('$fetch', mockFetch);
+
+// Default mock implementation - can be overridden in tests
+mockFetch.mockImplementation((url: string) => {
+  if (url.includes("/api/purchase-order-forms")) {
+    return Promise.resolve({ data: purchaseOrders.value });
+  }
+  if (url.includes("/api/change-orders")) {
+    return Promise.resolve({ data: changeOrders.value });
+  }
+  return Promise.resolve({ data: [] });
+});
 
 const mountForm = (formOverrides: Record<string, any> = {}) => {
   const form = {
@@ -354,6 +378,17 @@ describe("ReceiptNoteForm - Status Filtering", () => {
     setActivePinia(createPinia());
     users.value = [];
     hasData.value = false;
+    
+    // Reset mock to return purchase orders and change orders
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/purchase-order-forms")) {
+        return Promise.resolve({ data: purchaseOrders.value });
+      }
+      if (url.includes("/api/change-orders")) {
+        return Promise.resolve({ data: changeOrders.value });
+      }
+      return Promise.resolve({ data: [] });
+    });
   });
 
   afterEach(() => {
