@@ -26,29 +26,6 @@
       <!-- Divider -->
       <div class="w-px bg-gray-200 dark:bg-gray-700"></div>
       
-      <!-- Waiting Section -->
-      <div
-        @click="toggleStatusFilter('Waiting')"
-        :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
-          selectedStatusFilter === 'Waiting'
-            ? 'bg-gray-100 dark:bg-gray-700'
-            : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
-        ]"
-      >
-        <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            Waiting ({{ waitingStats.count }})
-          </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(waitingStats.totalValue) }}
-          </div>
-        </div>
-      </div>
-      
-      <!-- Divider -->
-      <div class="w-px bg-gray-200 dark:bg-gray-700"></div>
-      
       <!-- Returned Section -->
       <div
         @click="toggleStatusFilter('Returned')"
@@ -514,21 +491,13 @@ const allStats = computed(() => ({
   ),
 }));
 
-const waitingStats = computed(() => {
-  const waiting = returnNotes.value.filter(
-    (note) => (note.status || "Waiting") === "Waiting"
-  );
-  return {
-    count: waiting.length,
-    totalValue: waiting.reduce(
-      (sum, note) => sum + (Number(note.total_return_amount) || 0),
-      0
-    ),
-  };
-});
-
 const returnedStats = computed(() => {
-  const returned = returnNotes.value.filter((note) => note.status === "Returned");
+  // All return notes should have "Returned" status
+  // Filter for "Returned" status, and also include notes without status (default to "Returned")
+  const returned = returnNotes.value.filter((note) => {
+    const status = note.status || "Returned";
+    return status === "Returned";
+  });
   return {
     count: returned.length,
     totalValue: returned.reduce(
@@ -543,7 +512,7 @@ const filteredReturnNotes = computed(() => {
 
   if (selectedStatusFilter.value) {
     list = list.filter(
-      (note) => (note.status || "Waiting") === selectedStatusFilter.value
+      (note) => (note.status || "Returned") === selectedStatusFilter.value
     );
   }
 
@@ -631,12 +600,13 @@ const columns: TableColumn<any>[] = [
     enableSorting: false,
     meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }) => {
-      const status = row.original.status || "Waiting";
+      // Normalize status: convert "Waiting" to "Returned" and default to "Returned"
+      let status = row.original.status || "Returned";
+      if (status === "Waiting" || status.toLowerCase() === "waiting") {
+        status = "Returned";
+      }
+      
       const statusMap: Record<string, { label: string; color: string }> = {
-        Waiting: {
-          label: "Waiting",
-          color: "warning"
-        },
         Returned: {
           label: "Returned",
           color: "success"
@@ -644,8 +614,8 @@ const columns: TableColumn<any>[] = [
       };
       
       const config = statusMap[status] ?? {
-        label: status,
-        color: "neutral"
+        label: "Returned",
+        color: "success"
       };
       
       return h(UBadge, {
@@ -763,7 +733,7 @@ const createEmptyForm = () => ({
   returned_by: "",
   location_uuid: null,
   notes: "",
-  status: "Waiting",
+  status: "Returned",
   total_return_amount: null,
   attachments: [],
 });
@@ -990,6 +960,9 @@ const saveReturnNote = async () => {
     // Ensure return_type is set (defaults to 'purchase_order')
     const returnType = formData.return_type || 'purchase_order';
     formData.return_type = returnType;
+
+    // Always set status to "Returned" - never save "Waiting" status
+    formData.status = "Returned";
 
     // Clear the opposite UUID column based on return_type
     // purchase_order_uuid and change_order_uuid are now separate columns

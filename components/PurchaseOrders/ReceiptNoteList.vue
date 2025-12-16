@@ -1609,7 +1609,7 @@ const handleRaiseReturnNote = async () => {
     returned_by: receiptData.received_by || null,
     location_uuid: receiptData.location_uuid || null,
     notes: `Return note for shortfall quantities from receipt note ${receiptData.grn_number || ''}`,
-    status: 'Waiting',
+    status: 'Returned',
     return_items: returnItems,
     total_return_amount: totalReturnAmount,
     attachments: [],
@@ -1677,6 +1677,9 @@ const saveReturnNoteFromShortfall = async () => {
     // Ensure return_type is set
     const returnType = formData.return_type || 'purchase_order';
     formData.return_type = returnType;
+
+    // Always set status to "Returned" - never save "Waiting" status
+    formData.status = "Returned";
 
     // Clear the opposite UUID column based on return_type
     if (returnType === 'change_order') {
