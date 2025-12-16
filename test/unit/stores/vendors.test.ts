@@ -353,7 +353,8 @@ describe('Vendor Store', () => {
       await store.refreshVendorsFromAPI('corp-1')
 
       expect(mockFetch).toHaveBeenCalledWith(
-        "/api/purchase-orders/vendors?corporation_uuid=corp-1"
+        "/api/purchase-orders/vendors?corporation_uuid=corp-1",
+        undefined
       );
       expect(store.vendors).toEqual(mockVendors)
       expect(store.loading).toBe(false)
@@ -610,7 +611,8 @@ describe('Vendor Store', () => {
         );
 
         expect(mockFetch).toHaveBeenCalledWith(
-          "/api/purchase-orders/vendors?corporation_uuid=corp-1"
+          "/api/purchase-orders/vendors?corporation_uuid=corp-1",
+          undefined
         );
 
         expect(result).toEqual(bulkResult);

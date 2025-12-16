@@ -66,7 +66,8 @@ describe('storageLocations Store', () => {
       await store.fetchStorageLocations("corp-1", false, false); // Force API fetch
 
       expect(global.$fetch).toHaveBeenCalledWith(
-        "/api/storage-locations?corporation_uuid=corp-1"
+        "/api/storage-locations?corporation_uuid=corp-1",
+        undefined
       );
       expect(store.storageLocations).toEqual(mockLocations);
       expect(store.loading).toBe(false);

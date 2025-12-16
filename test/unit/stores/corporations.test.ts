@@ -180,7 +180,7 @@ describe('corporations Store', () => {
 
       await store.fetchCorporations();
 
-      expect(global.$fetch).toHaveBeenCalledWith("/api/corporations");
+      expect(global.$fetch).toHaveBeenCalledWith("/api/corporations", undefined);
       expect(store.corporations).toEqual(mockCorporations);
       expect(store.loading).toBe(false);
       expect(store.errorMessage).toBe("");
@@ -573,7 +573,7 @@ describe('corporations Store', () => {
 
       const result = await store.ensureReady();
 
-      expect(global.$fetch).toHaveBeenCalledWith("/api/corporations");
+      expect(global.$fetch).toHaveBeenCalledWith("/api/corporations", undefined);
       expect(result).toBe(true);
       expect(store.corporations).toHaveLength(1);
     });
@@ -597,7 +597,7 @@ describe('corporations Store', () => {
 
       await store.initializeWithCorporation("corp-1");
 
-      expect(global.$fetch).toHaveBeenCalledWith("/api/corporations");
+      expect(global.$fetch).toHaveBeenCalledWith("/api/corporations", undefined);
       expect(store.selectedCorporationId).toBe("corp-1");
     });
 
@@ -926,7 +926,7 @@ describe('corporations Store', () => {
           },
         });
 
-        expect(global.$fetch).toHaveBeenCalledWith("/api/corporations");
+        expect(global.$fetch).toHaveBeenCalledWith("/api/corporations", undefined);
 
         expect(result).toEqual(bulkResult);
         expect(store.corporations).toEqual(refreshedCorporations);
