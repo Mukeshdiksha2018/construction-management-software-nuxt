@@ -716,6 +716,9 @@ const poOptions = computed(() => {
       if (!po?.uuid) return false;
       // Filter by corporation UUID (form's corporation takes priority)
       if (corporationUuid && po.corporation_uuid !== corporationUuid) return false;
+      // Only show material purchase orders (exclude labor)
+      const poType = String(po.po_type || '').trim().toUpperCase();
+      if (poType !== 'MATERIAL') return false;
       // Show purchase orders with allowed statuses (case-insensitive)
       const poStatus = String(po.status || '').trim();
       const isAllowedStatus = allowedStatuses.some(
@@ -784,6 +787,9 @@ const coOptions = computed(() => {
       if (!co?.uuid) return false;
       // Filter by corporation UUID (form's corporation takes priority)
       if (corporationUuid && co.corporation_uuid !== corporationUuid) return false;
+      // Only show material change orders (exclude labor)
+      const coType = String(co.co_type || '').trim().toUpperCase();
+      if (coType !== 'MATERIAL') return false;
       // Show change orders with allowed statuses (case-insensitive)
       const coStatus = String(co.status || '').trim();
       const isAllowedStatus = allowedStatuses.some(
