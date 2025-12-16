@@ -261,7 +261,7 @@
                 color="primary"
                 size="sm"
                 :loading="savingReceiptNote"
-                :disabled="savingReceiptNote"
+                :disabled="savingReceiptNote || hasFormValidationError"
                 @click="saveReceiptNote"
               >
                 {{ receiptNoteForm?.uuid ? "Update" : "Save" }}
@@ -401,7 +401,7 @@
             color="primary"
             variant="solid"
             :loading="savingReturnNote"
-            :disabled="savingReturnNote"
+            :disabled="savingReturnNote || hasReturnNoteFormValidationError"
             @click="saveReturnNoteFromShortfall"
           >
             Save Return Note
@@ -486,11 +486,61 @@ const showReturnNoteModal = ref(false);
 const returnNoteFormData = ref<any>(null);
 const returnNoteFormRef = ref<any>(null);
 const savingReturnNote = ref(false);
+
+// Ref to track validation state for return note form - updated via watch to ensure reactivity
+const hasReturnNoteFormValidationError = ref(false);
+
+// Watch the return note form ref's validation state to update the button disabled state
+watch(
+  () => returnNoteFormRef.value?.hasValidationError,
+  (hasError) => {
+    hasReturnNoteFormValidationError.value = hasError ?? false;
+  },
+  { immediate: true }
+);
+
+// Also watch for changes in the return note form ref itself
+watch(
+  () => returnNoteFormRef.value,
+  (formRef) => {
+    if (formRef) {
+      hasReturnNoteFormValidationError.value = formRef.hasValidationError ?? false;
+    } else {
+      hasReturnNoteFormValidationError.value = false;
+    }
+  },
+  { immediate: true }
+);
 const shortfallItemsForReturn = ref<any[]>([]);
 const pendingReceiptNoteSave = ref<(() => Promise<void>) | null>(null);
 const showShortfallModal = ref(false);
 const shortfallItemsForModal = ref<any[]>([]);
 const receiptNoteFormRef = ref<any>(null);
+
+// Ref to track validation state - updated via watch to ensure reactivity
+const hasFormValidationError = ref(false);
+
+// Watch the form ref's validation state to update the button disabled state
+watch(
+  () => receiptNoteFormRef.value?.hasValidationError,
+  (hasError) => {
+    hasFormValidationError.value = hasError ?? false;
+  },
+  { immediate: true }
+);
+
+// Also watch for changes in the form ref itself
+watch(
+  () => receiptNoteFormRef.value,
+  (formRef) => {
+    if (formRef) {
+      hasFormValidationError.value = formRef.hasValidationError ?? false;
+    } else {
+      hasFormValidationError.value = false;
+    }
+  },
+  { immediate: true }
+);
 
 const selectedCorporationId = computed(
   () => corporationStore.selectedCorporationId

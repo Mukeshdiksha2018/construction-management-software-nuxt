@@ -1865,6 +1865,9 @@ const overReceivedValidationError = computed(() => {
   return `Cannot save receipt note: ${itemCount} item(s) have received quantity greater than ordered quantity. ${itemsList}`;
 });
 
+// Combined validation error (for consistency with ReturnNoteForm)
+const hasValidationError = computed(() => !!hasOverReceivedItems.value);
+
 // Expose shortfall items and over-received validation to parent component
 defineExpose({
   shortfallItems,
@@ -1872,6 +1875,7 @@ defineExpose({
   overReceivedItems,
   hasOverReceivedItems,
   overReceivedValidationError,
+  hasValidationError,
 });
 
 // Handler for when user confirms item selection in modal
