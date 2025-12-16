@@ -28,8 +28,8 @@ export default defineNuxtConfig({
       SUPABASE_ANON_KEY: process.env.NUXT_SUPABASE_ANON_KEY,
       BASE_URL:
         process.env.NUXT_BASE_URL ||
-        (process.env.NETLIFY || process.env.NODE_ENV === "production"
-          ? "https://brilliant-crisp-2fd6ab.netlify.app"
+        (process.env.NODE_ENV === "production"
+          ? "https://construction.kodefast.com"
           : "http://localhost:3000"),
     },
     SUPABASE_SERVICE_ROLE_KEY: process.env.NUXT_SUPABASE_SERVICE_ROLE_KEY,
