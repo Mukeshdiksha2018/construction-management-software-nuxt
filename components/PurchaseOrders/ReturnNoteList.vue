@@ -26,29 +26,6 @@
       <!-- Divider -->
       <div class="w-px bg-gray-200 dark:bg-gray-700"></div>
       
-      <!-- Waiting Section -->
-      <div
-        @click="toggleStatusFilter('Waiting')"
-        :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
-          selectedStatusFilter === 'Waiting'
-            ? 'bg-gray-100 dark:bg-gray-700'
-            : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
-        ]"
-      >
-        <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            Waiting ({{ waitingStats.count }})
-          </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(waitingStats.totalValue) }}
-          </div>
-        </div>
-      </div>
-      
-      <!-- Divider -->
-      <div class="w-px bg-gray-200 dark:bg-gray-700"></div>
-      
       <!-- Returned Section -->
       <div
         @click="toggleStatusFilter('Returned')"
@@ -261,7 +238,7 @@
                 color="primary"
                 size="sm"
                 :loading="savingReturnNote"
-                :disabled="savingReturnNote || (returnNoteFormRef?.value?.hasValidationError ?? false)"
+                :disabled="savingReturnNote || hasFormValidationError"
                 @click="saveReturnNote"
               >
                 {{ returnNoteForm?.uuid ? "Update" : "Save" }}
@@ -361,6 +338,31 @@ const savingReturnNote = ref(false);
 const loadingEdit = ref(false);
 const isViewMode = ref(false);
 const returnNoteFormRef = ref<any>(null);
+
+// Ref to track validation state - updated via watch to ensure reactivity
+const hasFormValidationError = ref(false);
+
+// Watch the form ref's validation state to update the button disabled state
+watch(
+  () => returnNoteFormRef.value?.hasValidationError,
+  (hasError) => {
+    hasFormValidationError.value = hasError ?? false;
+  },
+  { immediate: true }
+);
+
+// Also watch for changes in the form ref itself
+watch(
+  () => returnNoteFormRef.value,
+  (formRef) => {
+    if (formRef) {
+      hasFormValidationError.value = formRef.hasValidationError ?? false;
+    } else {
+      hasFormValidationError.value = false;
+    }
+  },
+  { immediate: true }
+);
 
 const selectedCorporationId = computed(
   () => corporationStore.selectedCorporationId
@@ -489,21 +491,13 @@ const allStats = computed(() => ({
   ),
 }));
 
-const waitingStats = computed(() => {
-  const waiting = returnNotes.value.filter(
-    (note) => (note.status || "Waiting") === "Waiting"
-  );
-  return {
-    count: waiting.length,
-    totalValue: waiting.reduce(
-      (sum, note) => sum + (Number(note.total_return_amount) || 0),
-      0
-    ),
-  };
-});
-
 const returnedStats = computed(() => {
-  const returned = returnNotes.value.filter((note) => note.status === "Returned");
+  // All return notes should have "Returned" status
+  // Filter for "Returned" status, and also include notes without status (default to "Returned")
+  const returned = returnNotes.value.filter((note) => {
+    const status = note.status || "Returned";
+    return status === "Returned";
+  });
   return {
     count: returned.length,
     totalValue: returned.reduce(
@@ -518,7 +512,7 @@ const filteredReturnNotes = computed(() => {
 
   if (selectedStatusFilter.value) {
     list = list.filter(
-      (note) => (note.status || "Waiting") === selectedStatusFilter.value
+      (note) => (note.status || "Returned") === selectedStatusFilter.value
     );
   }
 
@@ -606,12 +600,13 @@ const columns: TableColumn<any>[] = [
     enableSorting: false,
     meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }) => {
-      const status = row.original.status || "Waiting";
+      // Normalize status: convert "Waiting" to "Returned" and default to "Returned"
+      let status = row.original.status || "Returned";
+      if (status === "Waiting" || status.toLowerCase() === "waiting") {
+        status = "Returned";
+      }
+      
       const statusMap: Record<string, { label: string; color: string }> = {
-        Waiting: {
-          label: "Waiting",
-          color: "warning"
-        },
         Returned: {
           label: "Returned",
           color: "success"
@@ -619,8 +614,8 @@ const columns: TableColumn<any>[] = [
       };
       
       const config = statusMap[status] ?? {
-        label: status,
-        color: "neutral"
+        label: "Returned",
+        color: "success"
       };
       
       return h(UBadge, {
@@ -738,7 +733,7 @@ const createEmptyForm = () => ({
   returned_by: "",
   location_uuid: null,
   notes: "",
-  status: "Waiting",
+  status: "Returned",
   total_return_amount: null,
   attachments: [],
 });
@@ -908,13 +903,20 @@ const saveReturnNote = async () => {
     const toast = useToast();
     toast.add({
       title: "Validation Error",
-      description: returnNoteFormRef.value.receiptNotesValidationError || "Cannot save return note due to validation errors.",
+      description: returnNoteFormRef.value.combinedValidationError || returnNoteFormRef.value.receiptNotesValidationError || "Cannot save return note due to validation errors.",
       color: "error",
     });
     return;
   }
   
-  const corpUuid = corporationStore.selectedCorporationId;
+  // Use form's corporation_uuid (not TopBar's selectedCorporationId)
+  // This allows the form to operate independently with its own corporation selection
+  const formCorpUuid = returnNoteForm.value?.corporation_uuid;
+  const topBarCorpUuid = corporationStore.selectedCorporationId;
+  
+  // Use form's corporation_uuid if available, otherwise fall back to TopBar's selected corporation
+  const corpUuid = formCorpUuid || topBarCorpUuid;
+  
   if (!corpUuid) {
     const toast = useToast();
     toast.add({
@@ -935,6 +937,10 @@ const saveReturnNote = async () => {
     });
     return;
   }
+
+  // Check if form's corporation matches TopBar's selected corporation
+  // Only update store/IndexedDB if they match, otherwise just call API directly
+  const shouldUpdateStore = formCorpUuid && topBarCorpUuid && formCorpUuid === topBarCorpUuid;
 
   savingReturnNote.value = true;
   try {
@@ -966,6 +972,9 @@ const saveReturnNote = async () => {
     const returnType = formData.return_type || 'purchase_order';
     formData.return_type = returnType;
 
+    // Always set status to "Returned" - never save "Waiting" status
+    formData.status = "Returned";
+
     // Clear the opposite UUID column based on return_type
     // purchase_order_uuid and change_order_uuid are now separate columns
     if (returnType === 'change_order') {
@@ -987,7 +996,17 @@ const saveReturnNote = async () => {
     
 
     if (returnNoteForm.value?.uuid) {
-      await stockReturnNotesStore.updateStockReturnNote(payload);
+      // Update existing return note
+      if (shouldUpdateStore) {
+        // Form's corporation matches TopBar's selected corporation - update store and IndexedDB
+        await stockReturnNotesStore.updateStockReturnNote(payload);
+      } else {
+        // Form's corporation is different - just call API directly (bypass store/IndexedDB)
+        await $fetch("/api/stock-return-notes", {
+          method: "PUT",
+          body: payload,
+        });
+      }
       const toast = useToast();
       toast.add({
         title: "Updated",
@@ -995,7 +1014,17 @@ const saveReturnNote = async () => {
         color: "success",
       });
     } else {
-      await stockReturnNotesStore.createStockReturnNote(payload);
+      // Create new return note
+      if (shouldUpdateStore) {
+        // Form's corporation matches TopBar's selected corporation - update store and IndexedDB
+        await stockReturnNotesStore.createStockReturnNote(payload);
+      } else {
+        // Form's corporation is different - just call API directly (bypass store/IndexedDB)
+        await $fetch("/api/stock-return-notes", {
+          method: "POST",
+          body: payload,
+        });
+      }
       const toast = useToast();
       toast.add({
         title: "Created",
@@ -1007,7 +1036,8 @@ const saveReturnNote = async () => {
     // Refresh the specific purchase order if status was updated to Completed
     // This happens after the store action completes, which means the API has finished
     // updating the PO status (the API awaits the PO update before returning)
-    if (returnType === 'purchase_order' && formData.purchase_order_uuid && corporationStore.selectedCorporationId) {
+    // Only refresh if form's corporation matches TopBar's selected corporation
+    if (returnType === 'purchase_order' && formData.purchase_order_uuid && shouldUpdateStore && topBarCorpUuid) {
       try {
         // Fetch only the specific purchase order that was updated
         const updatedPO = await purchaseOrdersStore.fetchPurchaseOrder(formData.purchase_order_uuid);
@@ -1024,7 +1054,8 @@ const saveReturnNote = async () => {
     // Refresh the specific change order if status was updated to Completed
     // This happens after the store action completes, which means the API has finished
     // updating the CO status (the API awaits the CO update before returning)
-    if (returnType === 'change_order' && formData.change_order_uuid && corporationStore.selectedCorporationId) {
+    // Only refresh if form's corporation matches TopBar's selected corporation
+    if (returnType === 'change_order' && formData.change_order_uuid && shouldUpdateStore && topBarCorpUuid) {
       try {
         // Fetch only the specific change order that was updated
         const updatedCO = await changeOrdersStore.fetchChangeOrder(formData.change_order_uuid);

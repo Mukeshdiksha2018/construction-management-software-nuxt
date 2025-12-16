@@ -38,7 +38,7 @@
       >
         <div class="flex flex-col items-center text-center">
           <div class="text-sm text-gray-700 dark:text-gray-300">
-            Drafting… ({{ draftStats.count }})
+            Pending ({{ draftStats.count }})
           </div>
           <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
             {{ formatCurrency(draftStats.totalValue) }}
@@ -61,56 +61,10 @@
       >
         <div class="flex flex-col items-center text-center">
           <div class="text-sm text-gray-700 dark:text-gray-300">
-            For Approval ({{ readyStats.count }})
+            To be approved ({{ readyStats.count }})
           </div>
           <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
             {{ formatCurrency(readyStats.totalValue) }}
-          </div>
-        </div>
-      </div>
-      
-      <!-- Divider -->
-      <div class="w-px bg-gray-200 dark:bg-gray-700"></div>
-      
-      <!-- Approved Section -->
-      <div
-        @click="toggleStatusFilter('Approved')"
-        :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
-          selectedStatusFilter === 'Approved'
-            ? 'bg-gray-100 dark:bg-gray-700'
-            : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
-        ]"
-      >
-        <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            Approved ({{ approvedStats.count }})
-          </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(approvedStats.totalValue) }}
-          </div>
-        </div>
-      </div>
-      
-      <!-- Divider -->
-      <div class="w-px bg-gray-200 dark:bg-gray-700"></div>
-      
-      <!-- Rejected Section -->
-      <div
-        @click="toggleStatusFilter('Rejected')"
-        :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
-          selectedStatusFilter === 'Rejected'
-            ? 'bg-gray-100 dark:bg-gray-700'
-            : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
-        ]"
-      >
-        <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            Rejected ({{ rejectedStats.count }})
-          </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(rejectedStats.totalValue) }}
           </div>
         </div>
       </div>
@@ -527,7 +481,7 @@ const saveDraftButtonLabel = computed(() => {
     return 'Locked'
   }
   if (coForm.value?.uuid && coForm.value.status === 'Approved') {
-    return 'Unapprove'
+    return 'Reject'
   }
   return 'Save'
 })
@@ -796,19 +750,19 @@ const columns = computed<TableColumn<any>[]>(() => [
       
       const statusMap: Record<string, { label: string; color: string }> = {
         draft: {
-          label: 'Drafting…',
+          label: 'Pending',
           color: 'warning'
         },
         ready: {
-          label: 'Change order ready for approval',
+          label: 'To be approved',
           color: 'primary'
         },
         approved: {
-          label: 'Change order approved',
+          label: 'Purchase order approved',
           color: 'success'
         },
         rejected: {
-          label: 'Change order rejected',
+          label: 'Purchase order rejected',
           color: 'error'
         },
         partially_received: {
