@@ -4,10 +4,7 @@ export default defineAppConfig({
     buildDate: new Date().toISOString(),
     buildEnv: process.env.NODE_ENV || 'development',
     // This is determined at build time and bundled into the app
-    baseUrl: process.env.NUXT_BASE_URL || 
-             (process.env.NODE_ENV === 'production' 
-               ? 'https://construction.kodefast.com' 
-               : 'http://localhost:3000'),
+    baseUrl: "",
   },
   ui: {
     colors: {
