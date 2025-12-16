@@ -1,24 +1,22 @@
 <template>
-  <div class="h-[88vh]">
-    <div class="mb-2">
+  <div class="h-[88vh] print:h-auto">
+    <!-- Header section - hidden in print -->
+    <div class="mb-2 print:hidden">
       <div class="flex items-center justify-between gap-4 flex-wrap">
-        <!-- Left side: Back button and heading -->
+        <!-- Left side: Back button -->
         <div class="flex items-center gap-3">
           <UButton
             color="neutral"
             variant="solid"
             icon="i-heroicons-arrow-left"
             @click="goBack"
-          >
-            Back
-          </UButton>
-          <h1 class="text-xl font-semibold text-gray-900 dark:text-gray-100">Stock Report</h1>
+          />
         </div>
 
-        <!-- Right side: Corporation and Project Selection, Print button -->
-        <div class="flex items-center gap-3 flex-wrap">
+        <!-- Right side: Corporation, Project Selection, Date Range, Show and Print buttons -->
+        <div class="flex items-end gap-3 flex-wrap">
           <!-- Corporation Select -->
-          <div class="flex items-center gap-2">
+          <div class="flex flex-col gap-1">
             <label class="text-sm font-medium text-default whitespace-nowrap">
               Corporation <span class="text-red-500">*</span>
             </label>
@@ -31,7 +29,7 @@
           </div>
 
           <!-- Project Select -->
-          <div class="flex items-center gap-2">
+          <div class="flex flex-col gap-1">
             <label class="text-sm font-medium text-default whitespace-nowrap">
               Project <span class="text-red-500">*</span>
             </label>
@@ -45,16 +43,87 @@
             />
           </div>
 
+          <!-- Start Date -->
+          <div class="flex flex-col gap-1">
+            <label class="text-sm font-medium text-default whitespace-nowrap">
+              Start Date <span class="text-red-500">*</span>
+            </label>
+            <UPopover :popper="{ placement: 'bottom-start' }">
+              <UButton
+                icon="i-heroicons-calendar"
+                size="sm"
+                variant="outline"
+                class="w-48"
+              >
+                {{ startDateDisplayText }}
+              </UButton>
+              <template #content>
+                <UCalendar
+                  v-model="startDateValue"
+                  :min-value="undefined"
+                  :max-value="endDateValue || undefined"
+                  class="p-2"
+                />
+              </template>
+            </UPopover>
+          </div>
+
+          <!-- End Date -->
+          <div class="flex flex-col gap-1">
+            <label class="text-sm font-medium text-default whitespace-nowrap">
+              End Date <span class="text-red-500">*</span>
+            </label>
+            <UPopover :popper="{ placement: 'bottom-start' }">
+              <UButton
+                icon="i-heroicons-calendar"
+                size="sm"
+                variant="outline"
+                class="w-48"
+              >
+                {{ endDateDisplayText }}
+              </UButton>
+              <template #content>
+                <UCalendar
+                  v-model="endDateValue"
+                  :min-value="startDateValue || undefined"
+                  :max-value="undefined"
+                  class="p-2"
+                />
+              </template>
+            </UPopover>
+          </div>
+
+          <!-- Show button -->
+          <div class="flex flex-col gap-1">
+            <label class="text-sm font-medium text-default whitespace-nowrap opacity-0">
+              Show
+            </label>
+            <UButton
+              :disabled="!canGenerateReport"
+              color="primary"
+              variant="solid"
+              size="sm"
+              @click="handleShowReport"
+            >
+              Show
+            </UButton>
+          </div>
+
           <!-- Print button -->
-          <UButton
-            v-if="selectedCorporationId && selectedProjectId && reportData && reportData.items && reportData.items.length > 0"
-            icon="i-heroicons-printer"
-            variant="soft"
-            size="sm"
-            @click="printReport"
-          >
-            Print
-          </UButton>
+          <div class="flex flex-col gap-1">
+            <label class="text-sm font-medium text-default whitespace-nowrap opacity-0">
+              Print
+            </label>
+            <UButton
+              v-if="selectedCorporationId && selectedProjectId && reportData && reportData.items && reportData.items.length > 0"
+              icon="i-heroicons-printer"
+              variant="soft"
+              size="sm"
+              @click="printReport"
+            >
+              Print
+            </UButton>
+          </div>
         </div>
       </div>
     </div>
@@ -68,6 +137,10 @@
       <div v-else-if="!selectedProjectId" class="text-center py-12">
         <UIcon name="i-heroicons-folder" class="w-16 h-16 mx-auto text-gray-400 mb-4" />
         <p class="text-gray-500 text-lg">Please select a project to view the stock report</p>
+      </div>
+      <div v-else-if="selectedCorporationId && selectedProjectId && (!startDateValue || !endDateValue)" class="text-center py-12">
+        <UIcon name="i-heroicons-calendar" class="w-16 h-16 mx-auto text-gray-400 mb-4" />
+        <p class="text-gray-500 text-lg">Please select start date and end date to generate the report</p>
       </div>
       <div v-else-if="loading" class="space-y-3">
         <!-- Loading skeleton -->
@@ -95,6 +168,11 @@
         <p class="text-red-500 text-lg">{{ error }}</p>
       </div>
       <div v-else-if="reportData && reportData.items && reportData.items.length > 0" class="space-y-6">
+        <!-- Report Title -->
+        <h1 class="text-2xl font-bold text-center text-gray-900 dark:text-gray-100 print:text-2xl print:text-gray-900">
+          Stock Report
+        </h1>
+
         <!-- Report Table -->
         <div class="overflow-x-auto">
           <table class="w-full border-collapse text-xs print:text-sm">
@@ -192,13 +270,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
+import { CalendarDate, today, getLocalTimeZone } from '@internationalized/date'
 import { useCorporationStore } from '@/stores/corporations'
 import { useProjectsStore } from '@/stores/projects'
 import { useStockReport } from '@/composables/useStockReport'
 import { useCurrencyFormat } from '@/composables/useCurrencyFormat'
 import { useDateFormat } from '@/composables/useDateFormat'
+import { useUTCDateFormat } from '@/composables/useUTCDateFormat'
 import ProjectSelect from '@/components/Shared/ProjectSelect.vue'
 import CorporationSelect from '@/components/Shared/CorporationSelect.vue'
 import type { StockReportData } from '@/composables/useStockReport'
@@ -227,6 +307,46 @@ const projectsStore = useProjectsStore()
 // State
 const selectedCorporationId = ref<string | undefined>(undefined)
 const selectedProjectId = ref<string | undefined>(undefined)
+
+// Date range state - default to Jan 1 of current year to today
+const currentYear = new Date().getFullYear()
+const startDateValue = ref<CalendarDate | null>(
+  new CalendarDate(currentYear, 1, 1)
+)
+const endDateValue = ref<CalendarDate | null>(today(getLocalTimeZone()))
+
+// UTC date formatting
+const { createDateRangeParams } = useUTCDateFormat()
+
+// Date display text
+const startDateDisplayText = computed(() => {
+  if (!startDateValue.value) return 'Select start date'
+  return startDateValue.value.toDate(getLocalTimeZone()).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  })
+})
+
+const endDateDisplayText = computed(() => {
+  if (!endDateValue.value) return 'Select end date'
+  return endDateValue.value.toDate(getLocalTimeZone()).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  })
+})
+
+// Can generate report
+const canGenerateReport = computed(() => {
+  return !!(
+    selectedCorporationId.value &&
+    selectedProjectId.value &&
+    startDateValue.value &&
+    endDateValue.value &&
+    startDateValue.value.compare(endDateValue.value) <= 0
+  )
+})
 
 // Stock Report
 const stockReport = useStockReport()
@@ -284,28 +404,69 @@ const handleCorporationChangeFromSelect = async (corporation: any) => {
 
 const handleProjectChange = async (projectId: string | undefined) => {
   selectedProjectId.value = projectId
-  if (projectId && selectedCorporationId.value) {
+  reportData.value = null
+}
+
+const handleShowReport = async () => {
+  if (canGenerateReport.value) {
     await loadStockReport()
-  } else {
-    reportData.value = null
   }
 }
 
 // Load report data
 const loadStockReport = async () => {
-  if (!selectedCorporationId.value || !selectedProjectId.value) {
+  if (!selectedCorporationId.value || !selectedProjectId.value || !startDateValue.value || !endDateValue.value) {
     reportData.value = null
     return
   }
   
   try {
+    // Convert dates to UTC format for filtering
+    const startDateStr = `${startDateValue.value.year}-${String(startDateValue.value.month).padStart(2, '0')}-${String(startDateValue.value.day).padStart(2, '0')}`
+    const endDateStr = `${endDateValue.value.year}-${String(endDateValue.value.month).padStart(2, '0')}-${String(endDateValue.value.day).padStart(2, '0')}`
+    
+    const dateRangeParams = createDateRangeParams(startDateStr, endDateStr)
+    if (!dateRangeParams) {
+      reportData.value = null
+      return
+    }
+    
+    const startUTC = new Date(dateRangeParams.start_date).getTime()
+    const endUTC = new Date(dateRangeParams.end_date).getTime()
+    
     const data = await stockReport.generateStockReport(selectedCorporationId.value, selectedProjectId.value)
     
     // Set reportData - use reactive assignment
     if (data && data.items && Array.isArray(data.items)) {
+      // Filter items by lastPurchaseDate or lastStockUpdateDate within date range
+      const filteredItems = data.items.filter((item: any) => {
+        // Use lastPurchaseDate if available, otherwise use lastStockUpdateDate
+        const itemDate = item.lastPurchaseDate || item.lastStockUpdateDate
+        if (!itemDate) return false
+        
+        const itemDateUTC = new Date(itemDate).getTime()
+        return itemDateUTC >= startUTC && itemDateUTC <= endUTC
+      })
+      
+      // Recalculate totals for filtered items
+      const filteredTotals = filteredItems.reduce((acc: any, item: any) => {
+        acc.currentStock += item.currentStock || 0
+        acc.totalValue += item.totalValue || 0
+        acc.reorderLevel += item.reorderLevel || 0
+        acc.inShipment += item.inShipment || 0
+        acc.returnedQty += item.returnedQty || 0
+        return acc
+      }, {
+        currentStock: 0,
+        totalValue: 0,
+        reorderLevel: 0,
+        inShipment: 0,
+        returnedQty: 0
+      })
+      
       reportData.value = {
-        items: data.items.map(item => ({ ...item })),
-        totals: { ...data.totals }
+        items: filteredItems.map(item => ({ ...item })),
+        totals: filteredTotals
       }
     } else {
       reportData.value = null
@@ -321,6 +482,17 @@ const loadStockReport = async () => {
 const printReport = () => {
   window.print()
 }
+
+// Watch for corporation changes - clear report data
+watch(selectedCorporationId, () => {
+  selectedProjectId.value = undefined
+  reportData.value = null
+})
+
+// Watch for project changes - clear report data
+watch(selectedProjectId, () => {
+  reportData.value = null
+})
 
 // Initialize with selected corporation from store if available
 onMounted(async () => {
