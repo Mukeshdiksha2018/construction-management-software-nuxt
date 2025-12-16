@@ -10,9 +10,7 @@
             variant="solid"
             icon="i-heroicons-arrow-left"
             @click="goBack"
-          >
-            Back
-          </UButton>
+          />
         </div>
 
         <!-- Right side: Corporation, Project Selection, Date Range, Show and Print buttons -->
