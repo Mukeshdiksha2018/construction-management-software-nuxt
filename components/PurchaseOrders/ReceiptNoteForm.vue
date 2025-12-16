@@ -471,6 +471,10 @@ const entryDatePopoverOpen = ref(false);
 const poItemsError = ref<string | null>(null);
 const receiptItems = ref<any[]>([]);
 
+// Local purchase orders and change orders for this form (independent from global store)
+const localPurchaseOrders = ref<any[]>([]);
+const localChangeOrders = ref<any[]>([]);
+
 // Receipt type state - sync with form
 const receiptType = computed({
   get: () => {
@@ -676,9 +680,10 @@ const getCOTypeInfo = (coType: string) => {
 }
 
 const poOptions = computed(() => {
-  const list = purchaseOrdersStore.purchaseOrders ?? [];
+  const list = localPurchaseOrders.value ?? [];
   if (!Array.isArray(list)) return [];
 
+  const corporationUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
   const projectUuid = props.form.project_uuid
     ? String(props.form.project_uuid)
     : null;
@@ -692,6 +697,8 @@ const poOptions = computed(() => {
   return list
     .filter((po) => {
       if (!po?.uuid) return false;
+      // Filter by corporation UUID (form's corporation takes priority)
+      if (corporationUuid && po.corporation_uuid !== corporationUuid) return false;
       // Show purchase orders with allowed statuses (case-insensitive)
       const poStatus = String(po.status || '').trim();
       const isAllowedStatus = allowedStatuses.some(
@@ -741,9 +748,10 @@ const poOption = computed({
 });
 
 const coOptions = computed(() => {
-  const list = changeOrdersStore.changeOrders ?? [];
+  const list = localChangeOrders.value ?? [];
   if (!Array.isArray(list)) return [];
 
+  const corporationUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
   const projectUuid = props.form.project_uuid
     ? String(props.form.project_uuid)
     : null;
@@ -757,6 +765,8 @@ const coOptions = computed(() => {
   return list
     .filter((co) => {
       if (!co?.uuid) return false;
+      // Filter by corporation UUID (form's corporation takes priority)
+      if (corporationUuid && co.corporation_uuid !== corporationUuid) return false;
       // Show change orders with allowed statuses (case-insensitive)
       const coStatus = String(co.status || '').trim();
       const isAllowedStatus = allowedStatuses.some(
@@ -937,7 +947,11 @@ watch(
     // Prioritize form's corporation_uuid
     const corpUuid = formCorpUuid || selectedCorporationUuid.value;
     if (corpUuid) {
-      await ensureVendorsLoaded();
+      await Promise.allSettled([
+        ensureVendorsLoaded(),
+        fetchLocalPurchaseOrders(String(corpUuid)),
+        fetchLocalChangeOrders(String(corpUuid)),
+      ]);
     }
   },
   { immediate: true }
@@ -960,7 +974,11 @@ onMounted(async () => {
   }
   
   if (corpUuid) {
-    await ensureVendorsLoaded();
+    await Promise.allSettled([
+      ensureVendorsLoaded(),
+      fetchLocalPurchaseOrders(String(corpUuid)),
+      fetchLocalChangeOrders(String(corpUuid)),
+    ]);
   }
   
   // When editing an existing receipt note, ensure financial data is loaded
@@ -1023,6 +1041,58 @@ const updateFormField = (field: string, value: any, base?: Record<string, any>) 
   return next;
 };
 
+// Fetch purchase orders directly via API (independent from global store)
+const fetchLocalPurchaseOrders = async (corporationUuid: string) => {
+  if (!corporationUuid) return;
+  
+  try {
+    const response: any = await $fetch("/api/purchase-order-forms", {
+      method: "GET",
+      query: {
+        corporation_uuid: corporationUuid,
+      },
+    });
+    
+    // Handle different response formats
+    const orders = Array.isArray(response)
+      ? response
+      : Array.isArray(response?.data)
+      ? response.data
+      : [];
+    
+    localPurchaseOrders.value = orders;
+  } catch (error: any) {
+    console.error("[ReceiptNoteForm] Failed to fetch purchase orders:", error);
+    localPurchaseOrders.value = [];
+  }
+};
+
+// Fetch change orders directly via API (independent from global store)
+const fetchLocalChangeOrders = async (corporationUuid: string) => {
+  if (!corporationUuid) return;
+  
+  try {
+    const response: any = await $fetch("/api/change-orders", {
+      method: "GET",
+      query: {
+        corporation_uuid: corporationUuid,
+      },
+    });
+    
+    // Handle different response formats
+    const orders = Array.isArray(response)
+      ? response
+      : Array.isArray(response?.data)
+      ? response.data
+      : [];
+    
+    localChangeOrders.value = orders;
+  } catch (error: any) {
+    console.error("[ReceiptNoteForm] Failed to fetch change orders:", error);
+    localChangeOrders.value = [];
+  }
+};
+
 const handleCorporationChange = async (corporationUuid?: string | null) => {
   const normalizedCorporationUuid = corporationUuid || '';
   updateFormField('corporation_uuid', normalizedCorporationUuid);
@@ -1033,6 +1103,8 @@ const handleCorporationChange = async (corporationUuid?: string | null) => {
   if (normalizedCorporationUuid) {
     await Promise.allSettled([
       vendorStore.fetchVendors(normalizedCorporationUuid),
+      fetchLocalPurchaseOrders(normalizedCorporationUuid),
+      fetchLocalChangeOrders(normalizedCorporationUuid),
       ensureUsersLoaded(),
     ]);
     
@@ -1858,12 +1930,12 @@ const loadFinancialDataFromSource = async (sourceUuid: string, sourceType: strin
     const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
 
     if (sourceType === 'purchase_order') {
-      // Ensure purchase orders are loaded
-      if (corpUuid && (!purchaseOrdersStore.purchaseOrders || purchaseOrdersStore.purchaseOrders.length === 0)) {
-        await purchaseOrdersStore.fetchPurchaseOrders(corpUuid);
+      // Ensure local purchase orders are loaded
+      if (corpUuid && localPurchaseOrders.value.length === 0) {
+        await fetchLocalPurchaseOrders(corpUuid);
       }
 
-      const po = purchaseOrdersStore.purchaseOrders?.find((p: any) => p.uuid === sourceUuid);
+      const po = localPurchaseOrders.value.find((p: any) => p.uuid === sourceUuid);
       if (!po) {
         // Try fetching the specific PO if not found
         try {
@@ -1884,12 +1956,12 @@ const loadFinancialDataFromSource = async (sourceUuid: string, sourceType: strin
 
       await applyChargeTaxPercentages(po);
     } else if (sourceType === 'change_order') {
-      // Ensure change orders are loaded
-      if (corpUuid && (!changeOrdersStore.changeOrders || changeOrdersStore.changeOrders.length === 0)) {
-        await changeOrdersStore.fetchChangeOrders(corpUuid);
+      // Ensure local change orders are loaded
+      if (corpUuid && localChangeOrders.value.length === 0) {
+        await fetchLocalChangeOrders(corpUuid);
       }
 
-      const co = changeOrdersStore.changeOrders?.find((c: any) => c.uuid === sourceUuid);
+      const co = localChangeOrders.value.find((c: any) => c.uuid === sourceUuid);
       
       if (!co) {
         // Try fetching the specific CO if not found
