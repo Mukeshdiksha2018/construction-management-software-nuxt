@@ -72,7 +72,7 @@
                       Corporation
                     </label>
                     <CorporationSelect
-                      :model-value="props.editingEstimate ? corpStore.selectedCorporationId : estimateCreationStore.selectedCorporationUuid"
+                      :model-value="(props.editingEstimate ? corpStore.selectedCorporationId : estimateCreationStore.selectedCorporationUuid) ?? undefined"
                       placeholder="Select corporation"
                       size="sm"
                       class="w-full"
@@ -340,6 +340,7 @@ import { useCorporationStore } from "@/stores/corporations";
 import { useProjectsStore } from "@/stores/projects";
 import { useEstimateCreationStore } from "@/stores/estimateCreation";
 import { useCurrencyFormat } from '@/composables/useCurrencyFormat';
+import { useApiClient } from '@/composables/useApiClient';
 import EstimateLineItemsTable from './EstimateLineItemsTable.vue';
 import CorporationSelect from '@/components/Shared/CorporationSelect.vue';
 import CostCodeSelectionModal from './CostCodeSelectionModal.vue';
@@ -369,6 +370,12 @@ const projectsStore = useProjectsStore();
 const estimateCreationStore = useEstimateCreationStore();
 const divisionsStore = useCostCodeDivisionsStore();
 const configurationsStore = useCostCodeConfigurationsStore();
+
+// API client for direct API calls
+const { apiFetch } = useApiClient();
+
+// Local declaration to satisfy TS for auto-imported useToast
+declare function useToast(): { add: (opts: any) => void }
 
 // Currency formatting
 const { currencySymbol, formatCurrency } = useCurrencyFormat();
@@ -893,6 +900,49 @@ watch(() => props.form.project_uuid, async (newProjectUuid, oldProjectUuid) => {
     !isReadOnlyEstimate.value &&
     !props.editingEstimate // Only auto-open for new estimates
   ) {
+    // Get corporation UUID for the API call
+    const corporationUuid = estimateCreationStore.selectedCorporationUuid || props.form.corporation_uuid;
+    
+    if (corporationUuid) {
+      try {
+        // Make a direct API call to check if an estimate exists for this project
+        // This is scoped to this component and independent of the global estimates store
+        const response: any = await apiFetch('/api/estimates', {
+          query: {
+            corporation_uuid: corporationUuid,
+            project_uuid: newProjectUuid,
+            page: 1,
+            page_size: 1
+          }
+        });
+        
+        const existingEstimates = response?.data || [];
+        
+        if (existingEstimates && existingEstimates.length > 0) {
+          // Find the project name for better error message
+          const project = existingEstimates[0]?.project;
+          const projectName = project?.project_name || project?.project_id || 'this project';
+          const estimateNumber = existingEstimates[0]?.estimate_number || 'N/A';
+          
+          const toast = useToast();
+          toast.add({
+            title: "Estimate Already Exists",
+            description: `An estimate (${estimateNumber}) already exists for ${projectName}. Please edit the existing estimate instead of creating a new one.`,
+            color: "warning",
+            icon: "i-heroicons-exclamation-triangle",
+          });
+          
+          // Clear the project selection to prevent further actions
+          handleFormUpdate('project_uuid', '');
+          return;
+        }
+      } catch (error) {
+        // If API call fails, log error but don't block the user
+        console.error('Error checking for existing estimates:', error);
+        // Continue with the normal flow if check fails
+      }
+    }
+    
     // Mark that we'll show the modal for this project
     hasShownModalForProject.value.add(newProjectUuid);
     
