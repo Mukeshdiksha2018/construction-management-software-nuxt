@@ -261,7 +261,7 @@
                 color="primary"
                 size="sm"
                 :loading="savingReturnNote"
-                :disabled="savingReturnNote || (returnNoteFormRef?.value?.hasValidationError ?? false)"
+                :disabled="savingReturnNote || hasFormValidationError"
                 @click="saveReturnNote"
               >
                 {{ returnNoteForm?.uuid ? "Update" : "Save" }}
@@ -361,6 +361,31 @@ const savingReturnNote = ref(false);
 const loadingEdit = ref(false);
 const isViewMode = ref(false);
 const returnNoteFormRef = ref<any>(null);
+
+// Ref to track validation state - updated via watch to ensure reactivity
+const hasFormValidationError = ref(false);
+
+// Watch the form ref's validation state to update the button disabled state
+watch(
+  () => returnNoteFormRef.value?.hasValidationError,
+  (hasError) => {
+    hasFormValidationError.value = hasError ?? false;
+  },
+  { immediate: true }
+);
+
+// Also watch for changes in the form ref itself
+watch(
+  () => returnNoteFormRef.value,
+  (formRef) => {
+    if (formRef) {
+      hasFormValidationError.value = formRef.hasValidationError ?? false;
+    } else {
+      hasFormValidationError.value = false;
+    }
+  },
+  { immediate: true }
+);
 
 const selectedCorporationId = computed(
   () => corporationStore.selectedCorporationId
@@ -908,7 +933,7 @@ const saveReturnNote = async () => {
     const toast = useToast();
     toast.add({
       title: "Validation Error",
-      description: returnNoteFormRef.value.receiptNotesValidationError || "Cannot save return note due to validation errors.",
+      description: returnNoteFormRef.value.combinedValidationError || returnNoteFormRef.value.receiptNotesValidationError || "Cannot save return note due to validation errors.",
       color: "error",
     });
     return;

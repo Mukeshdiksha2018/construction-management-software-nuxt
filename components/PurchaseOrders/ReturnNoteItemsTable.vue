@@ -60,7 +60,8 @@
               :key="item.id ?? index"
               :class="[
                 'align-middle transition-colors duration-150',
-                activeRowIndex === index ? 'bg-primary-50/40 dark:bg-primary-900/20' : ''
+                activeRowIndex === index ? 'bg-primary-50/40 dark:bg-primary-900/20' : '',
+                isItemOverReturn(item, index) ? 'bg-error-50/80 dark:bg-error-900/20 border-l-4 border-error-500' : ''
               ]"
             >
               <td class="px-3 py-2 align-middle">
@@ -122,7 +123,11 @@
                   :model-value="getReturnInputValue(item, index)"
                   size="xs"
                   inputmode="decimal"
-                  class="w-full max-w-[130px] text-right font-mono"
+                  :class="[
+                    'w-full max-w-[130px] text-right font-mono',
+                    isItemOverReturn(item, index) ? 'border-error-500 focus:ring-error-500' : ''
+                  ]"
+                  :color="isItemOverReturn(item, index) ? 'error' : 'primary'"
                   :disabled="props.readonly"
                   @focus="setActiveRow(index)"
                   @blur="clearActiveRow(index)"
@@ -234,7 +239,11 @@
                 :model-value="getReturnInputValue(item, index)"
                 size="xs"
                 inputmode="decimal"
-                class="text-right font-mono"
+                :class="[
+                  'text-right font-mono',
+                  isItemOverReturn(item, index) ? 'border-error-500 focus:ring-error-500' : ''
+                ]"
+                :color="isItemOverReturn(item, index) ? 'error' : 'primary'"
                 :disabled="props.readonly"
                 @focus="setActiveRow(index)"
                 @blur="clearActiveRow(index)"
@@ -382,12 +391,14 @@ const props = withDefaults(defineProps<{
   returnType?: 'purchase_order' | 'change_order'
   readonly?: boolean
   removedReturnItems?: any[]
+  overReturnItems?: any[]
 }>(), {
   items: () => [],
   loading: false,
   readonly: false,
   error: null,
   loadingMessage: 'Loading items…',
+  overReturnItems: () => [],
   emptyMessage: 'No return items found.',
   corporationUuid: null,
   returnType: 'purchase_order',
@@ -417,6 +428,26 @@ const corporationUuid = computed(() => props.corporationUuid)
 const quantityColumnLabel = computed(() => {
   return props.returnType === 'change_order' ? 'CO Qty' : 'PO Qty'
 })
+
+// Check if an item has validation error (return quantity exceeds max)
+const isItemOverReturn = (item: ReturnNoteItemDisplay, index: number): boolean => {
+  if (!Array.isArray(props.overReturnItems) || props.overReturnItems.length === 0) {
+    return false
+  }
+  
+  // Check if this item is in the overReturnItems array
+  // Match by item UUID or by index if UUID is not available
+  const itemUuid = item.uuid || item.base_item_uuid || item.item_uuid
+  if (itemUuid) {
+    return props.overReturnItems.some((overItem: any) => {
+      const overItemUuid = overItem.uuid || overItem.base_item_uuid || overItem.item_uuid
+      return overItemUuid && String(overItemUuid).trim().toLowerCase() === String(itemUuid).trim().toLowerCase()
+    })
+  }
+  
+  // Fallback: match by index
+  return props.overReturnItems.some((overItem: any) => overItem.index === index)
+}
 // Removed items state
 const removedItems = ref<any[]>([])
 

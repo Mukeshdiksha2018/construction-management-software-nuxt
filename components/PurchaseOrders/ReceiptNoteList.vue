@@ -1588,7 +1588,7 @@ const saveReturnNoteFromShortfall = async () => {
     const toast = useToast();
     toast.add({
       title: "Validation Error",
-      description: returnNoteFormRef.value.receiptNotesValidationError || "Cannot save return note due to validation errors.",
+      description: returnNoteFormRef.value.combinedValidationError || returnNoteFormRef.value.receiptNotesValidationError || "Cannot save return note due to validation errors.",
       color: "error",
     });
     return;
