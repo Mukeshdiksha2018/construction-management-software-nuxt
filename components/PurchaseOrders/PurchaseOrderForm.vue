@@ -1109,7 +1109,7 @@ const fetchItemTypesIfNeeded = async (
     .ensureItemTypes({ corporationUuid: corpUuid, projectUuid, force })
     .then(() => {}) // Convert to Promise<void>
     .catch((error: unknown) => {
-      console.error('[POF] Failed to fetch item types', error);
+      // Failed to fetch item types
     })
     .finally(() => {
       const current = itemTypesFetchPromises.get(key);
@@ -1616,7 +1616,7 @@ const parseEstimateDate = (dateString?: string | null): Date | null => {
     const fallback = new Date(source);
     return isNaN(fallback.getTime()) ? null : fallback;
   } catch (error) {
-    console.error('Failed to parse estimate date:', error);
+    // Failed to parse estimate date
     return null;
   }
 };
@@ -2260,7 +2260,6 @@ const applyPreferredItemsToForm = (preferredItems: any[], { force = false } = {}
   // Mark this as initial import (not editing existing selection)
   isEditingMasterSelection.value = false;
   
-  console.log('[POF] Opening master items modal with', poItems.length, 'items');
   pendingMasterSignature.value = signature;
   showMasterItemsModal.value = true;
 };
@@ -2405,29 +2404,12 @@ const mapPoItemForDisplay = (item: any, index: number, estimateItem?: any) => {
 
   const options: any[] = [...preferredItemOptions.value];
   
-  // Debug: Log for first item to see what options look like
-  if (index === 0) {
-    console.log('[POF] mapPoItemForDisplay - item 0:', {
-      item_uuid: item.item_uuid,
-      resolvedItemName,
-      resolvedSequence,
-      optionsCount: options.length,
-      firstOption: options[0],
-      hasItemInMap: item.item_uuid ? preferredItemOptionMap.value.has(String(item.item_uuid)) : false,
-    });
-  }
-  
   if (
     item.item_uuid &&
     !preferredItemOptionMap.value.has(String(item.item_uuid))
   ) {
     // Add the current item to options if it's not in the preferred items list
     // This ensures the select components can display the saved item
-    console.log('[POF] Adding saved item to options:', {
-      itemUuid: item.item_uuid,
-      resolvedItemName,
-      resolvedSequence,
-    });
     options.push({
       label: resolvedItemName || String(item.item_uuid),
       value: String(item.item_uuid),
@@ -2885,7 +2867,6 @@ const getItemUniqueId = (item: any): string => {
 
 // Handler for when user confirms item selection in modal
 const handleEstimateItemsConfirm = (selectedItems: any[]) => {
-  console.log('[POF] User confirmed selection:', selectedItems.length, 'items', 'isEditing:', isEditingSelection.value);
   
   if (isEditingSelection.value) {
     // When editing: Replace items with only the selected ones from the modal
@@ -2907,7 +2888,6 @@ const handleEstimateItemsConfirm = (selectedItems: any[]) => {
       return itemId && !currentItemIds.has(itemId);
     });
     
-    console.log('[POF] Editing selection - keeping', itemsToKeep.length, 'existing items, adding', newItems.length, 'new items');
     
     // Merge: keep existing selected items + add new selected items
     const mergedItems = [...itemsToKeep, ...newItems];
@@ -2930,7 +2910,6 @@ const handleEstimateItemsConfirm = (selectedItems: any[]) => {
 
 // Handler for when user cancels item selection
 const handleEstimateItemsCancel = () => {
-  console.log('[POF] User cancelled item selection, isEditing:', isEditingSelection.value);
   
   // Clear pending data without applying
   pendingEstimateKey.value = null;
@@ -2942,10 +2921,8 @@ const handleEstimateItemsCancel = () => {
     updateFormFields({ include_items: '' });
     // Clear store only if this was initial import
     purchaseOrderResourcesStore.clear();
-    console.log('[POF] Cleared include_items and store after cancel (initial import)');
   } else {
     // This was editing existing selection - just close modal, don't affect existing data
-    console.log('[POF] Cancelled edit selection - keeping existing data intact');
   }
   
   // Reset editing flag
@@ -2954,13 +2931,11 @@ const handleEstimateItemsCancel = () => {
 
 // Handler for when user clicks "Edit Selection" button
 const handleEditEstimateSelection = () => {
-  console.log('[POF] User clicked Edit Selection');
   
   // Get the current estimate items from store
   const currentEstimateItems = estimatePoItems.value;
   
   if (!Array.isArray(currentEstimateItems) || currentEstimateItems.length === 0) {
-    console.warn('[POF] No estimate items available to edit');
     return;
   }
   
@@ -2968,7 +2943,6 @@ const handleEditEstimateSelection = () => {
   const key = currentEstimateItemsKey.value;
   
   if (!key) {
-    console.warn('[POF] No estimate key available');
     return;
   }
   
@@ -2979,12 +2953,10 @@ const handleEditEstimateSelection = () => {
   pendingEstimateKey.value = key;
   showEstimateItemsModal.value = true;
   
-  console.log('[POF] Opened edit selection modal with', currentEstimateItems.length, 'items');
 };
 
 // Handler for when user confirms master item selection in modal
 const handleMasterItemsConfirm = (selectedItems: any[]) => {
-  console.log('[POF] User confirmed master items selection:', selectedItems.length, 'items', 'isEditing:', isEditingMasterSelection.value);
   
   if (isEditingMasterSelection.value) {
     // When editing: Replace items with only the selected ones from the modal
@@ -3004,7 +2976,6 @@ const handleMasterItemsConfirm = (selectedItems: any[]) => {
       return itemId && !currentItemIds.has(itemId);
     });
     
-    console.log('[POF] Editing master selection - keeping', itemsToKeep.length, 'existing items, adding', newItems.length, 'new items');
     
     // Merge: keep existing selected items + add new selected items
     const mergedItems = [...itemsToKeep, ...newItems];
@@ -3027,7 +2998,6 @@ const handleMasterItemsConfirm = (selectedItems: any[]) => {
 
 // Handler for when user cancels master item selection
 const handleMasterItemsCancel = () => {
-  console.log('[POF] User cancelled master items selection, isEditing:', isEditingMasterSelection.value);
   
   // Clear pending data without applying
   pendingMasterSignature.value = null;
@@ -3038,10 +3008,8 @@ const handleMasterItemsCancel = () => {
     updateFormFields({ include_items: '' });
     // Clear store only if this was initial import
     purchaseOrderResourcesStore.clear();
-    console.log('[POF] Cleared include_items and store after cancel (initial import)');
   } else {
     // This was editing existing selection - just close modal, don't affect existing data
-    console.log('[POF] Cancelled edit master selection - keeping existing data intact');
   }
   
   // Reset editing flag
@@ -3050,13 +3018,11 @@ const handleMasterItemsCancel = () => {
 
 // Handler for when user clicks "Edit Selection" button for master items
 const handleEditMasterSelection = () => {
-  console.log('[POF] User clicked Edit Master Selection');
   
   // Get the current master items from store
   const currentMasterItems = masterPoItems.value;
   
   if (!Array.isArray(currentMasterItems) || currentMasterItems.length === 0) {
-    console.warn('[POF] No master items available to edit');
     return;
   }
   
@@ -3064,7 +3030,6 @@ const handleEditMasterSelection = () => {
   const signature = getPreferredItemsSignature(preferredItemsForProject.value);
   
   if (!signature) {
-    console.warn('[POF] No master items signature available');
     return;
   }
   
@@ -3075,7 +3040,6 @@ const handleEditMasterSelection = () => {
   pendingMasterSignature.value = signature;
   showMasterItemsModal.value = true;
   
-  console.log('[POF] Opened edit master selection modal with', currentMasterItems.length, 'items');
 };
 
 // Helper to get unique identifier for labor items
@@ -3085,7 +3049,6 @@ const getLaborItemUniqueId = (item: any): string => {
 
 // Handler for when user confirms labor item selection in modal
 const handleLaborItemsConfirm = (selectedItems: any[]) => {
-  console.log('[POF] User confirmed labor items selection:', selectedItems.length, 'items', 'isEditing:', isEditingLaborSelection.value);
   
   if (isEditingLaborSelection.value) {
     // When editing: Replace items with only the selected ones from the modal
@@ -3105,7 +3068,6 @@ const handleLaborItemsConfirm = (selectedItems: any[]) => {
       return itemId && !currentItemIds.has(itemId);
     });
     
-    console.log('[POF] Editing labor selection - keeping', itemsToKeep.length, 'existing items, adding', newItems.length, 'new items');
     
     // Merge: keep existing selected items + add new selected items
     const mergedItems = [...itemsToKeep, ...newItems];
@@ -3124,7 +3086,6 @@ const handleLaborItemsConfirm = (selectedItems: any[]) => {
 
 // Handler for when user cancels labor item selection
 const handleLaborItemsCancel = () => {
-  console.log('[POF] User cancelled labor items selection, isEditing:', isEditingLaborSelection.value);
   
   // Clear pending data without applying
   pendingLaborItemsKey.value = null;
@@ -3133,10 +3094,8 @@ const handleLaborItemsCancel = () => {
   if (!isEditingLaborSelection.value) {
     // This was initial import - revert raise_against to null since user cancelled
     updateFormFields({ raise_against: null });
-    console.log('[POF] Cleared raise_against after cancel (initial import)');
   } else {
     // This was editing existing selection - just close modal, don't affect existing data
-    console.log('[POF] Cancelled edit labor selection - keeping existing data intact');
   }
   
   // Reset editing flag
@@ -3145,7 +3104,6 @@ const handleLaborItemsCancel = () => {
 
 // Handler for when user clicks "Edit Selection" button for labor items
 const handleEditLaborSelection = async () => {
-  console.log('[POF] User clicked Edit Labor Selection');
   
   // Reload available items based on current raise_against setting
   if (isRaiseAgainstEstimate.value) {
@@ -3154,14 +3112,12 @@ const handleEditLaborSelection = async () => {
     const estimateUuid = latestProjectEstimate.value?.uuid;
     
     if (!projectUuid || !estimateUuid) {
-      console.warn('[POF] No project or estimate available for labor items');
       return;
     }
     
     try {
       const corpUuid = corpStore.selectedCorporation?.uuid;
       if (!corpUuid) {
-        console.warn('[POF] No corporation selected');
         return;
       }
       
@@ -3178,14 +3134,12 @@ const handleEditLaborSelection = async () => {
       const laborItems = transformEstimateLineItemsToLaborItems(lineItems);
       availableLaborItems.value = laborItems;
     } catch (error: any) {
-      console.error('[POF] Failed to load labor items from estimate:', error);
       return;
     }
   } else {
     // Load all cost codes
     const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
     if (!corpUuid) {
-      console.warn('[POF] No corporation selected');
       return;
     }
     
@@ -3206,13 +3160,11 @@ const handleEditLaborSelection = async () => {
       const laborItems = transformCostCodeConfigsToLaborItems(allConfigurations);
       availableLaborItems.value = laborItems;
     } catch (error: any) {
-      console.error('[POF] Failed to load cost codes for labor items:', error);
       return;
     }
   }
   
   if (availableLaborItems.value.length === 0) {
-    console.warn('[POF] No labor items available to edit');
     return;
   }
   
@@ -3224,8 +3176,6 @@ const handleEditLaborSelection = async () => {
     ? `estimate-${latestProjectEstimate.value?.uuid}` 
     : 'custom-all';
   showLaborItemsModal.value = true;
-  
-  console.log('[POF] Opened edit labor selection modal with', availableLaborItems.value.length, 'items');
 };
 
 // Helper to transform estimate line items to labor items format
@@ -3317,19 +3267,7 @@ const applyEstimateItemsToForm = (
 ) => {
   const { force = false } = options
 
-  console.log('[POF] applyEstimateItemsToForm called:', {
-    itemsCount: Array.isArray(poItems) ? poItems.length : 0,
-    key,
-    force,
-    firstItem: Array.isArray(poItems) && poItems.length > 0 ? poItems[0] : null
-  });
-
   if (!Array.isArray(poItems) || poItems.length === 0 || !key) {
-    console.warn('[POF] applyEstimateItemsToForm: Early return - invalid input', {
-      isArray: Array.isArray(poItems),
-      length: Array.isArray(poItems) ? poItems.length : 0,
-      key,
-    });
     return
   }
 
@@ -3337,25 +3275,15 @@ const applyEstimateItemsToForm = (
   
   // Don't overwrite items if we're editing an existing PO (unless forced)
   if (!force && props.editingPurchaseOrder && currentItems.length > 0) {
-    console.log('[POF] applyEstimateItemsToForm: Skipping - editing existing PO with items');
     return
   }
   
   if (!force && lastAppliedEstimateItemsKey.value === key && currentItems.length > 0) {
-    console.log('[POF] applyEstimateItemsToForm: Skipping - items already applied');
     return
-  }
-  
-  // Show modal for item selection instead of directly applying
-  // But only if we're not editing an existing PO with items already applied
-  if (!force && lastAppliedEstimateItemsKey.value === key && currentItems.length > 0) {
-    console.log('[POF] Items already applied, showing modal for re-selection');
   }
   
   // Mark this as initial import (not editing existing selection)
   isEditingSelection.value = false;
-  
-  console.log('[POF] Opening estimate items modal with', poItems.length, 'items');
   pendingEstimateKey.value = key;
   showEstimateItemsModal.value = true;
 };
@@ -3405,13 +3333,11 @@ watch(
       if (corpUuid && projectUuid && estimateUuid && !shouldSkipEstimateAutoImport.value) {
         // If items are already loaded, show modal for selection
         if (Array.isArray(poItems) && poItems.length > 0) {
-          console.log('[POF] Items already loaded, showing modal for selection');
           applyEstimateItemsToForm(poItems, estimateKey, { force: switchedFromEstimate !== switchedToEstimate })
         } 
         // If items are not loaded and not currently loading, fetch them first
         else if (!isLoading && !shouldSkipEstimateAutoImport.value) {
           try {
-            console.log('[POF] Loading estimate items from API...');
             const loadedItems = await purchaseOrderResourcesStore.ensureEstimateItems({
               corporationUuid: corpUuid,
               projectUuid,
@@ -3425,16 +3351,12 @@ watch(
               ? loadedItems
               : purchaseOrderResourcesStore.getEstimateItems(corpUuid, projectUuid, estimateUuid);
             
-            console.log('[POF] Items loaded:', itemsToApply?.length || 0, 'items');
-            
             if (Array.isArray(itemsToApply) && itemsToApply.length > 0 && estimateKey) {
               // Show modal for item selection
               applyEstimateItemsToForm(itemsToApply, estimateKey, { force: switchedFromEstimate !== switchedToEstimate })
-            } else {
-              console.warn('[POF] No items loaded from estimate');
             }
           } catch (error) {
-            console.error('[POF] Failed to load estimate items:', error)
+            // Failed to load estimate items
           }
         }
       }
@@ -3720,12 +3642,10 @@ const mergePoSpecificFields = (target: any, source: any) => {
 const updatePoItems = (items: any[], skipMerge = false) => {
   // Validate items array
   if (!Array.isArray(items)) {
-    console.warn('[POF] updatePoItems: items is not an array');
     return;
   }
   
   if (items.length === 0) {
-    console.warn('[POF] updatePoItems: items array is empty - this might be intentional');
     // Don't return early - empty array might be valid (e.g., clearing items)
   }
 
@@ -4575,7 +4495,6 @@ const handleFileUpload = async () => {
           fileUploadError.value = null;
         }
       } catch (error) {
-        console.error("Error uploading purchase order files:", error);
         fileUploadError.value = "Failed to upload files. Please try again.";
       }
       return;
@@ -4592,7 +4511,6 @@ const handleFileUpload = async () => {
     handleFormUpdate("attachments", allAttachments);
     uploadedFiles.value = [];
   } catch (error) {
-    console.error("Error processing files:", error);
     fileUploadError.value = "Failed to process files. Please try again.";
   } finally {
     isUploading.value = false;
@@ -4631,7 +4549,6 @@ const openVendorEditModal = () => {
   // Find the vendor data
   const vendor = vendorStore.vendors.find((v: any) => v.uuid === props.form.vendor_uuid);
   if (!vendor) {
-    console.error('Vendor not found:', props.form.vendor_uuid);
     return;
   }
   
@@ -4671,7 +4588,6 @@ const removeFile = async (index: number) => {
       handleFormUpdate("attachments", response?.attachments ?? []);
       return;
     } catch (error) {
-      console.error("Error deleting file from storage:", error);
       fileUploadError.value = "Failed to delete file. Please try again.";
       return;
     }
@@ -4829,7 +4745,6 @@ watch(
               });
               await loadAllCostCodes();
             } catch (error: any) {
-              console.error('Error loading all cost codes:', error);
               laborItemsError.value = error.message || 'Failed to load cost codes';
             } finally {
               laborItemsLoading.value = false;
@@ -5138,7 +5053,6 @@ watch(
         // Load all cost codes
         await loadAllCostCodes();
       } catch (error: any) {
-        console.error('Error loading all cost codes:', error);
         laborItemsError.value = error.message || 'Failed to load cost codes';
       } finally {
         laborItemsLoading.value = false;
@@ -5185,7 +5099,6 @@ watch(
           // Load labor items from the estimate line items (only cost codes with labor amounts)
           await loadLaborItemsFromEstimateLineItems(lineItems);
         } catch (error: any) {
-          console.error('Error loading labor items from estimate:', error);
           laborItemsError.value = error.message || 'Failed to load labor items from estimate';
           // Clear items on error
           updateFormFields({ labor_po_items: [] });
@@ -5250,7 +5163,6 @@ const loadAllCostCodes = async () => {
     // Filter to active configurations only
     allConfigurations = configs.filter((config: any) => config.is_active !== false);
   } catch (error) {
-    console.error('[POF] Failed to fetch cost code configurations for labor items', error);
     return;
   }
   
@@ -5265,15 +5177,12 @@ const loadAllCostCodes = async () => {
   // Don't open modal automatically when editing an existing PO with labor items
   // The modal should only open when user clicks "Edit Selection" button
   if (shouldSkipLaborAutoImport.value) {
-    console.log('[POF] Skipping auto-open of labor items modal for existing PO');
     return;
   }
   
   // Show modal for item selection instead of directly applying
   // Mark this as initial import (not editing existing selection)
   isEditingLaborSelection.value = false;
-  
-  console.log('[POF] Opening labor items modal (Custom) with', laborItems.length, 'items');
   availableLaborItems.value = laborItems;
   pendingLaborItemsKey.value = 'custom-all';
   showLaborItemsModal.value = true;
@@ -5289,22 +5198,18 @@ const loadLaborItemsFromEstimateLineItems = async (lineItems: any[]) => {
   const laborItems = transformEstimateLineItemsToLaborItems(lineItems);
   
   if (laborItems.length === 0) {
-    console.warn('[POF] No labor items found in estimate line items');
     return;
   }
   
   // Don't open modal automatically when editing an existing PO with labor items
   // The modal should only open when user clicks "Edit Selection" button
   if (shouldSkipLaborAutoImport.value) {
-    console.log('[POF] Skipping auto-open of labor items modal for existing PO');
     return;
   }
   
   // Show modal for item selection instead of directly applying
   // Mark this as initial import (not editing existing selection)
   isEditingLaborSelection.value = false;
-  
-  console.log('[POF] Opening labor items modal (Against Estimate) with', laborItems.length, 'items');
   availableLaborItems.value = laborItems;
   pendingLaborItemsKey.value = `estimate-${latestProjectEstimate.value?.uuid}`;
   showLaborItemsModal.value = true;

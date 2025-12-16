@@ -1233,7 +1233,7 @@ const openCreateModal = () => {
         icon: "i-heroicons-x-circle",
       });
     } catch (error) {
-      console.error('Error showing toast:', error);
+      // Error showing toast
     }
     return;
   }
@@ -1285,7 +1285,6 @@ const openCreateModal = () => {
 
 const loadPurchaseOrderForModal = async (po: any, viewMode: boolean = false) => {
   if (!po?.uuid) {
-    console.warn('[POL] loadPurchaseOrderForModal called without UUID', po)
     return
   }
 
@@ -1324,7 +1323,6 @@ const loadPurchaseOrderForModal = async (po: any, viewMode: boolean = false) => 
       removed_po_items: detailed.removed_po_items || [],
     };
   } catch (error) {
-    console.error("[POL] Failed to fetch purchase order details:", error);
     const toast = useToast();
     toast.add({
       title: "Error",
@@ -1348,7 +1346,7 @@ const editPurchaseOrder = async (po: any) => {
         icon: "i-heroicons-x-circle",
       });
     } catch (error) {
-      console.error('Error showing toast:', error);
+      // Error showing toast
     }
     return;
   }
@@ -1525,33 +1523,6 @@ const savePurchaseOrder = async (skipModalClose = false): Promise<any | null> =>
   
   savingPO.value = true
   try {
-    console.log('[POL] savePurchaseOrder - poForm.value:', {
-      uuid: poForm.value.uuid,
-      corporation_uuid: poForm.value.corporation_uuid,
-      selectedCorporationId: corporationStore.selectedCorporationId,
-      resolvedCorporationUuid: corporationUuid,
-      po_type: poForm.value.po_type,
-      credit_days: poForm.value.credit_days,
-      include_items: poForm.value.include_items,
-      ship_via: poForm.value.ship_via,
-      ship_via_uuid: poForm.value.ship_via_uuid,
-      freight: poForm.value.freight,
-      freight_uuid: poForm.value.freight_uuid,
-      status: poForm.value.status,
-    })
-    const firstItem = Array.isArray(poForm.value.po_items) ? poForm.value.po_items[0] : undefined
-    if (firstItem) {
-      console.log('[POL] first PO item before save:', {
-        cost_code_uuid: firstItem.cost_code_uuid,
-        item_uuid: firstItem.item_uuid,
-        po_unit_price: firstItem.po_unit_price,
-        po_quantity: firstItem.po_quantity,
-        po_total: firstItem.po_total,
-        quantity: firstItem.quantity,
-        unit_price: firstItem.unit_price,
-      })
-    }
-    
     let result = null
     
     if (poForm.value.uuid) {
@@ -1562,15 +1533,6 @@ const savePurchaseOrder = async (skipModalClose = false): Promise<any | null> =>
         corporation_uuid: corporationUuid, // Explicitly set to ensure correct corporation
         raise_against: poForm.value.raise_against || null, // Explicitly include raise_against
       }
-      console.log('[POL] savePurchaseOrder - update payload:', {
-        uuid: payload.uuid,
-        corporation_uuid: payload.corporation_uuid,
-        po_type: payload.po_type,
-        credit_days: payload.credit_days,
-        include_items: payload.include_items,
-        raise_against: payload.raise_against,
-        status: payload.status,
-      })
       result = await purchaseOrdersStore.updatePurchaseOrder(payload)
       if (result && !skipModalClose) {
         const toast = useToast();
@@ -1590,14 +1552,6 @@ const savePurchaseOrder = async (skipModalClose = false): Promise<any | null> =>
         corporation_uuid: corporationUuid, // Use form's corporation_uuid, not TopBar's
         raise_against: poForm.value.raise_against || null, // Explicitly include raise_against
       }
-      console.log('[POL] savePurchaseOrder - create payload:', {
-        corporation_uuid: payload.corporation_uuid,
-        po_type: payload.po_type,
-        credit_days: payload.credit_days,
-        include_items: payload.include_items,
-        raise_against: payload.raise_against,
-        status: payload.status,
-      })
       result = await purchaseOrdersStore.createPurchaseOrder(payload)
       if (result && !skipModalClose) {
         const toast = useToast();
@@ -1610,16 +1564,8 @@ const savePurchaseOrder = async (skipModalClose = false): Promise<any | null> =>
       throw new Error('Failed to save purchase order')
     }
     
-    console.log('[POL] savePurchaseOrder returning result:', {
-      uuid: result?.uuid,
-      corporation_uuid: result?.corporation_uuid,
-      project_uuid: result?.project_uuid,
-      vendor_uuid: result?.vendor_uuid,
-    })
-    
     return result
   } catch (e) {
-    console.error('Error saving purchase order:', e)
     const toast = useToast();
     toast.add({ title: 'Error', description: 'Failed to save purchase order', color: 'error' })
     return null
@@ -1710,7 +1656,6 @@ const confirmDelete = async () => {
       purchaseOrdersStore.error = null
     }
   } catch (error: any) {
-    console.error('Error deleting purchase order:', error)
     // Clear the store error after handling it so it doesn't affect the table display
     purchaseOrdersStore.error = null
     
@@ -1749,25 +1694,12 @@ const handleContinueSavingPO = async () => {
 }
 
 const handleRaiseChangeOrder = async () => {
-  console.log('[handleRaiseChangeOrder] ===== STARTING =====')
-  console.log('[handleRaiseChangeOrder] pendingSaveAction exists:', !!pendingSaveAction.value)
-  console.log('[handleRaiseChangeOrder] poForm.value.uuid:', poForm.value.uuid)
-  console.log('[handleRaiseChangeOrder] poForm.value.corporation_uuid:', poForm.value.corporation_uuid)
-  console.log('[handleRaiseChangeOrder] poForm.value.project_uuid:', poForm.value.project_uuid)
-  console.log('[handleRaiseChangeOrder] poForm.value.vendor_uuid:', poForm.value.vendor_uuid)
-  
   showExceededQuantityModal.value = false
 
   // Store the current form data before it gets cleared during PO save
   // This must happen BEFORE calling pendingSaveAction since that clears the form
   // Use deep clone to avoid reactive proxy issues
   const currentFormData = JSON.parse(JSON.stringify(poForm.value))
-  console.log('[handleRaiseChangeOrder] currentFormData cloned:', {
-    uuid: currentFormData.uuid,
-    corporation_uuid: currentFormData.corporation_uuid,
-    project_uuid: currentFormData.project_uuid,
-    vendor_uuid: currentFormData.vendor_uuid,
-  })
 
   // Adjust PO items quantities/amounts to match estimate quantities/amounts before saving
   const exceededItemsList = exceededItems.value
@@ -2059,32 +1991,18 @@ const handleRaiseChangeOrder = async () => {
   
   // Check if PO is already saved (has UUID)
   if (currentFormData.uuid) {
-    console.log('[handleRaiseChangeOrder] PO already has UUID, using it:', currentFormData.uuid)
     // PO is already saved, use currentFormData but we'll still fetch to get complete data
     savedPo = { uuid: currentFormData.uuid }
   } else if (pendingSaveAction.value) {
     // PO needs to be saved
     try {
-      console.log('[handleRaiseChangeOrder] Starting PO save...')
       // Call savePurchaseOrder directly with skipModalClose=true to get the returned PO
       savedPo = await savePurchaseOrder(true)
       
-      console.log('[handleRaiseChangeOrder] savePurchaseOrder returned:', savedPo)
-      
       if (!savedPo || !savedPo.uuid) {
-        console.error('[handleRaiseChangeOrder] Saved PO missing UUID:', savedPo)
         throw new Error('Failed to save purchase order or get UUID')
       }
-      
-      console.log('[handleRaiseChangeOrder] Saved PO:', {
-        uuid: savedPo.uuid,
-        corporation_uuid: savedPo.corporation_uuid,
-        project_uuid: savedPo.project_uuid,
-        vendor_uuid: savedPo.vendor_uuid,
-        po_number: savedPo.po_number,
-      })
     } catch (error) {
-      console.error('[handleRaiseChangeOrder] Error saving PO before creating CO:', error)
       const toast = useToast()
       toast.add({
         title: 'Error',
@@ -2095,20 +2013,12 @@ const handleRaiseChangeOrder = async () => {
     }
   } else {
     // No pending save action and no UUID - need to save the PO
-    console.log('[handleRaiseChangeOrder] No pendingSaveAction and no UUID, saving PO now...')
     try {
       savedPo = await savePurchaseOrder(true)
       if (!savedPo || !savedPo.uuid) {
         throw new Error('Failed to save purchase order or get UUID')
       }
-      console.log('[handleRaiseChangeOrder] Saved PO after manual save:', {
-        uuid: savedPo.uuid,
-        corporation_uuid: savedPo.corporation_uuid,
-        project_uuid: savedPo.project_uuid,
-        vendor_uuid: savedPo.vendor_uuid,
-      })
     } catch (error) {
-      console.error('[handleRaiseChangeOrder] Error saving PO:', error)
       const toast = useToast()
       toast.add({
         title: 'Error',
@@ -2125,7 +2035,6 @@ const handleRaiseChangeOrder = async () => {
   
   if (savedPo?.uuid && corporationStore.selectedCorporationId) {
     try {
-      console.log('[handleRaiseChangeOrder] Fetching detailed PO with UUID:', savedPo.uuid)
       const detailed = await purchaseOrdersStore.fetchPurchaseOrder(savedPo.uuid)
       if (detailed) {
         // Cast to any to access all properties
@@ -2154,19 +2063,7 @@ const handleRaiseChangeOrder = async () => {
           attachments: detailedAny.attachments || currentFormData.attachments || [],
           removed_po_items: detailedAny.removed_po_items || currentFormData.removed_po_items || [],
         }
-        console.log('[handleRaiseChangeOrder] Fetched PO data:', {
-          uuid: poData.uuid,
-          corporation_uuid: poData.corporation_uuid,
-          project_uuid: poData.project_uuid,
-          vendor_uuid: poData.vendor_uuid,
-          credit_days: poData.credit_days,
-          ship_via_uuid: poData.ship_via_uuid,
-          freight_uuid: poData.freight_uuid,
-          shipping_address_uuid: poData.shipping_address_uuid,
-          terms_and_conditions_uuid: poData.terms_and_conditions_uuid,
-        })
       } else {
-        console.warn('[handleRaiseChangeOrder] Fetched PO data is empty, merging saved PO with currentFormData')
         poData = {
           ...currentFormData,
           ...savedPo,
@@ -2174,7 +2071,6 @@ const handleRaiseChangeOrder = async () => {
         }
       }
     } catch (error) {
-      console.warn('[handleRaiseChangeOrder] Could not fetch saved PO data, merging saved PO with currentFormData:', error)
       // Merge saved PO with currentFormData as fallback
       poData = {
         ...currentFormData,
@@ -2184,33 +2080,16 @@ const handleRaiseChangeOrder = async () => {
     }
   } else if (savedPo) {
     // Use saved PO merged with currentFormData if we have it but couldn't fetch detailed
-    console.warn('[handleRaiseChangeOrder] Using saved PO merged with currentFormData (no UUID or corporation)')
     poData = {
       ...currentFormData,
       ...savedPo,
       uuid: savedPo.uuid,
     }
   } else {
-    console.warn('[handleRaiseChangeOrder] No saved PO available, using current form data only')
     // Use currentFormData as-is, but it won't have UUID
   }
   
   const exceeded = exceededItems.value
-  
-  // Debug: Log PO data to verify all fields are present
-  console.log('[handleRaiseChangeOrder] savedPo:', savedPo)
-  console.log('[handleRaiseChangeOrder] poData after processing:', {
-    uuid: poData?.uuid,
-    corporation_uuid: poData?.corporation_uuid,
-    project_uuid: poData?.project_uuid,
-    vendor_uuid: poData?.vendor_uuid,
-    credit_days: poData?.credit_days,
-    ship_via_uuid: poData?.ship_via_uuid,
-    freight_uuid: poData?.freight_uuid,
-    shipping_address_uuid: poData?.shipping_address_uuid,
-    terms_and_conditions_uuid: poData?.terms_and_conditions_uuid,
-    po_number: poData?.po_number,
-  })
   const changeOrderPoType = String(poData?.po_type || '').toUpperCase()
   const isChangeOrderLaborPO = changeOrderPoType === 'LABOR'
   
@@ -2402,20 +2281,6 @@ const handleRaiseChangeOrder = async () => {
   // Ensure we have valid poData - use poForm.value directly if poData is invalid
   const formData = poData && typeof poData === 'object' ? poData : poForm.value
   
-  console.log('[handleRaiseChangeOrder] ===== CREATING CHANGE ORDER =====')
-  console.log('[handleRaiseChangeOrder] formData for CO:', {
-    uuid: formData?.uuid,
-    corporation_uuid: formData?.corporation_uuid,
-    project_uuid: formData?.project_uuid,
-    vendor_uuid: formData?.vendor_uuid,
-    credit_days: formData?.credit_days,
-    ship_via_uuid: formData?.ship_via_uuid,
-    freight_uuid: formData?.freight_uuid,
-    shipping_address_uuid: formData?.shipping_address_uuid,
-    terms_and_conditions_uuid: formData?.terms_and_conditions_uuid,
-    po_number: formData?.po_number,
-  })
-  
   const changeOrderData: any = {
     // Required fields
     corporation_uuid: normalizeToNull(formData?.corporation_uuid || corporationStore.selectedCorporationId),
@@ -2513,7 +2378,6 @@ const handleRaiseChangeOrder = async () => {
       throw new Error('Failed to create change order')
     }
   } catch (error: any) {
-    console.error('Error creating change order:', error)
     const toast = useToast()
     toast.add({
       title: 'Error',
@@ -2570,7 +2434,6 @@ const fetchPOItemsForRow = async (poUuid: string) => {
       error: null
     }
   } catch (error: any) {
-    console.error('[POL] Failed to fetch PO items:', error)
     poItemsCache.value[poUuid] = {
       items: [],
       loading: false,
