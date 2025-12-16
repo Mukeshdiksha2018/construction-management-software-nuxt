@@ -415,6 +415,16 @@
         </div>
       </template>
     </UModal>
+
+    <!-- Receipt Note Items Selection Modal -->
+    <ReceiptNoteItemsSelectionModal
+      v-model:open="showItemsSelectionModal"
+      :items="availableItemsForSelection"
+      :preselected-items="currentReceiptItemsForPreselection"
+      :title="itemsSelectionModalTitle"
+      @confirm="handleItemsSelectionConfirm"
+      @cancel="handleItemsSelectionCancel"
+    />
   </div>
 </template>
 
@@ -438,6 +448,7 @@ import { useUserProfilesStore } from "@/stores/userProfiles";
 import { useItemTypesStore } from "@/stores/itemTypes";
 import FinancialBreakdown from "@/components/PurchaseOrders/FinancialBreakdown.vue";
 import FilePreview from "@/components/Shared/FilePreview.vue";
+import ReceiptNoteItemsSelectionModal from "@/components/PurchaseOrders/ReceiptNoteItemsSelectionModal.vue";
 
 interface Props {
   form: any;
@@ -471,6 +482,12 @@ const poItemsLoading = ref(false);
 const entryDatePopoverOpen = ref(false);
 const poItemsError = ref<string | null>(null);
 const receiptItems = ref<any[]>([]);
+
+// Items selection modal state
+const showItemsSelectionModal = ref(false);
+const availableItemsForSelection = ref<any[]>([]);
+const pendingSourceUuid = ref<string | null>(null);
+const pendingSourceType = ref<string | null>(null);
 
 // Local purchase orders and change orders (independent from global store)
 const { localPurchaseOrders, localChangeOrders, fetchLocalPurchaseOrders, fetchLocalChangeOrders } = useLocalPOCOData();
@@ -1071,20 +1088,24 @@ const handleProjectChange = (projectUuid?: string | null) => {
   const currentChangeOrderUuid = nextForm.change_order_uuid;
 
   if (projectUuid) {
-    // Clear PO if it doesn't match the selected project
-    const matchingPOOption = poOptions.value.find(
-      (option) => option.value === currentPurchaseOrderUuid
-    );
-    if (!matchingPOOption && currentPurchaseOrderUuid) {
-      updateFormField("purchase_order_uuid", null, nextForm);
+    // Check PO's project_uuid directly from localPurchaseOrders instead of poOptions
+    // because poOptions is filtered by project_uuid and might not include the current PO
+    // when the project changes
+    if (currentPurchaseOrderUuid) {
+      const po = localPurchaseOrders.value.find((p: any) => p.uuid === currentPurchaseOrderUuid);
+      if (!po || po.project_uuid !== projectUuid) {
+        updateFormField("purchase_order_uuid", null, nextForm);
+      }
     }
 
-    // Clear CO if it doesn't match the selected project
-    const matchingCOOption = coOptions.value.find(
-      (option) => option.value === currentChangeOrderUuid
-    );
-    if (!matchingCOOption && currentChangeOrderUuid) {
-      updateFormField("change_order_uuid", null, nextForm);
+    // Check CO's project_uuid directly from localChangeOrders instead of coOptions
+    // because coOptions is filtered by project_uuid and might not include the current CO
+    // when the project changes
+    if (currentChangeOrderUuid) {
+      const co = localChangeOrders.value.find((c: any) => c.uuid === currentChangeOrderUuid);
+      if (!co || co.project_uuid !== projectUuid) {
+        updateFormField("change_order_uuid", null, nextForm);
+      }
     }
   } else {
     // Clear both PO and CO when no project is selected
@@ -1343,8 +1364,23 @@ const transformPoItemsToReceiptItems = (items: any[]) => {
   });
 };
 
+// Computed property for items selection modal title
+const itemsSelectionModalTitle = computed(() => {
+  if (pendingSourceType.value === 'purchase_order') {
+    return 'Select Items from Purchase Order';
+  } else if (pendingSourceType.value === 'change_order') {
+    return 'Select Items from Change Order';
+  }
+  return 'Select Items to Import';
+});
+
+// Computed property for preselected items when editing
+const currentReceiptItemsForPreselection = computed(() => {
+  return Array.isArray(receiptItems.value) ? receiptItems.value : [];
+});
+
 // Fetch items when purchase order or change order changes
-const fetchItems = async (sourceUuid: string | null, sourceType: string | null) => {
+const fetchItems = async (sourceUuid: string | null, sourceType: string | null, showModal = true) => {
   
   if (!sourceUuid || !sourceType) {
     poItems.value = [];
@@ -1410,6 +1446,16 @@ const fetchItems = async (sourceUuid: string | null, sourceType: string | null) 
     
     poItems.value = items;
     const transformed = transformPoItemsToReceiptItems(items);
+
+    // If showModal is true and we're creating a new receipt note, show the selection modal
+    if (showModal && !props.editingReceiptNote) {
+      availableItemsForSelection.value = transformed;
+      pendingSourceUuid.value = sourceUuid;
+      pendingSourceType.value = sourceType;
+      showItemsSelectionModal.value = true;
+      poItemsLoading.value = false;
+      return;
+    }
 
     // For new receipt notes, ensure received quantities are null (not prefilled)
     if (!props.editingReceiptNote) {
@@ -1822,6 +1868,55 @@ defineExpose({
   overReceivedValidationError,
 });
 
+// Handler for when user confirms item selection in modal
+const handleItemsSelectionConfirm = async (selectedItems: any[]) => {
+  if (!pendingSourceUuid.value || !pendingSourceType.value) {
+    return;
+  }
+
+  // Transform selected items to receipt items format
+  const transformed = transformPoItemsToReceiptItems(selectedItems);
+  
+  // For new receipt notes, ensure received quantities are null (not prefilled)
+  const newReceiptItems = transformed.map((item) => ({
+    ...item,
+    received_quantity: null,
+    received_total: null,
+  }));
+  
+  receiptItems.value = newReceiptItems;
+  
+  // Update form with receipt items
+  updateFormField("receipt_items", receiptItems.value);
+  
+  // Load financial data from source
+  await loadFinancialDataFromSource(pendingSourceUuid.value, pendingSourceType.value);
+  
+  // Clear pending data
+  pendingSourceUuid.value = null;
+  pendingSourceType.value = null;
+  availableItemsForSelection.value = [];
+};
+
+// Handler for when user cancels item selection
+const handleItemsSelectionCancel = () => {
+  // Clear the PO/CO selection if user cancels
+  if (pendingSourceType.value === 'purchase_order') {
+    updateFormField("purchase_order_uuid", null);
+  } else if (pendingSourceType.value === 'change_order') {
+    updateFormField("change_order_uuid", null);
+  }
+  
+  // Clear pending data
+  pendingSourceUuid.value = null;
+  pendingSourceType.value = null;
+  availableItemsForSelection.value = [];
+  
+  // Clear items
+  poItems.value = [];
+  receiptItems.value = [];
+};
+
 // Watch for purchase order or change order changes
 watch(
   [() => props.form.purchase_order_uuid, () => props.form.change_order_uuid, () => receiptType.value],
@@ -1829,17 +1924,18 @@ watch(
     // Determine which one changed and handle accordingly
     const isPoChange = poUuid !== oldPoUuid;
     const isCoChange = coUuid !== oldCoUuid;
-    const isReceiptTypeChange = currentReceiptType !== oldReceiptType;
+    const isInitialMount = oldPoUuid === undefined && oldCoUuid === undefined && oldReceiptType === undefined;
+    const isReceiptTypeChange = !isInitialMount && currentReceiptType !== oldReceiptType;
 
-    // If receipt type changed, clear items first
+    // If receipt type changed (but not on initial mount), clear items first
     if (isReceiptTypeChange) {
-      await fetchItems(null, null);
+      await fetchItems(null, null, false);
       // If we have a UUID for the new type, fetch items for it
       if (currentReceiptType === 'purchase_order' && poUuid) {
-        await fetchItems(poUuid, 'purchase_order');
+        await fetchItems(poUuid, 'purchase_order', true);
         await loadFinancialDataFromSource(poUuid, 'purchase_order');
       } else if (currentReceiptType === 'change_order' && coUuid) {
-        await fetchItems(coUuid, 'change_order');
+        await fetchItems(coUuid, 'change_order', true);
         await loadFinancialDataFromSource(coUuid, 'change_order');
       }
       return;
@@ -1861,14 +1957,21 @@ watch(
     if (!sourceUuid || !sourceType) {
       // Only clear if we had a previous value
       if ((oldPoUuid !== undefined && oldPoUuid !== null) || (oldCoUuid !== undefined && oldCoUuid !== null)) {
-        await fetchItems(null, null);
+        await fetchItems(null, null, false);
       }
       return;
     }
 
     // Fetch items and load financial data for the selected source
-    await fetchItems(sourceUuid, sourceType);
-    await loadFinancialDataFromSource(sourceUuid, sourceType);
+    // Show modal for new receipt notes when PO/CO changes after mount, but auto-populate on initial mount
+    // Skip modal for editing existing ones
+    const shouldShowModal = !props.editingReceiptNote && !isInitialMount;
+    await fetchItems(sourceUuid, sourceType, shouldShowModal);
+    
+    // Only load financial data if we're not showing the modal (editing existing receipt note or initial mount)
+    if (!shouldShowModal) {
+      await loadFinancialDataFromSource(sourceUuid, sourceType);
+    }
   },
   { immediate: true }
 );

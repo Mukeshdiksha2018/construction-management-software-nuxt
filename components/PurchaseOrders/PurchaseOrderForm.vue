@@ -2777,6 +2777,8 @@ const hasInitialMasterItems = ref(props.editingPurchaseOrder && String(props.for
 
 // Track if we're currently processing the preferred items watcher to prevent re-entry loops
 const isProcessingPreferredItemsWatcher = ref(false);
+// Track if we're currently processing the estimate items watcher to prevent re-entry loops
+const isProcessingEstimateItemsWatcher = ref(false);
 const shouldSkipMasterAutoImport = computed(() => hasInitialMasterItems.value);
 
 // Track if we should skip auto-import labor items for editing mode
@@ -3219,69 +3221,80 @@ watch(
     [includeItems, poItems, estimateKey, corpUuid, projectUuid, estimateUuid, isLoading],
     [prevIncludeItems]
   ) => {
-    const includeValue = String(includeItems || '').toUpperCase();
-    const previousInclude = String(prevIncludeItems || '').toUpperCase();
-
-    const switchedToEstimate = includeValue === 'IMPORT_ITEMS_FROM_ESTIMATE'
-    const switchedFromEstimate = previousInclude === 'IMPORT_ITEMS_FROM_ESTIMATE'
-
-    const isInitialRun = typeof prevIncludeItems === 'undefined'
-
-    // Early exit: If we're editing an existing PO with saved items, skip all estimate imports
-    // This prevents auto-importing estimate items when loading an existing PO
-    if (switchedToEstimate && shouldSkipEstimateAutoImport.value) {
-      return
+    // Prevent re-entry loop: if we're already processing this watcher, skip
+    if (isProcessingEstimateItemsWatcher.value) {
+      return;
     }
+    
+    try {
+      isProcessingEstimateItemsWatcher.value = true;
+      
+      const includeValue = String(includeItems || '').toUpperCase();
+      const previousInclude = String(prevIncludeItems || '').toUpperCase();
 
-    // Handle switching to estimate import
-    if (switchedToEstimate) {
-      
-      // Ensure estimates are fetched when switching to estimate import
-      if (corpUuid && projectUuid) {
-        // Fetch estimates - scoped to purchaseOrderResources store only
-        await purchaseOrderResourcesStore.ensureEstimates({
-          corporationUuid: corpUuid,
-          force: true,
-        });
+      const switchedToEstimate = includeValue === 'IMPORT_ITEMS_FROM_ESTIMATE'
+      const switchedFromEstimate = previousInclude === 'IMPORT_ITEMS_FROM_ESTIMATE'
+
+      const isInitialRun = typeof prevIncludeItems === 'undefined'
+
+      // Early exit: If we're editing an existing PO with saved items, skip all estimate imports
+      // This prevents auto-importing estimate items when loading an existing PO
+      if (switchedToEstimate && shouldSkipEstimateAutoImport.value) {
+        return
       }
-      
-      // If we have all required values, load and apply items
-      // Skip this if we're editing an existing PO with saved items
-      if (corpUuid && projectUuid && estimateUuid && !shouldSkipEstimateAutoImport.value) {
-        // If items are already loaded, show modal for selection
-        if (Array.isArray(poItems) && poItems.length > 0) {
-          applyEstimateItemsToForm(poItems, estimateKey, { force: switchedFromEstimate !== switchedToEstimate })
-        } 
-        // If items are not loaded and not currently loading, fetch them first
-        else if (!isLoading && !shouldSkipEstimateAutoImport.value) {
-          try {
-            const loadedItems = await purchaseOrderResourcesStore.ensureEstimateItems({
-              corporationUuid: corpUuid,
-              projectUuid,
-              estimateUuid,
-              force: true,
-            })
-            
-            // After loading, get the items again and show modal
-            // Use the returned items or fetch from store
-            const itemsToApply = Array.isArray(loadedItems) && loadedItems.length > 0
-              ? loadedItems
-              : purchaseOrderResourcesStore.getEstimateItems(corpUuid, projectUuid, estimateUuid);
-            
-            if (Array.isArray(itemsToApply) && itemsToApply.length > 0 && estimateKey) {
-              // Show modal for item selection
-              applyEstimateItemsToForm(itemsToApply, estimateKey, { force: switchedFromEstimate !== switchedToEstimate })
+
+      // Handle switching to estimate import
+      if (switchedToEstimate) {
+        
+        // Ensure estimates are fetched when switching to estimate import
+        if (corpUuid && projectUuid) {
+          // Fetch estimates - scoped to purchaseOrderResources store only
+          await purchaseOrderResourcesStore.ensureEstimates({
+            corporationUuid: corpUuid,
+            force: true,
+          });
+        }
+        
+        // If we have all required values, load and apply items
+        // Skip this if we're editing an existing PO with saved items
+        if (corpUuid && projectUuid && estimateUuid && !shouldSkipEstimateAutoImport.value) {
+          // If items are already loaded, show modal for selection
+          if (Array.isArray(poItems) && poItems.length > 0) {
+            applyEstimateItemsToForm(poItems, estimateKey, { force: switchedFromEstimate !== switchedToEstimate })
+          } 
+          // If items are not loaded and not currently loading, fetch them first
+          else if (!isLoading && !shouldSkipEstimateAutoImport.value) {
+            try {
+              const loadedItems = await purchaseOrderResourcesStore.ensureEstimateItems({
+                corporationUuid: corpUuid,
+                projectUuid,
+                estimateUuid,
+                force: true,
+              })
+              
+              // After loading, get the items again and show modal
+              // Use the returned items or fetch from store
+              const itemsToApply = Array.isArray(loadedItems) && loadedItems.length > 0
+                ? loadedItems
+                : purchaseOrderResourcesStore.getEstimateItems(corpUuid, projectUuid, estimateUuid);
+              
+              if (Array.isArray(itemsToApply) && itemsToApply.length > 0 && estimateKey) {
+                // Show modal for item selection
+                applyEstimateItemsToForm(itemsToApply, estimateKey, { force: switchedFromEstimate !== switchedToEstimate })
+              }
+            } catch (error) {
+              // Failed to load estimate items
             }
-          } catch (error) {
-            // Failed to load estimate items
           }
         }
+      } else if (switchedFromEstimate && !switchedToEstimate) {
+        lastAppliedEstimateItemsKey.value = null
+        // Clear the skip flag when user switches away from estimate import
+        // This allows fresh import if they switch back
+        hasInitialPoItems.value = false
       }
-    } else if (switchedFromEstimate && !switchedToEstimate) {
-      lastAppliedEstimateItemsKey.value = null
-      // Clear the skip flag when user switches away from estimate import
-      // This allows fresh import if they switch back
-      hasInitialPoItems.value = false
+    } finally {
+      isProcessingEstimateItemsWatcher.value = false;
     }
   },
   { immediate: true }

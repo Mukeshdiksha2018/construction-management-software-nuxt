@@ -251,7 +251,7 @@
       />
     </div>
 
-    <!-- File Upload and Notes Section -->
+    <!-- File Upload, Notes, and Financial Breakdown Section -->
     <div v-if="(returnType === 'purchase_order' && form.purchase_order_uuid) || (returnType === 'change_order' && form.change_order_uuid)" class="mt-6 flex flex-col lg:flex-row gap-6">
       <!-- File Upload Section (Left) -->
       <div class="w-full lg:w-auto lg:flex-shrink-0 lg:max-w-md">
@@ -369,7 +369,7 @@
         </UCard>
       </div>
 
-      <!-- Notes Section (Right) -->
+      <!-- Notes Section (Middle) -->
       <div class="w-full lg:flex-1">
         <UCard variant="soft">
           <label class="block text-xs font-medium text-default mb-1">
@@ -386,6 +386,21 @@
             @update:model-value="(value) => updateFormField('notes', value)"
           />
         </UCard>
+      </div>
+
+      <!-- Financial Breakdown (Right) -->
+      <div class="w-full lg:flex-1 flex justify-start lg:justify-end">
+        <div class="w-full lg:w-auto lg:min-w-[520px]">
+          <FinancialBreakdown
+            :item-total="returnItemTotal"
+            :form-data="form"
+            :read-only="props.readonly"
+            item-total-label="Item Total"
+            total-label="Return Total"
+            total-field-name="return_total_with_charges_taxes"
+            @update="handleFinancialBreakdownUpdate"
+          />
+        </div>
       </div>
     </div>
 
@@ -442,6 +457,7 @@ import { useUserProfilesStore } from "@/stores/userProfiles";
 import { useItemTypesStore } from "@/stores/itemTypes";
 import { useStockReceiptNotesStore } from "@/stores/stockReceiptNotes";
 import { useStockReturnNotesStore } from "@/stores/stockReturnNotes";
+import FinancialBreakdown from "@/components/PurchaseOrders/FinancialBreakdown.vue";
 import FilePreview from "@/components/Shared/FilePreview.vue";
 
 interface Props {
@@ -563,6 +579,60 @@ const returnItemTotal = computed(() => {
   }, 0)
   return roundCurrencyValue(total)
 })
+
+// Charge and tax rows for financial breakdown
+const chargeRows = [
+  { key: 'freight', label: 'Freight Charges' },
+  { key: 'packing', label: 'Packing Charges' },
+  { key: 'custom_duties', label: 'Custom & Duties' },
+  { key: 'other', label: 'Other Charges' },
+] as const
+
+const salesTaxRows = [
+  { key: 'sales_tax_1', label: 'Sales Tax 1' },
+  { key: 'sales_tax_2', label: 'Sales Tax 2' },
+] as const
+
+// Handler for financial breakdown component updates
+const handleFinancialBreakdownUpdate = (updates: Record<string, any>) => {
+  // Update total_return_amount with Return Total from financial breakdown
+  // This should always match return_total_with_charges_taxes
+  if (updates.return_total_with_charges_taxes !== undefined) {
+    updates.total_return_amount = updates.return_total_with_charges_taxes;
+  } else {
+    // Try to get it from financial_breakdown.totals
+    if (updates.financial_breakdown?.totals?.return_total_with_charges_taxes !== undefined) {
+      updates.return_total_with_charges_taxes = updates.financial_breakdown.totals.return_total_with_charges_taxes;
+      updates.total_return_amount = updates.return_total_with_charges_taxes;
+    }
+  }
+
+  // Update all form fields at once
+  const source = props.form;
+  const next = { ...source };
+  Object.keys(updates).forEach((key) => {
+    next[key] = updates[key];
+  });
+
+  // Emit all updates at once
+  emit("update:form", next);
+}
+
+// Watch form data for charges/taxes to ensure FinancialBreakdown recalculates
+watch(
+  () => [
+    props.form.freight_charges_percentage,
+    props.form.packing_charges_percentage,
+    props.form.custom_duties_charges_percentage,
+    props.form.other_charges_percentage,
+    props.form.sales_tax_1_percentage,
+    props.form.sales_tax_2_percentage,
+  ],
+  () => {
+    // FinancialBreakdown should automatically recalculate when formData changes
+  },
+  { deep: false }
+);
 
 const statusOptions = [
   { label: "Returned", value: "Returned" },
@@ -2109,4 +2179,15 @@ watch(
   { immediate: true }
 );
 </script>
+
+<style scoped>
+/* Force FinancialBreakdown UCard to take full width of its column */
+.flex-shrink-0 > div :deep(.w-full),
+.flex-shrink-0 > div :deep([class*="w-1/2"]),
+.flex-shrink-0 > div :deep([class*="w-5/12"]),
+.flex-shrink-0 > div :deep([class*="w-1/3"]) {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+</style>
 
