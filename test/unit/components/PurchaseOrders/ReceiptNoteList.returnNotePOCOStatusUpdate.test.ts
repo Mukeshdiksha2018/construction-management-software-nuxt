@@ -370,6 +370,13 @@ describe("ReceiptNoteList - Return Note PO/CO Status Update", () => {
       await vm.saveReturnNoteFromShortfall();
       await flushPromises();
 
+      // Verify that status is always saved as "Returned" (even if form had "Waiting")
+      expect(createStockReturnNoteMock).toHaveBeenCalled();
+      const createCallArgs = createStockReturnNoteMock.mock.calls[0]?.[0];
+      if (createCallArgs) {
+        expect(createCallArgs.status).toBe("Returned");
+      }
+
       // Verify that fetchPurchaseOrder was called with the correct PO UUID
       expect(fetchPurchaseOrderMock).toHaveBeenCalledWith("po-1");
 
@@ -423,6 +430,12 @@ describe("ReceiptNoteList - Return Note PO/CO Status Update", () => {
 
       // Verify return note was still created despite error
       expect(createStockReturnNoteMock).toHaveBeenCalled();
+      
+      // Verify that status is always saved as "Returned"
+      const createCallArgs = createStockReturnNoteMock.mock.calls[0]?.[0];
+      if (createCallArgs) {
+        expect(createCallArgs.status).toBe("Returned");
+      }
 
       // Verify updatePurchaseOrderInList was NOT called (because fetch failed)
       expect(updatePurchaseOrderInListMock).not.toHaveBeenCalled();
@@ -499,6 +512,13 @@ describe("ReceiptNoteList - Return Note PO/CO Status Update", () => {
 
       await vm.saveReturnNoteFromShortfall();
       await flushPromises();
+
+      // Verify that status is always saved as "Returned"
+      expect(createStockReturnNoteMock).toHaveBeenCalled();
+      const createCallArgs = createStockReturnNoteMock.mock.calls[0]?.[0];
+      if (createCallArgs) {
+        expect(createCallArgs.status).toBe("Returned");
+      }
 
       // Verify that fetchChangeOrder was called with the correct CO UUID
       expect(fetchChangeOrderMock).toHaveBeenCalledWith("co-1");
@@ -634,6 +654,7 @@ describe("ReceiptNoteList - Return Note PO/CO Status Update", () => {
       // Verify that createStockReturnNote was called with the updated return quantity
       expect(createStockReturnNoteMock).toHaveBeenCalledWith(
         expect.objectContaining({
+          status: "Returned", // Status should always be "Returned"
           return_items: expect.arrayContaining([
             expect.objectContaining({
               return_quantity: 20, // Updated quantity
