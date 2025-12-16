@@ -339,22 +339,6 @@
               />
             </div>
 
-            <!-- Raise Against (only for Labor PO) -->
-            <div v-if="isLaborPurchaseOrder">
-              <label class="block text-xs font-medium text-default mb-1">
-                Raise Against
-              </label>
-              <USelectMenu
-                v-model="raiseAgainstOption"
-                :items="raiseAgainstOptions"
-                placeholder="Select option"
-                size="sm"
-                class="w-full"
-                value-key="value"
-                :disabled="props.readonly"
-              />
-            </div>
-            
             <!-- Estimate Details (visible when importing from estimate) -->
             <div v-if="shouldShowEstimateDetails" class="xl:col-span-2">
               <label class="block text-xs font-medium text-default mb-1">
@@ -497,7 +481,7 @@
         empty-message="No labor items found."
         :corporation-uuid="(props.form.corporation_uuid || corpStore.selectedCorporation?.uuid) ?? undefined"
         :scoped-cost-code-configurations="scopedCostCodeConfigurations"
-        :show-labor-budgeted="isRaiseAgainstEstimate"
+        :show-labor-budgeted="isLaborPurchaseOrder"
         :show-edit-selection="isLaborPurchaseOrder"
         @edit-selection="handleEditLaborSelection"
         :readonly="props.readonly"
@@ -989,9 +973,9 @@
       v-model:open="showLaborItemsModal"
       :items="laborPoItems"
       :preselected-items="currentFormLaborItemsForPreselection"
-      :title="isRaiseAgainstEstimate ? 'Select Labor Cost Codes from Estimate' : 'Select Labor Cost Codes'"
-      :show-labor-budgeted="isRaiseAgainstEstimate"
-      :is-from-estimate="isRaiseAgainstEstimate"
+      title="Select Labor Cost Codes from Estimate"
+      :show-labor-budgeted="true"
+      :is-from-estimate="true"
       @confirm="handleLaborItemsConfirm"
       @cancel="handleLaborItemsCancel"
     />
@@ -1443,35 +1427,10 @@ const filteredIncludeItemsOptions = computed(() => {
   return options
 })
 
-// Raise Against options for Labor PO
-const raiseAgainstOptions = [
-  { label: 'Custom', value: 'CUSTOM' },
-  { label: 'Against Estimate', value: 'AGAINST_ESTIMATE' },
-]
-
-const raiseAgainstOption = computed<any>({
-  get: () => {
-    const v = props.form.raise_against
-    if (!v) return null
-    const target = String(v).toUpperCase()
-    return raiseAgainstOptions.find(opt => String(opt.value).toUpperCase() === target) || null
-  },
-  set: (val) => {
-    const value = typeof val === 'string' ? val : (val?.value || '')
-    handleFormUpdate('raise_against', value)
-  }
-})
-
-const isRaiseAgainstEstimate = computed(() => {
-  return String(props.form.raise_against || '').toUpperCase() === 'AGAINST_ESTIMATE';
-})
-
-const isRaiseAgainstCustom = computed(() => {
-  return String(props.form.raise_against || '').toUpperCase() === 'CUSTOM';
-})
+// Labor PO always uses "Against Estimate" behavior - raise_against field removed
 
 const enforceIncludeItemsConsistency = () => {
-  // Skip enforcement for Labor PO as they use raise_against instead
+  // Skip enforcement for Labor PO as they don't use include_items
   if (isLaborPurchaseOrder.value) {
     return;
   }
@@ -2751,11 +2710,8 @@ const laborItemsError = ref<string | null>(null);
 
 // Labor items description
 const laborItemsDescription = computed(() => {
-  if (isRaiseAgainstEstimate.value && latestProjectEstimate.value) {
+  if (latestProjectEstimate.value) {
     return `Labor cost codes from estimate #${latestProjectEstimate.value.estimate_number || 'N/A'}`;
-  }
-  if (isRaiseAgainstCustom.value) {
-    return 'All available cost codes for labor purchase order';
   }
   return 'Labor cost codes for purchase order';
 });
@@ -3090,14 +3046,6 @@ const handleLaborItemsCancel = () => {
   // Clear pending data without applying
   pendingLaborItemsKey.value = null;
   
-  // Only revert raise_against if this was the initial import (not editing existing selection)
-  if (!isEditingLaborSelection.value) {
-    // This was initial import - revert raise_against to null since user cancelled
-    updateFormFields({ raise_against: null });
-  } else {
-    // This was editing existing selection - just close modal, don't affect existing data
-  }
-  
   // Reset editing flag
   isEditingLaborSelection.value = false;
 };
@@ -3105,63 +3053,34 @@ const handleLaborItemsCancel = () => {
 // Handler for when user clicks "Edit Selection" button for labor items
 const handleEditLaborSelection = async () => {
   
-  // Reload available items based on current raise_against setting
-  if (isRaiseAgainstEstimate.value) {
-    // Load from estimate
-    const projectUuid = props.form.project_uuid;
-    const estimateUuid = latestProjectEstimate.value?.uuid;
-    
-    if (!projectUuid || !estimateUuid) {
-      return;
-    }
-    
-    try {
-      const corpUuid = corpStore.selectedCorporation?.uuid;
-      if (!corpUuid) {
-        return;
-      }
-      
-      const response: any = await $fetch("/api/estimate-line-items", {
-        method: "GET",
-        query: {
-          project_uuid: projectUuid,
-          estimate_uuid: estimateUuid,
-          corporation_uuid: corpUuid,
-        },
-      });
-      
-      const lineItems = Array.isArray(response?.data) ? response.data : [];
-      const laborItems = transformEstimateLineItemsToLaborItems(lineItems);
-      availableLaborItems.value = laborItems;
-    } catch (error: any) {
-      return;
-    }
-  } else {
-    // Load all cost codes
+  // Load from estimate (Labor PO always uses estimate)
+  const projectUuid = props.form.project_uuid;
+  const estimateUuid = latestProjectEstimate.value?.uuid;
+  
+  if (!projectUuid || !estimateUuid) {
+    return;
+  }
+  
+  try {
     const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
     if (!corpUuid) {
       return;
     }
     
-    try {
-      await purchaseOrderResourcesStore.ensurePreferredItems({
-        corporationUuid: corpUuid,
-        projectUuid: undefined,
-        force: false,
-      });
-      
-      const response: any = await $fetch("/api/cost-code-configurations", {
-        method: "GET",
-        query: { corporation_uuid: corpUuid },
-      });
-      const configs = Array.isArray(response?.data) ? response.data : (Array.isArray(response) ? response : []);
-      const allConfigurations = configs.filter((config: any) => config.is_active !== false);
-      
-      const laborItems = transformCostCodeConfigsToLaborItems(allConfigurations);
-      availableLaborItems.value = laborItems;
-    } catch (error: any) {
-      return;
-    }
+    const response: any = await $fetch("/api/estimate-line-items", {
+      method: "GET",
+      query: {
+        project_uuid: projectUuid,
+        estimate_uuid: estimateUuid,
+        corporation_uuid: corpUuid,
+      },
+    });
+    
+    const lineItems = Array.isArray(response?.data) ? response.data : [];
+    const laborItems = transformEstimateLineItemsToLaborItems(lineItems);
+    availableLaborItems.value = laborItems;
+  } catch (error: any) {
+    return;
   }
   
   if (availableLaborItems.value.length === 0) {
@@ -3172,9 +3091,7 @@ const handleEditLaborSelection = async () => {
   isEditingLaborSelection.value = true;
   
   // Set pending data and open modal
-  pendingLaborItemsKey.value = isRaiseAgainstEstimate.value 
-    ? `estimate-${latestProjectEstimate.value?.uuid}` 
-    : 'custom-all';
+  pendingLaborItemsKey.value = `estimate-${latestProjectEstimate.value?.uuid}`;
   showLaborItemsModal.value = true;
 };
 
@@ -4142,8 +4059,8 @@ const updateLaborPoItemCostCode = ({ index, value, option }: { index: number; va
     item.cost_code_name = costCodeName;
     item.cost_code_label = [costCodeNumber, costCodeName].filter(Boolean).join(' ').trim();
     
-    // If Against Estimate, fetch labor budgeted amount from estimate
-    if (isRaiseAgainstEstimate.value && latestProjectEstimate.value && value) {
+    // Fetch labor budgeted amount from estimate (Labor PO always uses estimate)
+    if (latestProjectEstimate.value && value) {
       const estimate = latestProjectEstimate.value;
       if (estimate.line_items && Array.isArray(estimate.line_items)) {
         const matchingLineItem = estimate.line_items.find(
@@ -4156,10 +4073,8 @@ const updateLaborPoItemCostCode = ({ index, value, option }: { index: number; va
       }
     }
   } else {
-    // If cost code is cleared, clear labor budgeted amount when Against Estimate
-    if (isRaiseAgainstEstimate.value) {
-      item.labor_budgeted_amount = null;
-    }
+    // If cost code is cleared, clear labor budgeted amount
+    item.labor_budgeted_amount = null;
   }
 
   current[targetIndex] = item;
@@ -4717,39 +4632,57 @@ watch(
   async (isLabor, wasLabor) => {
     // When switching to Labor PO, clear material-specific items and initialize labor items
     if (isLabor && !wasLabor) {
-      const raiseAgainstValue = props.form.raise_against || null;
       const updates: Record<string, any> = {
         include_items: null,
         po_items: [],
         labor_po_items: Array.isArray(props.form.labor_po_items) ? props.form.labor_po_items : [],
-        raise_against: raiseAgainstValue,
       };
       updateFormFields(updates);
       
-      // Explicitly trigger labor items loading after form update
+      // Explicitly trigger labor items loading from estimate after form update
       // Skip if editing an existing PO with labor items
       if (!shouldSkipLaborAutoImport.value) {
         await nextTick();
-        if (raiseAgainstValue === 'CUSTOM') {
-          const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
-          if (corpUuid) {
-            laborItemsLoading.value = true;
-            laborItemsError.value = null;
-            try {
-              // Use purchaseOrderResourcesStore instead of global costCodeConfigurationsStore
-              // This ensures we don't affect the global store scoped to TopBar's corporation
-              await purchaseOrderResourcesStore.ensurePreferredItems({
-                corporationUuid: corpUuid,
-                projectUuid: undefined,
-                force: true,
-              });
-              await loadAllCostCodes();
-            } catch (error: any) {
-              laborItemsError.value = error.message || 'Failed to load cost codes';
-            } finally {
-              laborItemsLoading.value = false;
+        // Automatically load labor items from estimate (Labor PO always uses estimate)
+        const projectUuid = props.form.project_uuid;
+        const estimateUuid = latestProjectEstimate.value?.uuid;
+        
+        if (projectUuid && estimateUuid) {
+          laborItemsLoading.value = true;
+          laborItemsError.value = null;
+          try {
+            const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
+            if (!corpUuid) {
+              throw new Error('No corporation selected');
             }
+            
+            // Fetch estimate line items from API
+            const response: any = await $fetch("/api/estimate-line-items", {
+              method: "GET",
+              query: {
+                project_uuid: projectUuid,
+                estimate_uuid: estimateUuid,
+                corporation_uuid: corpUuid,
+              },
+            });
+
+            const lineItems = Array.isArray(response?.data) ? response.data : [];
+            
+            if (!lineItems || lineItems.length === 0) {
+              throw new Error('Estimate line items not available');
+            }
+            
+            // Load labor items from the estimate line items
+            await loadLaborItemsFromEstimateLineItems(lineItems);
+          } catch (error: any) {
+            laborItemsError.value = error.message || 'Failed to load labor items from estimate';
+          } finally {
+            laborItemsLoading.value = false;
           }
+        } else if (projectUuid && !estimateUuid) {
+          laborItemsError.value = 'Please select a project with an approved estimate';
+        } else {
+          laborItemsError.value = 'Please select a project first';
         }
       }
     }
@@ -4757,7 +4690,6 @@ watch(
     else if (!isLabor && wasLabor) {
       const updates: Record<string, any> = {
         labor_po_items: [],
-        raise_against: null,
         include_items: props.form.include_items || 'CUSTOM',
       };
       updateFormFields(updates);
@@ -4986,20 +4918,19 @@ watch(() => isFormValid.value, (isValid) => {
   emit('validation-change', isValid);
 }, { immediate: true });
 
-// Watch for Labor PO Type and Raise Against changes to load labor items
+// Watch for Labor PO Type and project/estimate changes to load labor items
 watch(
   [
     () => isLaborPurchaseOrder.value,
-    () => props.form.raise_against,
     () => props.form.project_uuid,
     () => latestProjectEstimate.value?.uuid,
   ],
-  async ([isLabor, raiseAgainst, projectUuid, estimateUuid], [prevIsLabor, prevRaiseAgainst, prevProjectUuid, prevEstimateUuid]) => {
+  async ([isLabor, projectUuid, estimateUuid], [prevIsLabor, prevProjectUuid, prevEstimateUuid]) => {
     // Only process if it's a Labor PO
     if (!isLabor) {
       // Clear labor items if switching away from Labor PO
       if (prevIsLabor && !isLabor) {
-        updateFormFields({ labor_po_items: [], raise_against: null });
+        updateFormFields({ labor_po_items: [] });
       }
       return;
     }
@@ -5013,10 +4944,6 @@ watch(
     if (props.editingPurchaseOrder && Array.isArray(props.form.labor_po_items) && props.form.labor_po_items.length > 0) {
       laborItemsError.value = null;
     }
-
-    // Normalize raise_against value for comparison
-    const normalizedRaiseAgainst = String(raiseAgainst || '').toUpperCase();
-    const normalizedPrevRaiseAgainst = String(prevRaiseAgainst || '').toUpperCase();
     
     // Skip loading if we just switched to Labor PO (handled by PO type watcher)
     // Only handle changes when already in Labor PO mode
@@ -5025,110 +4952,54 @@ watch(
       return; // Let the PO type watcher handle the initial load
     }
 
-    // If "Custom" is selected, load all cost codes (for subsequent changes)
-    if (normalizedRaiseAgainst === 'CUSTOM' && normalizedPrevRaiseAgainst !== normalizedRaiseAgainst) {
-      // Skip auto-loading if editing an existing PO with labor items
-      if (shouldSkipLaborAutoImport.value) {
-        return;
-      }
-      
+    // Labor PO always uses "Against Estimate" behavior
+    // Skip auto-loading if editing an existing PO with labor items
+    if (shouldSkipLaborAutoImport.value) {
+      return;
+    }
+    
+    // Load if: estimate UUID changed while already in Labor PO mode
+    const estimateUuidChanged = estimateUuid !== prevEstimateUuid;
+    
+    if (estimateUuidChanged && projectUuid && estimateUuid) {
       // Set loading state
       laborItemsLoading.value = true;
       laborItemsError.value = null;
       
       try {
-        const corpUuid = corpStore.selectedCorporation?.uuid;
+        const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
         if (!corpUuid) {
           throw new Error('No corporation selected');
         }
         
-        // Ensure cost code configurations are loaded via purchaseOrderResourcesStore
-        // This ensures we don't affect the global costCodeConfigurationsStore
-        await purchaseOrderResourcesStore.ensurePreferredItems({
-          corporationUuid: corpUuid,
-          projectUuid: undefined,
-          force: true,
+        // Fetch estimate line items from API (similar to how material items are fetched)
+        const response: any = await $fetch("/api/estimate-line-items", {
+          method: "GET",
+          query: {
+            project_uuid: projectUuid,
+            estimate_uuid: estimateUuid,
+            corporation_uuid: corpUuid,
+          },
         });
+
+        const lineItems = Array.isArray(response?.data) ? response.data : [];
         
-        // Load all cost codes
-        await loadAllCostCodes();
+        if (!lineItems || lineItems.length === 0) {
+          throw new Error('Estimate line items not available');
+        }
+        
+        // Load labor items from the estimate line items (only cost codes with labor amounts)
+        await loadLaborItemsFromEstimateLineItems(lineItems);
       } catch (error: any) {
-        laborItemsError.value = error.message || 'Failed to load cost codes';
+        laborItemsError.value = error.message || 'Failed to load labor items from estimate';
+        // Clear items on error
+        updateFormFields({ labor_po_items: [] });
       } finally {
         laborItemsLoading.value = false;
       }
-    }
-    // If "Against Estimate" is selected and we have a project and estimate
-    else if (normalizedRaiseAgainst === 'AGAINST_ESTIMATE') {
-      // Skip auto-loading if editing an existing PO with labor items
-      if (shouldSkipLaborAutoImport.value) {
-        return;
-      }
-      
-      // Load if: value changed to "Against Estimate" OR estimate UUID changed while already on "Against Estimate"
-      const raiseAgainstChanged = normalizedPrevRaiseAgainst !== normalizedRaiseAgainst;
-      const estimateUuidChanged = estimateUuid !== prevEstimateUuid;
-      
-      if ((raiseAgainstChanged || estimateUuidChanged) && projectUuid && estimateUuid) {
-        // Set loading state
-        laborItemsLoading.value = true;
-        laborItemsError.value = null;
-        
-        try {
-          const corpUuid = corpStore.selectedCorporation?.uuid;
-          if (!corpUuid) {
-            throw new Error('No corporation selected');
-          }
-          
-          // Fetch estimate line items from API (similar to how material items are fetched)
-          const response: any = await $fetch("/api/estimate-line-items", {
-            method: "GET",
-            query: {
-              project_uuid: projectUuid,
-              estimate_uuid: estimateUuid,
-              corporation_uuid: corpUuid,
-            },
-          });
-
-          const lineItems = Array.isArray(response?.data) ? response.data : [];
-          
-          if (!lineItems || lineItems.length === 0) {
-            throw new Error('Estimate line items not available');
-          }
-          
-          // Load labor items from the estimate line items (only cost codes with labor amounts)
-          await loadLaborItemsFromEstimateLineItems(lineItems);
-        } catch (error: any) {
-          laborItemsError.value = error.message || 'Failed to load labor items from estimate';
-          // Clear items on error
-          updateFormFields({ labor_po_items: [] });
-        } finally {
-          laborItemsLoading.value = false;
-        }
-      } else if (raiseAgainstChanged && (!projectUuid || !estimateUuid)) {
-        // If we switched to "Against Estimate" but don't have project/estimate yet, set an error
-        // But don't set error for existing POs that already have labor items
-        const hasExistingLaborItems = Array.isArray(props.form.labor_po_items) && props.form.labor_po_items.length > 0;
-        if (!props.editingPurchaseOrder && !hasExistingLaborItems) {
-          laborItemsError.value = projectUuid ? 'Please select a project with an approved estimate' : 'Please select a project first';
-          // Clear labor items when switching to Against Estimate without required data
-          updateFormFields({ labor_po_items: [] });
-        }
-      } else if (estimateUuidChanged && !estimateUuid) {
-        // If estimate UUID was cleared while on "Against Estimate", clear items
-        updateFormFields({ labor_po_items: [] });
-        laborItemsError.value = null;
-      }
-    } 
-    // When switching away from a previous option, clear labor budgeted amounts
-    else if (prevRaiseAgainst === 'AGAINST_ESTIMATE' && raiseAgainst !== 'AGAINST_ESTIMATE') {
-      // Clear labor budgeted amounts when switching away from Against Estimate
-      const currentItems = Array.isArray(props.form.labor_po_items) ? [...props.form.labor_po_items] : [];
-      const updatedItems = currentItems.map((item: any) => ({
-        ...item,
-        labor_budgeted_amount: null,
-      }));
-      updateFormFields({ labor_po_items: updatedItems });
+    } else if (estimateUuidChanged && !estimateUuid) {
+      // If estimate UUID was cleared, clear items
+      updateFormFields({ labor_po_items: [] });
       laborItemsError.value = null;
     }
   },
