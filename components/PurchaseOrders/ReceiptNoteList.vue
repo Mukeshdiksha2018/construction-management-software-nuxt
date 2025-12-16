@@ -1656,10 +1656,6 @@ const saveReturnNoteFromShortfall = async () => {
     return;
   }
 
-  // Check if form's corporation matches TopBar's selected corporation
-  // Only update store/IndexedDB if they match, otherwise just call API directly
-  const shouldUpdateStore = formCorpUuid && topBarCorpUuid && formCorpUuid === topBarCorpUuid;
-
   savingReturnNote.value = true;
   try {
     // Wait for any pending form updates to propagate

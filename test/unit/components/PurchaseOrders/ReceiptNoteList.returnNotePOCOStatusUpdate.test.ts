@@ -345,6 +345,7 @@ describe("ReceiptNoteList - Return Note PO/CO Status Update", () => {
       const vm = wrapper.vm as any;
 
       // Set up return note form data (simulating what happens when "Raise Return Note" is clicked)
+      // Set corporation_uuid to match TopBar's selected corporation so shouldUpdateStore is true
       vm.returnNoteFormData = {
         return_number: "RTN-1",
         entry_date: "2024-05-01T00:00:00.000Z",
@@ -352,6 +353,7 @@ describe("ReceiptNoteList - Return Note PO/CO Status Update", () => {
         purchase_order_uuid: "po-1",
         change_order_uuid: null,
         project_uuid: "project-1",
+        corporation_uuid: "corp-1", // Match TopBar's selectedCorporationId
         status: "Waiting",
         return_items: [
           {
@@ -405,6 +407,7 @@ describe("ReceiptNoteList - Return Note PO/CO Status Update", () => {
         purchase_order_uuid: "po-1",
         change_order_uuid: null,
         project_uuid: "project-1",
+        corporation_uuid: "corp-1", // Match TopBar's selectedCorporationId
         status: "Waiting",
         return_items: [
           {
@@ -496,6 +499,7 @@ describe("ReceiptNoteList - Return Note PO/CO Status Update", () => {
         purchase_order_uuid: null,
         change_order_uuid: "co-1",
         project_uuid: "project-1",
+        corporation_uuid: "corp-1", // Match TopBar's selectedCorporationId
         status: "Waiting",
         return_items: [
           {
@@ -543,6 +547,7 @@ describe("ReceiptNoteList - Return Note PO/CO Status Update", () => {
         purchase_order_uuid: null,
         change_order_uuid: "co-1",
         project_uuid: "project-1",
+        corporation_uuid: "corp-1", // Match TopBar's selectedCorporationId
         status: "Waiting",
         return_items: [
           {
@@ -629,6 +634,7 @@ describe("ReceiptNoteList - Return Note PO/CO Status Update", () => {
         purchase_order_uuid: "po-1",
         change_order_uuid: null,
         project_uuid: "project-1",
+        corporation_uuid: "corp-1", // Match TopBar's selectedCorporationId
         status: "Waiting",
         return_items: [
           {
