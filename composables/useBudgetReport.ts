@@ -110,7 +110,9 @@ export const useBudgetReport = () => {
 
   const generateBudgetReport = async (
     corporationUuid: string,
-    projectUuid: string
+    projectUuid: string,
+    startDate?: string,
+    endDate?: string
   ): Promise<BudgetReportData | null> => {
     if (!corporationUuid || !projectUuid) {
       error.value = 'Corporation and project are required'
@@ -228,9 +230,20 @@ export const useBudgetReport = () => {
       projectEstimates = estimatesWithLineItems;
 
       // Get purchase orders for this project
-      const projectPurchaseOrders = purchaseOrdersStore.purchaseOrders.filter(
+      let projectPurchaseOrders = purchaseOrdersStore.purchaseOrders.filter(
         (po) => po.project_uuid === projectUuid && po.is_active !== false
       );
+
+      // Filter by date range if provided (using entry_date in UTC)
+      if (startDate && endDate) {
+        const startUTC = new Date(startDate).getTime()
+        const endUTC = new Date(endDate).getTime()
+        projectPurchaseOrders = projectPurchaseOrders.filter((po) => {
+          if (!po.entry_date) return false
+          const poDateUTC = new Date(po.entry_date).getTime()
+          return poDateUTC >= startUTC && poDateUTC <= endUTC
+        })
+      }
 
       // Fetch items for all purchase orders that don't have items loaded
       const purchaseOrderItemsMap = new Map<string, any[]>();
@@ -288,9 +301,20 @@ export const useBudgetReport = () => {
       }
 
       // Get change orders for this project (all active change orders)
-      const projectChangeOrders = changeOrdersStore.changeOrders.filter(
+      let projectChangeOrders = changeOrdersStore.changeOrders.filter(
         (co) => co.project_uuid === projectUuid && co.is_active !== false
       );
+
+      // Filter by date range if provided (using created_date in UTC)
+      if (startDate && endDate) {
+        const startUTC = new Date(startDate).getTime()
+        const endUTC = new Date(endDate).getTime()
+        projectChangeOrders = projectChangeOrders.filter((co) => {
+          if (!co.created_date) return false
+          const coDateUTC = new Date(co.created_date).getTime()
+          return coDateUTC >= startUTC && coDateUTC <= endUTC
+        })
+      }
 
       // Get change orders with status Approved, Partially_Received, or Completed for change order amount calculation
       const approvedChangeOrders = projectChangeOrders.filter((co) => {
@@ -669,7 +693,7 @@ export const useBudgetReport = () => {
         });
 
         // Filter invoices: must be Paid status, active, and for this project
-        const paidInvoices = (Array.isArray(invoicesResponse?.data)
+        let paidInvoices = (Array.isArray(invoicesResponse?.data)
           ? invoicesResponse.data
           : []
         ).filter(
@@ -678,6 +702,17 @@ export const useBudgetReport = () => {
             invoice.is_active !== false &&
             invoice.project_uuid === projectUuid
         );
+
+        // Filter by date range if provided (using bill_date in UTC)
+        if (startDate && endDate) {
+          const startUTC = new Date(startDate).getTime()
+          const endUTC = new Date(endDate).getTime()
+          paidInvoices = paidInvoices.filter((invoice: any) => {
+            if (!invoice.bill_date) return false
+            const invoiceDateUTC = new Date(invoice.bill_date).getTime()
+            return invoiceDateUTC >= startUTC && invoiceDateUTC <= endUTC
+          })
+        }
 
         // Process each paid invoice - fetch full invoice details to get items
         for (const invoice of paidInvoices) {

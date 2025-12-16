@@ -16,7 +16,7 @@
           <h1 class="text-xl font-semibold text-gray-900 dark:text-gray-100">Detailed Budget Report</h1>
         </div>
 
-        <!-- Right side: Corporation and Project Selection, Print button -->
+        <!-- Right side: Corporation, Project Selection, Date Range, Show and Print buttons -->
         <div class="flex items-center gap-3 flex-wrap">
           <!-- Corporation Select -->
           <div class="flex items-center gap-2">
@@ -34,17 +34,78 @@
           <!-- Project Select -->
           <div class="flex items-center gap-2">
             <label class="text-sm font-medium text-default whitespace-nowrap">
-              Project
+              Project <span class="text-red-500">*</span>
             </label>
             <ProjectSelect
               :model-value="selectedProjectId"
               :corporation-uuid="selectedCorporationId || undefined"
-              placeholder="Select project (optional)"
+              placeholder="Select project"
               size="sm"
               class="w-64"
               @update:model-value="handleProjectChange"
             />
           </div>
+
+          <!-- Start Date -->
+          <div class="flex items-center gap-2">
+            <label class="text-sm font-medium text-default whitespace-nowrap">
+              Start Date <span class="text-red-500">*</span>
+            </label>
+            <UPopover :popper="{ placement: 'bottom-start' }">
+              <UButton
+                icon="i-heroicons-calendar"
+                size="sm"
+                variant="outline"
+                class="w-48"
+              >
+                {{ startDateDisplayText }}
+              </UButton>
+              <template #content>
+                <UCalendar
+                  v-model="startDateValue"
+                  :min-value="minDate"
+                  :max-value="endDateValue || maxDate"
+                  class="p-2"
+                />
+              </template>
+            </UPopover>
+          </div>
+
+          <!-- End Date -->
+          <div class="flex items-center gap-2">
+            <label class="text-sm font-medium text-default whitespace-nowrap">
+              End Date <span class="text-red-500">*</span>
+            </label>
+            <UPopover :popper="{ placement: 'bottom-start' }">
+              <UButton
+                icon="i-heroicons-calendar"
+                size="sm"
+                variant="outline"
+                class="w-48"
+              >
+                {{ endDateDisplayText }}
+              </UButton>
+              <template #content>
+                <UCalendar
+                  v-model="endDateValue"
+                  :min-value="startDateValue || minDate"
+                  :max-value="maxDate"
+                  class="p-2"
+                />
+              </template>
+            </UPopover>
+          </div>
+
+          <!-- Show button -->
+          <UButton
+            :disabled="!canGenerateReport"
+            icon="i-heroicons-magnifying-glass"
+            variant="solid"
+            size="sm"
+            @click="handleShowReport"
+          >
+            Show
+          </UButton>
 
           <!-- Print button -->
           <UButton
@@ -66,6 +127,9 @@
         <h1 class="text-2xl font-bold text-gray-900 mb-2">Detailed Budget Report</h1>
         <div v-if="reportData" class="text-sm text-gray-700">
           <p class="font-semibold">Project: {{ reportData.project.projectName }} ({{ reportData.project.projectId }})</p>
+          <p v-if="startDateValue && endDateValue" class="text-xs text-gray-600 mt-1">
+            Date Range: {{ startDateDisplayText }} to {{ endDateDisplayText }}
+          </p>
           <p class="text-xs text-gray-600 mt-1">Generated on: {{ new Date().toLocaleDateString() }}</p>
         </div>
       </div>
@@ -80,6 +144,10 @@
       <div v-else-if="!selectedProjectId" class="text-center py-12">
         <UIcon name="i-heroicons-folder" class="w-16 h-16 mx-auto text-gray-400 mb-4" />
         <p class="text-gray-500 text-lg">Please select a project to view the detailed budget report</p>
+      </div>
+      <div v-else-if="!startDateValue || !endDateValue" class="text-center py-12">
+        <UIcon name="i-heroicons-calendar" class="w-16 h-16 mx-auto text-gray-400 mb-4" />
+        <p class="text-gray-500 text-lg">Please select start date and end date to generate the report</p>
       </div>
       <div v-else-if="loading" class="space-y-3">
         <!-- Project Summary Skeleton -->
@@ -553,10 +621,12 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, toRef, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
+import { CalendarDate, getLocalTimeZone, today } from '@internationalized/date'
 import { useCorporationStore } from '@/stores/corporations'
 import { useProjectsStore } from '@/stores/projects'
 import { useBudgetReport } from '@/composables/useBudgetReport'
 import { useCurrencyFormat } from '@/composables/useCurrencyFormat'
+import { useUTCDateFormat } from '@/composables/useUTCDateFormat'
 import ProjectSelect from '@/components/Shared/ProjectSelect.vue'
 import CorporationSelect from '@/components/Shared/CorporationSelect.vue'
 import type { BudgetReportData } from '@/composables/useBudgetReport'
@@ -585,6 +655,42 @@ const projectsStore = useProjectsStore()
 // State
 const selectedCorporationId = ref<string | undefined>(undefined)
 const selectedProjectId = ref<string | undefined>(undefined)
+
+// Date range state
+const { createDateRangeParams } = useUTCDateFormat()
+const currentYear = new Date().getFullYear()
+const todayDate = today(getLocalTimeZone())
+const startDateValue = ref<CalendarDate | null>(new CalendarDate(currentYear, 1, 1))
+const endDateValue = ref<CalendarDate | null>(todayDate)
+
+// Date formatting
+const df = new Intl.DateTimeFormat('en-US', {
+  dateStyle: 'medium'
+})
+
+const startDateDisplayText = computed(() => {
+  if (!startDateValue.value) return 'Select start date'
+  return df.format(startDateValue.value.toDate(getLocalTimeZone()))
+})
+
+const endDateDisplayText = computed(() => {
+  if (!endDateValue.value) return 'Select end date'
+  return df.format(endDateValue.value.toDate(getLocalTimeZone()))
+})
+
+const minDate = new CalendarDate(1900, 1, 1)
+const maxDate = todayDate
+
+// Check if report can be generated
+const canGenerateReport = computed(() => {
+  return !!(
+    selectedCorporationId.value &&
+    selectedProjectId.value &&
+    startDateValue.value &&
+    endDateValue.value &&
+    startDateValue.value.compare(endDateValue.value) <= 0
+  )
+})
 
 
 // Handlers
@@ -682,21 +788,43 @@ const showReport = computed(() => {
 
 const handleProjectChange = async (projectId: string | undefined) => {
   selectedProjectId.value = projectId
-  if (projectId && selectedCorporationId.value) {
-    await loadBudgetReport()
-  } else {
+  // Clear report data when project changes - user needs to click Show button
+  if (!projectId) {
     reportData.value = null
   }
 }
 
+const handleShowReport = async () => {
+  if (!canGenerateReport.value) {
+    return
+  }
+  await loadBudgetReport()
+}
+
 const loadBudgetReport = async () => {
-  if (!selectedCorporationId.value || !selectedProjectId.value) {
+  if (!selectedCorporationId.value || !selectedProjectId.value || !startDateValue.value || !endDateValue.value) {
+    reportData.value = null
+    return
+  }
+  
+  // Convert dates to UTC strings
+  const dateRange = createDateRangeParams(
+    `${startDateValue.value.year}-${String(startDateValue.value.month).padStart(2, '0')}-${String(startDateValue.value.day).padStart(2, '0')}`,
+    `${endDateValue.value.year}-${String(endDateValue.value.month).padStart(2, '0')}-${String(endDateValue.value.day).padStart(2, '0')}`
+  )
+  
+  if (!dateRange) {
     reportData.value = null
     return
   }
   
   try {
-    const data = await budgetReport.generateBudgetReport(selectedCorporationId.value, selectedProjectId.value)
+    const data = await budgetReport.generateBudgetReport(
+      selectedCorporationId.value,
+      selectedProjectId.value,
+      dateRange.start_date,
+      dateRange.end_date
+    )
     
     // Set reportData - use reactive assignment
     if (data && data.divisions && Array.isArray(data.divisions)) {
@@ -721,22 +849,14 @@ const printReport = () => {
   window.print()
 }
 
-// Watch for corporation changes
-watch(selectedCorporationId, async () => {
-  if (selectedProjectId.value && selectedCorporationId.value) {
-    await loadBudgetReport()
-  } else {
-    reportData.value = null
-  }
+// Watch for corporation changes - clear report data
+watch(selectedCorporationId, () => {
+  reportData.value = null
 })
 
-// Watch for project changes
-watch(selectedProjectId, async (newProjectId) => {
-  if (newProjectId && selectedCorporationId.value) {
-    await loadBudgetReport()
-  } else {
-    reportData.value = null
-  }
+// Watch for project changes - clear report data
+watch(selectedProjectId, () => {
+  reportData.value = null
 })
 
 // Initialize with selected corporation from store if available
