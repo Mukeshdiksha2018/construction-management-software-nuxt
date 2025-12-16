@@ -802,10 +802,9 @@ describe("ChangeOrdersList.vue", () => {
       const wrapper = mountList();
       // Check for the new horizontal bar structure with Summary section
       expect(wrapper.html()).toContain("Summary");
-      expect(wrapper.html()).toContain("Drafting…");
-      expect(wrapper.html()).toContain("For Approval");
-      expect(wrapper.html()).toContain("Approved");
-      expect(wrapper.html()).toContain("Rejected");
+      expect(wrapper.html()).toContain("Pending");
+      expect(wrapper.html()).toContain("To be approved");
+      // Approved and Rejected cards have been removed to match PurchaseOrdersList
     });
 
     it("does not render status stat cards when permissions are not ready", () => {
@@ -816,10 +815,9 @@ describe("ChangeOrdersList.vue", () => {
       const wrapper = mountList();
       // With isReady true (as mocked), cards should render
       expect(wrapper.html()).toContain("Summary");
-      expect(wrapper.html()).toContain("Drafting…");
-      expect(wrapper.html()).toContain("For Approval");
-      expect(wrapper.html()).toContain("Approved");
-      expect(wrapper.html()).toContain("Rejected");
+      expect(wrapper.html()).toContain("Pending");
+      expect(wrapper.html()).toContain("To be approved");
+      // Approved and Rejected cards have been removed to match PurchaseOrdersList
     });
 
     it("calculates all CO stats correctly", () => {
