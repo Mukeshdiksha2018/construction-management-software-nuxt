@@ -750,19 +750,19 @@ const columns = computed<TableColumn<any>[]>(() => [
       
       const statusMap: Record<string, { label: string; color: string }> = {
         draft: {
-          label: 'Drafting…',
+          label: 'Pending',
           color: 'warning'
         },
         ready: {
-          label: 'Change order ready for approval',
+          label: 'To be approved',
           color: 'primary'
         },
         approved: {
-          label: 'Change order approved',
+          label: 'Purchase order approved',
           color: 'success'
         },
         rejected: {
-          label: 'Change order rejected',
+          label: 'Purchase order rejected',
           color: 'error'
         },
         partially_received: {
