@@ -1226,15 +1226,20 @@ const saveReceiptNote = async () => {
   }
 
   // Check for shortfall quantities before saving
-  const { hasShortfall, items } = await checkForShortfallQuantities();
+  // Only show shortfall modal when creating a new receipt note (not when editing an existing one)
+  const isNewReceiptNote = !receiptNoteForm.value?.uuid;
+  
+  if (isNewReceiptNote) {
+    const { hasShortfall, items } = await checkForShortfallQuantities();
 
-  if (hasShortfall && !isViewMode.value) {
-    shortfallItemsForModal.value = items;
-    pendingReceiptNoteSave.value = async () => {
-      await performSaveReceiptNote(true); // Pass true to indicate saving as open PO
-    };
-    showShortfallModal.value = true;
-    return;
+    if (hasShortfall && !isViewMode.value) {
+      shortfallItemsForModal.value = items;
+      pendingReceiptNoteSave.value = async () => {
+        await performSaveReceiptNote(true); // Pass true to indicate saving as open PO
+      };
+      showShortfallModal.value = true;
+      return;
+    }
   }
 
   await performSaveReceiptNote(false); // Pass false for normal save
