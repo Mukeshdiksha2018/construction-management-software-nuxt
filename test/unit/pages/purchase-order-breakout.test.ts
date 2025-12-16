@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { nextTick } from "vue";
+import { CalendarDate, today, getLocalTimeZone } from '@internationalized/date'
 import PurchaseOrderBreakout from "@/pages/reports/purchase-order-breakout.vue";
 import { useCorporationStore } from "@/stores/corporations";
 import { useProjectsStore } from "@/stores/projects";
@@ -15,6 +16,21 @@ vi.mock("@/composables/useCurrencyFormat", () => ({
     },
   }),
 }));
+
+vi.mock('@/composables/useUTCDateFormat', () => ({
+  useUTCDateFormat: () => ({
+    createDateRangeParams: (startDate: string, endDate: string) => {
+      if (!startDate || !endDate) return null
+      // Convert to UTC timestamps
+      const startUTC = new Date(startDate + 'T00:00:00.000Z').toISOString()
+      const endUTC = new Date(endDate + 'T23:59:59.999Z').toISOString()
+      return {
+        start_date: startUTC,
+        end_date: endUTC
+      }
+    }
+  })
+}))
 
 // Mock $fetch
 const mockFetch = vi.fn();
@@ -54,11 +70,19 @@ const setupStores = () => {
   };
 };
 
+// Helper to set up dates for tests
+const setupDates = (wrapper: any) => {
+  const currentYear = new Date().getFullYear()
+  const todayDate = today(getLocalTimeZone())
+  wrapper.vm.startDateValue = new CalendarDate(currentYear, 1, 1)
+  wrapper.vm.endDateValue = todayDate
+}
+
 const createStubs = () => ({
   UButton: {
     name: "UButton",
     template: "<button><slot /></button>",
-    props: ["icon", "variant", "size", "color"],
+    props: ["icon", "variant", "size", "color", "disabled"],
   },
   UIcon: {
     name: "UIcon",
@@ -69,6 +93,17 @@ const createStubs = () => ({
     name: "USkeleton",
     template: '<div class="skeleton" />',
     props: ["class"],
+  },
+  UPopover: {
+    name: "UPopover",
+    template: '<div class="popover"><slot /><slot name="content" /></div>',
+    props: ["popper"],
+  },
+  UCalendar: {
+    name: "UCalendar",
+    template: '<div class="calendar" />',
+    props: ["modelValue", "minValue", "maxValue", "class"],
+    emits: ["update:modelValue"],
   },
   ProjectSelect: {
     name: "ProjectSelect",
@@ -84,6 +119,8 @@ const createStubs = () => ({
   },
 });
 
+// Mock data - using current year dates to match default date range
+const currentYear = new Date().getFullYear()
 const mockPurchaseOrders = [
   {
     uuid: "po-1",
@@ -92,6 +129,7 @@ const mockPurchaseOrders = [
     project_uuid: "proj-1",
     vendor_uuid: "vendor-1",
     status: "Approved",
+    entry_date: `${currentYear}-06-15T00:00:00.000Z`,
     item_total: 1000,
     freight_charges_amount: 100,
     packing_charges_amount: 50,
@@ -108,6 +146,7 @@ const mockPurchaseOrders = [
     project_uuid: "proj-1",
     vendor_uuid: "vendor-2",
     status: "Approved",
+    entry_date: `${currentYear}-06-20T00:00:00.000Z`,
     item_total: 2000,
     freight_charges_amount: 200,
     packing_charges_amount: 100,
@@ -124,6 +163,7 @@ const mockPurchaseOrders = [
     project_uuid: "proj-1",
     vendor_uuid: "vendor-1",
     status: "Draft",
+    entry_date: `${currentYear}-06-25T00:00:00.000Z`,
     item_total: 500,
     freight_charges_amount: 50,
     packing_charges_amount: 25,
@@ -200,13 +240,13 @@ describe("PurchaseOrderBreakout.vue", () => {
 
       await flushPromises();
 
-      expect(wrapper.find("h1").text()).toContain("Purchase Order Breakout");
       expect(
         wrapper.findComponent({ name: "CorporationSelect" }).exists()
       ).toBe(true);
       expect(wrapper.findComponent({ name: "ProjectSelect" }).exists()).toBe(
         true
       );
+      expect(wrapper.findComponent({ name: "UCalendar" }).exists()).toBe(true);
 
       wrapper.unmount();
     });
@@ -254,6 +294,155 @@ describe("PurchaseOrderBreakout.vue", () => {
       // Check for UIcon component
       const icons = wrapper.findAllComponents({ name: "UIcon" });
       expect(icons.length).toBeGreaterThan(0);
+
+      wrapper.unmount();
+    });
+
+    it("shows placeholder when dates are not selected", async () => {
+      const { pinia } = setupStores();
+
+      const wrapper = mount(PurchaseOrderBreakout, {
+        global: {
+          plugins: [pinia],
+          stubs: createStubs(),
+        },
+      });
+
+      await flushPromises();
+
+      (wrapper.vm as any).selectedCorporationId = "corp-1";
+      (wrapper.vm as any).selectedProjectId = "proj-1";
+      (wrapper.vm as any).startDateValue = null;
+      (wrapper.vm as any).endDateValue = null;
+      await nextTick();
+
+      expect(wrapper.html()).toContain("Please select start date and end date");
+      const icons = wrapper.findAllComponents({ name: "UIcon" });
+      expect(icons.length).toBeGreaterThan(0);
+
+      wrapper.unmount();
+    });
+  });
+
+  describe("Date Range Selection", () => {
+    it("initializes with default date range (Jan 1 to today)", async () => {
+      const { pinia } = setupStores();
+
+      const wrapper = mount(PurchaseOrderBreakout, {
+        global: {
+          plugins: [pinia],
+          stubs: createStubs(),
+        },
+      });
+
+      await flushPromises();
+
+      const currentYear = new Date().getFullYear()
+      const todayDate = today(getLocalTimeZone())
+
+      expect(wrapper.vm.startDateValue).toBeInstanceOf(CalendarDate)
+      expect(wrapper.vm.startDateValue?.year).toBe(currentYear)
+      expect(wrapper.vm.startDateValue?.month).toBe(1)
+      expect(wrapper.vm.startDateValue?.day).toBe(1)
+
+      expect(wrapper.vm.endDateValue).toBeInstanceOf(CalendarDate)
+      expect(wrapper.vm.endDateValue?.year).toBe(todayDate.year)
+      expect(wrapper.vm.endDateValue?.month).toBe(todayDate.month)
+      expect(wrapper.vm.endDateValue?.day).toBe(todayDate.day)
+
+      wrapper.unmount();
+    });
+
+    it("validates date range correctly", async () => {
+      const { pinia } = setupStores();
+
+      const wrapper = mount(PurchaseOrderBreakout, {
+        global: {
+          plugins: [pinia],
+          stubs: createStubs(),
+        },
+      });
+
+      await flushPromises();
+
+      const currentYear = new Date().getFullYear()
+      const todayDate = today(getLocalTimeZone())
+
+      wrapper.vm.selectedCorporationId = "corp-1"
+      wrapper.vm.selectedProjectId = "proj-1"
+
+      // Valid range: start <= end
+      wrapper.vm.startDateValue = new CalendarDate(currentYear, 1, 1)
+      wrapper.vm.endDateValue = todayDate
+      await nextTick()
+
+      expect(wrapper.vm.canGenerateReport).toBe(true)
+
+      // Invalid range: start > end
+      wrapper.vm.startDateValue = todayDate.add({ days: 1 })
+      wrapper.vm.endDateValue = todayDate
+      await nextTick()
+
+      expect(wrapper.vm.canGenerateReport).toBe(false)
+
+      wrapper.unmount();
+    });
+
+    it("does not automatically load report when project is selected", async () => {
+      const { pinia } = setupStores();
+
+      const wrapper = mount(PurchaseOrderBreakout, {
+        global: {
+          plugins: [pinia],
+          stubs: createStubs(),
+        },
+      });
+
+      await flushPromises();
+
+      wrapper.vm.selectedCorporationId = "corp-1"
+      wrapper.vm.selectedProjectId = "proj-1"
+      await nextTick()
+
+      // Report should not be loaded automatically
+      expect(wrapper.vm.reportData.length).toBe(0)
+      expect(mockFetch).not.toHaveBeenCalled()
+
+      wrapper.unmount();
+    });
+
+    it("loads report when Show button is clicked with valid inputs", async () => {
+      const { pinia } = setupStores();
+
+      mockFetch
+        .mockResolvedValueOnce({ data: mockPurchaseOrders })
+        .mockResolvedValueOnce({ data: mockVendors })
+        .mockResolvedValueOnce({ data: mockItems })
+        .mockResolvedValueOnce({ data: mockLaborItems });
+
+      const wrapper = mount(PurchaseOrderBreakout, {
+        global: {
+          plugins: [pinia],
+          stubs: createStubs(),
+        },
+      });
+
+      await flushPromises();
+
+      const currentYear = new Date().getFullYear()
+      const todayDate = today(getLocalTimeZone())
+
+      wrapper.vm.selectedCorporationId = "corp-1"
+      wrapper.vm.selectedProjectId = "proj-1"
+      wrapper.vm.startDateValue = new CalendarDate(currentYear, 1, 1)
+      wrapper.vm.endDateValue = todayDate
+      await nextTick()
+
+      await wrapper.vm.handleShowReport()
+      await flushPromises()
+
+      expect(mockFetch).toHaveBeenCalledWith("/api/purchase-order-forms", expect.any(Object))
+      expect(wrapper.vm.reportData.length).toBeGreaterThan(0)
 
       wrapper.unmount();
     });
@@ -401,14 +590,8 @@ describe("PurchaseOrderBreakout.vue", () => {
       wrapper.unmount();
     });
 
-    it("handles project change and loads report", async () => {
+    it("handles project change and clears report data", async () => {
       const { pinia } = setupStores();
-
-      mockFetch
-        .mockResolvedValueOnce({ data: mockPurchaseOrders })
-        .mockResolvedValueOnce({ data: mockVendors })
-        .mockResolvedValueOnce({ data: mockItems })
-        .mockResolvedValueOnce({ data: mockLaborItems });
 
       const wrapper = mount(PurchaseOrderBreakout, {
         global: {
@@ -420,10 +603,12 @@ describe("PurchaseOrderBreakout.vue", () => {
       await flushPromises();
 
       (wrapper.vm as any).selectedCorporationId = "corp-1";
+      (wrapper.vm as any).reportData = [{ uuid: "po-1" }] as any;
       await (wrapper.vm as any).handleProjectChange("proj-1");
       await flushPromises();
 
       expect((wrapper.vm as any).selectedProjectId).toBe("proj-1");
+      expect((wrapper.vm as any).reportData).toEqual([]);
 
       wrapper.unmount();
     });
@@ -473,6 +658,9 @@ describe("PurchaseOrderBreakout.vue", () => {
 
       (wrapper.vm as any).selectedCorporationId = "corp-1";
       (wrapper.vm as any).selectedProjectId = "proj-1";
+      setupDates(wrapper);
+      await nextTick();
+
       await (wrapper.vm as any).loadReport();
       await flushPromises();
 
@@ -502,6 +690,9 @@ describe("PurchaseOrderBreakout.vue", () => {
 
       (wrapper.vm as any).selectedCorporationId = "corp-1";
       (wrapper.vm as any).selectedProjectId = "proj-1";
+      setupDates(wrapper);
+      await nextTick();
+
       await (wrapper.vm as any).loadReport();
       await flushPromises();
 
@@ -559,6 +750,9 @@ describe("PurchaseOrderBreakout.vue", () => {
 
       (wrapper.vm as any).selectedCorporationId = "corp-1";
       (wrapper.vm as any).selectedProjectId = "proj-1";
+      setupDates(wrapper);
+      await nextTick();
+
       await (wrapper.vm as any).loadReport();
       await flushPromises();
 
@@ -596,6 +790,9 @@ describe("PurchaseOrderBreakout.vue", () => {
 
       (wrapper.vm as any).selectedCorporationId = "corp-1";
       (wrapper.vm as any).selectedProjectId = "proj-1";
+      setupDates(wrapper);
+      await nextTick();
+
       await (wrapper.vm as any).loadReport();
       await flushPromises();
       await nextTick();
@@ -646,6 +843,9 @@ describe("PurchaseOrderBreakout.vue", () => {
 
       (wrapper.vm as any).selectedCorporationId = "corp-1";
       (wrapper.vm as any).selectedProjectId = "proj-1";
+      setupDates(wrapper);
+      await nextTick();
+
       await (wrapper.vm as any).loadReport();
       await flushPromises();
       await nextTick();
@@ -697,6 +897,9 @@ describe("PurchaseOrderBreakout.vue", () => {
 
       (wrapper.vm as any).selectedCorporationId = "corp-1";
       (wrapper.vm as any).selectedProjectId = "proj-1";
+      setupDates(wrapper);
+      await nextTick();
+
       await (wrapper.vm as any).loadReport();
       await flushPromises();
       await nextTick();
@@ -753,6 +956,9 @@ describe("PurchaseOrderBreakout.vue", () => {
 
       (wrapper.vm as any).selectedCorporationId = "corp-1";
       (wrapper.vm as any).selectedProjectId = "proj-1";
+      setupDates(wrapper);
+      await nextTick();
+
       await (wrapper.vm as any).loadReport();
       await flushPromises();
       await nextTick();
@@ -775,6 +981,90 @@ describe("PurchaseOrderBreakout.vue", () => {
 
       wrapper.unmount();
     });
+  });
+
+  describe("Date Range Filtering", () => {
+    it("filters purchase orders by entry_date when date range is provided", async () => {
+      const { pinia } = setupStores();
+
+      const currentYear = new Date().getFullYear()
+      const poInRange = {
+        ...mockPurchaseOrders[0],
+        entry_date: `${currentYear}-06-15T00:00:00.000Z`,
+      }
+      const poOutOfRange = {
+        ...mockPurchaseOrders[1],
+        entry_date: `${currentYear - 1}-12-01T00:00:00.000Z`,
+      }
+
+      mockFetch
+        .mockResolvedValueOnce({ data: [poInRange, poOutOfRange] })
+        .mockResolvedValueOnce({ data: mockVendors })
+        .mockResolvedValueOnce({ data: mockItems })
+
+      const wrapper = mount(PurchaseOrderBreakout, {
+        global: {
+          plugins: [pinia],
+          stubs: createStubs(),
+        },
+      })
+
+      await flushPromises()
+
+      wrapper.vm.selectedCorporationId = "corp-1"
+      wrapper.vm.selectedProjectId = "proj-1"
+      // Set date range to include only poInRange
+      wrapper.vm.startDateValue = new CalendarDate(currentYear, 6, 1)
+      wrapper.vm.endDateValue = new CalendarDate(currentYear, 6, 30)
+      await nextTick()
+
+      await wrapper.vm.loadReport()
+      await flushPromises()
+
+      const reportData = wrapper.vm.reportData
+      expect(reportData.length).toBe(1)
+      expect(reportData[0].po_number).toBe("PO-001")
+
+      wrapper.unmount()
+    })
+
+    it("excludes purchase orders without entry_date when filtering by date range", async () => {
+      const { pinia } = setupStores();
+
+      const poWithoutDate = {
+        ...mockPurchaseOrders[0],
+        entry_date: null,
+      }
+
+      mockFetch
+        .mockResolvedValueOnce({ data: [poWithoutDate] })
+        .mockResolvedValueOnce({ data: mockVendors })
+        .mockResolvedValueOnce({ data: mockItems })
+
+      const wrapper = mount(PurchaseOrderBreakout, {
+        global: {
+          plugins: [pinia],
+          stubs: createStubs(),
+        },
+      })
+
+      await flushPromises()
+
+      wrapper.vm.selectedCorporationId = "corp-1"
+      wrapper.vm.selectedProjectId = "proj-1"
+      const currentYear = new Date().getFullYear()
+      wrapper.vm.startDateValue = new CalendarDate(currentYear, 1, 1)
+      wrapper.vm.endDateValue = new CalendarDate(currentYear, 12, 31)
+      await nextTick()
+
+      await wrapper.vm.loadReport()
+      await flushPromises()
+
+      const reportData = wrapper.vm.reportData
+      expect(reportData.length).toBe(0)
+
+      wrapper.unmount()
+    })
   });
 
   describe("Item Amount Calculations", () => {
@@ -1101,6 +1391,9 @@ describe("PurchaseOrderBreakout.vue", () => {
 
       (wrapper.vm as any).selectedCorporationId = "corp-1";
       (wrapper.vm as any).selectedProjectId = "proj-1";
+      setupDates(wrapper);
+      await nextTick();
+
       await (wrapper.vm as any).loadReport();
       await flushPromises();
 
@@ -1130,6 +1423,9 @@ describe("PurchaseOrderBreakout.vue", () => {
 
       (wrapper.vm as any).selectedCorporationId = "corp-1";
       (wrapper.vm as any).selectedProjectId = "proj-1";
+      setupDates(wrapper);
+      await nextTick();
+
       await (wrapper.vm as any).loadReport();
       await flushPromises();
 
@@ -1159,6 +1455,9 @@ describe("PurchaseOrderBreakout.vue", () => {
 
       (wrapper.vm as any).selectedCorporationId = "corp-1";
       (wrapper.vm as any).selectedProjectId = "proj-1";
+      setupDates(wrapper);
+      await nextTick();
+
       await (wrapper.vm as any).loadReport();
       await flushPromises();
 
@@ -1190,6 +1489,9 @@ describe("PurchaseOrderBreakout.vue", () => {
 
       (wrapper.vm as any).selectedCorporationId = "corp-1";
       (wrapper.vm as any).selectedProjectId = "proj-1";
+      setupDates(wrapper);
+      await nextTick();
+
       await (wrapper.vm as any).loadReport();
       await flushPromises();
 
@@ -1218,6 +1520,9 @@ describe("PurchaseOrderBreakout.vue", () => {
 
       (wrapper.vm as any).selectedCorporationId = "corp-1";
       (wrapper.vm as any).selectedProjectId = "proj-1";
+      setupDates(wrapper);
+      await nextTick();
+
       await (wrapper.vm as any).loadReport();
       await flushPromises();
       (wrapper.vm as any).printReport();
@@ -1283,13 +1588,8 @@ describe("PurchaseOrderBreakout.vue", () => {
       wrapper.unmount();
     });
 
-    it("loads report when project changes and corporation is selected", async () => {
+    it("clears report data when project changes", async () => {
       const { pinia } = setupStores();
-
-      mockFetch
-        .mockResolvedValueOnce({ data: [mockPurchaseOrders[0]] })
-        .mockResolvedValueOnce({ data: mockVendors })
-        .mockResolvedValueOnce({ data: mockItems });
 
       const wrapper = mount(PurchaseOrderBreakout, {
         global: {
@@ -1302,10 +1602,14 @@ describe("PurchaseOrderBreakout.vue", () => {
 
       (wrapper.vm as any).selectedCorporationId = "corp-1";
       (wrapper.vm as any).selectedProjectId = "proj-1";
+      (wrapper.vm as any).reportData = [{ uuid: "po-1" }] as any;
       await nextTick();
-      await flushPromises();
 
-      expect(mockFetch).toHaveBeenCalled();
+      (wrapper.vm as any).selectedProjectId = "proj-2";
+      await nextTick();
+
+      expect((wrapper.vm as any).reportData).toEqual([]);
+      expect(mockFetch).not.toHaveBeenCalled();
 
       wrapper.unmount();
     });
@@ -1431,6 +1735,9 @@ describe("PurchaseOrderBreakout.vue", () => {
 
       (wrapper.vm as any).selectedCorporationId = "corp-1";
       (wrapper.vm as any).selectedProjectId = "proj-1";
+      setupDates(wrapper);
+      await nextTick();
+
       await (wrapper.vm as any).loadReport();
       await flushPromises();
       await nextTick();
