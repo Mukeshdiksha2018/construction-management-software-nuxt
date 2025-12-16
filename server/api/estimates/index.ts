@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
         query.corporation_uuid
       );
 
-      const { corporation_uuid } = query;
+      const { corporation_uuid, project_uuid } = query;
 
       if (!corporation_uuid) {
         throw createError({
@@ -28,12 +28,20 @@ export default defineEventHandler(async (event) => {
       const pageSize = parseInt(query.page_size as string) || 100;
       const offset = (page - 1) * pageSize;
 
-      // Get total count for pagination metadata
-      const { count, error: countError } = await supabaseServer
+      // Build query for count
+      let countQuery = supabaseServer
         .from("estimates")
         .select("*", { count: "exact", head: true })
         .eq("corporation_uuid", corporation_uuid)
         .eq("is_active", true);
+
+      // Add project_uuid filter if provided
+      if (project_uuid) {
+        countQuery = countQuery.eq("project_uuid", project_uuid);
+      }
+
+      // Get total count for pagination metadata
+      const { count, error: countError } = await countQuery;
 
       if (countError) {
         console.error("Supabase count error:", countError);
@@ -47,8 +55,8 @@ export default defineEventHandler(async (event) => {
       const totalPages = Math.ceil(totalRecords / pageSize);
 
       console.log("Fetching estimates from database...");
-      // Fetch paginated data
-      const { data, error } = await supabaseServer
+      // Build query for data
+      let dataQuery = supabaseServer
         .from("estimates")
         .select(
           `
@@ -61,7 +69,15 @@ export default defineEventHandler(async (event) => {
         `
         )
         .eq("corporation_uuid", corporation_uuid)
-        .eq("is_active", true)
+        .eq("is_active", true);
+
+      // Add project_uuid filter if provided
+      if (project_uuid) {
+        dataQuery = dataQuery.eq("project_uuid", project_uuid);
+      }
+
+      // Fetch paginated data
+      const { data, error } = await dataQuery
         .order("created_at", { ascending: false })
         .range(offset, offset + pageSize - 1);
 

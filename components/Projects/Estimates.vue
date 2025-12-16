@@ -343,7 +343,7 @@
 
 <script setup lang="ts">
 import { ref, computed, h, watch, onMounted, nextTick, useTemplateRef, resolveComponent } from "vue";
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useCorporationStore } from '@/stores/corporations'
 import { useEstimatesStore } from '@/stores/estimates'
 import { useDateRangeStore } from '@/stores/dateRange'
@@ -353,6 +353,7 @@ import { useCurrencyFormat } from '@/composables/useCurrencyFormat'
 import { useAuditLog } from '@/composables/useAuditLog'
 import { usePermissions } from '@/composables/usePermissions'
 import { useEstimatePrint } from '@/composables/useEstimatePrint'
+import { useApiClient } from '@/composables/useApiClient'
 import type { TableColumn } from '@nuxt/ui'
 import AuditLogSlideover from '@/components/AuditLogs/AuditLogSlideover.vue'
 import EstimatePreview from '@/components/Projects/EstimatePreview.vue'
@@ -367,6 +368,7 @@ const UBadge = resolveComponent('UBadge')
 
 // Router
 const router = useRouter()
+const route = useRoute()
 
 // Stores
 const corporationStore = useCorporationStore()
@@ -378,6 +380,9 @@ const { formatCurrency } = useCurrencyFormat()
 // Use permissions composable
 const { hasPermission, isReady } = usePermissions()
 const { openEstimatePrint } = useEstimatePrint()
+
+// API client for direct API calls
+const { apiFetch } = useApiClient()
 
 // Audit log functionality
 const { 
@@ -676,7 +681,7 @@ const clearStatusFilter = () => {
   }
 }
 
-const addNewEstimate = () => {
+const addNewEstimate = async () => {
   if (!hasPermission('project_estimates_create')) {
     try {
       const toast = useToast();
@@ -691,6 +696,51 @@ const addNewEstimate = () => {
     }
     return;
   }
+  
+  // Check if there's a project selected in the route query
+  const projectUuid = route.query?.projectUuid;
+  
+  if (projectUuid && typeof projectUuid === 'string') {
+    const corporationUuid = corporationStore.selectedCorporationId;
+    
+    if (corporationUuid) {
+      try {
+        // Make a direct API call to check if an estimate exists for this project
+        // This is independent of the global estimates store state
+        const response: any = await apiFetch('/api/estimates', {
+          query: {
+            corporation_uuid: corporationUuid,
+            project_uuid: projectUuid,
+            page: 1,
+            page_size: 1
+          }
+        });
+        
+        const existingEstimates = response?.data || [];
+        
+        if (existingEstimates && existingEstimates.length > 0) {
+          // Find the project name for better error message
+          const project = existingEstimates[0]?.project;
+          const projectName = project?.project_name || project?.project_id || 'this project';
+          const estimateNumber = existingEstimates[0]?.estimate_number || 'N/A';
+          
+          const toast = useToast();
+          toast.add({
+            title: "Estimate Already Exists",
+            description: `An estimate (${estimateNumber}) already exists for ${projectName}. Please edit the existing estimate instead of creating a new one.`,
+            color: "warning",
+            icon: "i-heroicons-exclamation-triangle",
+          });
+          return;
+        }
+      } catch (error) {
+        // If API call fails, log error but don't block the user
+        console.error('Error checking for existing estimates:', error);
+        // Continue with navigation if check fails
+      }
+    }
+  }
+  
   router.push('/estimates/form/new')
 }
 
