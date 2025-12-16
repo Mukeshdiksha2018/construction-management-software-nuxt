@@ -302,7 +302,7 @@
                 </div>
                 
                 <!-- Hierarchical Cost Codes Table -->
-                <div v-if="form.project_uuid" class="overflow-x-auto">
+                <div v-if="form.project_uuid && !isCheckingExistingEstimate" class="overflow-x-auto">
                   <EstimateLineItemsTable
                     :model-value="form.line_items"
                     :project-uuid="form.project_uuid"
@@ -311,6 +311,10 @@
                     v-model:deletedUuids="form.removed_cost_code_uuids"
                     @update:model-value="(value) => handleFormUpdate('line_items', value)"
                   />
+                </div>
+                <div v-else-if="isCheckingExistingEstimate" class="py-6 text-center">
+                  <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+                  <p class="text-sm text-muted">Checking for existing estimates...</p>
                 </div>
                 <div v-else class="py-6 text-sm text-muted">Select a project to configure line items.</div>
                 </template>
@@ -710,6 +714,7 @@ watch(() => estimateCreationStore.selectedCorporationUuid, async (newCorpUuid, o
 const isCostCodeSelectionModalOpen = ref(false);
 const hierarchicalDataForModal = ref<any[]>([]);
 const hasShownModalForProject = ref<Set<string>>(new Set());
+const isCheckingExistingEstimate = ref(false);
 
 // Build hierarchical data for modal (similar to EstimateLineItemsTable)
 const buildHierarchicalData = (divisions: any[], configurations: any[]): any[] => {
@@ -904,6 +909,9 @@ watch(() => props.form.project_uuid, async (newProjectUuid, oldProjectUuid) => {
     const corporationUuid = estimateCreationStore.selectedCorporationUuid || props.form.corporation_uuid;
     
     if (corporationUuid) {
+      // Set checking flag to prevent table from rendering while checking
+      isCheckingExistingEstimate.value = true;
+      
       try {
         // Make a direct API call to check if an estimate exists for this project
         // This is scoped to this component and independent of the global estimates store
@@ -934,12 +942,17 @@ watch(() => props.form.project_uuid, async (newProjectUuid, oldProjectUuid) => {
           
           // Clear the project selection to prevent further actions
           handleFormUpdate('project_uuid', '');
+          // Reset checking flag
+          isCheckingExistingEstimate.value = false;
           return;
         }
       } catch (error) {
         // If API call fails, log error but don't block the user
         console.error('Error checking for existing estimates:', error);
         // Continue with the normal flow if check fails
+      } finally {
+        // Always reset checking flag
+        isCheckingExistingEstimate.value = false;
       }
     }
     
