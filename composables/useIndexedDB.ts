@@ -27,8 +27,10 @@ export const useIndexedDB = () => {
       // Fetch data for all corporations in parallel
       const syncPromises = corporationIds.map(async (corpId) => {
         try {
-          // Fetch bill entries
+          // Initialize apiFetch once for this corporation
           const { apiFetch } = useApiClient();
+
+          // Fetch bill entries
           const billEntriesResponse: any = await apiFetch("/api/bill-entries", {
             method: "GET",
             params: {
@@ -42,7 +44,6 @@ export const useIndexedDB = () => {
           }
 
           // Fetch vendors
-          const { apiFetch } = useApiClient();
           const vendorsResponse: any = await apiFetch(
             "/api/purchase-orders/vendors",
             {
@@ -58,7 +59,6 @@ export const useIndexedDB = () => {
           }
 
           // Fetch project types
-          const { apiFetch } = useApiClient();
           const projectTypesResponse: any = await apiFetch("/api/project-types", {
             method: "GET",
             params: {
@@ -71,7 +71,6 @@ export const useIndexedDB = () => {
           }
 
           // Fetch service types
-          const { apiFetch } = useApiClient();
           const serviceTypesResponse: any = await apiFetch("/api/service-types", {
             method: "GET",
             params: {
@@ -84,7 +83,6 @@ export const useIndexedDB = () => {
           }
 
           // Fetch terms and conditions
-          const { apiFetch } = useApiClient();
           const termsAndConditionsResponse: any = await apiFetch("/api/terms-and-conditions", {
             method: "GET",
             params: {
@@ -97,7 +95,6 @@ export const useIndexedDB = () => {
           }
 
           // Fetch PO instructions
-          const { apiFetch } = useApiClient();
           const poInstructionsResponse: any = await apiFetch(
             "/api/po-instructions",
             {
@@ -116,7 +113,6 @@ export const useIndexedDB = () => {
           }
 
           // Fetch UOM
-          const { apiFetch } = useApiClient();
           const uomResponse: any = await apiFetch("/api/uom", {
             method: "GET",
             params: {
@@ -129,7 +125,6 @@ export const useIndexedDB = () => {
           }
 
           // Fetch Projects
-          const { apiFetch } = useApiClient();
           const projectsResponse: any = await apiFetch("/api/projects", {
             method: "GET",
             params: {
@@ -142,7 +137,6 @@ export const useIndexedDB = () => {
           }
 
           // Fetch cost code divisions
-          const { apiFetch } = useApiClient();
           const costCodeDivisionsResponse: any = await apiFetch(
             "/api/cost-code-divisions",
             {
@@ -161,7 +155,6 @@ export const useIndexedDB = () => {
           }
 
           // Fetch cost code configurations
-          const { apiFetch } = useApiClient();
           const costCodeConfigurationsResponse: any = await apiFetch(
             "/api/cost-code-configurations",
             {
@@ -180,7 +173,6 @@ export const useIndexedDB = () => {
           }
 
           // Fetch item types
-          const { apiFetch } = useApiClient();
           const itemTypesResponse: any = await apiFetch("/api/item-types", {
             method: "GET",
             params: {
@@ -193,7 +185,6 @@ export const useIndexedDB = () => {
           }
 
           // Fetch estimates
-          const { apiFetch } = useApiClient();
           const estimatesResponse: any = await apiFetch("/api/estimates", {
             method: "GET",
             params: {
