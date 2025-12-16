@@ -429,6 +429,7 @@ import { useChangeOrdersStore } from "@/stores/changeOrders";
 import { useVendorStore } from "@/stores/vendors";
 import { useUTCDateFormat } from "@/composables/useUTCDateFormat";
 import { useCurrencyFormat } from "@/composables/useCurrencyFormat";
+import { useLocalPOCOData } from "@/composables/useLocalPOCOData";
 import ProjectSelect from "@/components/Shared/ProjectSelect.vue";
 import LocationSelect from "@/components/Shared/LocationSelect.vue";
 import CorporationSelect from "@/components/Shared/CorporationSelect.vue";
@@ -471,9 +472,8 @@ const entryDatePopoverOpen = ref(false);
 const poItemsError = ref<string | null>(null);
 const receiptItems = ref<any[]>([]);
 
-// Local purchase orders and change orders for this form (independent from global store)
-const localPurchaseOrders = ref<any[]>([]);
-const localChangeOrders = ref<any[]>([]);
+// Local purchase orders and change orders (independent from global store)
+const { localPurchaseOrders, localChangeOrders, fetchLocalPurchaseOrders, fetchLocalChangeOrders } = useLocalPOCOData();
 
 // Receipt type state - sync with form
 const receiptType = computed({
@@ -941,57 +941,6 @@ const ensureVendorsLoaded = async () => {
   }
 };
 
-// Fetch purchase orders directly via API (independent from global store)
-const fetchLocalPurchaseOrders = async (corporationUuid: string) => {
-  if (!corporationUuid) return;
-  
-  try {
-    const response: any = await $fetch("/api/purchase-order-forms", {
-      method: "GET",
-      query: {
-        corporation_uuid: corporationUuid,
-      },
-    });
-    
-    // Handle different response formats
-    const orders = Array.isArray(response)
-      ? response
-      : Array.isArray(response?.data)
-      ? response.data
-      : [];
-    
-    localPurchaseOrders.value = orders;
-  } catch (error: any) {
-    console.error("[ReceiptNoteForm] Failed to fetch purchase orders:", error);
-    localPurchaseOrders.value = [];
-  }
-};
-
-// Fetch change orders directly via API (independent from global store)
-const fetchLocalChangeOrders = async (corporationUuid: string) => {
-  if (!corporationUuid) return;
-  
-  try {
-    const response: any = await $fetch("/api/change-orders", {
-      method: "GET",
-      query: {
-        corporation_uuid: corporationUuid,
-      },
-    });
-    
-    // Handle different response formats
-    const orders = Array.isArray(response)
-      ? response
-      : Array.isArray(response?.data)
-      ? response.data
-      : [];
-    
-    localChangeOrders.value = orders;
-  } catch (error: any) {
-    console.error("[ReceiptNoteForm] Failed to fetch change orders:", error);
-    localChangeOrders.value = [];
-  }
-};
 
 watch(
   [() => props.form.corporation_uuid, selectedCorporationUuid],
