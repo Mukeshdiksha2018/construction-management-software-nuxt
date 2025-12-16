@@ -22,11 +22,24 @@ const mockRouter = {
   forward: vi.fn()
 }
 
+const mockRoute = {
+  query: {},
+  params: {},
+  path: '/',
+  name: '',
+  fullPath: '/',
+  hash: '',
+  meta: {},
+  matched: [],
+  redirectedFrom: undefined
+}
+
 vi.mock("vue-router", () => ({
   useRouter: () => ({
     ...mockRouter,
     resolve: (to: any) => ({ href: typeof to === "string" ? to : "/resolved" }),
   }),
+  useRoute: () => mockRoute,
 }));
 
 // Mock table API
@@ -95,6 +108,13 @@ vi.mock("@/composables/usePermissions", () => ({
   usePermissions: () => ({
     hasPermission: vi.fn(() => true),
     isReady: { value: true },
+  }),
+}));
+
+// Mock useApiClient composable
+vi.mock("@/composables/useApiClient", () => ({
+  useApiClient: () => ({
+    apiFetch: vi.fn().mockResolvedValue({ data: [] }),
   }),
 }));
 

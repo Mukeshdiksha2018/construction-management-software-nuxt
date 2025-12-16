@@ -3,23 +3,20 @@
     <!-- Header section - hidden in print -->
     <div class="mb-2 print:hidden">
       <div class="flex items-center justify-between gap-4 flex-wrap">
-        <!-- Left side: Back button and heading -->
+        <!-- Left side: Back button -->
         <div class="flex items-center gap-3">
           <UButton
             color="neutral"
             variant="solid"
             icon="i-heroicons-arrow-left"
             @click="goBack"
-          >
-            Back
-          </UButton>
-          <h1 class="text-xl font-semibold text-gray-900 dark:text-gray-100">Purchase Order Breakout</h1>
+          />
         </div>
 
-        <!-- Right side: Corporation and Project Selection, Print button -->
-        <div class="flex items-center gap-3 flex-wrap">
+        <!-- Right side: Corporation, Project Selection, Date Range, Show and Print buttons -->
+        <div class="flex items-end gap-3 flex-wrap">
           <!-- Corporation Select -->
-          <div class="flex items-center gap-2">
+          <div class="flex flex-col gap-1">
             <label class="text-sm font-medium text-default whitespace-nowrap">
               Corporation <span class="text-red-500">*</span>
             </label>
@@ -32,7 +29,7 @@
           </div>
 
           <!-- Project Select -->
-          <div class="flex items-center gap-2">
+          <div class="flex flex-col gap-1">
             <label class="text-sm font-medium text-default whitespace-nowrap">
               Project <span class="text-red-500">*</span>
             </label>
@@ -46,16 +43,87 @@
             />
           </div>
 
+          <!-- Start Date -->
+          <div class="flex flex-col gap-1">
+            <label class="text-sm font-medium text-default whitespace-nowrap">
+              Start Date <span class="text-red-500">*</span>
+            </label>
+            <UPopover :popper="{ placement: 'bottom-start' }">
+              <UButton
+                icon="i-heroicons-calendar"
+                size="sm"
+                variant="outline"
+                class="w-48"
+              >
+                {{ startDateDisplayText }}
+              </UButton>
+              <template #content>
+                <UCalendar
+                  v-model="startDateValue"
+                  :min-value="undefined"
+                  :max-value="endDateValue || undefined"
+                  class="p-2"
+                />
+              </template>
+            </UPopover>
+          </div>
+
+          <!-- End Date -->
+          <div class="flex flex-col gap-1">
+            <label class="text-sm font-medium text-default whitespace-nowrap">
+              End Date <span class="text-red-500">*</span>
+            </label>
+            <UPopover :popper="{ placement: 'bottom-start' }">
+              <UButton
+                icon="i-heroicons-calendar"
+                size="sm"
+                variant="outline"
+                class="w-48"
+              >
+                {{ endDateDisplayText }}
+              </UButton>
+              <template #content>
+                <UCalendar
+                  v-model="endDateValue"
+                  :min-value="startDateValue || undefined"
+                  :max-value="undefined"
+                  class="p-2"
+                />
+              </template>
+            </UPopover>
+          </div>
+
+          <!-- Show button -->
+          <div class="flex flex-col gap-1">
+            <label class="text-sm font-medium text-default whitespace-nowrap opacity-0">
+              Show
+            </label>
+            <UButton
+              :disabled="!canGenerateReport"
+              color="primary"
+              variant="solid"
+              size="sm"
+              @click="handleShowReport"
+            >
+              Show
+            </UButton>
+          </div>
+
           <!-- Print button -->
-          <UButton
-            v-if="selectedCorporationId && selectedProjectId && reportData && reportData.length > 0"
-            icon="i-heroicons-printer"
-            variant="soft"
-            size="sm"
-            @click="printReport"
-          >
-            Print
-          </UButton>
+          <div class="flex flex-col gap-1">
+            <label class="text-sm font-medium text-default whitespace-nowrap opacity-0">
+              Print
+            </label>
+            <UButton
+              v-if="selectedCorporationId && selectedProjectId && reportData && reportData.length > 0"
+              icon="i-heroicons-printer"
+              variant="soft"
+              size="sm"
+              @click="printReport"
+            >
+              Print
+            </UButton>
+          </div>
         </div>
       </div>
     </div>
@@ -66,6 +134,9 @@
         <h1 class="text-2xl font-bold text-gray-900 mb-2">Purchase Order Breakout Report</h1>
         <div v-if="selectedCorporationId && selectedProjectId" class="text-sm text-gray-700">
           <p class="font-semibold">Project: {{ getProjectName() }}</p>
+          <p v-if="startDateValue && endDateValue" class="text-xs text-gray-600 mt-1">
+            Date Range: {{ startDateDisplayText }} to {{ endDateDisplayText }}
+          </p>
           <p class="text-xs text-gray-600 mt-1">Generated on: {{ new Date().toLocaleDateString() }}</p>
         </div>
       </div>
@@ -80,6 +151,10 @@
       <div v-else-if="!selectedProjectId" class="text-center py-12">
         <UIcon name="i-heroicons-folder" class="w-16 h-16 mx-auto text-gray-400 mb-4" />
         <p class="text-gray-500 text-lg">Please select a project to view the purchase order breakout report</p>
+      </div>
+      <div v-else-if="selectedCorporationId && selectedProjectId && (!startDateValue || !endDateValue)" class="text-center py-12">
+        <UIcon name="i-heroicons-calendar" class="w-16 h-16 mx-auto text-gray-400 mb-4" />
+        <p class="text-gray-500 text-lg">Please select start date and end date to generate the report</p>
       </div>
       <div v-else-if="loading" class="space-y-3">
         <!-- Loading skeleton -->
@@ -221,6 +296,11 @@
         <p class="text-red-500 text-lg">{{ error }}</p>
       </div>
       <div v-else-if="reportData && reportData.length > 0" class="space-y-6">
+        <!-- Report Title -->
+        <h1 class="text-2xl font-bold text-center text-gray-900 dark:text-gray-100 print:text-2xl print:text-gray-900">
+          Purchase Order Breakout
+        </h1>
+
         <!-- Report Table -->
         <div class="overflow-x-auto print:overflow-visible">
           <table class="w-full border-collapse text-xs print:text-xs">
@@ -351,9 +431,11 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
+import { CalendarDate, today, getLocalTimeZone, parseDate } from '@internationalized/date'
 import { useCorporationStore } from '@/stores/corporations'
 import { useProjectsStore } from '@/stores/projects'
 import { useCurrencyFormat } from '@/composables/useCurrencyFormat'
+import { useUTCDateFormat } from '@/composables/useUTCDateFormat'
 import ProjectSelect from '@/components/Shared/ProjectSelect.vue'
 import CorporationSelect from '@/components/Shared/CorporationSelect.vue'
 
@@ -384,6 +466,46 @@ const selectedProjectId = ref<string | undefined>(undefined)
 const reportData = ref<any[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
+
+// Date range state - default to Jan 1 of current year to today
+const currentYear = new Date().getFullYear()
+const startDateValue = ref<CalendarDate | null>(
+  new CalendarDate(currentYear, 1, 1)
+)
+const endDateValue = ref<CalendarDate | null>(today(getLocalTimeZone()))
+
+// UTC date formatting
+const { createDateRangeParams } = useUTCDateFormat()
+
+// Date display text
+const startDateDisplayText = computed(() => {
+  if (!startDateValue.value) return 'Select start date'
+  return startDateValue.value.toDate(getLocalTimeZone()).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  })
+})
+
+const endDateDisplayText = computed(() => {
+  if (!endDateValue.value) return 'Select end date'
+  return endDateValue.value.toDate(getLocalTimeZone()).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  })
+})
+
+// Can generate report
+const canGenerateReport = computed(() => {
+  return !!(
+    selectedCorporationId.value &&
+    selectedProjectId.value &&
+    startDateValue.value &&
+    endDateValue.value &&
+    startDateValue.value.compare(endDateValue.value) <= 0
+  )
+})
 
 // Currency formatting
 const { formatCurrency } = useCurrencyFormat()
@@ -482,16 +604,18 @@ const handleCorporationChangeFromSelect = async (corporation: any) => {
 
 const handleProjectChange = async (projectId: string | undefined) => {
   selectedProjectId.value = projectId
-  if (selectedCorporationId.value) {
+  reportData.value = []
+}
+
+const handleShowReport = async () => {
+  if (canGenerateReport.value) {
     await loadReport()
-  } else {
-    reportData.value = []
   }
 }
 
 // Load report data
 const loadReport = async () => {
-  if (!selectedCorporationId.value || !selectedProjectId.value) {
+  if (!selectedCorporationId.value || !selectedProjectId.value || !startDateValue.value || !endDateValue.value) {
     reportData.value = []
     return
   }
@@ -500,13 +624,23 @@ const loadReport = async () => {
   error.value = null
   
   try {
+    // Convert dates to UTC format for filtering
+    const startDateStr = `${startDateValue.value.year}-${String(startDateValue.value.month).padStart(2, '0')}-${String(startDateValue.value.day).padStart(2, '0')}`
+    const endDateStr = `${endDateValue.value.year}-${String(endDateValue.value.month).padStart(2, '0')}-${String(endDateValue.value.day).padStart(2, '0')}`
+    
+    const dateRangeParams = createDateRangeParams(startDateStr, endDateStr)
+    if (!dateRangeParams) {
+      reportData.value = []
+      loading.value = false
+      return
+    }
+    
+    const startUTC = new Date(dateRangeParams.start_date).getTime()
+    const endUTC = new Date(dateRangeParams.end_date).getTime()
+    
     // Fetch purchase orders
     const params: any = {
       corporation_uuid: selectedCorporationId.value
-    }
-    
-    if (selectedProjectId.value) {
-      // Note: The API might need project_uuid filter, but let's fetch all and filter client-side for now
     }
     
     const response: any = await $fetch('/api/purchase-order-forms', {
@@ -516,13 +650,19 @@ const loadReport = async () => {
     
     const purchaseOrders = response?.data || []
     
-    // Filter by status (Approved, Partially_Received, or Completed) and project (required)
+    // Filter by status (Approved, Partially_Received, or Completed), project (required), and date range
     const filteredPOs = purchaseOrders
       .filter((po: any) => {
         const status = String(po.status || '').toLowerCase()
         return status === 'approved' || status === 'partially_received' || status === 'completed'
       })
       .filter((po: any) => po.project_uuid === selectedProjectId.value)
+      .filter((po: any) => {
+        // Filter by entry_date if available, otherwise skip
+        if (!po.entry_date) return false
+        const poDateUTC = new Date(po.entry_date).getTime()
+        return poDateUTC >= startUTC && poDateUTC <= endUTC
+      })
     
     // Fetch vendors once for all purchase orders
     let vendors: any[] = []
@@ -621,20 +761,15 @@ const printReport = () => {
   window.print()
 }
 
-// Watch for corporation changes
-watch(selectedCorporationId, async () => {
-  // Clear project selection when corporation changes
+// Watch for corporation changes - clear report data
+watch(selectedCorporationId, () => {
   selectedProjectId.value = undefined
   reportData.value = []
 })
 
-// Watch for project changes
-watch(selectedProjectId, async () => {
-  if (selectedCorporationId.value && selectedProjectId.value) {
-    await loadReport()
-  } else {
-    reportData.value = []
-  }
+// Watch for project changes - clear report data
+watch(selectedProjectId, () => {
+  reportData.value = []
 })
 
 // Initialize with selected corporation from store if available

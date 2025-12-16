@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
+import { CalendarDate, today, getLocalTimeZone } from '@internationalized/date'
 import POWiseStockReport from '@/pages/reports/po-wise-stock-report.vue'
 import { useCorporationStore } from '@/stores/corporations'
 import { useProjectsStore } from '@/stores/projects'
@@ -28,6 +29,24 @@ vi.mock('@/composables/useDateFormat', () => ({
   })
 }))
 
+vi.mock('@/composables/useUTCDateFormat', () => ({
+  useUTCDateFormat: () => ({
+    createDateRangeParams: (startDate: string, endDate: string) => {
+      if (!startDate || !endDate) return null
+      // Convert to UTC timestamps
+      const startUTC = new Date(startDate + 'T00:00:00.000Z').toISOString()
+      const endUTC = new Date(endDate + 'T23:59:59.999Z').toISOString()
+      return {
+        start_date: startUTC,
+        end_date: endUTC
+      }
+    }
+  })
+}))
+
+// Create a mock function that can be accessed in tests
+const mockGeneratePOWiseStockReport = vi.fn()
+
 vi.mock('@/composables/usePOWiseStockReport', () => {
   const { ref, computed } = require('vue')
   return {
@@ -38,64 +57,7 @@ vi.mock('@/composables/usePOWiseStockReport', () => {
       return {
         loading: computed(() => loading.value),
         error: computed(() => error.value),
-        generatePOWiseStockReport: vi.fn(async (corpUuid: string, projUuid: string) => {
-          loading.value = true
-          try {
-            await new Promise(resolve => setTimeout(resolve, 10))
-            if (!corpUuid || !projUuid) {
-              error.value = 'Corporation and project are required'
-              return null
-            }
-            return {
-              data: [
-                {
-                  uuid: "po-1",
-                  po_number: "PO-001",
-                  po_date: "2024-01-01",
-                  vendor_uuid: "vendor-1",
-                  vendor_name: "Test Vendor",
-                  items: [
-                    {
-                      itemCode: "ITM001",
-                      itemName: "Cement (50kg)",
-                      description: "Portland Cement",
-                      vendorSource: "Test Vendor",
-                      costCode: "03 31 13 Heavyweight Structural Con",
-                      poNumber: "PO-001",
-                      poDate: "2024-01-01",
-                      orderedQuantity: 300,
-                      receivedQuantity: 300,
-                      returnedQuantity: 0,
-                      invoiceNumber: "154",
-                      invoiceDate: "2024-01-12",
-                      status: "Received",
-                      unitCost: 5.0,
-                      uom: "Bag",
-                      totalValue: 1500.0,
-                    },
-                  ],
-                  totals: {
-                    orderedQuantity: 300,
-                    receivedQuantity: 300,
-                    returnedQuantity: 0,
-                    totalValue: 1500.0,
-                  },
-                },
-              ],
-              totals: {
-                orderedQuantity: 300,
-                receivedQuantity: 300,
-                returnedQuantity: 0,
-                totalValue: 1500.0,
-              },
-            };
-          } catch (err: any) {
-            error.value = err.message || 'Failed to generate report'
-            return null
-          } finally {
-            loading.value = false
-          }
-        })
+        generatePOWiseStockReport: mockGeneratePOWiseStockReport
       }
     }
   }
@@ -143,7 +105,7 @@ const createStubs = () => ({
   UButton: {
     name: 'UButton',
     template: '<button><slot /></button>',
-    props: ['icon', 'variant', 'size', 'color'],
+    props: ['icon', 'variant', 'size', 'color', 'disabled'],
   },
   UIcon: {
     name: 'UIcon',
@@ -154,6 +116,17 @@ const createStubs = () => ({
     name: 'USkeleton',
     template: '<div class="skeleton" />',
     props: ['class'],
+  },
+  UPopover: {
+    name: 'UPopover',
+    template: '<div class="popover"><slot /><slot name="content" /></div>',
+    props: ['popper'],
+  },
+  UCalendar: {
+    name: 'UCalendar',
+    template: '<div class="calendar" />',
+    props: ['modelValue', 'minValue', 'maxValue', 'class'],
+    emits: ['update:modelValue'],
   },
   ProjectSelect: {
     name: 'ProjectSelect',
@@ -167,12 +140,111 @@ const createStubs = () => ({
     props: ['modelValue', 'size', 'class'],
     emits: ['update:modelValue', 'change'],
   },
+  VendorSelect: {
+    name: 'VendorSelect',
+    template: '<div class="vendor-select" />',
+    props: ['modelValue', 'corporationUuid', 'placeholder', 'size', 'class'],
+    emits: ['update:modelValue'],
+  },
 })
+
+// Helper to set up dates for tests
+const setupDates = (wrapper: any) => {
+  const currentYear = new Date().getFullYear()
+  const todayDate = today(getLocalTimeZone())
+  wrapper.vm.startDateValue = new CalendarDate(currentYear, 1, 1)
+  wrapper.vm.endDateValue = todayDate
+}
 
 describe('POWiseStockReport.vue', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockFetch.mockReset()
+    mockGeneratePOWiseStockReport.mockImplementation(async (corpUuid: string, projUuid: string) => {
+      await new Promise(resolve => setTimeout(resolve, 10))
+      if (!corpUuid || !projUuid) {
+        return null
+      }
+      // Use current year from today
+      const todayDate = today(getLocalTimeZone())
+      const currentYear = todayDate.year
+      return {
+        data: [
+          {
+            uuid: "po-1",
+            po_number: "PO-001",
+            po_date: `${currentYear}-06-15T00:00:00.000Z`,
+            vendor_uuid: "vendor-1",
+            vendor_name: "Test Vendor",
+            items: [
+              {
+                itemCode: "ITM001",
+                itemName: "Cement (50kg)",
+                description: "Portland Cement",
+                vendorSource: "Test Vendor",
+                costCode: "03 31 13 Heavyweight Structural Con",
+                poNumber: "PO-001",
+                poDate: `${currentYear}-06-15T00:00:00.000Z`,
+                orderedQuantity: 300,
+                receivedQuantity: 300,
+                returnedQuantity: 0,
+                invoiceNumber: "154",
+                invoiceDate: `${currentYear}-06-20T00:00:00.000Z`,
+                status: "Received",
+                unitCost: 5.0,
+                uom: "Bag",
+                totalValue: 1500.0,
+              },
+            ],
+            totals: {
+              orderedQuantity: 300,
+              receivedQuantity: 300,
+              returnedQuantity: 0,
+              totalValue: 1500.0,
+            },
+          },
+          {
+            uuid: "po-2",
+            po_number: "PO-002",
+            po_date: `${currentYear}-07-20T00:00:00.000Z`,
+            vendor_uuid: "vendor-2",
+            vendor_name: "Another Vendor",
+            items: [
+              {
+                itemCode: "ITM002",
+                itemName: "Steel Rebar",
+                description: "Grade 60 Rebar",
+                vendorSource: "Another Vendor",
+                costCode: "03 20 00",
+                poNumber: "PO-002",
+                poDate: `${currentYear}-07-20T00:00:00.000Z`,
+                orderedQuantity: 200,
+                receivedQuantity: 200,
+                returnedQuantity: 0,
+                invoiceNumber: "155",
+                invoiceDate: `${currentYear}-07-25T00:00:00.000Z`,
+                status: "Received",
+                unitCost: 10.0,
+                uom: "Ton",
+                totalValue: 2000.0,
+              },
+            ],
+            totals: {
+              orderedQuantity: 200,
+              receivedQuantity: 200,
+              returnedQuantity: 0,
+              totalValue: 2000.0,
+            },
+          },
+        ],
+        totals: {
+          orderedQuantity: 500,
+          receivedQuantity: 500,
+          returnedQuantity: 0,
+          totalValue: 3500.0,
+        },
+      }
+    })
   })
 
   describe('Component Rendering', () => {
@@ -237,10 +309,8 @@ describe('POWiseStockReport.vue', () => {
 
       wrapper.unmount()
     })
-  })
 
-  describe('Report Loading', () => {
-    it('loads report when both corporation and project are selected', async () => {
+    it('shows placeholder when dates are not selected', async () => {
       const { pinia } = setupStores()
 
       const wrapper = mount(POWiseStockReport, {
@@ -253,18 +323,20 @@ describe('POWiseStockReport.vue', () => {
       await flushPromises();
       (wrapper.vm as any).selectedCorporationId = "corp-1";
       (wrapper.vm as any).selectedProjectId = "proj-1";
-      await(wrapper.vm as any).loadPOWiseStockReport();
-      await flushPromises()
+      (wrapper.vm as any).startDateValue = null;
+      (wrapper.vm as any).endDateValue = null;
       await wrapper.vm.$nextTick()
 
-      expect((wrapper.vm as any).reportData).toBeDefined();
-      expect((wrapper.vm as any).reportData?.data).toBeDefined();
-      expect((wrapper.vm as any).reportData?.data.length).toBeGreaterThan(0);
+      expect(wrapper.html()).toContain('Please select start date and end date')
+      const icons = wrapper.findAllComponents({ name: 'UIcon' })
+      expect(icons.length).toBeGreaterThan(0)
 
       wrapper.unmount()
     })
+  })
 
-    it('does not load report when only corporation is selected', async () => {
+  describe('Report Loading', () => {
+    it('does not automatically load report when project is selected', async () => {
       const { pinia } = setupStores()
 
       const wrapper = mount(POWiseStockReport, {
@@ -276,11 +348,65 @@ describe('POWiseStockReport.vue', () => {
 
       await flushPromises();
       (wrapper.vm as any).selectedCorporationId = "corp-1";
-      (wrapper.vm as any).selectedProjectId = undefined;
+      (wrapper.vm as any).selectedProjectId = "proj-1";
+      setupDates(wrapper);
+      await wrapper.vm.$nextTick()
+
+      // Report should not be loaded automatically
+      expect((wrapper.vm as any).reportData).toBeNull();
+      expect(mockGeneratePOWiseStockReport).not.toHaveBeenCalled();
+
+      wrapper.unmount()
+    })
+
+    it('loads report when Show button is clicked with valid inputs', async () => {
+      const { pinia } = setupStores()
+
+      const wrapper = mount(POWiseStockReport, {
+        global: {
+          plugins: [pinia],
+          stubs: createStubs(),
+        },
+      })
+
+      await flushPromises();
+      (wrapper.vm as any).selectedCorporationId = "corp-1";
+      (wrapper.vm as any).selectedProjectId = "proj-1";
+      setupDates(wrapper);
+      await wrapper.vm.$nextTick()
+
+      await (wrapper.vm as any).handleShowReport();
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+
+      expect(mockGeneratePOWiseStockReport).toHaveBeenCalledWith('corp-1', 'proj-1');
+      expect((wrapper.vm as any).reportData).toBeDefined();
+      expect((wrapper.vm as any).reportData?.data).toBeDefined();
+      expect((wrapper.vm as any).reportData?.data.length).toBeGreaterThan(0);
+
+      wrapper.unmount()
+    })
+
+    it('does not load report when dates are missing', async () => {
+      const { pinia } = setupStores()
+
+      const wrapper = mount(POWiseStockReport, {
+        global: {
+          plugins: [pinia],
+          stubs: createStubs(),
+        },
+      })
+
+      await flushPromises();
+      (wrapper.vm as any).selectedCorporationId = "corp-1";
+      (wrapper.vm as any).selectedProjectId = "proj-1";
+      (wrapper.vm as any).startDateValue = null;
+      (wrapper.vm as any).endDateValue = null;
       await(wrapper.vm as any).loadPOWiseStockReport();
       await flushPromises()
 
       expect((wrapper.vm as any).reportData).toBeNull();
+      expect(mockGeneratePOWiseStockReport).not.toHaveBeenCalled();
 
       wrapper.unmount()
     })
@@ -298,7 +424,10 @@ describe('POWiseStockReport.vue', () => {
       await flushPromises();
       (wrapper.vm as any).selectedCorporationId = "corp-1";
       (wrapper.vm as any).selectedProjectId = "proj-1";
-      await(wrapper.vm as any).loadPOWiseStockReport();
+      setupDates(wrapper);
+      await wrapper.vm.$nextTick()
+
+      await (wrapper.vm as any).handleShowReport();
       await flushPromises()
       await wrapper.vm.$nextTick()
 
@@ -346,7 +475,7 @@ describe('POWiseStockReport.vue', () => {
       wrapper.unmount()
     })
 
-    it('clears project selection and report data when corporation changes', async () => {
+    it('clears project, vendor selection and report data when corporation changes', async () => {
       const { pinia } = setupStores()
 
       const wrapper = mount(POWiseStockReport, {
@@ -358,6 +487,7 @@ describe('POWiseStockReport.vue', () => {
 
       await flushPromises();
       (wrapper.vm as any).selectedProjectId = "proj-1";
+      (wrapper.vm as any).selectedVendorId = "vendor-1";
       (wrapper.vm as any).reportData = {
         data: [],
         totals: {
@@ -375,6 +505,7 @@ describe('POWiseStockReport.vue', () => {
       await flushPromises()
 
       expect((wrapper.vm as any).selectedProjectId).toBeUndefined();
+      expect((wrapper.vm as any).selectedVendorId).toBeUndefined();
       expect((wrapper.vm as any).reportData).toBeNull();
 
       wrapper.unmount()
@@ -382,7 +513,7 @@ describe('POWiseStockReport.vue', () => {
   })
 
   describe('Project Selection', () => {
-    it('handles project change and loads report', async () => {
+    it('handles project change and clears report data', async () => {
       const { pinia } = setupStores()
 
       const wrapper = mount(POWiseStockReport, {
@@ -394,11 +525,108 @@ describe('POWiseStockReport.vue', () => {
 
       await flushPromises();
       (wrapper.vm as any).selectedCorporationId = "corp-1";
+      (wrapper.vm as any).reportData = { data: [], totals: {} } as any;
       await(wrapper.vm as any).handleProjectChange("proj-1");
       await flushPromises()
       await wrapper.vm.$nextTick()
 
       expect((wrapper.vm as any).selectedProjectId).toBe("proj-1");
+      expect((wrapper.vm as any).reportData).toBeNull();
+
+      wrapper.unmount()
+    })
+  })
+
+  describe('Date Range Filtering', () => {
+    it('filters POs by po_date when date range is provided', async () => {
+      const { pinia } = setupStores()
+      const currentYear = today(getLocalTimeZone()).year
+
+      const wrapper = mount(POWiseStockReport, {
+        global: {
+          plugins: [pinia],
+          stubs: createStubs(),
+        },
+      })
+
+      await flushPromises();
+      (wrapper.vm as any).selectedCorporationId = "corp-1";
+      (wrapper.vm as any).selectedProjectId = "proj-1";
+      // Set date range to include only June (PO-001)
+      (wrapper.vm as any).startDateValue = new CalendarDate(currentYear, 6, 1);
+      (wrapper.vm as any).endDateValue = new CalendarDate(currentYear, 6, 30);
+      await wrapper.vm.$nextTick()
+
+      await (wrapper.vm as any).handleShowReport();
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+
+      const reportData = (wrapper.vm as any).reportData;
+      expect(reportData).not.toBeNull();
+      // Should only include PO-001 from June, not PO-002 from July
+      expect(reportData?.data.length).toBe(1);
+      expect(reportData?.data[0].po_number).toBe('PO-001');
+
+      wrapper.unmount()
+    })
+
+    it('filters POs by vendor when vendor is selected', async () => {
+      const { pinia } = setupStores()
+
+      const wrapper = mount(POWiseStockReport, {
+        global: {
+          plugins: [pinia],
+          stubs: createStubs(),
+        },
+      })
+
+      await flushPromises();
+      (wrapper.vm as any).selectedCorporationId = "corp-1";
+      (wrapper.vm as any).selectedProjectId = "proj-1";
+      (wrapper.vm as any).selectedVendorId = "vendor-1";
+      setupDates(wrapper);
+      await wrapper.vm.$nextTick()
+
+      await (wrapper.vm as any).handleShowReport();
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+
+      const reportData = (wrapper.vm as any).reportData;
+      expect(reportData).not.toBeNull();
+      // Should only include PO-001 from vendor-1
+      expect(reportData?.data.length).toBe(1);
+      expect(reportData?.data[0].vendor_uuid).toBe('vendor-1');
+
+      wrapper.unmount()
+    })
+
+    it('recalculates totals for filtered POs', async () => {
+      const { pinia } = setupStores()
+      const currentYear = today(getLocalTimeZone()).year
+
+      const wrapper = mount(POWiseStockReport, {
+        global: {
+          plugins: [pinia],
+          stubs: createStubs(),
+        },
+      })
+
+      await flushPromises();
+      (wrapper.vm as any).selectedCorporationId = "corp-1";
+      (wrapper.vm as any).selectedProjectId = "proj-1";
+      // Set date range to include only June (PO-001)
+      (wrapper.vm as any).startDateValue = new CalendarDate(currentYear, 6, 1);
+      (wrapper.vm as any).endDateValue = new CalendarDate(currentYear, 6, 30);
+      await wrapper.vm.$nextTick()
+
+      await (wrapper.vm as any).handleShowReport();
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+
+      const totals = (wrapper.vm as any).totals;
+      // Totals should be recalculated for filtered PO (PO-001 only)
+      expect(totals.orderedQuantity).toBe(300);
+      expect(totals.totalValue).toBe(1500.0);
 
       wrapper.unmount()
     })
@@ -541,26 +769,11 @@ describe('POWiseStockReport.vue', () => {
       await flushPromises();
       (wrapper.vm as any).selectedCorporationId = "corp-1";
       (wrapper.vm as any).selectedProjectId = "proj-1";
-      (wrapper.vm as any).reportData = {
-        data: [
-          {
-            uuid: "po-1",
-            items: [],
-            totals: {
-              orderedQuantity: 0,
-              receivedQuantity: 0,
-              returnedQuantity: 0,
-              totalValue: 0,
-            },
-          },
-        ],
-        totals: {
-          orderedQuantity: 0,
-          receivedQuantity: 0,
-          returnedQuantity: 0,
-          totalValue: 0,
-        },
-      } as any;
+      setupDates(wrapper);
+      await wrapper.vm.$nextTick()
+
+      await (wrapper.vm as any).handleShowReport();
+      await flushPromises()
       await wrapper.vm.$nextTick()
 
       const buttons = wrapper.findAllComponents({ name: 'UButton' })
@@ -595,6 +808,12 @@ describe('POWiseStockReport.vue', () => {
     it('handles errors gracefully', async () => {
       const { pinia } = setupStores()
 
+      // Override mock to throw an error
+      mockGeneratePOWiseStockReport.mockImplementationOnce(async () => {
+        await new Promise(resolve => setTimeout(resolve, 10))
+        throw new Error('Failed to generate report')
+      })
+
       const wrapper = mount(POWiseStockReport, {
         global: {
           plugins: [pinia],
@@ -605,13 +824,14 @@ describe('POWiseStockReport.vue', () => {
       await flushPromises();
       (wrapper.vm as any).selectedCorporationId = "corp-1";
       (wrapper.vm as any).selectedProjectId = "proj-1";
+      setupDates(wrapper);
+      await wrapper.vm.$nextTick()
       
-      // Simulate error by setting reportData to null after failed load
-      await(wrapper.vm as any).loadPOWiseStockReport();
+      await (wrapper.vm as any).handleShowReport();
       await flushPromises()
 
       // Component should handle error state
-      expect((wrapper.vm as any).reportData).toBeDefined();
+      expect((wrapper.vm as any).reportData).toBeNull();
 
       wrapper.unmount()
     })

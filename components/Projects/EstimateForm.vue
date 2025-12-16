@@ -72,7 +72,7 @@
                       Corporation
                     </label>
                     <CorporationSelect
-                      :model-value="props.editingEstimate ? corpStore.selectedCorporationId : estimateCreationStore.selectedCorporationUuid"
+                      :model-value="(props.editingEstimate ? corpStore.selectedCorporationId : estimateCreationStore.selectedCorporationUuid) ?? undefined"
                       placeholder="Select corporation"
                       size="sm"
                       class="w-full"
@@ -302,7 +302,7 @@
                 </div>
                 
                 <!-- Hierarchical Cost Codes Table -->
-                <div v-if="form.project_uuid" class="overflow-x-auto">
+                <div v-if="form.project_uuid && !isCheckingExistingEstimate" class="overflow-x-auto">
                   <EstimateLineItemsTable
                     :model-value="form.line_items"
                     :project-uuid="form.project_uuid"
@@ -311,6 +311,10 @@
                     v-model:deletedUuids="form.removed_cost_code_uuids"
                     @update:model-value="(value) => handleFormUpdate('line_items', value)"
                   />
+                </div>
+                <div v-else-if="isCheckingExistingEstimate" class="py-6 text-center">
+                  <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+                  <p class="text-sm text-muted">Checking for existing estimates...</p>
                 </div>
                 <div v-else class="py-6 text-sm text-muted">Select a project to configure line items.</div>
                 </template>
@@ -340,6 +344,7 @@ import { useCorporationStore } from "@/stores/corporations";
 import { useProjectsStore } from "@/stores/projects";
 import { useEstimateCreationStore } from "@/stores/estimateCreation";
 import { useCurrencyFormat } from '@/composables/useCurrencyFormat';
+import { useApiClient } from '@/composables/useApiClient';
 import EstimateLineItemsTable from './EstimateLineItemsTable.vue';
 import CorporationSelect from '@/components/Shared/CorporationSelect.vue';
 import CostCodeSelectionModal from './CostCodeSelectionModal.vue';
@@ -369,6 +374,12 @@ const projectsStore = useProjectsStore();
 const estimateCreationStore = useEstimateCreationStore();
 const divisionsStore = useCostCodeDivisionsStore();
 const configurationsStore = useCostCodeConfigurationsStore();
+
+// API client for direct API calls
+const { apiFetch } = useApiClient();
+
+// Local declaration to satisfy TS for auto-imported useToast
+declare function useToast(): { add: (opts: any) => void }
 
 // Currency formatting
 const { currencySymbol, formatCurrency } = useCurrencyFormat();
@@ -703,6 +714,7 @@ watch(() => estimateCreationStore.selectedCorporationUuid, async (newCorpUuid, o
 const isCostCodeSelectionModalOpen = ref(false);
 const hierarchicalDataForModal = ref<any[]>([]);
 const hasShownModalForProject = ref<Set<string>>(new Set());
+const isCheckingExistingEstimate = ref(false);
 
 // Build hierarchical data for modal (similar to EstimateLineItemsTable)
 const buildHierarchicalData = (divisions: any[], configurations: any[]): any[] => {
@@ -893,6 +905,57 @@ watch(() => props.form.project_uuid, async (newProjectUuid, oldProjectUuid) => {
     !isReadOnlyEstimate.value &&
     !props.editingEstimate // Only auto-open for new estimates
   ) {
+    // Get corporation UUID for the API call
+    const corporationUuid = estimateCreationStore.selectedCorporationUuid || props.form.corporation_uuid;
+    
+    if (corporationUuid) {
+      // Set checking flag to prevent table from rendering while checking
+      isCheckingExistingEstimate.value = true;
+      
+      try {
+        // Make a direct API call to check if an estimate exists for this project
+        // This is scoped to this component and independent of the global estimates store
+        const response: any = await apiFetch('/api/estimates', {
+          query: {
+            corporation_uuid: corporationUuid,
+            project_uuid: newProjectUuid,
+            page: 1,
+            page_size: 1
+          }
+        });
+        
+        const existingEstimates = response?.data || [];
+        
+        if (existingEstimates && existingEstimates.length > 0) {
+          // Find the project name for better error message
+          const project = existingEstimates[0]?.project;
+          const projectName = project?.project_name || project?.project_id || 'this project';
+          const estimateNumber = existingEstimates[0]?.estimate_number || 'N/A';
+          
+          const toast = useToast();
+          toast.add({
+            title: "Estimate Already Exists",
+            description: `An estimate (${estimateNumber}) already exists for ${projectName}. Please edit the existing estimate instead of creating a new one.`,
+            color: "warning",
+            icon: "i-heroicons-exclamation-triangle",
+          });
+          
+          // Clear the project selection to prevent further actions
+          handleFormUpdate('project_uuid', '');
+          // Reset checking flag
+          isCheckingExistingEstimate.value = false;
+          return;
+        }
+      } catch (error) {
+        // If API call fails, log error but don't block the user
+        console.error('Error checking for existing estimates:', error);
+        // Continue with the normal flow if check fails
+      } finally {
+        // Always reset checking flag
+        isCheckingExistingEstimate.value = false;
+      }
+    }
+    
     // Mark that we'll show the modal for this project
     hasShownModalForProject.value.add(newProjectUuid);
     

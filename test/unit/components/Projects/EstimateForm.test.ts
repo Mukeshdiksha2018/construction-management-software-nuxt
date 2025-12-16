@@ -30,6 +30,13 @@ vi.mock('@/composables/useCurrencyFormat', () => ({
   })
 }))
 
+// Mock useApiClient composable
+vi.mock('@/composables/useApiClient', () => ({
+  useApiClient: () => ({
+    apiFetch: vi.fn().mockResolvedValue({ data: [] }),
+  }),
+}))
+
 // Mock the EstimateLineItemsTable component
 vi.mock('@/components/Projects/EstimateLineItemsTable.vue', () => ({
   default: {

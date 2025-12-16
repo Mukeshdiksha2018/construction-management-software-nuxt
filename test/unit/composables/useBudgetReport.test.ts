@@ -3610,5 +3610,416 @@ describe("useBudgetReport", () => {
       expect(costCode1?.paidAmount).toBe(0);
     });
   });
+
+  describe("Date Range Filtering", () => {
+    it("should filter purchase orders by entry_date when date range is provided", async () => {
+      const newPinia = createPinia();
+      setActivePinia(newPinia);
+
+      mockCostCodeDivisionsStore();
+      mockCostCodeConfigurationsStore();
+      mockEstimatesStore();
+      mockBillEntriesStore();
+      mockProjectsStore();
+
+      const poStoreWithDates = defineStore("purchaseOrders", () => ({
+        fetchPurchaseOrders: vi.fn(),
+        purchaseOrders: [
+          {
+            uuid: "po-1",
+            project_uuid: "proj-1",
+            status: "Approved",
+            is_active: true,
+            entry_date: "2024-01-15T00:00:00.000Z", // Within range
+            po_items: [
+              {
+                cost_code_uuid: "cc-1",
+                po_unit_price: 100,
+                po_quantity: 4,
+                po_total: 400,
+              },
+            ],
+          },
+          {
+            uuid: "po-2",
+            project_uuid: "proj-1",
+            status: "Approved",
+            is_active: true,
+            entry_date: "2024-12-20T00:00:00.000Z", // Outside range
+            po_items: [
+              {
+                cost_code_uuid: "cc-1",
+                po_unit_price: 200,
+                po_quantity: 2,
+                po_total: 400,
+              },
+            ],
+          },
+        ],
+      }));
+
+      const noCOStore = defineStore("changeOrders", () => ({
+        fetchChangeOrders: vi.fn(),
+        changeOrders: [],
+      }));
+
+      poStoreWithDates();
+      noCOStore();
+
+      vi.mocked($fetch).mockResolvedValue({ data: [] });
+
+      const budgetReport = useBudgetReport();
+
+      const startDate = "2024-01-01T00:00:00.000Z";
+      const endDate = "2024-06-30T23:59:59.999Z";
+
+      const result = await budgetReport.generateBudgetReport(
+        "corp-1",
+        "proj-1",
+        startDate,
+        endDate
+      );
+
+      const division1 = result?.divisions.find((d) => d.uuid === "div-1");
+      const costCode1 = division1?.costCodes.find((cc) => cc.uuid === "cc-1");
+
+      // Only po-1 should be included (within date range)
+      expect(costCode1?.purchaseOrderAmount).toBe(400);
+    });
+
+    it("should filter change orders by created_date when date range is provided", async () => {
+      const newPinia = createPinia();
+      setActivePinia(newPinia);
+
+      mockCostCodeDivisionsStore();
+      mockCostCodeConfigurationsStore();
+      mockEstimatesStore();
+      mockBillEntriesStore();
+      mockProjectsStore();
+
+      const noPOStore = defineStore("purchaseOrders", () => ({
+        fetchPurchaseOrders: vi.fn(),
+        purchaseOrders: [],
+      }));
+
+      const coStoreWithDates = defineStore("changeOrders", () => ({
+        fetchChangeOrders: vi.fn(),
+        changeOrders: [
+          {
+            uuid: "co-1",
+            project_uuid: "proj-1",
+            status: "Approved",
+            is_active: true,
+            co_type: "MATERIAL",
+            created_date: "2024-03-15T00:00:00.000Z", // Within range
+            co_items: [
+              {
+                cost_code_uuid: "cc-1",
+                co_unit_price: 50,
+                co_quantity: 2,
+                co_total: 100,
+              },
+            ],
+          },
+          {
+            uuid: "co-2",
+            project_uuid: "proj-1",
+            status: "Approved",
+            is_active: true,
+            co_type: "MATERIAL",
+            created_date: "2024-12-20T00:00:00.000Z", // Outside range
+            co_items: [
+              {
+                cost_code_uuid: "cc-1",
+                co_unit_price: 75,
+                co_quantity: 2,
+                co_total: 150,
+              },
+            ],
+          },
+        ],
+      }));
+
+      noPOStore();
+      coStoreWithDates();
+
+      vi.mocked($fetch).mockResolvedValue({ data: [] });
+
+      const budgetReport = useBudgetReport();
+
+      const startDate = "2024-01-01T00:00:00.000Z";
+      const endDate = "2024-06-30T23:59:59.999Z";
+
+      const result = await budgetReport.generateBudgetReport(
+        "corp-1",
+        "proj-1",
+        startDate,
+        endDate
+      );
+
+      const division1 = result?.divisions.find((d) => d.uuid === "div-1");
+      const costCode1 = division1?.costCodes.find((cc) => cc.uuid === "cc-1");
+
+      // Only co-1 should be included (within date range)
+      expect(costCode1?.changeOrderAmount).toBe(100);
+    });
+
+    it("should filter vendor invoices by bill_date when date range is provided", async () => {
+      const newPinia = createPinia();
+      setActivePinia(newPinia);
+
+      mockCostCodeDivisionsStore();
+      mockCostCodeConfigurationsStore();
+      mockEstimatesStore();
+      mockBillEntriesStore();
+      mockProjectsStore();
+
+      const approvedPOStore = defineStore("purchaseOrders", () => ({
+        fetchPurchaseOrders: vi.fn(),
+        purchaseOrders: [
+          {
+            uuid: "po-1",
+            project_uuid: "proj-1",
+            status: "Approved",
+            is_active: true,
+            entry_date: "2024-01-15T00:00:00.000Z",
+            po_items: [
+              {
+                cost_code_uuid: "cc-1",
+                po_unit_price: 100,
+                po_quantity: 4,
+                po_total: 400,
+              },
+            ],
+          },
+        ],
+      }));
+
+      const noCOStore = defineStore("changeOrders", () => ({
+        fetchChangeOrders: vi.fn(),
+        changeOrders: [],
+      }));
+
+      approvedPOStore();
+      noCOStore();
+
+      // Mock vendor invoices API with dates
+      vi.mocked($fetch).mockImplementation((url: string | any) => {
+        const urlStr = typeof url === 'string' ? url : (url?.url || String(url));
+        if (urlStr.includes("/api/vendor-invoices") && !urlStr.includes("/api/vendor-invoices/")) {
+          return Promise.resolve({
+            data: [
+              {
+                uuid: "invoice-1",
+                project_uuid: "proj-1",
+                status: "Paid",
+                is_active: true,
+                invoice_type: "AGAINST_PO",
+                purchase_order_uuid: "po-1",
+                bill_date: "2024-02-15T00:00:00.000Z", // Within range
+                amount: "500",
+              },
+              {
+                uuid: "invoice-2",
+                project_uuid: "proj-1",
+                status: "Paid",
+                is_active: true,
+                invoice_type: "AGAINST_PO",
+                purchase_order_uuid: "po-1",
+                bill_date: "2024-12-20T00:00:00.000Z", // Outside range
+                amount: "300",
+              },
+            ],
+          });
+        }
+        if (urlStr.includes("/api/vendor-invoices/invoice-1")) {
+          return Promise.resolve({
+            data: {
+              uuid: "invoice-1",
+              project_uuid: "proj-1",
+              status: "Paid",
+              is_active: true,
+              invoice_type: "AGAINST_PO",
+              purchase_order_uuid: "po-1",
+              amount: "500",
+              po_invoice_items: [
+                {
+                  cost_code_uuid: "cc-1",
+                  invoice_unit_price: 100,
+                  invoice_quantity: 4,
+                  invoice_total: 400,
+                  is_active: true,
+                },
+              ],
+            },
+          });
+        }
+        return Promise.resolve({ data: [] });
+      });
+
+      const budgetReport = useBudgetReport();
+
+      const startDate = "2024-01-01T00:00:00.000Z";
+      const endDate = "2024-06-30T23:59:59.999Z";
+
+      const result = await budgetReport.generateBudgetReport(
+        "corp-1",
+        "proj-1",
+        startDate,
+        endDate
+      );
+
+      const division1 = result?.divisions.find((d) => d.uuid === "div-1");
+      const costCode1 = division1?.costCodes.find((cc) => cc.uuid === "cc-1");
+
+      // Only invoice-1 should be included (within date range)
+      // Paid amount should be proportional to the invoice total (500)
+      expect(costCode1?.paidAmount).toBeGreaterThan(0);
+      expect(costCode1?.paidAmount).toBeLessThanOrEqual(500);
+    });
+
+    it("should include all records when date range is not provided", async () => {
+      const newPinia = createPinia();
+      setActivePinia(newPinia);
+
+      mockCostCodeDivisionsStore();
+      mockCostCodeConfigurationsStore();
+      mockEstimatesStore();
+      mockBillEntriesStore();
+      mockProjectsStore();
+
+      const poStoreWithDates = defineStore("purchaseOrders", () => ({
+        fetchPurchaseOrders: vi.fn(),
+        purchaseOrders: [
+          {
+            uuid: "po-1",
+            project_uuid: "proj-1",
+            status: "Approved",
+            is_active: true,
+            entry_date: "2024-01-15T00:00:00.000Z",
+            po_items: [
+              {
+                cost_code_uuid: "cc-1",
+                po_unit_price: 100,
+                po_quantity: 4,
+                po_total: 400,
+              },
+            ],
+          },
+          {
+            uuid: "po-2",
+            project_uuid: "proj-1",
+            status: "Approved",
+            is_active: true,
+            entry_date: "2024-12-20T00:00:00.000Z",
+            po_items: [
+              {
+                cost_code_uuid: "cc-1",
+                po_unit_price: 200,
+                po_quantity: 2,
+                po_total: 400,
+              },
+            ],
+          },
+        ],
+      }));
+
+      const noCOStore = defineStore("changeOrders", () => ({
+        fetchChangeOrders: vi.fn(),
+        changeOrders: [],
+      }));
+
+      poStoreWithDates();
+      noCOStore();
+
+      vi.mocked($fetch).mockResolvedValue({ data: [] });
+
+      const budgetReport = useBudgetReport();
+
+      // No date range provided
+      const result = await budgetReport.generateBudgetReport("corp-1", "proj-1");
+
+      const division1 = result?.divisions.find((d) => d.uuid === "div-1");
+      const costCode1 = division1?.costCodes.find((cc) => cc.uuid === "cc-1");
+
+      // Both POs should be included when no date range is provided
+      expect(costCode1?.purchaseOrderAmount).toBe(800); // 400 + 400
+    });
+
+    it("should exclude purchase orders without entry_date when date range is provided", async () => {
+      const newPinia = createPinia();
+      setActivePinia(newPinia);
+
+      mockCostCodeDivisionsStore();
+      mockCostCodeConfigurationsStore();
+      mockEstimatesStore();
+      mockBillEntriesStore();
+      mockProjectsStore();
+
+      const poStoreWithMissingDates = defineStore("purchaseOrders", () => ({
+        fetchPurchaseOrders: vi.fn(),
+        purchaseOrders: [
+          {
+            uuid: "po-1",
+            project_uuid: "proj-1",
+            status: "Approved",
+            is_active: true,
+            entry_date: "2024-03-15T00:00:00.000Z", // Has date, within range
+            po_items: [
+              {
+                cost_code_uuid: "cc-1",
+                po_unit_price: 100,
+                po_quantity: 4,
+                po_total: 400,
+              },
+            ],
+          },
+          {
+            uuid: "po-2",
+            project_uuid: "proj-1",
+            status: "Approved",
+            is_active: true,
+            entry_date: null, // Missing date
+            po_items: [
+              {
+                cost_code_uuid: "cc-1",
+                po_unit_price: 200,
+                po_quantity: 2,
+                po_total: 400,
+              },
+            ],
+          },
+        ],
+      }));
+
+      const noCOStore = defineStore("changeOrders", () => ({
+        fetchChangeOrders: vi.fn(),
+        changeOrders: [],
+      }));
+
+      poStoreWithMissingDates();
+      noCOStore();
+
+      vi.mocked($fetch).mockResolvedValue({ data: [] });
+
+      const budgetReport = useBudgetReport();
+
+      const startDate = "2024-01-01T00:00:00.000Z";
+      const endDate = "2024-06-30T23:59:59.999Z";
+
+      const result = await budgetReport.generateBudgetReport(
+        "corp-1",
+        "proj-1",
+        startDate,
+        endDate
+      );
+
+      const division1 = result?.divisions.find((d) => d.uuid === "div-1");
+      const costCode1 = division1?.costCodes.find((cc) => cc.uuid === "cc-1");
+
+      // Only po-1 should be included (has date and within range)
+      expect(costCode1?.purchaseOrderAmount).toBe(400);
+    });
+  });
 });
 
