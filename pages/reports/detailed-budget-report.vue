@@ -3,7 +3,7 @@
     <!-- Header section - hidden in print -->
     <div class="mb-2 print:hidden">
       <div class="flex items-center justify-between gap-4 flex-wrap">
-        <!-- Left side: Back button and heading -->
+        <!-- Left side: Back button -->
         <div class="flex items-center gap-3">
           <UButton
             color="neutral"
@@ -13,7 +13,6 @@
           >
             Back
           </UButton>
-          <h1 class="text-xl font-semibold text-gray-900 dark:text-gray-100">Detailed Budget Report</h1>
         </div>
 
         <!-- Right side: Corporation, Project Selection, Date Range, Show and Print buttons -->
@@ -160,6 +159,11 @@
             </div>
           </div>
           
+          <!-- Center Section: Title Skeleton -->
+          <div class="flex-1 flex justify-center">
+            <USkeleton class="h-6 w-48" />
+          </div>
+          
           <!-- Right Section: Stats -->
           <div class="bg-primary-50 dark:bg-primary-900 border-l-4 border-primary-500 rounded p-2 min-w-fit">
             <div class="flex gap-8">
@@ -302,6 +306,11 @@
                 </h3>
                 <p class="text-xs text-primary-700 dark:text-primary-300">Project Number: {{ reportData.project.projectId }}</p>
               </div>
+            </div>
+            
+            <!-- Center Section: Title -->
+            <div class="flex-1 flex justify-center">
+              <h1 class="text-xl font-semibold text-gray-900 dark:text-gray-100">Detailed Budget Report</h1>
             </div>
             
             <!-- Right Section: Stats -->
