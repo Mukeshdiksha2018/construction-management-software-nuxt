@@ -779,7 +779,7 @@ const saveDraftButtonLabel = computed(() => {
     return 'Locked'
   }
   if (poForm.value?.uuid && poForm.value.status === 'Approved') {
-    return 'Unapprove'
+    return 'Reject'
   }
   return 'Save'
 })

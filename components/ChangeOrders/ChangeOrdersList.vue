@@ -527,7 +527,7 @@ const saveDraftButtonLabel = computed(() => {
     return 'Locked'
   }
   if (coForm.value?.uuid && coForm.value.status === 'Approved') {
-    return 'Unapprove'
+    return 'Reject'
   }
   return 'Save'
 })
