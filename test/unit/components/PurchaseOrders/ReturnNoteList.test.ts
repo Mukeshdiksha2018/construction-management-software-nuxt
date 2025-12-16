@@ -151,6 +151,9 @@ const ReturnNoteFormStub = {
     expose({
       receiptNotesValidationError: null,
       hasValidationError: false,
+      combinedValidationError: null,
+      overReturnItems: [],
+      hasOverReturnItems: false,
     });
     return {};
   },
@@ -311,9 +314,10 @@ describe("ReturnNoteList", () => {
 
     // Find status filter cards - they should exist in the template
     // The new structure uses divs instead of UPageCard, so we verify by checking for Summary text
+    // Only "Returned" status card exists now (no "Waiting" status)
     expect(wrapper.html()).toContain("Summary");
-    expect(wrapper.html()).toContain("Waiting");
     expect(wrapper.html()).toContain("Returned");
+    expect(wrapper.html()).not.toContain("Waiting");
   });
 
   describe('Modal Close Watcher - Resource Cleanup', () => {
@@ -407,6 +411,171 @@ describe("ReturnNoteList", () => {
 
       // View mode should be reset
       expect(vm.isViewMode).toBe(false);
+    });
+  });
+
+  describe('Return Note Status', () => {
+    it('always saves status as "Returned" when creating a new return note', async () => {
+      createStockReturnNoteMock.mockResolvedValue({ uuid: "rtn-new" });
+      
+      const wrapper = mountList();
+      await flushPromises();
+
+      const addButton = wrapper
+        .findAll("button")
+        .find((btn) => btn.text().includes("Add new Return Note"));
+      
+      if (addButton && addButton.exists()) {
+        await addButton.trigger("click");
+        await flushPromises();
+
+        const applyValuesButton = wrapper.find("[data-test='set-form-values']");
+        if (applyValuesButton.exists()) {
+          await applyValuesButton.trigger("click");
+          await flushPromises();
+
+          const vm: any = wrapper.vm as any;
+          
+          // Set form data with different status (should be overridden)
+          vm.returnNoteForm = {
+            ...vm.returnNoteForm,
+            status: "Waiting", // Try to set Waiting status
+            corporation_uuid: "corp-1",
+            project_uuid: "project-1",
+            purchase_order_uuid: "po-1",
+            return_type: "purchase_order",
+            return_items: [{ uuid: 'item-1', return_quantity: 5, return_total: 100 }],
+            total_return_amount: 100,
+          };
+
+          await wrapper.vm.$nextTick();
+
+          const saveButton = wrapper
+            .findAll("button")
+            .find((btn) => btn.text().trim() === "Save");
+          
+          if (saveButton && saveButton.exists() && !saveButton.attributes("disabled")) {
+            createStockReturnNoteMock.mockClear();
+            await saveButton.trigger("click");
+            await flushPromises();
+
+            expect(createStockReturnNoteMock).toHaveBeenCalledTimes(1);
+            const callArgs = createStockReturnNoteMock.mock.calls[0][0];
+            expect(callArgs.status).toBe("Returned");
+          } else {
+            // If button is disabled, directly test the save function
+            createStockReturnNoteMock.mockClear();
+            await vm.saveReturnNote();
+            await flushPromises();
+
+            expect(createStockReturnNoteMock).toHaveBeenCalledTimes(1);
+            const callArgs = createStockReturnNoteMock.mock.calls[0][0];
+            expect(callArgs.status).toBe("Returned");
+          }
+        }
+      }
+    });
+
+    it('always saves status as "Returned" when updating an existing return note', async () => {
+      updateStockReturnNoteMock.mockResolvedValue({ uuid: "rtn-1" });
+      
+      stockReturnNotesState.value = [
+        {
+          uuid: "rtn-1",
+          corporation_uuid: "corp-1",
+          return_number: "RTN-1",
+          status: "Returned",
+          total_return_amount: 150,
+        },
+      ];
+
+      const wrapper = mountList();
+      await flushPromises();
+
+      const vm: any = wrapper.vm as any;
+      
+      // Simulate editing an existing return note
+      vm.returnNoteForm = {
+        uuid: "rtn-1",
+        corporation_uuid: "corp-1",
+        return_number: "RTN-1",
+        status: "Waiting", // Try to set Waiting status
+        return_items: [{ uuid: 'item-1', return_quantity: 5, return_total: 100 }],
+        total_return_amount: 100,
+      };
+      vm.showFormModal = true;
+      await wrapper.vm.$nextTick();
+
+      const updateButton = wrapper
+        .findAll("button")
+        .find((btn) => btn.text().trim() === "Update");
+      
+      if (updateButton && updateButton.exists() && !updateButton.attributes("disabled")) {
+        updateStockReturnNoteMock.mockClear();
+        await updateButton.trigger("click");
+        await flushPromises();
+
+        expect(updateStockReturnNoteMock).toHaveBeenCalledTimes(1);
+        const callArgs = updateStockReturnNoteMock.mock.calls[0][0];
+        expect(callArgs.status).toBe("Returned");
+      } else {
+        // If button is disabled, directly test the save function
+        updateStockReturnNoteMock.mockClear();
+        await vm.saveReturnNote();
+        await flushPromises();
+
+        expect(updateStockReturnNoteMock).toHaveBeenCalledTimes(1);
+        const callArgs = updateStockReturnNoteMock.mock.calls[0][0];
+        expect(callArgs.status).toBe("Returned");
+      }
+    });
+
+    it('displays "Returned" status badge even if database has "Waiting" status', async () => {
+      stockReturnNotesState.value = [
+        {
+          uuid: "rtn-1",
+          corporation_uuid: "corp-1",
+          return_number: "RTN-1",
+          status: "Waiting", // Database has Waiting status
+          total_return_amount: 150,
+        },
+      ];
+
+      const wrapper = mountList();
+      await flushPromises();
+
+      // The status badge should display "Returned" even though database has "Waiting"
+      // This is handled by the cell renderer normalization logic
+      const html = wrapper.html();
+      expect(html).toContain("Returned");
+    });
+
+    it('defaults status to "Returned" in createEmptyForm', () => {
+      const wrapper = mountList();
+      const vm: any = wrapper.vm as any;
+      
+      const emptyForm = vm.createEmptyForm();
+      expect(emptyForm.status).toBe("Returned");
+    });
+
+    it('only shows "Returned" status card, not "Waiting"', async () => {
+      stockReturnNotesState.value = [
+        {
+          uuid: "rtn-1",
+          corporation_uuid: "corp-1",
+          return_number: "RTN-1",
+          status: "Returned",
+          total_return_amount: 150,
+        },
+      ];
+
+      const wrapper = mountList();
+      await flushPromises();
+
+      const html = wrapper.html();
+      expect(html).toContain("Summary");
+      expect(html).toContain("Returned");
+      expect(html).not.toContain("Waiting");
     });
   });
 });

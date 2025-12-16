@@ -261,7 +261,7 @@
                 color="primary"
                 size="sm"
                 :loading="savingReceiptNote"
-                :disabled="savingReceiptNote"
+                :disabled="savingReceiptNote || hasFormValidationError"
                 @click="saveReceiptNote"
               >
                 {{ receiptNoteForm?.uuid ? "Update" : "Save" }}
@@ -401,7 +401,7 @@
             color="primary"
             variant="solid"
             :loading="savingReturnNote"
-            :disabled="savingReturnNote"
+            :disabled="savingReturnNote || hasReturnNoteFormValidationError"
             @click="saveReturnNoteFromShortfall"
           >
             Save Return Note
@@ -486,11 +486,61 @@ const showReturnNoteModal = ref(false);
 const returnNoteFormData = ref<any>(null);
 const returnNoteFormRef = ref<any>(null);
 const savingReturnNote = ref(false);
+
+// Ref to track validation state for return note form - updated via watch to ensure reactivity
+const hasReturnNoteFormValidationError = ref(false);
+
+// Watch the return note form ref's validation state to update the button disabled state
+watch(
+  () => returnNoteFormRef.value?.hasValidationError,
+  (hasError) => {
+    hasReturnNoteFormValidationError.value = hasError ?? false;
+  },
+  { immediate: true }
+);
+
+// Also watch for changes in the return note form ref itself
+watch(
+  () => returnNoteFormRef.value,
+  (formRef) => {
+    if (formRef) {
+      hasReturnNoteFormValidationError.value = formRef.hasValidationError ?? false;
+    } else {
+      hasReturnNoteFormValidationError.value = false;
+    }
+  },
+  { immediate: true }
+);
 const shortfallItemsForReturn = ref<any[]>([]);
 const pendingReceiptNoteSave = ref<(() => Promise<void>) | null>(null);
 const showShortfallModal = ref(false);
 const shortfallItemsForModal = ref<any[]>([]);
 const receiptNoteFormRef = ref<any>(null);
+
+// Ref to track validation state - updated via watch to ensure reactivity
+const hasFormValidationError = ref(false);
+
+// Watch the form ref's validation state to update the button disabled state
+watch(
+  () => receiptNoteFormRef.value?.hasValidationError,
+  (hasError) => {
+    hasFormValidationError.value = hasError ?? false;
+  },
+  { immediate: true }
+);
+
+// Also watch for changes in the form ref itself
+watch(
+  () => receiptNoteFormRef.value,
+  (formRef) => {
+    if (formRef) {
+      hasFormValidationError.value = formRef.hasValidationError ?? false;
+    } else {
+      hasFormValidationError.value = false;
+    }
+  },
+  { immediate: true }
+);
 
 const selectedCorporationId = computed(
   () => corporationStore.selectedCorporationId
@@ -1226,15 +1276,20 @@ const saveReceiptNote = async () => {
   }
 
   // Check for shortfall quantities before saving
-  const { hasShortfall, items } = await checkForShortfallQuantities();
+  // Only show shortfall modal when creating a new receipt note (not when editing an existing one)
+  const isNewReceiptNote = !receiptNoteForm.value?.uuid;
+  
+  if (isNewReceiptNote) {
+    const { hasShortfall, items } = await checkForShortfallQuantities();
 
-  if (hasShortfall && !isViewMode.value) {
-    shortfallItemsForModal.value = items;
-    pendingReceiptNoteSave.value = async () => {
-      await performSaveReceiptNote(true); // Pass true to indicate saving as open PO
-    };
-    showShortfallModal.value = true;
-    return;
+    if (hasShortfall && !isViewMode.value) {
+      shortfallItemsForModal.value = items;
+      pendingReceiptNoteSave.value = async () => {
+        await performSaveReceiptNote(true); // Pass true to indicate saving as open PO
+      };
+      showShortfallModal.value = true;
+      return;
+    }
   }
 
   await performSaveReceiptNote(false); // Pass false for normal save
@@ -1554,7 +1609,7 @@ const handleRaiseReturnNote = async () => {
     returned_by: receiptData.received_by || null,
     location_uuid: receiptData.location_uuid || null,
     notes: `Return note for shortfall quantities from receipt note ${receiptData.grn_number || ''}`,
-    status: 'Waiting',
+    status: 'Returned',
     return_items: returnItems,
     total_return_amount: totalReturnAmount,
     attachments: [],
@@ -1567,7 +1622,15 @@ const handleRaiseReturnNote = async () => {
 // Save return note from shortfall
 const saveReturnNoteFromShortfall = async () => {
   if (savingReturnNote.value) return;
-  const corpUuid = corporationStore.selectedCorporationId;
+  
+  // Use form's corporation_uuid (not TopBar's selectedCorporationId)
+  // This allows the form to operate independently with its own corporation selection
+  const formCorpUuid = returnNoteFormData.value?.corporation_uuid;
+  const topBarCorpUuid = corporationStore.selectedCorporationId;
+  
+  // Use form's corporation_uuid if available, otherwise fall back to TopBar's selected corporation
+  const corpUuid = formCorpUuid || topBarCorpUuid;
+  
   if (!corpUuid) {
     const toast = useToast();
     toast.add({
@@ -1578,12 +1641,16 @@ const saveReturnNoteFromShortfall = async () => {
     return;
   }
 
+  // Check if form's corporation matches TopBar's selected corporation
+  // Only update store/IndexedDB if they match, otherwise just call API directly
+  const shouldUpdateStore = formCorpUuid && topBarCorpUuid && formCorpUuid === topBarCorpUuid;
+
   // Check for validation errors
   if (returnNoteFormRef.value?.hasValidationError) {
     const toast = useToast();
     toast.add({
       title: "Validation Error",
-      description: returnNoteFormRef.value.receiptNotesValidationError || "Cannot save return note due to validation errors.",
+      description: returnNoteFormRef.value.combinedValidationError || returnNoteFormRef.value.receiptNotesValidationError || "Cannot save return note due to validation errors.",
       color: "error",
     });
     return;
@@ -1623,6 +1690,9 @@ const saveReturnNoteFromShortfall = async () => {
     const returnType = formData.return_type || 'purchase_order';
     formData.return_type = returnType;
 
+    // Always set status to "Returned" - never save "Waiting" status
+    formData.status = "Returned";
+
     // Clear the opposite UUID column based on return_type
     if (returnType === 'change_order') {
       formData.purchase_order_uuid = null;
@@ -1636,7 +1706,18 @@ const saveReturnNoteFromShortfall = async () => {
       return_items: returnItems,
     };
 
-    const createdReturnNote = await stockReturnNotesStore.createStockReturnNote(payload);
+    let createdReturnNote;
+    if (shouldUpdateStore) {
+      // Form's corporation matches TopBar's selected corporation - update store and IndexedDB
+      createdReturnNote = await stockReturnNotesStore.createStockReturnNote(payload);
+    } else {
+      // Form's corporation is different - just call API directly (bypass store/IndexedDB)
+      const response = await $fetch("/api/stock-return-notes", {
+        method: "POST",
+        body: payload,
+      });
+      createdReturnNote = (response as any)?.data ?? response ?? null;
+    }
     
     // The API updates the PO/CO status when the return note is created
     // The API awaits the PO/CO update before returning, so the status should be updated by now
@@ -1646,7 +1727,8 @@ const saveReturnNoteFromShortfall = async () => {
     // This happens after the return note is saved, which means the API has finished
     // updating the PO status (the API awaits the PO update before returning)
     // Use formData (the payload sent to API) instead of returnNoteFormData.value to ensure we have the correct UUIDs
-    if (returnType === 'purchase_order' && formData.purchase_order_uuid && corporationStore.selectedCorporationId) {
+    // Only refresh if form's corporation matches TopBar's selected corporation
+    if (returnType === 'purchase_order' && formData.purchase_order_uuid && shouldUpdateStore && topBarCorpUuid) {
       try {
         // Fetch only the specific purchase order that was updated
         const updatedPO = await purchaseOrdersStore.fetchPurchaseOrder(formData.purchase_order_uuid);
@@ -1664,7 +1746,8 @@ const saveReturnNoteFromShortfall = async () => {
     // This happens after the return note is saved, which means the API has finished
     // updating the CO status (the API awaits the CO update before returning)
     // Use formData (the payload sent to API) instead of returnNoteFormData.value to ensure we have the correct UUIDs
-    if (returnType === 'change_order' && formData.change_order_uuid && corporationStore.selectedCorporationId) {
+    // Only refresh if form's corporation matches TopBar's selected corporation
+    if (returnType === 'change_order' && formData.change_order_uuid && shouldUpdateStore && topBarCorpUuid) {
       try {
         // Fetch only the specific change order that was updated
         const updatedCO = await changeOrdersStore.fetchChangeOrder(formData.change_order_uuid);
@@ -1678,9 +1761,13 @@ const saveReturnNoteFromShortfall = async () => {
       }
     }
     
-    // Refresh return notes store to ensure the new return note is available for shortfall checking
-    // Force refresh to get the latest data including the return note items
-    await stockReturnNotesStore.fetchStockReturnNotes(corpUuid, { force: true });
+    // Only refresh return notes store if form's corporation matches TopBar's selected corporation
+    // This ensures we don't unnecessarily fetch data for a different corporation
+    if (shouldUpdateStore && topBarCorpUuid) {
+      // Refresh return notes store to ensure the new return note is available for shortfall checking
+      // Force refresh to get the latest data including the return note items
+      await stockReturnNotesStore.fetchStockReturnNotes(topBarCorpUuid, { force: true });
+    }
     
     // Also fetch return note items to ensure they're available for the shortfall check
     // This ensures the return note items are in the database and can be queried

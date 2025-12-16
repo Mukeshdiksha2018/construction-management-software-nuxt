@@ -239,6 +239,7 @@
         :error="poItemsError || receiptNotesValidationError"
         :corporation-uuid="(form.corporation_uuid || corpStore.selectedCorporation?.uuid) ?? null"
         :return-type="returnType"
+        :over-return-items="overReturnItems"
         :readonly="props.readonly || !!receiptNotesValidationError"
         :removed-return-items="removedReturnItems"
         @cost-code-change="handleCostCodeChange"
@@ -1371,11 +1372,12 @@ const checkReceiptNotesAndCalculateShortfall = async (
       const orderedQty = parseFloat(String(item.ordered_quantity || item.po_quantity || item.co_quantity || 0)) || 0;
       
       if (!itemUuid || orderedQty === 0) {
-        // Item without UUID or zero quantity - allow manual entry
+        // Item without UUID or zero quantity - allow manual entry (no max limit)
         itemsWithShortfall.push({
           ...item,
           return_quantity: null,
           return_total: null,
+          max_return_quantity: null, // No limit for items without UUID or zero quantity
         });
         continue;
       }
@@ -1399,6 +1401,7 @@ const checkReceiptNotesAndCalculateShortfall = async (
           ...item,
           return_quantity: null,
           return_total: null,
+          max_return_quantity: 0, // No shortfall, so max return is 0
         });
       } else if (remainingReturnQty > 0) {
         // There is remaining shortfall after accounting for existing return notes
@@ -1408,6 +1411,7 @@ const checkReceiptNotesAndCalculateShortfall = async (
           ...item,
           return_quantity: remainingReturnQty,
           return_total: remainingReturnQty * (parseFloat(String(item.unit_price || 0)) || 0),
+          max_return_quantity: remainingReturnQty, // Store max allowed return quantity
         });
       } else {
         // Shortfall exists but has already been fully covered by existing return notes
@@ -1415,6 +1419,7 @@ const checkReceiptNotesAndCalculateShortfall = async (
           ...item,
           return_quantity: null,
           return_total: null,
+          max_return_quantity: 0, // Already covered, so max return is 0
         });
       }
     }
@@ -1453,6 +1458,178 @@ const checkReceiptNotesAndCalculateShortfall = async (
     updateFormField("return_items", returnItems.value);
   } finally {
     checkingReceiptNotes.value = false;
+  }
+};
+
+// Recalculate max_return_quantity for items when editing
+// This is needed because when editing, we load items from return_note_items table
+// which doesn't have max_return_quantity, so we need to recalculate it
+const recalculateMaxReturnQuantities = async (items: any[], sourceUuid: string, sourceType: 'purchase_order' | 'change_order') => {
+  try {
+    const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
+    const projectUuid = props.form.project_uuid;
+
+    if (!corpUuid || !projectUuid) {
+      // Can't calculate without corp/project, return items as-is
+      return items;
+    }
+
+    // Fetch all receipt notes for this PO/CO
+    await stockReceiptNotesStore.fetchStockReceiptNotes(corpUuid, { force: false });
+    const allReceiptNotes = stockReceiptNotesStore.stockReceiptNotes.filter(
+      (note: any) => note.corporation_uuid === corpUuid
+    );
+
+    // Filter receipt notes that match the source (PO/CO) and receipt type
+    const matchingReceiptNotes = allReceiptNotes.filter((note: any) => {
+      if (note.is_active === false) return false;
+      const receiptType = note.receipt_type || 'purchase_order';
+      
+      if (sourceType === 'purchase_order') {
+        return note.purchase_order_uuid === sourceUuid && receiptType === 'purchase_order';
+      } else {
+        return note.change_order_uuid === sourceUuid && receiptType === 'change_order';
+      }
+    });
+
+    if (matchingReceiptNotes.length === 0) {
+      // No receipt notes - max return is ordered quantity
+      return items.map((item) => ({
+        ...item,
+        max_return_quantity: item.max_return_quantity ?? parseNumericInput(item.ordered_quantity ?? item.po_quantity ?? item.co_quantity ?? 0),
+      }));
+    }
+
+    // Fetch receipt note items for all matching receipt notes
+    const allReceiptNoteItems: any[] = [];
+    for (const receiptNote of matchingReceiptNotes) {
+      try {
+        const response: any = await $fetch("/api/receipt-note-items", {
+          method: "GET",
+          query: {
+            corporation_uuid: corpUuid,
+            project_uuid: projectUuid,
+            receipt_note_uuid: receiptNote.uuid,
+            item_type: sourceType,
+          },
+        });
+        
+        const receiptItems = Array.isArray(response?.data) ? response.data : [];
+        allReceiptNoteItems.push(...receiptItems);
+      } catch (error) {
+        console.error(`[ReturnNoteForm] Failed to fetch receipt note items for ${receiptNote.uuid}:`, error);
+      }
+    }
+
+    // Create a map of received quantities by item_uuid
+    const receivedQuantitiesMap = new Map<string, number>();
+    allReceiptNoteItems.forEach((rni: any) => {
+      if (rni.is_active === false) return;
+      
+      const itemUuid = rni.item_uuid || rni.base_item_uuid;
+      if (itemUuid) {
+        const key = String(itemUuid).trim().toLowerCase();
+        const existingQty = receivedQuantitiesMap.get(key) || 0;
+        const receivedQty = parseFloat(String(rni.received_quantity || 0)) || 0;
+        receivedQuantitiesMap.set(key, existingQty + receivedQty);
+      }
+    });
+
+    // Fetch existing return notes for the same PO/CO (excluding the current one if editing)
+    await stockReturnNotesStore.fetchStockReturnNotes(corpUuid, { force: false });
+    const allReturnNotes = stockReturnNotesStore.stockReturnNotes.filter(
+      (note: any) => note.corporation_uuid === corpUuid
+    );
+
+    // Filter return notes that match the source (PO/CO) and return type, excluding current return note if editing
+    const matchingReturnNotes = allReturnNotes.filter((note: any) => {
+      if (note.is_active === false) return false;
+      // Exclude current return note if editing
+      if (props.editingReturnNote && props.form.uuid && note.uuid === props.form.uuid) {
+        return false;
+      }
+      
+      const normalizedStatus = String(note.status || '').trim().toLowerCase();
+      if (normalizedStatus !== 'returned') {
+        return false;
+      }
+
+      const noteReturnType = note.return_type || 'purchase_order';
+      
+      if (sourceType === 'purchase_order') {
+        return note.purchase_order_uuid === sourceUuid && noteReturnType === 'purchase_order';
+      } else {
+        return note.change_order_uuid === sourceUuid && noteReturnType === 'change_order';
+      }
+    });
+
+    // Fetch return note items for all matching return notes
+    const allReturnNoteItems: any[] = [];
+    for (const returnNote of matchingReturnNotes) {
+      try {
+        const response: any = await $fetch("/api/return-note-items", {
+          method: "GET",
+          query: {
+            corporation_uuid: corpUuid,
+            project_uuid: projectUuid,
+            return_note_uuid: returnNote.uuid,
+            item_type: sourceType,
+          },
+        });
+        
+        const returnItems = Array.isArray(response?.data) ? response.data : [];
+        allReturnNoteItems.push(...returnItems);
+      } catch (error) {
+        console.error(`[ReturnNoteForm] Failed to fetch return note items for ${returnNote.uuid}:`, error);
+      }
+    }
+
+    // Create a map of already returned quantities by item_uuid
+    const returnedQuantitiesMap = new Map<string, number>();
+    allReturnNoteItems.forEach((rni: any) => {
+      if (rni.is_active === false) return;
+      
+      const itemUuid = rni.item_uuid || rni.base_item_uuid;
+      if (itemUuid) {
+        const key = String(itemUuid).trim().toLowerCase();
+        const existingQty = returnedQuantitiesMap.get(key) || 0;
+        const returnQty = parseFloat(String(rni.return_quantity || 0)) || 0;
+        returnedQuantitiesMap.set(key, existingQty + returnQty);
+      }
+    });
+
+    // Calculate max_return_quantity for each item
+    return items.map((item) => {
+      const itemUuid = item.uuid || item.base_item_uuid || item.item_uuid;
+      const orderedQty = parseNumericInput(item.ordered_quantity ?? item.po_quantity ?? item.co_quantity ?? 0);
+      
+      if (!itemUuid || orderedQty === 0) {
+        // Item without UUID or zero quantity - no max limit
+        return {
+          ...item,
+          max_return_quantity: item.max_return_quantity ?? null,
+        };
+      }
+
+      const key = String(itemUuid).trim().toLowerCase();
+      const receivedQty = receivedQuantitiesMap.get(key) || 0;
+      const alreadyReturnedQty = returnedQuantitiesMap.get(key) || 0;
+      
+      // Calculate shortfall: ordered - received
+      const shortfallQty = orderedQty - receivedQty;
+      
+      // Calculate remaining return quantity: shortfall - already returned
+      const remainingReturnQty = Math.max(0, shortfallQty - alreadyReturnedQty);
+
+      return {
+        ...item,
+        max_return_quantity: item.max_return_quantity ?? remainingReturnQty,
+      };
+    });
+  } catch (error) {
+    console.error("[ReturnNoteForm] Error recalculating max return quantities:", error);
+    // On error, return items as-is (preserve existing max_return_quantity if any)
+    return items;
   }
 };
 
@@ -1555,6 +1732,7 @@ const transformItemsToReturnItems = (items: any[]) => {
       return_total: item.return_total || null,
       location_uuid: item.location_uuid || metadata.location_uuid || null,
       location_label: item.location_label || item.location || metadata.location_display || metadata.location_label || null,
+      max_return_quantity: item.max_return_quantity !== undefined ? item.max_return_quantity : null, // Preserve max_return_quantity if it exists
     };
   });
 };
@@ -1834,6 +2012,7 @@ const fetchItems = async (sourceUuid: string | null, sourceType: string | null) 
             cost_code_name: returnNoteItem.cost_code_name ?? item.cost_code_name,
             return_quantity: returnQty,
             return_total: returnNoteItem.return_total ?? null,
+            max_return_quantity: item.max_return_quantity, // Preserve max_return_quantity from original item
           };
         }
         
@@ -1851,6 +2030,7 @@ const fetchItems = async (sourceUuid: string | null, sourceType: string | null) 
               cost_code_name: existing.cost_code_name ?? item.cost_code_name,
               return_quantity: existing.return_quantity ?? item.return_quantity,
               return_total: existing.return_total ?? item.return_total,
+              max_return_quantity: existing.max_return_quantity ?? item.max_return_quantity, // Preserve max_return_quantity
             };
           }
         }
@@ -1858,6 +2038,21 @@ const fetchItems = async (sourceUuid: string | null, sourceType: string | null) 
         
         return item;
       });
+      
+      // Recalculate max_return_quantity for items when editing
+      // This ensures validation works correctly even when editing
+      if (sourceType && sourceUuid) {
+        const itemsWithMaxReturn = await recalculateMaxReturnQuantities(
+          returnItems.value,
+          sourceUuid,
+          sourceType as 'purchase_order' | 'change_order'
+        );
+        returnItems.value = itemsWithMaxReturn;
+        
+        // Force validation recalculation after setting max_return_quantity
+        void overReturnItems.value;
+        void hasValidationError.value;
+      }
       
       // Update form with return items after merging (for editing mode)
       updateFormField("return_items", returnItems.value);
@@ -1908,15 +2103,19 @@ const handleReturnQuantityChange = (payload: {
   }
 
 
-  // Update the item - IMPORTANT: preserve uuid and base_item_uuid
-  returnItems.value[index] = {
+  // Update the item - IMPORTANT: preserve uuid, base_item_uuid, and max_return_quantity
+  // Create a new array to ensure Vue detects the change
+  const updatedItems = [...returnItems.value];
+  updatedItems[index] = {
     ...item,
     return_quantity: numericValue,
     return_total: computedTotal,
-    // Explicitly preserve UUID fields to ensure they're not lost
+    // Explicitly preserve UUID fields and max_return_quantity to ensure they're not lost
     uuid: item.uuid,
     base_item_uuid: item.base_item_uuid,
+    max_return_quantity: item.max_return_quantity,
   };
+  returnItems.value = updatedItems;
 
 
   // Update form with return items for saving
@@ -1927,6 +2126,11 @@ const handleReturnQuantityChange = (payload: {
     return sum + (parseNumericInput(item.return_total) || 0);
   }, 0);
   updateFormField("total_return_amount", roundCurrencyValue(totalReturnAmount));
+  
+  // Force validation recalculation by accessing the computed values
+  // This ensures the parent component sees the updated validation state
+  void overReturnItems.value;
+  void hasValidationError.value;
 };
 
 // Helper function to clone return item
@@ -2098,10 +2302,84 @@ const handleAddReturnItem = (index: number) => {
 };
 
 
+// Check for items with return quantity exceeding max allowed
+const overReturnItems = computed(() => {
+  if (!Array.isArray(returnItems.value) || returnItems.value.length === 0) {
+    return [];
+  }
+
+  return returnItems.value
+    .map((item, index) => {
+      const returnQty = parseNumericInput(item.return_quantity ?? 0);
+      const maxReturnQty = item.max_return_quantity !== null && item.max_return_quantity !== undefined
+        ? parseNumericInput(item.max_return_quantity)
+        : null;
+      
+      // Only validate if max_return_quantity is set (not null/undefined)
+      // Items without max_return_quantity (null) are allowed to have any return quantity
+      if (maxReturnQty !== null && returnQty > maxReturnQty) {
+        return {
+          ...item,
+          index,
+          return_quantity: returnQty,
+          max_return_quantity: maxReturnQty,
+          exceeded_quantity: returnQty - maxReturnQty,
+        };
+      }
+      return null;
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null);
+});
+
+const hasOverReturnItems = computed(() => overReturnItems.value.length > 0);
+
+const overReturnValidationError = computed(() => {
+  if (!hasOverReturnItems.value) return null;
+  
+  const itemCount = overReturnItems.value.length;
+  const itemsList = overReturnItems.value
+    .map((item, idx) => {
+      const itemName = item.item_name || item.description || `Item ${idx + 1}`;
+      const returnQty = item.return_quantity ?? 0;
+      const maxQty = item.max_return_quantity ?? 0;
+      return `"${itemName}" (Return: ${returnQty}, Max: ${maxQty})`;
+    })
+    .join('; ');
+  
+  return `Cannot save return note: ${itemCount} item(s) have return quantity greater than the maximum allowed (remaining shortfall). ${itemsList}`;
+});
+
+// Combined validation error (includes both receipt notes validation and over-return validation)
+const combinedValidationError = computed(() => {
+  return receiptNotesValidationError.value || overReturnValidationError.value;
+});
+
+// Create a computed for hasValidationError
+const hasValidationError = computed(() => !!combinedValidationError.value);
+
+// Watch returnItems to ensure validation is recalculated when items change
+watch(
+  () => returnItems.value,
+  () => {
+    // Force reactivity by accessing the computed values
+    // This ensures the validation state is recalculated when returnItems changes
+    void overReturnItems.value;
+    void hasOverReturnItems.value;
+    void overReturnValidationError.value;
+    void combinedValidationError.value;
+    void hasValidationError.value;
+  },
+  { deep: true, immediate: true }
+);
+
 // Expose validation state to parent
 defineExpose({
   receiptNotesValidationError,
-  hasValidationError: computed(() => !!receiptNotesValidationError.value),
+  overReturnValidationError,
+  combinedValidationError,
+  hasValidationError,
+  overReturnItems,
+  hasOverReturnItems,
 });
 
 // Watch for purchase order or change order changes

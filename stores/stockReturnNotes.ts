@@ -233,9 +233,21 @@ export const useStockReturnNotesStore = defineStore(
 
         if (newNote) {
           // Normalize return number to simple format
+          // Preserve ALL fields from API response (including flattened metadata fields like project_name, po_number, etc.)
+          // The spread operator preserves all fields, including ones not in the TypeScript interface
           const normalizedNote = {
             ...newNote,
             return_number: normalizeReturnNumber(newNote.return_number),
+            // Ensure metadata object exists and includes all flattened fields from API response
+            metadata: {
+              ...(newNote.metadata || {}),
+              // Preserve flattened metadata fields from API response (these come from JOINs)
+              ...((newNote as any).project_name ? { project_name: (newNote as any).project_name } : {}),
+              ...((newNote as any).project_id ? { project_id: (newNote as any).project_id } : {}),
+              ...((newNote as any).po_number ? { po_number: (newNote as any).po_number } : {}),
+              ...((newNote as any).co_number ? { co_number: (newNote as any).co_number } : {}),
+              ...((newNote as any).vendor_name ? { vendor_name: (newNote as any).vendor_name } : {}),
+            },
           };
           const corpUuid = normalizedNote.corporation_uuid;
           const existing = getNotesForCorporation(corpUuid).filter(
@@ -243,12 +255,17 @@ export const useStockReturnNotesStore = defineStore(
           );
           const updatedCorpNotes = sortNotes([normalizedNote, ...existing]);
           replaceCorporationNotes(corpUuid, updatedCorpNotes);
+          // Save to IndexedDB with all fields preserved (including top-level flattened fields)
           await dbHelpers.addStockReturnNote(corpUuid, normalizedNote);
           lastFetchedCorporation.value = corpUuid;
           hasDataForCorporation.value.add(corpUuid);
         }
 
-        return newNote;
+        // Return normalized note with all metadata preserved
+        return newNote ? {
+          ...newNote,
+          return_number: normalizeReturnNumber(newNote.return_number),
+        } : null;
       } catch (err: any) {
         console.error("[StockReturnNotes] create error:", err);
         const message =
@@ -288,9 +305,23 @@ export const useStockReturnNotesStore = defineStore(
         }
 
         // Normalize return number to simple format
+        // Preserve ALL fields from API response (including flattened metadata fields like project_name, po_number, etc.)
+        // Merge with existing note metadata to ensure we don't lose any fields
+        const existingMetadata = existingNote?.metadata || {};
         const normalizedUpdated = {
           ...updated,
           return_number: normalizeReturnNumber(updated.return_number),
+          // Ensure metadata object exists and includes all flattened fields from API response
+          metadata: {
+            ...existingMetadata,
+            ...(updated.metadata || {}),
+            // Preserve flattened metadata fields from API response (these come from JOINs)
+            ...((updated as any).project_name ? { project_name: (updated as any).project_name } : {}),
+            ...((updated as any).project_id ? { project_id: (updated as any).project_id } : {}),
+            ...((updated as any).po_number ? { po_number: (updated as any).po_number } : {}),
+            ...((updated as any).co_number ? { co_number: (updated as any).co_number } : {}),
+            ...((updated as any).vendor_name ? { vendor_name: (updated as any).vendor_name } : {}),
+          },
         };
 
         const corpNotes = getNotesForCorporation(corporationUuid).filter(
@@ -298,6 +329,7 @@ export const useStockReturnNotesStore = defineStore(
         );
         const updatedCorpNotes = sortNotes([normalizedUpdated, ...corpNotes]);
         replaceCorporationNotes(corporationUuid, updatedCorpNotes);
+        // Save to IndexedDB with all fields preserved (including top-level flattened fields)
         await dbHelpers.updateStockReturnNote(corporationUuid, normalizedUpdated);
         lastFetchedCorporation.value = corporationUuid;
         hasDataForCorporation.value.add(corporationUuid);

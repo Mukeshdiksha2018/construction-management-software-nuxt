@@ -345,6 +345,7 @@ describe("ReceiptNoteList - Return Note PO/CO Status Update", () => {
       const vm = wrapper.vm as any;
 
       // Set up return note form data (simulating what happens when "Raise Return Note" is clicked)
+      // Set corporation_uuid to match TopBar's selected corporation so shouldUpdateStore is true
       vm.returnNoteFormData = {
         return_number: "RTN-1",
         entry_date: "2024-05-01T00:00:00.000Z",
@@ -352,6 +353,7 @@ describe("ReceiptNoteList - Return Note PO/CO Status Update", () => {
         purchase_order_uuid: "po-1",
         change_order_uuid: null,
         project_uuid: "project-1",
+        corporation_uuid: "corp-1", // Match TopBar's selectedCorporationId
         status: "Waiting",
         return_items: [
           {
@@ -369,6 +371,13 @@ describe("ReceiptNoteList - Return Note PO/CO Status Update", () => {
       // Call saveReturnNoteFromShortfall directly
       await vm.saveReturnNoteFromShortfall();
       await flushPromises();
+
+      // Verify that status is always saved as "Returned" (even if form had "Waiting")
+      expect(createStockReturnNoteMock).toHaveBeenCalled();
+      const createCallArgs = createStockReturnNoteMock.mock.calls[0]?.[0];
+      if (createCallArgs) {
+        expect(createCallArgs.status).toBe("Returned");
+      }
 
       // Verify that fetchPurchaseOrder was called with the correct PO UUID
       expect(fetchPurchaseOrderMock).toHaveBeenCalledWith("po-1");
@@ -398,6 +407,7 @@ describe("ReceiptNoteList - Return Note PO/CO Status Update", () => {
         purchase_order_uuid: "po-1",
         change_order_uuid: null,
         project_uuid: "project-1",
+        corporation_uuid: "corp-1", // Match TopBar's selectedCorporationId
         status: "Waiting",
         return_items: [
           {
@@ -423,6 +433,12 @@ describe("ReceiptNoteList - Return Note PO/CO Status Update", () => {
 
       // Verify return note was still created despite error
       expect(createStockReturnNoteMock).toHaveBeenCalled();
+      
+      // Verify that status is always saved as "Returned"
+      const createCallArgs = createStockReturnNoteMock.mock.calls[0]?.[0];
+      if (createCallArgs) {
+        expect(createCallArgs.status).toBe("Returned");
+      }
 
       // Verify updatePurchaseOrderInList was NOT called (because fetch failed)
       expect(updatePurchaseOrderInListMock).not.toHaveBeenCalled();
@@ -483,6 +499,7 @@ describe("ReceiptNoteList - Return Note PO/CO Status Update", () => {
         purchase_order_uuid: null,
         change_order_uuid: "co-1",
         project_uuid: "project-1",
+        corporation_uuid: "corp-1", // Match TopBar's selectedCorporationId
         status: "Waiting",
         return_items: [
           {
@@ -499,6 +516,13 @@ describe("ReceiptNoteList - Return Note PO/CO Status Update", () => {
 
       await vm.saveReturnNoteFromShortfall();
       await flushPromises();
+
+      // Verify that status is always saved as "Returned"
+      expect(createStockReturnNoteMock).toHaveBeenCalled();
+      const createCallArgs = createStockReturnNoteMock.mock.calls[0]?.[0];
+      if (createCallArgs) {
+        expect(createCallArgs.status).toBe("Returned");
+      }
 
       // Verify that fetchChangeOrder was called with the correct CO UUID
       expect(fetchChangeOrderMock).toHaveBeenCalledWith("co-1");
@@ -523,6 +547,7 @@ describe("ReceiptNoteList - Return Note PO/CO Status Update", () => {
         purchase_order_uuid: null,
         change_order_uuid: "co-1",
         project_uuid: "project-1",
+        corporation_uuid: "corp-1", // Match TopBar's selectedCorporationId
         status: "Waiting",
         return_items: [
           {
@@ -609,6 +634,7 @@ describe("ReceiptNoteList - Return Note PO/CO Status Update", () => {
         purchase_order_uuid: "po-1",
         change_order_uuid: null,
         project_uuid: "project-1",
+        corporation_uuid: "corp-1", // Match TopBar's selectedCorporationId
         status: "Waiting",
         return_items: [
           {
@@ -634,6 +660,7 @@ describe("ReceiptNoteList - Return Note PO/CO Status Update", () => {
       // Verify that createStockReturnNote was called with the updated return quantity
       expect(createStockReturnNoteMock).toHaveBeenCalledWith(
         expect.objectContaining({
+          status: "Returned", // Status should always be "Returned"
           return_items: expect.arrayContaining([
             expect.objectContaining({
               return_quantity: 20, // Updated quantity

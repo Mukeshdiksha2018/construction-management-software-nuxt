@@ -258,7 +258,7 @@ describe('PurchaseOrdersList.vue - Approval Functionality', () => {
       expect(vm.showApprovalButtons).toBe(false);
     });
 
-    it('should show unapprove button for Approved status when user has po_approve permission', async () => {
+    it('should show reject button for Approved status when user has po_approve permission', async () => {
       mockHasPermission.mockImplementation((perm: string) => {
         if (perm === 'po_approve') return true;
         if (perm === 'po_edit') return true;
@@ -282,12 +282,12 @@ describe('PurchaseOrdersList.vue - Approval Functionality', () => {
 
       expect(vm.showFormModal).toBe(true);
       expect(vm.showSaveDraftButton).toBe(true);
-      expect(vm.saveDraftButtonLabel).toBe('Unapprove');
+      expect(vm.saveDraftButtonLabel).toBe('Reject');
       expect(vm.saveDraftButtonIcon).toBe('i-heroicons-arrow-uturn-left');
       expect(vm.saveDraftButtonColor).toBe('error');
     });
 
-    it('should NOT show unapprove button for Approved status when user lacks po_approve permission', async () => {
+    it('should NOT show reject button for Approved status when user lacks po_approve permission', async () => {
       mockHasPermission.mockImplementation((perm: string) => {
         if (perm === 'po_approve') return false;
         if (perm === 'po_edit') return true;

@@ -1487,7 +1487,31 @@ const laborCODisplayItems = computed(() => {
   
   // For new COs, use original PO items and merge with form data
   const source = Array.isArray(laborPOItems.value) ? laborPOItems.value : []
-  return source.map((row: any, idx: number) => {
+  
+  // Check if labor_co_items is pre-populated (e.g., from exceeded quantities)
+  // If so, only show items that are in labor_co_items
+  const laborCoItemsList = Array.isArray((props.form as any)?.labor_co_items) ? (props.form as any).labor_co_items : []
+  const hasPrePopulatedLaborCoItems = laborCoItemsList.length > 0
+  
+  // Build set of labor_co_items cost_code_uuids for filtering
+  const laborCoItemsCostCodeUuids = new Set<string>()
+  if (hasPrePopulatedLaborCoItems) {
+    laborCoItemsList.forEach((item: any) => {
+      if (item.cost_code_uuid) {
+        laborCoItemsCostCodeUuids.add(String(item.cost_code_uuid).toLowerCase())
+      }
+    })
+  }
+  
+  // Filter source to only include items in labor_co_items if pre-populated
+  const filteredSource = hasPrePopulatedLaborCoItems
+    ? source.filter((row: any) => {
+        const costCodeUuid = String(row?.cost_code_uuid || '').toLowerCase()
+        return costCodeUuid && laborCoItemsCostCodeUuids.has(costCodeUuid)
+      })
+    : source
+  
+  return filteredSource.map((row: any, idx: number) => {
     const base = {
       id: row?.uuid || row?.id || `labor-${row.cost_code_uuid || idx}`,
       cost_code_uuid: row?.cost_code_uuid || null,
@@ -1590,7 +1614,29 @@ const coDisplayItems = computed(() => {
   removed.forEach((item: any) => {
     removedKeys.add(buildCoMatchKey(item))
   })
-  const filtered = source.filter((row: any) => !removedKeys.has(buildCoMatchKey(row)))
+  
+  // Check if co_items is pre-populated (e.g., from exceeded quantities)
+  // If so, only show items that are in co_items
+  const coItemsList = Array.isArray(props.form?.co_items) ? props.form.co_items : []
+  const hasPrePopulatedCoItems = coItemsList.length > 0
+  
+  // Build set of co_items keys for filtering
+  const coItemsKeys = new Set<string>()
+  if (hasPrePopulatedCoItems) {
+    coItemsList.forEach((item: any) => {
+      coItemsKeys.add(buildCoMatchKey(item))
+    })
+  }
+  
+  const filtered = source.filter((row: any) => {
+    const rowKey = buildCoMatchKey(row)
+    // Exclude removed items
+    if (removedKeys.has(rowKey)) return false
+    // If co_items is pre-populated, only include items that are in co_items
+    if (hasPrePopulatedCoItems && !coItemsKeys.has(rowKey)) return false
+    return true
+  })
+  
   return filtered.map((row: any, idx: number) => {
     // Fetch sequence from cost code configurations store using item_uuid
     const itemUuid = row?.item_uuid || null
