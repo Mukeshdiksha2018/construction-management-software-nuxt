@@ -47,7 +47,8 @@ export const useAPAgingStore = defineStore('apAging', () => {
     error.value = null
     
     try {
-      const { data } = await $fetch(`/api/reports/ap-aging/${corporationUuid}`)
+      const { apiFetch } = useApiClient();
+      const { data } = await apiFetch(`/api/reports/ap-aging/${corporationUuid}`)
       report.value = data
     } catch (err: any) {
       error.value = err.message || 'Failed to fetch AP aging report'

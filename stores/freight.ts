@@ -58,14 +58,16 @@ export const useShipViaStore = defineStore("shipVia", {
           data = await dbHelpers.getShipVia();
           // If empty, fallback to API
           if (!data || data.length === 0) {
-            const response = await $fetch("/api/ship-via", { method: "GET" });
+            const { apiFetch } = useApiClient();
+            const response = await apiFetch("/api/ship-via", { method: "GET" });
             data = response?.data || response;
             if (data && Array.isArray(data)) {
               await dbHelpers.saveShipVia(data);
             }
           }
         } else {
-          const response = await $fetch("/api/ship-via", { method: "GET" });
+          const { apiFetch } = useApiClient();
+          const response = await apiFetch("/api/ship-via", { method: "GET" });
           data = response?.data || response;
           const { dbHelpers } = await import("@/utils/indexedDb");
           if (data && Array.isArray(data)) {
@@ -88,7 +90,8 @@ export const useShipViaStore = defineStore("shipVia", {
       this.loading = true;
       this.error = null;
       try {
-        const response = await $fetch("/api/ship-via", {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch("/api/ship-via", {
           method: "POST",
           body: shipViaData,
         });
@@ -113,7 +116,8 @@ export const useShipViaStore = defineStore("shipVia", {
       this.loading = true;
       this.error = null;
       try {
-        const response = await $fetch(`/api/ship-via/${uuid}`, {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch(`/api/ship-via/${uuid}`, {
           method: "PUT",
           body: shipViaData,
         });
@@ -141,7 +145,8 @@ export const useShipViaStore = defineStore("shipVia", {
       this.loading = true;
       this.error = null;
       try {
-        const response = await $fetch(`/api/ship-via/${uuid}`, {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch(`/api/ship-via/${uuid}`, {
           method: "DELETE",
         });
 

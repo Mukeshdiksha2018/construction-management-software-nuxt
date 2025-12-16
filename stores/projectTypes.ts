@@ -130,7 +130,8 @@ export const useProjectTypesStore = defineStore("projectTypes", () => {
     error.value = null;
 
     try {
-      await $fetch(`/api/project-types/${id}`, {
+      const { apiFetch } = useApiClient();
+      await apiFetch(`/api/project-types/${id}`, {
         method: "DELETE",
       });
 

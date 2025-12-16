@@ -144,7 +144,8 @@ export const useCorporationStore = defineStore(
       loading.value = true;
       errorMessage.value = "";
       try {
-        const data = await $fetch("/api/corporations");
+        const { apiFetch } = useApiClient();
+        const data = await apiFetch("/api/corporations");
         if (data && typeof data === "object" && "error" in data && data.error) {
           throw new Error(data.error as string);
         }
@@ -326,7 +327,8 @@ export const useCorporationStore = defineStore(
       errorMessage.value = "";
 
       try {
-        const result = await $fetch(`/api/corporations/delete-all`, {
+        const { apiFetch } = useApiClient();
+        const result = await apiFetch(`/api/corporations/delete-all`, {
           method: "DELETE",
         });
 

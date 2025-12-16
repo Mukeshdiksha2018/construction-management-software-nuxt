@@ -58,14 +58,16 @@ export const useApprovalChecksStore = defineStore("approvalChecks", {
           data = await dbHelpers.getApprovalChecks();
           // If empty, fallback to API
           if (!data || data.length === 0) {
-            const response = await $fetch("/api/approval-checks", { method: "GET" });
+            const { apiFetch } = useApiClient();
+            const response = await apiFetch("/api/approval-checks", { method: "GET" });
             data = response?.data || response;
             if (data && Array.isArray(data)) {
               await dbHelpers.saveApprovalChecks(data);
             }
           }
         } else {
-          const response = await $fetch("/api/approval-checks", { method: "GET" });
+          const { apiFetch } = useApiClient();
+          const response = await apiFetch("/api/approval-checks", { method: "GET" });
           data = response?.data || response;
           const { dbHelpers } = await import("@/utils/indexedDb");
           if (data && Array.isArray(data)) {
@@ -88,7 +90,8 @@ export const useApprovalChecksStore = defineStore("approvalChecks", {
       this.loading = true;
       this.error = null;
       try {
-        const response = await $fetch("/api/approval-checks", {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch("/api/approval-checks", {
           method: "POST",
           body: approvalCheckData,
         });
@@ -113,7 +116,8 @@ export const useApprovalChecksStore = defineStore("approvalChecks", {
       this.loading = true;
       this.error = null;
       try {
-        const response = await $fetch(`/api/approval-checks/${uuid}`, {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch(`/api/approval-checks/${uuid}`, {
           method: "PUT",
           body: approvalCheckData,
         });
@@ -141,7 +145,8 @@ export const useApprovalChecksStore = defineStore("approvalChecks", {
       this.loading = true;
       this.error = null;
       try {
-        const response = await $fetch(`/api/approval-checks/${uuid}`, {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch(`/api/approval-checks/${uuid}`, {
           method: "DELETE",
         });
 

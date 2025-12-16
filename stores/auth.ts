@@ -32,7 +32,8 @@ export const useAuthStore = defineStore(
         }
 
         // Fallback to API if no session found
-        const response = await $fetch("/api/auth");
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch("/api/auth");
         if (response && "user" in response && response.user) {
           user.value = response.user;
           isInitialized.value = true;

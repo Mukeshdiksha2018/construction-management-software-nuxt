@@ -65,7 +65,8 @@ export const usePOInstructionsStore = defineStore("poInstructions", {
 
         if (forceFromAPI) {
           // Fetch from API directly
-          const response = await $fetch("/api/po-instructions", {
+          const { apiFetch } = useApiClient();
+          const response = await apiFetch("/api/po-instructions", {
             method: "GET",
             query: {
               corporation_uuid: corporationUuid,
@@ -109,7 +110,8 @@ export const usePOInstructionsStore = defineStore("poInstructions", {
       this.error = null;
 
       try {
-        const response = await $fetch("/api/po-instructions", {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch("/api/po-instructions", {
           method: "POST",
           body: {
             corporation_uuid: corporationUuid,
@@ -144,7 +146,8 @@ export const usePOInstructionsStore = defineStore("poInstructions", {
       this.error = null;
 
       try {
-        const response = await $fetch(`/api/po-instructions/${uuid}`, {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch(`/api/po-instructions/${uuid}`, {
           method: "PUT",
           body: {
             ...poInstructionData,
@@ -178,7 +181,8 @@ export const usePOInstructionsStore = defineStore("poInstructions", {
       this.error = null;
 
       try {
-        const response = await $fetch(`/api/po-instructions/${uuid}`, {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch(`/api/po-instructions/${uuid}`, {
           method: "DELETE",
         });
 

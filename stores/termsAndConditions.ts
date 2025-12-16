@@ -199,7 +199,8 @@ export const useTermsAndConditionsStore = defineStore("termsAndConditions", () =
     error.value = null;
 
     try {
-      await $fetch(`/api/terms-and-conditions/${id}`, {
+      const { apiFetch } = useApiClient();
+      await apiFetch(`/api/terms-and-conditions/${id}`, {
         method: "DELETE",
       });
 

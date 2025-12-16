@@ -62,14 +62,16 @@ export const useUOMStore = defineStore("uom", {
           data = await dbHelpers.getUOMGlobal();
           // If empty, fallback to API
           if (!data || data.length === 0) {
-            const response = await $fetch("/api/uom", { method: "GET" });
+            const { apiFetch } = useApiClient();
+            const response = await apiFetch("/api/uom", { method: "GET" });
             data = response?.data || response;
             if (data && Array.isArray(data)) {
               await dbHelpers.saveUOMGlobal(data);
             }
           }
         } else {
-          const response = await $fetch("/api/uom", { method: "GET" });
+          const { apiFetch } = useApiClient();
+          const response = await apiFetch("/api/uom", { method: "GET" });
           data = response?.data || response;
           const { dbHelpers } = await import("@/utils/indexedDb");
           if (data && Array.isArray(data)) {
@@ -92,7 +94,8 @@ export const useUOMStore = defineStore("uom", {
       this.loading = true;
       this.error = null;
       try {
-        const response = await $fetch("/api/uom", {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch("/api/uom", {
           method: "POST",
           body: {
             corporation_uuid: null,
@@ -120,7 +123,8 @@ export const useUOMStore = defineStore("uom", {
       this.loading = true;
       this.error = null;
       try {
-        const response = await $fetch(`/api/uom/${uuid}`, {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch(`/api/uom/${uuid}`, {
           method: "PUT",
           body: uomData,
         });
@@ -148,7 +152,8 @@ export const useUOMStore = defineStore("uom", {
       this.loading = true;
       this.error = null;
       try {
-        const response = await $fetch(`/api/uom/${uuid}`, {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch(`/api/uom/${uuid}`, {
           method: "DELETE",
         });
 

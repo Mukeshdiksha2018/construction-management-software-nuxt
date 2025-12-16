@@ -81,7 +81,8 @@ export const useLaborChangeOrderResourcesStore = defineStore('laborChangeOrderRe
     state.laborPOMap[key] = laborPOState
 
     try {
-      const response: any = await $fetch('/api/labor-purchase-order-items', {
+      const { apiFetch } = useApiClient();
+      const response: any = await apiFetch('/api/labor-purchase-order-items', {
         method: 'GET',
         query: {
           purchase_order_uuid: purchaseOrderUuid,

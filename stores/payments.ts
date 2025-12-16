@@ -139,7 +139,8 @@ export const usePaymentsStore = defineStore("payments", () => {
     error.value = null;
     
     try {
-      await $fetch(`/api/payments?id=${id}`, {
+      const { apiFetch } = useApiClient();
+      await apiFetch(`/api/payments?id=${id}`, {
         method: "DELETE",
       });
       

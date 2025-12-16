@@ -66,14 +66,16 @@ export const useChargesStore = defineStore("charges", {
           data = await dbHelpers.getChargesGlobal();
           // If empty, fallback to API
           if (!data || data.length === 0) {
-            const response = await $fetch("/api/charges", { method: "GET" });
+            const { apiFetch } = useApiClient();
+            const response = await apiFetch("/api/charges", { method: "GET" });
             data = response?.data || response;
             if (data && Array.isArray(data)) {
               await dbHelpers.saveChargesGlobal(data);
             }
           }
         } else {
-          const response = await $fetch("/api/charges", { method: "GET" });
+          const { apiFetch } = useApiClient();
+          const response = await apiFetch("/api/charges", { method: "GET" });
           data = response?.data || response;
           const { dbHelpers } = await import("@/utils/indexedDb");
           if (data && Array.isArray(data)) {
@@ -96,7 +98,8 @@ export const useChargesStore = defineStore("charges", {
       this.loading = true;
       this.error = null;
       try {
-        const response = await $fetch("/api/charges", {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch("/api/charges", {
           method: "POST",
           body: {
             corporation_uuid: null,
@@ -124,7 +127,8 @@ export const useChargesStore = defineStore("charges", {
       this.loading = true;
       this.error = null;
       try {
-        const response = await $fetch(`/api/charges/${uuid}`, {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch(`/api/charges/${uuid}`, {
           method: "PUT",
           body: chargeData,
         });
@@ -152,7 +156,8 @@ export const useChargesStore = defineStore("charges", {
       this.loading = true;
       this.error = null;
       try {
-        const response = await $fetch(`/api/charges/${uuid}`, {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch(`/api/charges/${uuid}`, {
           method: "DELETE",
         });
 
