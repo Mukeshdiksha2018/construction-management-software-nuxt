@@ -4,6 +4,21 @@
       <div class="flex-1">
         <UCard variant="soft">
           <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+          <!-- Corporation -->
+          <div>
+            <label class="block text-xs font-medium text-default mb-1">
+              Corporation <span class="text-red-500">*</span>
+            </label>
+            <CorporationSelect
+              :model-value="form.corporation_uuid"
+              :disabled="props.readonly"
+              placeholder="Select corporation"
+              size="sm"
+              class="w-full"
+              @update:model-value="handleCorporationChange"
+            />
+          </div>
+
           <div>
             <label class="block text-xs font-medium text-default mb-1">
               GRN Number
@@ -59,8 +74,8 @@
             </label>
             <ProjectSelect
               :model-value="form.project_uuid"
-              :corporation-uuid="corpStore.selectedCorporation?.uuid"
-              :disabled="!corpStore.selectedCorporation || props.readonly"
+              :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
+              :disabled="!form.corporation_uuid && !corpStore.selectedCorporation || props.readonly"
               placeholder="Select project"
               size="sm"
               class="w-full"
@@ -180,7 +195,7 @@
             </label>
             <LocationSelect
               :model-value="form.location_uuid || null"
-              :corporation-uuid="corpStore.selectedCorporation?.uuid"
+              :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
               size="sm"
               class="w-full"
               :disabled="props.readonly"
@@ -212,7 +227,7 @@
       :items="receiptItems"
       :loading="poItemsLoading"
       :error="poItemsError"
-      :corporation-uuid="corpStore.selectedCorporation?.uuid ?? null"
+      :corporation-uuid="(form.corporation_uuid || corpStore.selectedCorporation?.uuid) ?? null"
       :receipt-type="receiptType"
       :readonly="props.readonly"
       @received-quantity-change="handleReceivedQuantityChange"
@@ -416,6 +431,7 @@ import { useUTCDateFormat } from "@/composables/useUTCDateFormat";
 import { useCurrencyFormat } from "@/composables/useCurrencyFormat";
 import ProjectSelect from "@/components/Shared/ProjectSelect.vue";
 import LocationSelect from "@/components/Shared/LocationSelect.vue";
+import CorporationSelect from "@/components/Shared/CorporationSelect.vue";
 import ReceiptNoteItemsTable from "@/components/PurchaseOrders/ReceiptNoteItemsTable.vue";
 import { useUserProfilesStore } from "@/stores/userProfiles";
 import { useItemTypesStore } from "@/stores/itemTypes";
@@ -904,8 +920,9 @@ watch(
 
 // Ensure vendors are loaded
 const ensureVendorsLoaded = async () => {
-  const corpUuid = corpStore.selectedCorporation?.uuid;
-  if (corpUuid && vendorStore.vendors.length === 0) {
+  // Use form's corporation_uuid, fallback to store's selectedCorporation
+  const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
+  if (corpUuid) {
     try {
       await vendorStore.fetchVendors(corpUuid);
     } catch (error) {
@@ -914,17 +931,37 @@ const ensureVendorsLoaded = async () => {
   }
 };
 
-watch(selectedCorporationUuid, async (corpUuid) => {
-  if (corpUuid) {
-    await ensureVendorsLoaded();
-  }
-}, { immediate: true });
+watch(
+  [() => props.form.corporation_uuid, selectedCorporationUuid],
+  async ([formCorpUuid]) => {
+    // Prioritize form's corporation_uuid
+    const corpUuid = formCorpUuid || selectedCorporationUuid.value;
+    if (corpUuid) {
+      await ensureVendorsLoaded();
+    }
+  },
+  { immediate: true }
+);
 
 onMounted(async () => {
+  // Initialize corporation_uuid in form if not set
+  if (!props.form.corporation_uuid && corpStore.selectedCorporation?.uuid) {
+    updateFormField('corporation_uuid', corpStore.selectedCorporation.uuid);
+  }
+  
+  // NOTE: We do NOT update corpStore.selectedCorporation here to avoid affecting other components
+  // The form operates independently with its own corporation selection (props.form.corporation_uuid)
+  
+  // Use the form's corporation_uuid for fetching data (independent from TopBar)
+  const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
+  
   if (shouldFetchUsers.value) {
     ensureUsersLoaded();
   }
-  ensureVendorsLoaded();
+  
+  if (corpUuid) {
+    await ensureVendorsLoaded();
+  }
   
   // When editing an existing receipt note, ensure financial data is loaded
   if (props.editingReceiptNote && props.form.uuid) {
@@ -984,6 +1021,26 @@ const updateFormField = (field: string, value: any, base?: Record<string, any>) 
   const next = { ...source, [field]: value };
   emit("update:form", next);
   return next;
+};
+
+const handleCorporationChange = async (corporationUuid?: string | null) => {
+  const normalizedCorporationUuid = corporationUuid || '';
+  updateFormField('corporation_uuid', normalizedCorporationUuid);
+  
+  // Fetch data for the selected corporation
+  // NOTE: We do NOT update corpStore.selectedCorporation here to avoid affecting other components
+  // The form operates independently with its own corporation selection
+  if (normalizedCorporationUuid) {
+    await Promise.allSettled([
+      vendorStore.fetchVendors(normalizedCorporationUuid),
+      ensureUsersLoaded(),
+    ]);
+    
+    // Clear project selection when corporation changes (projects are corporation-specific)
+    if (props.form.project_uuid) {
+      updateFormField("project_uuid", null);
+    }
+  }
 };
 
 const handleProjectChange = (projectUuid?: string | null) => {
@@ -1156,7 +1213,7 @@ watch(
 // Transform PO items to receipt items format
 const transformPoItemsToReceiptItems = (items: any[]) => {
   // Get preferred items for lookup (for sequence and UOM)
-  const corpUuid = corpStore.selectedCorporation?.uuid;
+  const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
   const projectUuid = props.form.project_uuid;
   const preferredItemsGetter = purchaseOrderResourcesStore.getPreferredItems;
   const preferredItems = (typeof preferredItemsGetter === 'function' && corpUuid && projectUuid)
@@ -1279,7 +1336,7 @@ const fetchItems = async (sourceUuid: string | null, sourceType: string | null) 
 
   try {
     // Ensure item types and preferred items are loaded for lookup
-    const corpUuid = corpStore.selectedCorporation?.uuid;
+    const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
     const projectUuid = props.form.project_uuid;
     if (corpUuid && projectUuid) {
       // Fetch item types if needed
@@ -1352,7 +1409,7 @@ const fetchItems = async (sourceUuid: string | null, sourceType: string | null) 
       
       if (props.form.uuid) {
         try {
-          const corpUuid = corpStore.selectedCorporation?.uuid;
+          const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
           const projectUuid = props.form.project_uuid;
           
           if (!corpUuid) {
@@ -1798,7 +1855,7 @@ watch(
 // Load financial data from purchase order or change order
 const loadFinancialDataFromSource = async (sourceUuid: string, sourceType: string) => {
   try {
-    const corpUuid = corpStore.selectedCorporation?.uuid;
+    const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
 
     if (sourceType === 'purchase_order') {
       // Ensure purchase orders are loaded
