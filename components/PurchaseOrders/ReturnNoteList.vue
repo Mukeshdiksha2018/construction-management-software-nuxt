@@ -909,7 +909,14 @@ const saveReturnNote = async () => {
     return;
   }
   
-  const corpUuid = corporationStore.selectedCorporationId;
+  // Use form's corporation_uuid (not TopBar's selectedCorporationId)
+  // This allows the form to operate independently with its own corporation selection
+  const formCorpUuid = returnNoteForm.value?.corporation_uuid;
+  const topBarCorpUuid = corporationStore.selectedCorporationId;
+  
+  // Use form's corporation_uuid if available, otherwise fall back to TopBar's selected corporation
+  const corpUuid = formCorpUuid || topBarCorpUuid;
+  
   if (!corpUuid) {
     const toast = useToast();
     toast.add({
@@ -930,6 +937,10 @@ const saveReturnNote = async () => {
     });
     return;
   }
+
+  // Check if form's corporation matches TopBar's selected corporation
+  // Only update store/IndexedDB if they match, otherwise just call API directly
+  const shouldUpdateStore = formCorpUuid && topBarCorpUuid && formCorpUuid === topBarCorpUuid;
 
   savingReturnNote.value = true;
   try {
@@ -985,7 +996,17 @@ const saveReturnNote = async () => {
     
 
     if (returnNoteForm.value?.uuid) {
-      await stockReturnNotesStore.updateStockReturnNote(payload);
+      // Update existing return note
+      if (shouldUpdateStore) {
+        // Form's corporation matches TopBar's selected corporation - update store and IndexedDB
+        await stockReturnNotesStore.updateStockReturnNote(payload);
+      } else {
+        // Form's corporation is different - just call API directly (bypass store/IndexedDB)
+        await $fetch("/api/stock-return-notes", {
+          method: "PUT",
+          body: payload,
+        });
+      }
       const toast = useToast();
       toast.add({
         title: "Updated",
@@ -993,7 +1014,17 @@ const saveReturnNote = async () => {
         color: "success",
       });
     } else {
-      await stockReturnNotesStore.createStockReturnNote(payload);
+      // Create new return note
+      if (shouldUpdateStore) {
+        // Form's corporation matches TopBar's selected corporation - update store and IndexedDB
+        await stockReturnNotesStore.createStockReturnNote(payload);
+      } else {
+        // Form's corporation is different - just call API directly (bypass store/IndexedDB)
+        await $fetch("/api/stock-return-notes", {
+          method: "POST",
+          body: payload,
+        });
+      }
       const toast = useToast();
       toast.add({
         title: "Created",
@@ -1005,7 +1036,8 @@ const saveReturnNote = async () => {
     // Refresh the specific purchase order if status was updated to Completed
     // This happens after the store action completes, which means the API has finished
     // updating the PO status (the API awaits the PO update before returning)
-    if (returnType === 'purchase_order' && formData.purchase_order_uuid && corporationStore.selectedCorporationId) {
+    // Only refresh if form's corporation matches TopBar's selected corporation
+    if (returnType === 'purchase_order' && formData.purchase_order_uuid && shouldUpdateStore && topBarCorpUuid) {
       try {
         // Fetch only the specific purchase order that was updated
         const updatedPO = await purchaseOrdersStore.fetchPurchaseOrder(formData.purchase_order_uuid);
@@ -1022,7 +1054,8 @@ const saveReturnNote = async () => {
     // Refresh the specific change order if status was updated to Completed
     // This happens after the store action completes, which means the API has finished
     // updating the CO status (the API awaits the CO update before returning)
-    if (returnType === 'change_order' && formData.change_order_uuid && corporationStore.selectedCorporationId) {
+    // Only refresh if form's corporation matches TopBar's selected corporation
+    if (returnType === 'change_order' && formData.change_order_uuid && shouldUpdateStore && topBarCorpUuid) {
       try {
         // Fetch only the specific change order that was updated
         const updatedCO = await changeOrdersStore.fetchChangeOrder(formData.change_order_uuid);

@@ -1622,7 +1622,15 @@ const handleRaiseReturnNote = async () => {
 // Save return note from shortfall
 const saveReturnNoteFromShortfall = async () => {
   if (savingReturnNote.value) return;
-  const corpUuid = corporationStore.selectedCorporationId;
+  
+  // Use form's corporation_uuid (not TopBar's selectedCorporationId)
+  // This allows the form to operate independently with its own corporation selection
+  const formCorpUuid = returnNoteFormData.value?.corporation_uuid;
+  const topBarCorpUuid = corporationStore.selectedCorporationId;
+  
+  // Use form's corporation_uuid if available, otherwise fall back to TopBar's selected corporation
+  const corpUuid = formCorpUuid || topBarCorpUuid;
+  
   if (!corpUuid) {
     const toast = useToast();
     toast.add({
@@ -1632,6 +1640,10 @@ const saveReturnNoteFromShortfall = async () => {
     });
     return;
   }
+
+  // Check if form's corporation matches TopBar's selected corporation
+  // Only update store/IndexedDB if they match, otherwise just call API directly
+  const shouldUpdateStore = formCorpUuid && topBarCorpUuid && formCorpUuid === topBarCorpUuid;
 
   // Check for validation errors
   if (returnNoteFormRef.value?.hasValidationError) {
@@ -1643,6 +1655,10 @@ const saveReturnNoteFromShortfall = async () => {
     });
     return;
   }
+
+  // Check if form's corporation matches TopBar's selected corporation
+  // Only update store/IndexedDB if they match, otherwise just call API directly
+  const shouldUpdateStore = formCorpUuid && topBarCorpUuid && formCorpUuid === topBarCorpUuid;
 
   savingReturnNote.value = true;
   try {
@@ -1694,7 +1710,18 @@ const saveReturnNoteFromShortfall = async () => {
       return_items: returnItems,
     };
 
-    const createdReturnNote = await stockReturnNotesStore.createStockReturnNote(payload);
+    let createdReturnNote;
+    if (shouldUpdateStore) {
+      // Form's corporation matches TopBar's selected corporation - update store and IndexedDB
+      createdReturnNote = await stockReturnNotesStore.createStockReturnNote(payload);
+    } else {
+      // Form's corporation is different - just call API directly (bypass store/IndexedDB)
+      const response = await $fetch("/api/stock-return-notes", {
+        method: "POST",
+        body: payload,
+      });
+      createdReturnNote = (response as any)?.data ?? response ?? null;
+    }
     
     // The API updates the PO/CO status when the return note is created
     // The API awaits the PO/CO update before returning, so the status should be updated by now
@@ -1704,7 +1731,8 @@ const saveReturnNoteFromShortfall = async () => {
     // This happens after the return note is saved, which means the API has finished
     // updating the PO status (the API awaits the PO update before returning)
     // Use formData (the payload sent to API) instead of returnNoteFormData.value to ensure we have the correct UUIDs
-    if (returnType === 'purchase_order' && formData.purchase_order_uuid && corporationStore.selectedCorporationId) {
+    // Only refresh if form's corporation matches TopBar's selected corporation
+    if (returnType === 'purchase_order' && formData.purchase_order_uuid && shouldUpdateStore && topBarCorpUuid) {
       try {
         // Fetch only the specific purchase order that was updated
         const updatedPO = await purchaseOrdersStore.fetchPurchaseOrder(formData.purchase_order_uuid);
@@ -1722,7 +1750,8 @@ const saveReturnNoteFromShortfall = async () => {
     // This happens after the return note is saved, which means the API has finished
     // updating the CO status (the API awaits the CO update before returning)
     // Use formData (the payload sent to API) instead of returnNoteFormData.value to ensure we have the correct UUIDs
-    if (returnType === 'change_order' && formData.change_order_uuid && corporationStore.selectedCorporationId) {
+    // Only refresh if form's corporation matches TopBar's selected corporation
+    if (returnType === 'change_order' && formData.change_order_uuid && shouldUpdateStore && topBarCorpUuid) {
       try {
         // Fetch only the specific change order that was updated
         const updatedCO = await changeOrdersStore.fetchChangeOrder(formData.change_order_uuid);
@@ -1736,9 +1765,13 @@ const saveReturnNoteFromShortfall = async () => {
       }
     }
     
-    // Refresh return notes store to ensure the new return note is available for shortfall checking
-    // Force refresh to get the latest data including the return note items
-    await stockReturnNotesStore.fetchStockReturnNotes(corpUuid, { force: true });
+    // Only refresh return notes store if form's corporation matches TopBar's selected corporation
+    // This ensures we don't unnecessarily fetch data for a different corporation
+    if (shouldUpdateStore && topBarCorpUuid) {
+      // Refresh return notes store to ensure the new return note is available for shortfall checking
+      // Force refresh to get the latest data including the return note items
+      await stockReturnNotesStore.fetchStockReturnNotes(topBarCorpUuid, { force: true });
+    }
     
     // Also fetch return note items to ensure they're available for the shortfall check
     // This ensures the return note items are in the database and can be queried
