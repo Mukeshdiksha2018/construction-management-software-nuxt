@@ -259,7 +259,7 @@
                   :loading="saving"
                   @click="handleRejectToDraft"
                 >
-                  Reject &amp; Save as Draft
+                  Reject
                 </UButton>
                 <UButton
                   data-testid="btn-approve-raise"
@@ -271,7 +271,7 @@
                   :loading="saving"
                   @click="handleApproveAndRaise"
                 >
-                  Approve &amp; Raise
+                  Approve
                 </UButton>
               </template>
 
@@ -313,13 +313,13 @@
                   data-testid="btn-ready"
                   color="primary"
                   variant="solid"
-                  icon="i-heroicons-bolt"
+                  icon="i-heroicons-paper-airplane"
                   size="sm"
                   :disabled="saving"
                   :loading="saving"
                   @click="handleMarkReady"
                 >
-                  Mark Ready
+                  Send for Approval
                 </UButton>
               </template>
             </div>
@@ -527,9 +527,9 @@ const saveDraftButtonLabel = computed(() => {
     return 'Locked'
   }
   if (coForm.value?.uuid && coForm.value.status === 'Approved') {
-    return 'Unapprove & Save as Draft'
+    return 'Unapprove'
   }
-  return 'Save as Draft'
+  return 'Save'
 })
 
 const saveDraftButtonIcon = computed(() => {
@@ -551,7 +551,7 @@ const saveDraftButtonColor = computed(() => {
   if (coForm.value?.uuid && coForm.value.status === 'Approved') {
     return 'error'
   }
-  return 'warning'
+  return 'primary'
 })
 
 const saveDraftButtonVariant = computed((): 'solid' => {
@@ -791,26 +791,37 @@ const columns = computed<TableColumn<any>[]>(() => [
     meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: { original: any } }) => {
       const rawStatus = row.original.status || 'Draft'
+      // Normalize status for case-insensitive matching (handle both Partially_Received and Partially_received)
+      const normalizedStatus = String(rawStatus).toLowerCase()
+      
       const statusMap: Record<string, { label: string; color: string }> = {
-        Draft: {
+        draft: {
           label: 'Drafting…',
           color: 'warning'
         },
-        Ready: {
+        ready: {
           label: 'Change order ready for approval',
           color: 'primary'
         },
-        Approved: {
+        approved: {
           label: 'Change order approved',
           color: 'success'
         },
-        Rejected: {
+        rejected: {
           label: 'Change order rejected',
           color: 'error'
+        },
+        partially_received: {
+          label: 'Partially Received',
+          color: 'info'
+        },
+        completed: {
+          label: 'Completed',
+          color: 'success'
         }
       }
       
-      const config = statusMap[rawStatus] ?? {
+      const config = statusMap[normalizedStatus] ?? {
         label: rawStatus,
         color: 'neutral'
       }
