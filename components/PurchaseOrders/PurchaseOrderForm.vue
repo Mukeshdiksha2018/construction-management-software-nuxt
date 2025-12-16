@@ -2266,7 +2266,8 @@ const applyPreferredItemsToForm = (preferredItems: any[], { force = false } = {}
 };
 
 const mapPoItemForDisplay = (item: any, index: number, estimateItem?: any) => {
-  const display = item?.display_metadata || {};
+  // Check both metadata (JSONB from DB) and display_metadata (computed/display)
+  const display = item?.display_metadata || item?.metadata || {};
 
   const costCodeNumber = display.cost_code_number || item.cost_code_number || '';
   const costCodeName = display.cost_code_name || item.cost_code_name || '';
@@ -2286,11 +2287,25 @@ const mapPoItemForDisplay = (item: any, index: number, estimateItem?: any) => {
   const locationDisplay =
     display.location_display || item.location || item.location_uuid || '';
   
-  // Extract sequence - first try from display_metadata, then from the item itself,
-  // then look it up from preferred items using item_uuid
-  let sequenceValue = display.sequence || item.item_sequence || item.sequence || '';
+  // Extract sequence - first try from display_metadata/metadata, then from the item itself,
+  // then from estimate item (if available), then look it up from preferred items using item_uuid
+  // Also check item.metadata directly (JSONB from database)
+  const itemMetadata = item?.metadata || {};
+  let sequenceValue = display.sequence || 
+                      itemMetadata.sequence ||
+                      item.item_sequence || 
+                      item.sequence || '';
   
-  // If no sequence found and we have an item_uuid, look it up in preferred items
+  // If no sequence found and we have an estimate item, use it as source of truth
+  if (!sequenceValue && estimateItem) {
+    sequenceValue = estimateItem.item_sequence || 
+                    estimateItem.sequence || 
+                    estimateItem.display_metadata?.sequence ||
+                    estimateItem.metadata?.sequence ||
+                    '';
+  }
+  
+  // If still no sequence found and we have an item_uuid, look it up in preferred items
   if (!sequenceValue && item.item_uuid) {
     const matchedItem = preferredItemOptionMap.value.get(String(item.item_uuid));
     if (matchedItem?.item_sequence) {
@@ -2348,15 +2363,36 @@ const mapPoItemForDisplay = (item: any, index: number, estimateItem?: any) => {
   const matchedItemOption =
     item.item_uuid && preferredItemOptionMap.value.get(String(item.item_uuid));
   
-  // Resolve item name - prefer saved name, then lookup from preferred items
-  const resolvedItemName =
+  // Resolve item name - prefer saved name, then from estimate item (if available), then lookup from preferred items
+  // Also check item.metadata directly (JSONB from database) and display_metadata
+  let resolvedItemName =
+    item.item_name ||  // Direct database field (primary source)
     item.name ||
-    item.item_name ||
-    matchedItemOption?.label ||
-    matchedItemOption?.raw?.item_name ||
-    matchedItemOption?.raw?.name ||
-    item.description ||
+    itemMetadata.item_name ||
+    display.item_name ||
     '';
+  
+  // If no item name found and we have an estimate item, use it as source of truth
+  if (!resolvedItemName && estimateItem) {
+    resolvedItemName = estimateItem.item_name ||
+                       estimateItem.name ||
+                       estimateItem.display_metadata?.item_name ||
+                       estimateItem.metadata?.item_name ||
+                       '';
+  }
+  
+  // If still no item name found, lookup from preferred items
+  if (!resolvedItemName && item.item_uuid) {
+    resolvedItemName = matchedItemOption?.label ||
+                       matchedItemOption?.raw?.item_name ||
+                       matchedItemOption?.raw?.name ||
+                       '';
+  }
+  
+  // Final fallback to description if still no name
+  if (!resolvedItemName) {
+    resolvedItemName = item.description || '';
+  }
 
   // Extract sequence from item (for SequenceSelect matching)
   // Use the same value we extracted above for consistency
