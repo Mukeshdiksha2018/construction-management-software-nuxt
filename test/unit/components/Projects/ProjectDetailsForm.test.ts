@@ -337,6 +337,86 @@ describe('ProjectDetailsForm Logic', () => {
       vi.clearAllMocks();
     });
 
+    it("should allow re-uploading the same file after deletion", async () => {
+      // Simulate the file upload component state
+      const uploadedFiles = ref<File[]>([]);
+      const attachments = ref<any[]>([]);
+      const fileInputKey = ref(0);
+      const emit = vi.fn();
+
+      // Create a test file
+      const testFile = new File(["test content"], "test-file.pdf", {
+        type: "application/pdf",
+      });
+
+      // Step 1: Upload the file initially
+      uploadedFiles.value = [testFile];
+      
+      // Simulate handleFileUpload processing
+      const processedAttachment = {
+        name: testFile.name,
+        type: testFile.type,
+        size: testFile.size,
+        url: "data:application/pdf;base64,dGVzdCBjb250ZW50",
+        fileData: "data:application/pdf;base64,dGVzdCBjb250ZW50",
+        file: testFile,
+        isUploaded: false,
+        tempId: `temp-${Date.now()}`,
+      };
+      
+      attachments.value = [processedAttachment];
+      expect(attachments.value).toHaveLength(1);
+      expect(attachments.value[0].name).toBe("test-file.pdf");
+
+      // Step 2: Delete the file
+      const indexToRemove = 0;
+      const attachmentToRemove = attachments.value[indexToRemove];
+      
+      // Simulate removeFile logic - find and remove from uploadedFiles by name/size
+      const fileIndex = uploadedFiles.value.findIndex(
+        (file) => file.name === attachmentToRemove.name && file.size === attachmentToRemove.size
+      );
+      if (fileIndex !== -1) {
+        uploadedFiles.value.splice(fileIndex, 1);
+      }
+      
+      // Remove from attachments
+      attachments.value.splice(indexToRemove, 1);
+      
+      // Increment fileInputKey to reset file input (key fix)
+      fileInputKey.value += 1;
+      
+      expect(uploadedFiles.value).toHaveLength(0);
+      expect(attachments.value).toHaveLength(0);
+      expect(fileInputKey.value).toBe(1); // Key should increment
+
+      // Step 3: Upload the same file again
+      // The key increment ensures the file input component resets
+      // This allows the browser to recognize the file selection even if it's the same file
+      uploadedFiles.value = [testFile];
+      
+      // Simulate handleFileUpload processing again
+      const reprocessedAttachment = {
+        name: testFile.name,
+        type: testFile.type,
+        size: testFile.size,
+        url: "data:application/pdf;base64,dGVzdCBjb250ZW50",
+        fileData: "data:application/pdf;base64,dGVzdCBjb250ZW50",
+        file: testFile,
+        isUploaded: false,
+        tempId: `temp-${Date.now() + 1}`, // New tempId
+      };
+      
+      attachments.value = [reprocessedAttachment];
+      
+      // Verify the file was successfully re-uploaded
+      expect(attachments.value).toHaveLength(1);
+      expect(attachments.value[0].name).toBe("test-file.pdf");
+      expect(attachments.value[0].tempId).not.toBe(processedAttachment.tempId); // Should have new tempId
+      expect(uploadedFiles.value).toHaveLength(1);
+      expect(uploadedFiles.value[0].name).toBe("test-file.pdf");
+    });
+
     it("should delete existing uploaded file from storage", async () => {
       const mockResponse = {
         success: true,

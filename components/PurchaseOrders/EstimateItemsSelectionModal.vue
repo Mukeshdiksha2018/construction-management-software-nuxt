@@ -29,11 +29,91 @@
         <p class="text-xs mt-2">Please make sure an estimate exists for this project.</p>
       </div>
 
-      <UTable
-        v-else
-        :data="items"
-        :columns="tableColumns"
-      />
+      <div v-else class="flex gap-4" style="height: calc(100vh - 200px); min-height: 500px;">
+        <!-- Left Sidebar: Cost Codes -->
+        <div class="w-80 border-r border-gray-200 dark:border-gray-700 overflow-y-auto flex-shrink-0">
+          <div class="p-4 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Cost Codes</h3>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ groupedByCostCode.size }} cost code{{ groupedByCostCode.size !== 1 ? 's' : '' }}</p>
+          </div>
+          
+          <CustomAccordion
+            :items="costCodeAccordionItems"
+            type="multiple"
+            :collapsible="true"
+            class="w-full"
+          >
+            <template #trigger="{ item, isOpen }">
+              <div class="flex items-center justify-between w-full px-4 py-2 group cursor-pointer hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all duration-200 border-l-4 border-transparent hover:border-primary-400 dark:hover:border-primary-500"
+                   :class="{ 'bg-primary-50 dark:bg-primary-900/20 border-primary-400 dark:border-primary-500': selectedCostCodeUuid === item.costCodeUuid }"
+                   :title="`Click to ${isOpen ? 'collapse' : 'expand'} items`"
+                   @click.stop="selectCostCode(item.costCodeUuid)">
+                <div class="flex-1 flex items-center gap-2">
+                  <span class="text-xs text-gray-700 dark:text-gray-300 font-medium group-hover:text-primary-700 dark:group-hover:text-primary-300 transition-colors duration-200">
+                    {{ item.label }}
+                  </span>
+                  <UBadge
+                    :label="String(item.itemCount)"
+                    color="neutral"
+                    variant="soft"
+                    size="xs"
+                  />
+                </div>
+                <UIcon 
+                  name="i-heroicons-chevron-right" 
+                  class="w-4 h-4 text-primary-600 dark:text-primary-400 transition-transform duration-200 flex-shrink-0"
+                  :class="{ 'rotate-90': isOpen }"
+                />
+              </div>
+            </template>
+            <template #content="{ item }">
+              <div class="px-4 pb-2 bg-gradient-to-r from-primary-50/50 to-primary-100/50 dark:from-primary-900/10 dark:to-primary-800/10">
+                <div class="text-xs text-gray-600 dark:text-gray-400 py-2">
+                  {{ item.itemCount }} item{{ item.itemCount !== 1 ? 's' : '' }} in this cost code
+                </div>
+              </div>
+            </template>
+          </CustomAccordion>
+        </div>
+
+        <!-- Right Panel: Items Table -->
+        <div class="flex-1 overflow-auto">
+          <div v-if="!selectedCostCodeUuid" class="px-4 py-8 text-center text-muted">
+            <UIcon name="i-heroicons-cursor-arrow-rays" class="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Select a cost code to view items</p>
+            <p class="text-xs text-gray-500 dark:text-gray-500 mt-2">Click on a cost code from the left panel to see its items</p>
+          </div>
+          
+          <div v-else>
+            <div class="p-4 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+              <div class="flex items-center justify-between">
+                <div>
+                  <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                    {{ selectedCostCodeLabel }}
+                  </h3>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {{ filteredItems.length }} item{{ filteredItems.length !== 1 ? 's' : '' }}
+                  </p>
+                </div>
+                <UButton
+                  icon="i-heroicons-x-mark"
+                  color="neutral"
+                  variant="ghost"
+                  size="xs"
+                  @click="selectedCostCodeUuid = null"
+                >
+                  Clear Selection
+                </UButton>
+              </div>
+            </div>
+            
+            <UTable
+              :data="filteredItems"
+              :columns="tableColumns"
+            />
+          </div>
+        </div>
+      </div>
     </template>
 
     <template #footer>
@@ -65,6 +145,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, h, resolveComponent } from 'vue'
 import type { TableColumn } from '@nuxt/ui'
+import CustomAccordion from '@/components/Shared/CustomAccordion.vue'
 
 const UCheckbox = resolveComponent('UCheckbox')
 
@@ -119,6 +200,7 @@ const isOpen = computed({
 })
 
 const selectedItems = ref<Set<string>>(new Set())
+const selectedCostCodeUuid = ref<string | null>(null)
 
 // Helper to get a unique ID for each item
 const getItemId = (item: EstimateItem, index: number): string => {
@@ -126,10 +208,91 @@ const getItemId = (item: EstimateItem, index: number): string => {
   return item.id || item.uuid || item.item_uuid || `item-${index}`
 }
 
+// Helper to get cost code UUID from item
+const getCostCodeUuid = (item: EstimateItem): string | null => {
+  return item.cost_code_uuid || 
+         item.display_metadata?.cost_code_uuid || 
+         item.metadata?.cost_code_uuid ||
+         null
+}
+
+// Helper to get cost code label from item
+const getCostCodeLabel = (item: EstimateItem): string => {
+  const display = item.display_metadata || {}
+  const costCodeLabel = display.cost_code_label || item.cost_code_label
+  const costCodeNumber = display.cost_code_number || item.cost_code_number
+  const costCodeName = display.cost_code_name || item.cost_code_name
+  
+  if (costCodeLabel) return costCodeLabel
+  if (costCodeNumber || costCodeName) {
+    return [costCodeNumber, costCodeName]
+      .filter((segment: string | undefined) => String(segment || '').trim().length > 0)
+      .join(' ')
+      .trim()
+  }
+  return item.cost_code_description || item.cost_code || 'Unknown Cost Code'
+}
+
+// Group items by cost code
+const groupedByCostCode = computed(() => {
+  const groups = new Map<string, { label: string; items: EstimateItem[] }>()
+  
+  props.items.forEach((item, index) => {
+    const costCodeUuid = getCostCodeUuid(item) || `no-cost-code-${index}`
+    const label = getCostCodeLabel(item)
+    
+    if (!groups.has(costCodeUuid)) {
+      groups.set(costCodeUuid, { label, items: [] })
+    }
+    groups.get(costCodeUuid)!.items.push(item)
+  })
+  
+  return groups
+})
+
+// Cost code accordion items
+const costCodeAccordionItems = computed(() => {
+  return Array.from(groupedByCostCode.value.entries()).map(([uuid, data]) => ({
+    key: uuid,
+    label: data.label,
+    costCodeUuid: uuid,
+    itemCount: data.items.length,
+    items: data.items
+  })).sort((a, b) => {
+    // Sort by label alphabetically
+    return a.label.localeCompare(b.label)
+  })
+})
+
+// Filtered items based on selected cost code
+const filteredItems = computed(() => {
+  if (!selectedCostCodeUuid.value) {
+    return []
+  }
+  
+  const group = groupedByCostCode.value.get(selectedCostCodeUuid.value)
+  return group ? group.items : []
+})
+
+// Selected cost code label
+const selectedCostCodeLabel = computed(() => {
+  if (!selectedCostCodeUuid.value) return ''
+  const group = groupedByCostCode.value.get(selectedCostCodeUuid.value)
+  return group ? group.label : ''
+})
+
+// Select cost code
+const selectCostCode = (costCodeUuid: string) => {
+  selectedCostCodeUuid.value = costCodeUuid
+}
+
 // Select items when modal opens
 watch(() => props.open, (newValue) => {
   console.log('[EstimateItemsModal] Modal open changed:', newValue, 'Items count:', props.items.length);
   if (newValue && props.items.length > 0) {
+    // Reset cost code selection
+    selectedCostCodeUuid.value = null
+    
     // If preselectedItems are provided, use those; otherwise select all
     if (props.preselectedItems && props.preselectedItems.length > 0) {
       // Create a set of IDs from preselected items
@@ -162,6 +325,14 @@ watch(() => props.open, (newValue) => {
       console.log('[EstimateItemsModal] Selecting all items:', itemIds);
       selectedItems.value = new Set(itemIds);
     }
+    
+    // Auto-select first cost code if available
+    if (costCodeAccordionItems.value.length > 0 && costCodeAccordionItems.value[0]) {
+      selectedCostCodeUuid.value = costCodeAccordionItems.value[0].costCodeUuid
+    }
+  } else if (!newValue) {
+    // Reset when modal closes
+    selectedCostCodeUuid.value = null
   }
 }, { immediate: true })
 
@@ -201,6 +372,20 @@ watch(() => props.items, (newItems) => {
   }
 }, { immediate: true, deep: true })
 
+// Check if all items in the current filtered view are selected
+const allSelectedInView = computed(() => {
+  if (!selectedCostCodeUuid.value || filteredItems.value.length === 0) {
+    return props.items.length > 0 && selectedItems.value.size === props.items.length
+  }
+  // Check if all filtered items are selected
+  const filteredItemIds = filteredItems.value.map((item, index) => {
+    const fullIndex = props.items.indexOf(item)
+    return getItemId(item, fullIndex >= 0 ? fullIndex : index)
+  })
+  return filteredItemIds.length > 0 && filteredItemIds.every(id => selectedItems.value.has(id))
+})
+
+// Check if all items overall are selected (for header checkbox when no filter)
 const allSelected = computed(() => {
   return props.items.length > 0 && selectedItems.value.size === props.items.length
 })
@@ -239,9 +424,27 @@ const handleToggleItem = (itemId: string, selected: boolean) => {
 
 const handleToggleAll = (selected: boolean) => {
   if (selected) {
-    handleSelectAll()
+    // Select all items in current view if filtered, otherwise all items
+    if (selectedCostCodeUuid.value && filteredItems.value.length > 0) {
+      filteredItems.value.forEach((item, index) => {
+        const fullIndex = props.items.indexOf(item)
+        const itemId = getItemId(item, fullIndex >= 0 ? fullIndex : index)
+        selectedItems.value.add(itemId)
+      })
+    } else {
+      handleSelectAll()
+    }
   } else {
-    handleDeselectAll()
+    // Deselect all items in current view if filtered, otherwise all items
+    if (selectedCostCodeUuid.value && filteredItems.value.length > 0) {
+      filteredItems.value.forEach((item, index) => {
+        const fullIndex = props.items.indexOf(item)
+        const itemId = getItemId(item, fullIndex >= 0 ? fullIndex : index)
+        selectedItems.value.delete(itemId)
+      })
+    } else {
+      handleDeselectAll()
+    }
   }
 }
 
@@ -272,15 +475,20 @@ const tableColumns = computed<TableColumn<EstimateItem>[]>(() => [
   {
     accessorKey: 'checkbox',
     header: () => h(UCheckbox, {
-      modelValue: allSelected.value,
+      modelValue: selectedCostCodeUuid.value ? allSelectedInView.value : allSelected.value,
       'onUpdate:modelValue': handleToggleAll,
     }),
     enableSorting: false,
     meta: { class: { th: 'w-16 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted', td: 'px-4 py-3 align-middle' } },
     cell: ({ row }: { row: { original: EstimateItem; index: number } }) => {
       const item = row.original
-      const index = props.items.indexOf(item)
-      const itemId = getItemId(item, index >= 0 ? index : row.index)
+      // Find the item in the full items array to get the correct index
+      const fullIndex = props.items.findIndex(i => {
+        const itemId = getItemId(item, row.index)
+        const fullItemId = getItemId(i, props.items.indexOf(i))
+        return itemId === fullItemId
+      })
+      const itemId = getItemId(item, fullIndex >= 0 ? fullIndex : row.index)
       return h(UCheckbox, {
         modelValue: selectedItems.value.has(itemId),
         'onUpdate:modelValue': (value: boolean) => handleToggleItem(itemId, value),
@@ -294,41 +502,7 @@ const tableColumns = computed<TableColumn<EstimateItem>[]>(() => [
     meta: { class: { th: 'w-32 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted', td: 'px-4 py-3 align-middle' } },
     cell: ({ row }: { row: { original: EstimateItem; index: number } }) => {
       const item = row.original
-      const display = item.display_metadata || {}
-      
-      // Get cost code fields from display_metadata first, then fallback to item itself
-      const costCodeLabel = display.cost_code_label || item.cost_code_label
-      const costCodeNumber = display.cost_code_number || item.cost_code_number
-      const costCodeName = display.cost_code_name || item.cost_code_name
-      
-      // Construct cost code label from number and name if label is not available
-      let finalCostCodeLabel = costCodeLabel
-      if (!finalCostCodeLabel && (costCodeNumber || costCodeName)) {
-        finalCostCodeLabel = [costCodeNumber, costCodeName]
-          .filter((segment: string | undefined) => String(segment || '').trim().length > 0)
-          .join(' ')
-          .trim()
-      }
-      const displayText = finalCostCodeLabel || display.cost_code_description || item.cost_code_description || item.cost_code || '-'
-      
-      // Debug log for cost code rendering (only for first row)
-      if (row.index === 0) {
-        console.log('[EstimateItemsModal] Rendering cost code cell for first row:', {
-          fromItem: {
-            cost_code_label: item.cost_code_label,
-            cost_code_number: item.cost_code_number,
-            cost_code_name: item.cost_code_name,
-          },
-          fromDisplayMetadata: {
-            cost_code_label: display.cost_code_label,
-            cost_code_number: display.cost_code_number,
-            cost_code_name: display.cost_code_name,
-          },
-          finalCostCodeLabel,
-          displayText,
-        });
-      }
-      
+      const displayText = getCostCodeLabel(item)
       return h('div', { class: 'text-xs font-medium truncate' }, displayText)
     }
   },

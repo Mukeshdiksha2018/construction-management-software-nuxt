@@ -10,10 +10,9 @@ describe('PurchaseOrdersMasterItemsSelectionModal', () => {
       id: 'item-1',
       uuid: 'item-1-uuid',
       item_uuid: 'item-uuid-1',
+      cost_code_uuid: 'cc-uuid-1',
       cost_code_label: 'CC-001',
       cost_code_number: '001',
-      item_type_label: 'Material',
-      item_type_name: 'Material',
       item_label: 'Concrete',
       item_name: 'Concrete',
       description: '3000 PSI Concrete',
@@ -32,10 +31,9 @@ describe('PurchaseOrdersMasterItemsSelectionModal', () => {
       id: 'item-2',
       uuid: 'item-2-uuid',
       item_uuid: 'item-uuid-2',
+      cost_code_uuid: 'cc-uuid-2',
       cost_code_label: 'CC-002',
       cost_code_number: '002',
-      item_type_label: 'Material',
-      item_type_name: 'Material',
       item_label: 'Rebar',
       item_name: 'Rebar',
       description: '#4 Rebar',
@@ -54,10 +52,9 @@ describe('PurchaseOrdersMasterItemsSelectionModal', () => {
       id: 'item-3',
       uuid: 'item-3-uuid',
       item_uuid: 'item-uuid-3',
+      cost_code_uuid: 'cc-uuid-3',
       cost_code_label: 'CC-003',
       cost_code_number: '003',
-      item_type_label: 'Material',
-      item_type_name: 'Material',
       item_label: 'Lumber',
       item_name: 'Lumber',
       description: '2x4x8 Lumber',
@@ -125,6 +122,25 @@ describe('PurchaseOrdersMasterItemsSelectionModal', () => {
               </div>
             `,
           },
+          CustomAccordion: {
+            props: ["items", "type", "collapsible"],
+            template: `
+              <div>
+                <div v-for="(item, index) in items" :key="item.key || index">
+                  <slot name="trigger" :item="item" :isOpen="true" />
+                  <slot name="content" :item="item" />
+                </div>
+              </div>
+            `,
+          },
+          UBadge: {
+            props: ["label", "color", "variant", "size"],
+            template: '<span class="badge">{{ label }}</span>',
+          },
+          UIcon: {
+            props: ["name"],
+            template: '<span class="icon"></span>',
+          },
         },
       },
     });
@@ -132,8 +148,9 @@ describe('PurchaseOrdersMasterItemsSelectionModal', () => {
 
   describe('Rendering', () => {
     it('renders with all items', () => {
-      // UTable renders items - check that items are rendered in the wrapper
+      // Items are grouped by cost code and filtered - first cost code is auto-selected
       expect(wrapper.text()).toContain("CC-001");
+      // Other cost codes should be in the sidebar
       expect(wrapper.text()).toContain("CC-002");
       expect(wrapper.text()).toContain("CC-003");
     })
@@ -141,20 +158,14 @@ describe('PurchaseOrdersMasterItemsSelectionModal', () => {
     it('displays item details correctly', () => {
       const text = wrapper.text();
       
-      // Check if item details are rendered
+      // Check if item details are rendered (first cost code is auto-selected)
       expect(text).toContain("CC-001");
-      expect(text).toContain("Material");
       expect(text).toContain("Concrete");
     })
 
     it('displays cost code number when available', () => {
       const text = wrapper.text();
       expect(text).toContain("001");
-    })
-
-    it('displays item type name when available', () => {
-      const text = wrapper.text();
-      expect(text).toContain("Material");
     })
 
     it('displays sequence when available', () => {
@@ -166,14 +177,37 @@ describe('PurchaseOrdersMasterItemsSelectionModal', () => {
       const text = wrapper.text();
       expect(text).toContain("YD3");
     })
+
+    it('groups items by cost code', () => {
+      const vm = wrapper.vm as any
+      const grouped = vm.groupedByCostCode
+      expect(grouped.size).toBe(3)
+      expect(grouped.has('cc-uuid-1')).toBe(true)
+      expect(grouped.has('cc-uuid-2')).toBe(true)
+      expect(grouped.has('cc-uuid-3')).toBe(true)
+    })
+
+    it('auto-selects first cost code when modal opens', async () => {
+      const vm = wrapper.vm as any
+      await wrapper.vm.$nextTick()
+      // First cost code should be selected
+      expect(vm.selectedCostCodeUuid).toBeTruthy()
+      // Filtered items should show items from first cost code
+      expect(vm.filteredItems.length).toBe(1)
+    })
   })
 
   describe('Selection Behavior', () => {
     it('selects all items by default when modal opens', async () => {
-      // All checkboxes should be checked by default
+      // All items should be selected in the selectedItems set
+      const vm = wrapper.vm as any
+      expect(vm.selectedItems.size).toBe(mockItems.length)
+      
+      // Checkboxes should exist for the filtered items (first cost code is auto-selected)
+      // Since items are filtered by cost code, only items from the selected cost code are shown
       const checkboxes = wrapper.findAll('input[type="checkbox"]')
-      // First checkbox is the "select all", then one for each item
-      expect(checkboxes.length).toBeGreaterThanOrEqual(mockItems.length)
+      // Should have at least the header checkbox and one item checkbox
+      expect(checkboxes.length).toBeGreaterThanOrEqual(1)
     })
 
     it('preselects items when preselectedItems prop is provided', async () => {
@@ -203,6 +237,16 @@ describe('PurchaseOrdersMasterItemsSelectionModal', () => {
             UCheckbox: {
               props: ['modelValue'],
               template: '<input type="checkbox" :checked="modelValue" @change="$emit(\'update:modelValue\', $event.target.checked)" />',
+            },
+            CustomAccordion: {
+              props: ["items", "type", "collapsible"],
+              template: '<div><slot name="trigger" :item="items[0]" :isOpen="true" /></div>',
+            },
+            UBadge: { template: '<span></span>' },
+            UIcon: { template: '<span></span>' },
+            UTable: {
+              props: ["data", "columns"],
+              template: '<div class="utable-stub"><table></table></div>',
             },
           },
         },
@@ -265,14 +309,24 @@ describe('PurchaseOrdersMasterItemsSelectionModal', () => {
   })
 
   describe('Calculations', () => {
-    it('calculates item totals correctly', () => {
+    it('calculates item totals correctly', async () => {
+      const vm = wrapper.vm as any
+      
       // First item: 150 * 10 = 1500
-      // Should format as $1,500.00
+      // Should format as $1,500.00 (first cost code is auto-selected)
       expect(wrapper.text()).toContain('1,500.00')
+      
+      // Switch to second cost code to see second item
+      vm.selectCostCode('cc-uuid-2')
+      await wrapper.vm.$nextTick()
       
       // Second item: 0.75 * 1000 = 750
       // Should format as $750.00
       expect(wrapper.text()).toContain('750.00')
+      
+      // Switch to third cost code to see third item
+      vm.selectCostCode('cc-uuid-3')
+      await wrapper.vm.$nextTick()
       
       // Third item: 5.50 * 100 = 550
       // Should format as $550.00
@@ -320,6 +374,12 @@ describe('PurchaseOrdersMasterItemsSelectionModal', () => {
                 </div>
               `,
             },
+            CustomAccordion: {
+              props: ["items", "type", "collapsible"],
+              template: '<div><slot name="trigger" :item="items[0]" :isOpen="true" /></div>',
+            },
+            UBadge: { template: '<span></span>' },
+            UIcon: { template: '<span></span>' },
           },
         },
       });
@@ -369,6 +429,12 @@ describe('PurchaseOrdersMasterItemsSelectionModal', () => {
                 </div>
               `,
             },
+            CustomAccordion: {
+              props: ["items", "type", "collapsible"],
+              template: '<div><slot name="trigger" :item="items[0]" :isOpen="true" /></div>',
+            },
+            UBadge: { template: '<span></span>' },
+            UIcon: { template: '<span></span>' },
           },
         },
       });
@@ -403,6 +469,16 @@ describe('PurchaseOrdersMasterItemsSelectionModal', () => {
             UCheckbox: {
               props: ['modelValue'],
               template: '<input type="checkbox" :checked="modelValue" @change="$emit(\'update:modelValue\', $event.target.checked)" />',
+            },
+            CustomAccordion: {
+              props: ["items", "type", "collapsible"],
+              template: '<div><slot name="trigger" :item="items[0]" :isOpen="true" /></div>',
+            },
+            UBadge: { template: '<span></span>' },
+            UIcon: { template: '<span></span>' },
+            UTable: {
+              props: ["data", "columns"],
+              template: '<div class="utable-stub"><table></table></div>',
             },
           },
         },
@@ -448,6 +524,16 @@ describe('PurchaseOrdersMasterItemsSelectionModal', () => {
               props: ['modelValue'],
               template: '<input type="checkbox" :checked="modelValue" />',
             },
+            CustomAccordion: {
+              props: ["items", "type", "collapsible"],
+              template: '<div><slot name="trigger" :item="items[0]" :isOpen="true" /></div>',
+            },
+            UBadge: { template: '<span></span>' },
+            UIcon: { template: '<span></span>' },
+            UTable: {
+              props: ["data", "columns"],
+              template: '<div class="utable-stub"><table></table></div>',
+            },
           },
         },
       })
@@ -483,6 +569,16 @@ describe('PurchaseOrdersMasterItemsSelectionModal', () => {
             },
             UCheckbox: {
               template: '<input type="checkbox" />',
+            },
+            CustomAccordion: {
+              props: ["items", "type", "collapsible"],
+              template: '<div><slot name="trigger" :item="items[0]" :isOpen="true" /></div>',
+            },
+            UBadge: { template: '<span></span>' },
+            UIcon: { template: '<span></span>' },
+            UTable: {
+              props: ["data", "columns"],
+              template: '<div class="utable-stub"><table></table></div>',
             },
           },
         },
@@ -530,6 +626,16 @@ describe('PurchaseOrdersMasterItemsSelectionModal', () => {
               props: ['modelValue'],
               template: '<input type="checkbox" :checked="modelValue" @change="$emit(\'update:modelValue\', $event.target.checked)" />',
             },
+            CustomAccordion: {
+              props: ["items", "type", "collapsible"],
+              template: '<div><slot name="trigger" :item="items[0]" :isOpen="true" /></div>',
+            },
+            UBadge: { template: '<span></span>' },
+            UIcon: { template: '<span></span>' },
+            UTable: {
+              props: ["data", "columns"],
+              template: '<div class="utable-stub"><table></table></div>',
+            },
           },
         },
       })
@@ -570,6 +676,16 @@ describe('PurchaseOrdersMasterItemsSelectionModal', () => {
             UCheckbox: {
               props: ['modelValue'],
               template: '<input type="checkbox" :checked="modelValue" @change="$emit(\'update:modelValue\', $event.target.checked)" />',
+            },
+            CustomAccordion: {
+              props: ["items", "type", "collapsible"],
+              template: '<div><slot name="trigger" :item="items[0]" :isOpen="true" /></div>',
+            },
+            UBadge: { template: '<span></span>' },
+            UIcon: { template: '<span></span>' },
+            UTable: {
+              props: ["data", "columns"],
+              template: '<div class="utable-stub"><table></table></div>',
             },
           },
         },
@@ -636,6 +752,16 @@ describe('PurchaseOrdersMasterItemsSelectionModal', () => {
               props: ['modelValue'],
               template: '<input type="checkbox" :checked="modelValue" @change="$emit(\'update:modelValue\', $event.target.checked)" />',
             },
+            CustomAccordion: {
+              props: ["items", "type", "collapsible"],
+              template: '<div><slot name="trigger" :item="items[0]" :isOpen="true" /></div>',
+            },
+            UBadge: { template: '<span></span>' },
+            UIcon: { template: '<span></span>' },
+            UTable: {
+              props: ["data", "columns"],
+              template: '<div class="utable-stub"><table></table></div>',
+            },
           },
         },
       })
@@ -655,6 +781,49 @@ describe('PurchaseOrdersMasterItemsSelectionModal', () => {
           expect(importButton.props('disabled')).toBe(true)
         }
       }
+    })
+  })
+
+  describe('Cost Code Filtering', () => {
+    it('filters items by selected cost code', async () => {
+      const vm = wrapper.vm as any
+      
+      // Initially, first cost code should be selected
+      expect(vm.selectedCostCodeUuid).toBeTruthy()
+      expect(vm.filteredItems.length).toBe(1)
+      
+      // Switch to second cost code
+      vm.selectCostCode('cc-uuid-2')
+      await wrapper.vm.$nextTick()
+      expect(vm.filteredItems.length).toBe(1)
+      expect(vm.filteredItems[0].cost_code_uuid).toBe('cc-uuid-2')
+      
+      // Switch to third cost code
+      vm.selectCostCode('cc-uuid-3')
+      await wrapper.vm.$nextTick()
+      expect(vm.filteredItems.length).toBe(1)
+      expect(vm.filteredItems[0].cost_code_uuid).toBe('cc-uuid-3')
+    })
+
+    it('shows empty state when no cost code is selected', async () => {
+      const vm = wrapper.vm as any
+      
+      // Clear cost code selection
+      vm.selectedCostCodeUuid = null
+      await wrapper.vm.$nextTick()
+      
+      expect(vm.filteredItems.length).toBe(0)
+      expect(wrapper.text()).toContain('Select a cost code to view items')
+    })
+
+    it('displays selected cost code label', async () => {
+      const vm = wrapper.vm as any
+      
+      // Select first cost code
+      vm.selectCostCode('cc-uuid-1')
+      await wrapper.vm.$nextTick()
+      
+      expect(vm.selectedCostCodeLabel).toContain('CC-001')
     })
   })
 })

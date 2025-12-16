@@ -4065,6 +4065,237 @@ describe('EstimateLineItemsTable', () => {
       expect(visibleDivisions[0].costCodes[0].uuid).toBe('config-2');
     });
 
+    it('should add newly selected cost codes to table when removed from deletedUuids, preserving existing estimates', async () => {
+      // Scenario: User creates estimate with some cost codes selected and adds estimates to them.
+      // Then user opens modal and selects additional cost codes (removes them from deletedUuids).
+      // The newly selected cost codes should appear in the table, and existing estimates should be preserved.
+
+      // Step 1: Start with some cost codes selected (config-1) and some not selected (config-2, config-3 in deletedUuids)
+      wrapper = createWrapper({ 
+        deletedUuids: ['config-2', 'config-3'],
+        modelValue: [
+          {
+            cost_code_uuid: 'config-1',
+            cost_code_number: '01 40 00',
+            cost_code_name: 'Quality Requirements',
+            division_name: 'GENERAL REQUIREMENTS',
+            labor_amount: 100,
+            material_amount: 50,
+            total_amount: 150,
+            estimation_type: 'manual',
+            contingency_enabled: false,
+            contingency_percentage: 0,
+            is_sub_cost_code: false
+          }
+        ]
+      });
+      
+      await wrapper.vm.$nextTick();
+
+      // Set up hierarchical data with all cost codes
+      wrapper.vm.divisions = mockDivisions;
+      wrapper.vm.configurations = mockConfigurations;
+      wrapper.vm.loading = false;
+      
+      // Initialize hierarchicalDataRef with only selected cost codes (config-1)
+      wrapper.vm.hierarchicalDataRef = [
+        {
+          uuid: 'div-1',
+          division_number: '01',
+          division_name: 'GENERAL REQUIREMENTS',
+          costCodes: [
+            {
+              uuid: 'config-1',
+              cost_code_number: '01 40 00',
+              cost_code_name: 'Quality Requirements',
+              labor_amount: 100,
+              material_amount: 50,
+              total_amount: 150,
+              estimation_type: 'manual',
+              contingency_enabled: false,
+              contingency_percentage: 0,
+              subCostCodes: [],
+            },
+          ],
+        },
+      ];
+
+      await wrapper.vm.$nextTick();
+      await new Promise((r) => setTimeout(r, 100));
+
+      // Verify only config-1 is visible initially
+      let visibleDivisions = wrapper.vm.visibleDivisions;
+      expect(visibleDivisions.length).toBe(1);
+      expect(visibleDivisions[0].costCodes.length).toBe(1);
+      expect(visibleDivisions[0].costCodes[0].uuid).toBe('config-1');
+      expect(visibleDivisions[0].costCodes[0].labor_amount).toBe(100);
+      expect(visibleDivisions[0].costCodes[0].material_amount).toBe(50);
+      expect(visibleDivisions[0].costCodes[0].total_amount).toBe(150);
+
+      // Step 2: User selects additional cost codes by removing them from deletedUuids
+      // This simulates the user unchecking cost codes in the CostCodeSelectionModal
+      await wrapper.setProps({ deletedUuids: ['config-3'] }); // Only config-3 remains deleted
+      await wrapper.vm.$nextTick();
+      await new Promise((r) => setTimeout(r, 100));
+
+      // Step 3: Verify that config-2 is now visible (added back)
+      visibleDivisions = wrapper.vm.visibleDivisions;
+      expect(visibleDivisions.length).toBe(1);
+      expect(visibleDivisions[0].costCodes.length).toBe(2); // Both config-1 and config-2 should be visible
+      
+      const config1 = visibleDivisions[0].costCodes.find((cc: any) => cc.uuid === 'config-1');
+      const config2 = visibleDivisions[0].costCodes.find((cc: any) => cc.uuid === 'config-2');
+      
+      // Verify config-1 still has its estimates preserved
+      expect(config1).toBeDefined();
+      expect(config1.labor_amount).toBe(100);
+      expect(config1.material_amount).toBe(50);
+      expect(config1.total_amount).toBe(150);
+      
+      // Verify config-2 is now visible (newly selected)
+      expect(config2).toBeDefined();
+      expect(config2.cost_code_number).toBe('01 70 00');
+      expect(config2.cost_code_name).toBe('Execution and Closeout Requirements');
+      // Newly added cost codes should have default values
+      expect(config2.labor_amount).toBe(0);
+      expect(config2.material_amount).toBe(0);
+      expect(config2.total_amount).toBe(0);
+      
+      // Verify config-3 is still filtered out (still in deletedUuids)
+      const config3 = visibleDivisions[0].costCodes.find((cc: any) => cc.uuid === 'config-3');
+      expect(config3).toBeUndefined();
+    });
+
+    it('should preserve existing estimates when cost codes are added back after being removed', async () => {
+      // Scenario: User has estimates on cost codes, removes them, then adds them back.
+      // The estimates should be preserved.
+
+      // Start with all cost codes selected and estimates on them
+      wrapper = createWrapper({ 
+        deletedUuids: [],
+        modelValue: [
+          {
+            cost_code_uuid: 'config-1',
+            cost_code_number: '01 40 00',
+            cost_code_name: 'Quality Requirements',
+            division_name: 'GENERAL REQUIREMENTS',
+            labor_amount: 100,
+            material_amount: 50,
+            total_amount: 150,
+            estimation_type: 'manual',
+            contingency_enabled: true,
+            contingency_percentage: 5,
+            is_sub_cost_code: false
+          },
+          {
+            cost_code_uuid: 'config-2',
+            cost_code_number: '01 70 00',
+            cost_code_name: 'Execution Requirements',
+            division_name: 'GENERAL REQUIREMENTS',
+            labor_amount: 200,
+            material_amount: 100,
+            total_amount: 300,
+            estimation_type: 'per-room',
+            labor_amount_per_room: 40,
+            labor_rooms_count: 5,
+            contingency_enabled: false,
+            contingency_percentage: 0,
+            is_sub_cost_code: false
+          }
+        ]
+      });
+      
+      await wrapper.vm.$nextTick();
+
+      wrapper.vm.divisions = mockDivisions;
+      wrapper.vm.configurations = mockConfigurations;
+      wrapper.vm.loading = false;
+      
+      // Set up hierarchicalDataRef with estimates
+      wrapper.vm.hierarchicalDataRef = [
+        {
+          uuid: 'div-1',
+          division_number: '01',
+          division_name: 'GENERAL REQUIREMENTS',
+          costCodes: [
+            {
+              uuid: 'config-1',
+              cost_code_number: '01 40 00',
+              cost_code_name: 'Quality Requirements',
+              labor_amount: 100,
+              material_amount: 50,
+              total_amount: 150,
+              estimation_type: 'manual',
+              contingency_enabled: true,
+              contingency_percentage: 5,
+              subCostCodes: [],
+            },
+            {
+              uuid: 'config-2',
+              cost_code_number: '01 70 00',
+              cost_code_name: 'Execution Requirements',
+              labor_amount: 200,
+              material_amount: 100,
+              total_amount: 300,
+              estimation_type: 'per-room',
+              labor_amount_per_room: 40,
+              labor_rooms_count: 5,
+              contingency_enabled: false,
+              contingency_percentage: 0,
+              subCostCodes: [],
+            },
+          ],
+        },
+      ];
+
+      await wrapper.vm.$nextTick();
+      await new Promise((r) => setTimeout(r, 100));
+
+      // Verify both are visible with estimates
+      let visibleDivisions = wrapper.vm.visibleDivisions;
+      expect(visibleDivisions[0].costCodes.length).toBe(2);
+
+      // Remove config-1 (user deselects it in modal)
+      await wrapper.setProps({ deletedUuids: ['config-1'] });
+      await wrapper.vm.$nextTick();
+      await new Promise((r) => setTimeout(r, 100));
+
+      // Verify config-1 is filtered out
+      visibleDivisions = wrapper.vm.visibleDivisions;
+      expect(visibleDivisions[0].costCodes.length).toBe(1);
+      expect(visibleDivisions[0].costCodes[0].uuid).toBe('config-2');
+
+      // Add config-1 back (user selects it again in modal)
+      await wrapper.setProps({ deletedUuids: [] });
+      await wrapper.vm.$nextTick();
+      await new Promise((r) => setTimeout(r, 100));
+
+      // Verify both are visible again
+      visibleDivisions = wrapper.vm.visibleDivisions;
+      expect(visibleDivisions[0].costCodes.length).toBe(2);
+      
+      const config1 = visibleDivisions[0].costCodes.find((cc: any) => cc.uuid === 'config-1');
+      const config2 = visibleDivisions[0].costCodes.find((cc: any) => cc.uuid === 'config-2');
+      
+      // Verify config-1 estimates are preserved
+      expect(config1).toBeDefined();
+      expect(config1.labor_amount).toBe(100);
+      expect(config1.material_amount).toBe(50);
+      expect(config1.total_amount).toBe(150);
+      expect(config1.estimation_type).toBe('manual');
+      expect(config1.contingency_enabled).toBe(true);
+      expect(config1.contingency_percentage).toBe(5);
+      
+      // Verify config-2 estimates are still preserved
+      expect(config2).toBeDefined();
+      expect(config2.labor_amount).toBe(200);
+      expect(config2.material_amount).toBe(100);
+      expect(config2.total_amount).toBe(300);
+      expect(config2.estimation_type).toBe('per-room');
+      expect(config2.labor_amount_per_room).toBe(40);
+      expect(config2.labor_rooms_count).toBe(5);
+    });
+
     it('should hide division when all cost codes are filtered out due to deletion', async () => {
       wrapper.vm.hierarchicalDataRef = [
         {

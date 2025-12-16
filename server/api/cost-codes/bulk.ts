@@ -111,112 +111,156 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    // Helper function to process a configuration
-    async function processConfiguration(config: any, level: number) {
-      try {
-        // Validate required fields
-        if (!config.cost_code_number || !config.cost_code_name) {
-          result.configurations.errors.push(`Row ${config._rowNumber || 'Unknown'}: Missing required fields (Cost Code Number, Cost Code Name)`)
-          return
-        }
+    // Get GL account for corporation ONCE - try default first, then any account, then null
+    // This is done once instead of for every configuration
+    let glAccountUuid: string | null = null
+    
+    const { data: defaultGLAccount } = await supabase
+      .from("chart_of_accounts")
+      .select("uuid")
+      .eq("corporation_uuid", corporationUuid)
+      .eq("is_default", true)
+      .maybeSingle()
 
-        // Check if cost code already exists
-        if (costCodeMap.has(config.cost_code_number)) {
-          result.configurations.duplicates++
-          return
-        }
+    if (defaultGLAccount) {
+      glAccountUuid = defaultGLAccount.uuid
+    } else {
+      // If no default, try to get any GL account for the corporation
+      const { data: anyGLAccount } = await supabase
+        .from("chart_of_accounts")
+        .select("uuid")
+        .eq("corporation_uuid", corporationUuid)
+        .limit(1)
+        .maybeSingle()
+      
+      if (anyGLAccount) {
+        glAccountUuid = anyGLAccount.uuid
+      }
+      // If no GL account exists, glAccountUuid remains null (which is allowed by the schema)
+    }
 
-        // Resolve division UUID if division_number is provided
-        let divisionUuid: string | null = null
-        if (config.division_number) {
-          divisionUuid = divisionMap.get(config.division_number) || null
-          if (!divisionUuid && config.division_number.trim() !== '') {
-            result.configurations.errors.push(`Cost Code ${config.cost_code_number}: Division "${config.division_number}" not found`)
-            return
-          }
-        }
-
-        // Resolve parent UUID if parent_cost_code_number is provided
-        let parentUuid: string | null = null
-        if (config.parent_cost_code_number && config.parent_cost_code_number.trim() !== '') {
-          parentUuid = costCodeMap.get(config.parent_cost_code_number) || null
-          if (!parentUuid) {
-            result.configurations.errors.push(`Cost Code ${config.cost_code_number}: Parent Cost Code "${config.parent_cost_code_number}" not found`)
-            return
-          }
-        }
-
-        // Get GL account for corporation - try default first, then any account, then null
-        let glAccountUuid: string | null = null
+    // Helper function to process configurations in batch
+    async function processConfigurationsBatch(configs: any[], level: number) {
+      const batchSize = 100 // Process 100 at a time
+      const batches: any[][] = []
+      
+      // Split into batches
+      for (let i = 0; i < configs.length; i += batchSize) {
+        batches.push(configs.slice(i, i + batchSize))
+      }
+      
+      // Process each batch
+      for (const batch of batches) {
+        const insertDataArray: any[] = []
+        const configToInsertMap = new Map<number, any>() // Map index to config for error reporting
         
-        // First, try to get default GL account
-        const { data: defaultGLAccount } = await supabase
-          .from("chart_of_accounts")
-          .select("uuid")
-          .eq("corporation_uuid", corporationUuid)
-          .eq("is_default", true)
-          .maybeSingle()
-
-        if (defaultGLAccount) {
-          glAccountUuid = defaultGLAccount.uuid
-        } else {
-          // If no default, try to get any GL account for the corporation
-          const { data: anyGLAccount } = await supabase
-            .from("chart_of_accounts")
-            .select("uuid")
-            .eq("corporation_uuid", corporationUuid)
-            .limit(1)
-            .maybeSingle()
+        // Prepare batch for insertion
+        for (let i = 0; i < batch.length; i++) {
+          const config = batch[i]
           
-          if (anyGLAccount) {
-            glAccountUuid = anyGLAccount.uuid
+          try {
+            // Validate required fields
+            if (!config.cost_code_number || !config.cost_code_name) {
+              result.configurations.errors.push(`Row ${config._rowNumber || 'Unknown'}: Missing required fields (Cost Code Number, Cost Code Name)`)
+              continue
+            }
+
+            // Check if cost code already exists
+            if (costCodeMap.has(config.cost_code_number)) {
+              result.configurations.duplicates++
+              continue
+            }
+
+            // Resolve division UUID if division_number is provided
+            let divisionUuid: string | null = null
+            if (config.division_number) {
+              divisionUuid = divisionMap.get(config.division_number) || null
+              if (!divisionUuid && config.division_number.trim() !== '') {
+                result.configurations.errors.push(`Cost Code ${config.cost_code_number}: Division "${config.division_number}" not found`)
+                continue
+              }
+            }
+
+            // Resolve parent UUID if parent_cost_code_number is provided
+            let parentUuid: string | null = null
+            if (config.parent_cost_code_number && config.parent_cost_code_number.trim() !== '') {
+              parentUuid = costCodeMap.get(config.parent_cost_code_number) || null
+              if (!parentUuid) {
+                result.configurations.errors.push(`Cost Code ${config.cost_code_number}: Parent Cost Code "${config.parent_cost_code_number}" not found`)
+                continue
+              }
+            }
+
+            // Validate order range
+            const order = config.order ? parseInt(config.order) : null
+            if (order !== null && (order < 1 || order > 200)) {
+              result.configurations.errors.push(`Cost Code ${config.cost_code_number}: Order must be between 1 and 200`)
+              continue
+            }
+
+            // Prepare insert data
+            const insertData: any = {
+              corporation_uuid: corporationUuid,
+              division_uuid: divisionUuid,
+              cost_code_number: config.cost_code_number,
+              cost_code_name: config.cost_code_name,
+              parent_cost_code_uuid: parentUuid,
+              order_number: order,
+              description: config.description || null,
+              is_active: config.is_active !== undefined ? config.is_active : true
+            }
+            
+            // Only add gl_account_uuid if we found one (reuse the same one for all)
+            if (glAccountUuid) {
+              insertData.gl_account_uuid = glAccountUuid
+            }
+            
+            insertDataArray.push(insertData)
+            configToInsertMap.set(insertDataArray.length - 1, config)
+          } catch (error: any) {
+            console.error(`Error preparing cost code ${config.cost_code_number || 'Unknown'}:`, error)
+            result.configurations.errors.push(`Cost Code ${config.cost_code_number || 'Unknown'}: ${error.message}`)
           }
-          // If no GL account exists, glAccountUuid remains null (which is allowed by the schema)
-        }
-
-        // Validate order range
-        const order = config.order ? parseInt(config.order) : null
-        if (order !== null && (order < 1 || order > 200)) {
-          result.configurations.errors.push(`Cost Code ${config.cost_code_number}: Order must be between 1 and 200`)
-          return
-        }
-
-        // Insert configuration
-        const insertData: any = {
-          corporation_uuid: corporationUuid,
-          division_uuid: divisionUuid,
-          cost_code_number: config.cost_code_number,
-          cost_code_name: config.cost_code_name,
-          parent_cost_code_uuid: parentUuid,
-          order_number: order,
-          description: config.description || null,
-          is_active: config.is_active !== undefined ? config.is_active : true
         }
         
-        // Only add gl_account_uuid if we found one
-        if (glAccountUuid) {
-          insertData.gl_account_uuid = glAccountUuid
-        }
-        
-        const { data: insertedData, error: insertError } = await supabase
-          .from("cost_code_configurations")
-          .insert(insertData)
-          .select("uuid")
+        // Batch insert if we have data to insert
+        if (insertDataArray.length > 0) {
+          try {
+            const { data: insertedData, error: insertError } = await supabase
+              .from("cost_code_configurations")
+              .insert(insertDataArray)
+              .select("uuid, cost_code_number")
 
-        if (insertError) {
-          console.error(`Error inserting cost code ${config.cost_code_number}:`, insertError)
-          result.configurations.errors.push(`Cost Code ${config.cost_code_number}: ${insertError.message}`)
-        } else {
-          result.configurations.new++
-          // Add the newly created cost code to the map for future parent lookups
-          if (insertedData && insertedData.length > 0 && insertedData[0].uuid) {
-            // We need to refetch to get the cost_code_number, but we'll refresh the map after each level
-            // This will be handled by refreshCostCodeMap() calls between levels
+            if (insertError) {
+              // If batch insert fails, try individual inserts for better error reporting
+              console.error(`Batch insert error, falling back to individual inserts:`, insertError)
+              for (const insertData of insertDataArray) {
+                const { error: singleError } = await supabase
+                  .from("cost_code_configurations")
+                  .insert(insertData)
+                  .select("uuid, cost_code_number")
+                
+                if (singleError) {
+                  const config = configToInsertMap.get(insertDataArray.indexOf(insertData))
+                  result.configurations.errors.push(`Cost Code ${config?.cost_code_number || 'Unknown'}: ${singleError.message}`)
+                } else {
+                  result.configurations.new++
+                }
+              }
+            } else if (insertedData) {
+              result.configurations.new += insertedData.length
+              // Update cost code map with newly inserted configurations
+              insertedData.forEach((item: any) => {
+                if (item.uuid && item.cost_code_number) {
+                  costCodeMap.set(item.cost_code_number, item.uuid)
+                }
+              })
+            }
+          } catch (error: any) {
+            console.error(`Error in batch insert:`, error)
+            result.configurations.errors.push(`Batch insert failed: ${error.message}`)
           }
         }
-      } catch (error: any) {
-        console.error(`Error processing cost code ${config.cost_code_number || 'Unknown'}:`, error)
-        result.configurations.errors.push(`Cost Code ${config.cost_code_number || 'Unknown'}: ${error.message}`)
       }
     }
 
@@ -238,26 +282,24 @@ export default defineEventHandler(async (event) => {
       }
     })
 
-    // Process level 0 (top-level cost codes)
-    for (const config of configsByLevel[0]) {
-      await processConfiguration(config, 0)
+    // Process level 0 (top-level cost codes) in batches
+    await processConfigurationsBatch(configsByLevel[0], 0)
+
+    // Refresh cost code map after level 0 (only if we inserted new ones)
+    if (configsByLevel[0].length > 0) {
+      await refreshCostCodeMap()
     }
 
-    // Refresh cost code map after level 0
-    await refreshCostCodeMap()
+    // Process level 1 (sub-cost codes) in batches
+    await processConfigurationsBatch(configsByLevel[1], 1)
 
-    // Process level 1 (sub-cost codes)
-    for (const config of configsByLevel[1]) {
-      await processConfiguration(config, 1)
+    // Refresh cost code map after level 1 (only if we inserted new ones)
+    if (configsByLevel[1].length > 0) {
+      await refreshCostCodeMap()
     }
 
-    // Refresh cost code map after level 1
-    await refreshCostCodeMap()
-
-    // Process level 2 (sub-sub-cost codes)
-    for (const config of configsByLevel[2]) {
-      await processConfiguration(config, 2)
-    }
+    // Process level 2 (sub-sub-cost codes) in batches
+    await processConfigurationsBatch(configsByLevel[2], 2)
 
     // Build response message
     const totalNew = result.divisions.new + result.configurations.new

@@ -94,10 +94,22 @@ export interface UpdateEstimatePayload {
   removed_cost_code_uuids?: string[];
 }
 
+export interface PaginationInfo {
+  page: number;
+  pageSize: number;
+  totalRecords: number;
+  totalPages: number;
+  hasMore: boolean;
+}
+
 export const useEstimatesStore = defineStore("estimates", () => {
   const estimates = ref<Estimate[]>([]);
   const loading = ref(false);
   const error = ref<string | null>(null);
+
+  // Pagination state
+  const paginationInfo = ref<Record<string, PaginationInfo>>({});
+  const loadedPages = ref<Record<string, Set<number>>>({});
 
   const authStore = useAuthStore();
   const userProfilesStore = useUserProfilesStore();
@@ -145,6 +157,12 @@ export const useEstimatesStore = defineStore("estimates", () => {
     if (!corporationUuid) return;
     loading.value = true;
     error.value = null;
+    
+    const corpKey = corporationUuid;
+    if (!loadedPages.value[corpKey]) {
+      loadedPages.value[corpKey] = new Set();
+    }
+    
     try {
       const response: any = await $fetch("/api/estimates", {
         method: "GET",
@@ -159,6 +177,15 @@ export const useEstimatesStore = defineStore("estimates", () => {
           const newEstimates = response.data.filter((e: Estimate) => e.uuid && !existingUuids.has(e.uuid));
           estimates.value = [...estimates.value, ...newEstimates];
         }
+        
+        // Store pagination info
+        if (response.pagination) {
+          paginationInfo.value[corpKey] = response.pagination;
+        }
+        
+        // Mark this page as loaded
+        loadedPages.value[corpKey].add(page);
+        
         await dbHelpers.storeEstimates(estimates.value);
       }
     } catch (e) {
@@ -167,6 +194,13 @@ export const useEstimatesStore = defineStore("estimates", () => {
     } finally {
       loading.value = false;
     }
+  };
+  
+  /**
+   * Get pagination info for a corporation
+   */
+  const getPaginationInfo = (corporationUuid: string): PaginationInfo | null => {
+    return paginationInfo.value[corporationUuid] || null;
   };
 
   // Create a new estimate
@@ -398,5 +432,6 @@ export const useEstimatesStore = defineStore("estimates", () => {
     getEstimatesByProject,
     getEstimatesByStatus,
     clearEstimates,
+    getPaginationInfo,
   };
 });

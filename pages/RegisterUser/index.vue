@@ -5,31 +5,7 @@
         Create an Account
       </h2>
 
-      <!-- Loading state while checking user status -->
-      <div v-if="isCheckingUserStatus" class="flex justify-center items-center py-8">
-        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-        <span class="ml-2 text-gray-600">Checking registration availability...</span>
-      </div>
-
-      <!-- Registration not available message -->
-      <div v-else-if="isFirstUser === false" class="text-center py-8">
-        <div class="text-gray-500 mb-4">
-          <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-          </svg>
-        </div>
-        <h3 class="text-lg font-medium text-gray-900 mb-2">Registration Not Available</h3>
-        <p class="text-gray-500 mb-6">User registration is currently disabled. Please contact an administrator to create an account.</p>
-        <UButton
-          color="primary"
-          size="lg"
-          @click="goToLogin"
-        >
-          Go Back to Login
-        </UButton>
-      </div>
-
-      <form v-else-if="isFirstUser === true" @submit.prevent="handleRegister" class="space-y-4">
+      <form @submit.prevent="handleRegister" class="space-y-4">
         <!-- First Row: Username and Role -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <!-- Username Field -->
@@ -46,7 +22,6 @@
               placeholder="Enter your username"
               type="text"
               class="w-full"
-              :disabled="isFirstUser !== true"
               required
             />
           </div>
@@ -66,7 +41,6 @@
               placeholder="Select a role"
               icon="i-heroicons-user-group"
               class="w-full"
-              :disabled="isFirstUser !== true"
               required
             />
           </div>
@@ -86,7 +60,6 @@
             placeholder="Enter your email"
             type="email"
             class="w-full"
-            :disabled="isFirstUser !== true"
             required
           />
         </div>
@@ -108,7 +81,6 @@
               :type="showPassword ? 'text' : 'password'"
               class="w-full"
               :ui="{ trailing: 'pe-1' }"
-              :disabled="isFirstUser !== true"
               required
             >
               <template #trailing>
@@ -121,7 +93,6 @@
                   :aria-pressed="showPassword"
                   aria-controls="password"
                   @click="togglePasswordVisibility"
-                  :disabled="isFirstUser !== true"
                 />
               </template>
             </UInput>
@@ -142,7 +113,6 @@
               :type="showConfirmPassword ? 'text' : 'password'"
               class="w-full"
               :ui="{ trailing: 'pe-1' }"
-              :disabled="isFirstUser !== true"
               required
             >
               <template #trailing>
@@ -155,7 +125,6 @@
                   :aria-pressed="showConfirmPassword"
                   aria-controls="confirmPassword"
                   @click="toggleConfirmPasswordVisibility"
-                  :disabled="isFirstUser !== true"
                 />
               </template>
             </UInput>
@@ -189,7 +158,7 @@
             size="lg"
             class="flex-1 flex justify-center items-center"
             :loading="isLoading"
-            :disabled="isFirstUser !== true || !passwordsMatch || password.length < 6"
+            :disabled="!passwordsMatch || password.length < 6"
           >
             Register
           </UButton>
@@ -226,13 +195,41 @@ const isLoading = ref(false);
 const username = ref("");
 const role = ref("Super Admin");
 const roles = ["Super Admin"]; // Only Super Admin option
-const isFirstUser = ref(null); // null = checking, true = first user, false = not first user
-const superAdminRoleId = ref(null);
-const isCheckingUserStatus = ref(true);
+const isFirstUser = ref(false);
+const checkingFirstUser = ref(true);
 
 // Password visibility states
 const showPassword = ref(false);
 const showConfirmPassword = ref(false);
+
+// Check if this is the first user on mount
+onMounted(async () => {
+  try {
+    const checkResponse = await $fetch('/api/users/check-first-user');
+    isFirstUser.value = checkResponse.isFirstUser;
+    
+    // If users already exist, redirect to login
+    if (!isFirstUser.value) {
+      toast.add({
+        title: 'Registration Closed',
+        description: 'User registration is only available for the first user. Please contact an administrator.',
+        icon: 'i-heroicons-exclamation-triangle',
+      });
+      setTimeout(() => {
+        router.push("/");
+      }, 2000);
+    }
+  } catch (error) {
+    console.error("Error checking first user:", error);
+    toast.add({
+      title: 'Error',
+      description: 'Unable to verify registration eligibility. Please try again later.',
+      icon: 'i-heroicons-exclamation-triangle',
+    });
+  } finally {
+    checkingFirstUser.value = false;
+  }
+});
 
 // Computed property for password matching validation
 const passwordsMatch = computed(() => {
@@ -248,52 +245,8 @@ const toggleConfirmPasswordVisibility = () => {
   showConfirmPassword.value = !showConfirmPassword.value;
 };
 
-// Check if this is the first user and get Super Admin role ID
-onMounted(async () => {
-  try {
-    // Check if any users exist
-    const firstUserResponse = await $fetch('/api/users/check-first-user');
-    
-    if (firstUserResponse && firstUserResponse.success) {
-      isFirstUser.value = firstUserResponse.isFirstUser;
-    } else {
-      throw new Error('Invalid response from first user check API');
-    }
-
-    // Get Super Admin role ID
-    const superAdminResponse = await $fetch('/api/roles/super-admin');
-    
-    if (superAdminResponse && superAdminResponse.success) {
-      superAdminRoleId.value = superAdminResponse.data.id;
-    } else {
-      throw new Error('Invalid response from Super Admin role API');
-    }
-
-    // No need to set alert here as the template handles the UI state
-  } catch (error) {
-    console.error("Error checking user status:", error);
-    toast.add({
-      title: 'Error',
-      description: 'Error checking registration availability.',
-      icon: 'i-heroicons-exclamation-triangle',
-    });
-    isFirstUser.value = false; // Set to false on error to show disabled state
-  } finally {
-    isCheckingUserStatus.value = false;
-  }
-});
 
 const handleRegister = async () => {
-  // Check if this is the first user
-  if (isFirstUser.value !== true) {
-    toast.add({
-      title: 'Error',
-      description: 'Registration is not available. Please contact an administrator.',
-      icon: 'i-heroicons-exclamation-triangle',
-    });
-    return;
-  }
-
   // Validate password match
   if (!passwordsMatch.value) {
     toast.add({
@@ -309,6 +262,16 @@ const handleRegister = async () => {
     toast.add({
       title: 'Error',
       description: 'Password must be at least 6 characters long.',
+      icon: 'i-heroicons-exclamation-triangle',
+    });
+    return;
+  }
+
+  // Only allow registration if this is the first user
+  if (!isFirstUser.value) {
+    toast.add({
+      title: 'Registration Closed',
+      description: 'User registration is only available for the first user.',
       icon: 'i-heroicons-exclamation-triangle',
     });
     return;
@@ -333,6 +296,7 @@ const handleRegister = async () => {
     // If user was created successfully, create user profile with Super Admin role
     if (authData.user) {
       try {
+        // Use the first-user endpoint since we've verified this is the first user
         const profileResponse = await $fetch('/api/users/create-first-user-profile', {
           method: 'POST',
           body: {

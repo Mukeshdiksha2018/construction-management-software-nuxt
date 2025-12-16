@@ -29,6 +29,8 @@ const mockConfigurationsStore = {
           uuid: 'item-1',
           item_type_uuid: 'type-1',
           item_name: 'Test Item 1',
+          item_sequence: 'SEQ-001',
+          model_number: 'MODEL-123',
           unit_price: 100.00,
           unit: 'EA',
           description: 'Test description 1',
@@ -38,6 +40,8 @@ const mockConfigurationsStore = {
           uuid: 'item-2',
           item_type_uuid: 'type-2',
           item_name: 'Test Item 2',
+          item_sequence: 'SEQ-002',
+          model_number: null,
           unit_price: 200.00,
           unit: 'FT',
           description: 'Test description 2',
@@ -56,6 +60,8 @@ const mockConfigurationsStore = {
           uuid: 'item-3',
           item_type_uuid: 'type-1',
           item_name: 'Test Item 3',
+          item_sequence: 'SEQ-003',
+          model_number: 'MODEL-456',
           unit_price: 150.00,
           unit: 'EA',
           description: 'Test description 3',
@@ -1334,6 +1340,331 @@ describe('ItemsList Component', () => {
 
       expect(wrapper.vm.showItemModal).toBe(true);
       expect(wrapper.vm.itemForm.item_sequence).toBe("");
+    });
+  });
+
+  describe("Model Number Functionality", () => {
+    beforeEach(() => {
+      mockToast.add.mockClear();
+    });
+
+    it("should initialize itemForm with model_number field", () => {
+      wrapper = createWrapper();
+
+      wrapper.vm.openAddModal();
+
+      expect(wrapper.vm.itemForm).toHaveProperty("model_number");
+      expect(wrapper.vm.itemForm.model_number).toBe("");
+    });
+
+    it("should save new item with model_number", async () => {
+      wrapper = createWrapper();
+
+      mockConfigurationsStore.getConfigurationById.mockReturnValue({
+        uuid: "config-1",
+        preferred_items: [],
+      });
+      mockConfigurationsStore.updateConfiguration.mockResolvedValue(undefined);
+
+      wrapper.vm.itemForm = {
+        cost_code_configuration_uuid: "config-1",
+        item_name: "New Item",
+        item_type_uuid: "type-1",
+        project_uuid: "project-1",
+        corporation_uuid: "corp-1",
+        item_sequence: "SEQ-001",
+        model_number: "MODEL-123",
+        unit_price: "150",
+        unit: "EA",
+        description: "New item description",
+        status: "Active",
+      };
+      
+      // Set up for multi-item add mode
+      wrapper.vm.addItemsRows = [{
+        cost_code_configuration_uuid: "config-1",
+        item_name: "New Item",
+        item_sequence: "SEQ-001",
+        model_number: "MODEL-123",
+        unit_price: "150",
+        unit: "EA",
+        description: "New item description",
+        status: "Active",
+      }];
+
+      await wrapper.vm.saveItem();
+
+      expect(mockConfigurationsStore.updateConfiguration).toHaveBeenCalled();
+      const callArgs = mockConfigurationsStore.updateConfiguration.mock.calls[0];
+      const updatedItems = callArgs[1].preferred_items;
+      expect(updatedItems[0].model_number).toBe("MODEL-123");
+    });
+
+    it("should update existing item with new model_number", async () => {
+      wrapper = createWrapper();
+
+      mockConfigurationsStore.getConfigurationById.mockReturnValue({
+        uuid: "config-1",
+        preferred_items: [
+          {
+            uuid: "item-1",
+            item_name: "Old Item",
+            item_sequence: "SEQ-001",
+            model_number: "OLD-MODEL",
+            unit_price: 100,
+            unit: "EA",
+            status: "Active",
+            item_type_uuid: "type-1",
+          },
+        ],
+      });
+      mockConfigurationsStore.updateConfiguration.mockResolvedValue(undefined);
+
+      wrapper.vm.editingItem = { uuid: "item-1" };
+      wrapper.vm.itemForm = {
+        cost_code_configuration_uuid: "config-1",
+        item_name: "Updated Item",
+        item_type_uuid: "type-1",
+        project_uuid: "project-1",
+        corporation_uuid: "corp-1",
+        item_sequence: "SEQ-001",
+        model_number: "NEW-MODEL-456",
+        unit_price: "200",
+        unit: "FT",
+        description: "Updated",
+        status: "Active",
+      };
+
+      await wrapper.vm.saveItem();
+
+      expect(mockConfigurationsStore.updateConfiguration).toHaveBeenCalled();
+      const callArgs = mockConfigurationsStore.updateConfiguration.mock.calls[0];
+      const updatedItems = callArgs[1].preferred_items;
+      expect(updatedItems[0].model_number).toBe("NEW-MODEL-456");
+    });
+
+    it("should populate model_number when editing existing item", async () => {
+      wrapper = createWrapper();
+
+      const item = {
+        uuid: "item-1",
+        cost_code_configuration_uuid: "config-1",
+        item_type_uuid: "type-1",
+        project_uuid: "project-1",
+        corporation_uuid: "corp-1",
+        item_name: "Test Item 1",
+        item_sequence: "SEQ-001",
+        model_number: "MODEL-123",
+        unit_price: 100.0,
+        unit: "EA",
+        description: "Test description 1",
+        status: "Active",
+      };
+
+      await wrapper.vm.editItemAction(item);
+
+      expect(wrapper.vm.showItemModal).toBe(true);
+      expect(wrapper.vm.itemForm.model_number).toBe("MODEL-123");
+    });
+
+    it("should handle empty model_number value", async () => {
+      wrapper = createWrapper();
+
+      mockConfigurationsStore.getConfigurationById.mockReturnValue({
+        uuid: "config-1",
+        preferred_items: [],
+      });
+      mockConfigurationsStore.updateConfiguration.mockResolvedValue(undefined);
+
+      wrapper.vm.itemForm = {
+        cost_code_configuration_uuid: "config-1",
+        item_name: "New Item",
+        item_type_uuid: "type-1",
+        project_uuid: "project-1",
+        corporation_uuid: "corp-1",
+        item_sequence: "SEQ-001",
+        model_number: "",
+        unit_price: "150",
+        unit: "EA",
+        description: "New item description",
+        status: "Active",
+      };
+      
+      // Set up for multi-item add mode
+      wrapper.vm.addItemsRows = [{
+        cost_code_configuration_uuid: "config-1",
+        item_name: "New Item",
+        item_sequence: "SEQ-001",
+        model_number: "",
+        unit_price: "150",
+        unit: "EA",
+        description: "New item description",
+        status: "Active",
+      }];
+
+      await wrapper.vm.saveItem();
+
+      expect(mockConfigurationsStore.updateConfiguration).toHaveBeenCalled();
+      const callArgs = mockConfigurationsStore.updateConfiguration.mock.calls[0];
+      const updatedItems = callArgs[1].preferred_items;
+      // Empty string should be converted to undefined
+      expect(updatedItems[0].model_number).toBeUndefined();
+    });
+
+    it("should include model_number in search/filter functionality", async () => {
+      // Update mock to include model_number in items
+      mockConfigurationsStore.getAllItems.mockImplementation(
+        (corporationUuid: string) => {
+          return [
+            {
+              uuid: "item-1",
+              item_name: "Test Item 1",
+              item_sequence: "SEQ-001",
+              model_number: "MODEL-123",
+              cost_code_configuration_uuid: "config-1",
+              cost_code_number: "01.02.03",
+              cost_code_name: "Cost Code 1",
+              unit_price: 100.0,
+              unit: "EA",
+            },
+            {
+              uuid: "item-2",
+              item_name: "Test Item 2",
+              item_sequence: "SEQ-002",
+              model_number: "MODEL-456",
+              cost_code_configuration_uuid: "config-1",
+              cost_code_number: "01.02.03",
+              cost_code_name: "Cost Code 1",
+              unit_price: 200.0,
+              unit: "FT",
+            },
+            {
+              uuid: "item-3",
+              item_name: "Test Item 3",
+              item_sequence: "SEQ-003",
+              model_number: null,
+              cost_code_configuration_uuid: "config-2",
+              cost_code_number: "02.03.04",
+              cost_code_name: "Cost Code 2",
+              unit_price: 150.0,
+              unit: "EA",
+            },
+          ];
+        }
+      );
+
+      wrapper = createWrapper({ globalFilter: "MODEL-123" });
+      await wrapper.vm.$nextTick();
+
+      const filtered = wrapper.vm.filteredItems;
+
+      expect(filtered.length).toBeGreaterThan(0);
+      expect(
+        filtered.some((item: any) => item.model_number === "MODEL-123")
+      ).toBe(true);
+    });
+
+    it("should display model_number in the table columns", () => {
+      wrapper = createWrapper();
+
+      const columns = wrapper.vm.columns;
+      const modelNumberColumn = columns.find(
+        (col: any) => col.accessorKey === "model_number"
+      );
+
+      expect(modelNumberColumn).toBeDefined();
+      expect(modelNumberColumn.header).toBe("Model Number");
+    });
+
+    it("should preserve model_number when updating other fields", async () => {
+      wrapper = createWrapper();
+
+      mockConfigurationsStore.getConfigurationById.mockReturnValue({
+        uuid: "config-1",
+        preferred_items: [
+          {
+            uuid: "item-1",
+            item_name: "Old Item",
+            item_sequence: "SEQ-001",
+            model_number: "MODEL-123",
+            unit_price: 100,
+            unit: "EA",
+            status: "Active",
+            item_type_uuid: "type-1",
+          },
+        ],
+      });
+
+      wrapper.vm.editingItem = { uuid: "item-1" };
+      wrapper.vm.itemForm = {
+        cost_code_configuration_uuid: "config-1",
+        item_name: "Updated Name Only",
+        item_type_uuid: "type-1",
+        project_uuid: "project-1",
+        corporation_uuid: "corp-1",
+        item_sequence: "SEQ-001",
+        model_number: "MODEL-123", // Unchanged
+        unit_price: "100",
+        unit: "EA",
+        description: "",
+        status: "Active",
+      };
+
+      await wrapper.vm.saveItem();
+
+      expect(mockConfigurationsStore.updateConfiguration).toHaveBeenCalled();
+      const callArgs = mockConfigurationsStore.updateConfiguration.mock.calls[0];
+      const updatedItems = callArgs[1].preferred_items;
+      expect(updatedItems[0].model_number).toBe("MODEL-123");
+      expect(updatedItems[0].item_name).toBe("Updated Name Only");
+    });
+
+    it("should handle null or undefined model_number in existing items", async () => {
+      wrapper = createWrapper();
+
+      const item = {
+        uuid: "item-1",
+        cost_code_configuration_uuid: "config-1",
+        item_type_uuid: "type-1",
+        project_uuid: "project-1",
+        corporation_uuid: "corp-1",
+        item_name: "Test Item 1",
+        item_sequence: "SEQ-001",
+        model_number: null, // null model number
+        unit_price: 100.0,
+        unit: "EA",
+        description: "Test description 1",
+        status: "Active",
+      };
+
+      await wrapper.vm.editItemAction(item);
+
+      expect(wrapper.vm.showItemModal).toBe(true);
+      expect(wrapper.vm.itemForm.model_number).toBe("");
+    });
+
+    it("should reset model_number when opening add modal", () => {
+      wrapper = createWrapper();
+
+      // Set a value first
+      wrapper.vm.itemForm.model_number = "OLD-VALUE";
+
+      // Open add modal
+      wrapper.vm.openAddModal();
+
+      expect(wrapper.vm.itemForm.model_number).toBe("");
+    });
+
+    it("should include model_number in add items table columns", () => {
+      wrapper = createWrapper();
+
+      const addItemsColumns = wrapper.vm.addItemsColumns;
+      const modelNumberColumn = addItemsColumns.find(
+        (col: any) => col.accessorKey === "model_number"
+      );
+
+      expect(modelNumberColumn).toBeDefined();
+      expect(modelNumberColumn.header).toBe("Model Number");
     });
   });
 })

@@ -9,6 +9,7 @@ describe('EstimateItemsSelectionModal', () => {
     {
       id: 'item-1',
       uuid: 'item-1-uuid',
+      cost_code_uuid: 'cc-uuid-1',
       cost_code_label: 'CC-001',
       item_type_label: 'Material',
       item_label: 'Concrete',
@@ -20,6 +21,7 @@ describe('EstimateItemsSelectionModal', () => {
     {
       id: 'item-2',
       uuid: 'item-2-uuid',
+      cost_code_uuid: 'cc-uuid-2',
       cost_code_label: 'CC-002',
       item_type_label: 'Material',
       item_label: 'Rebar',
@@ -31,6 +33,7 @@ describe('EstimateItemsSelectionModal', () => {
     {
       id: 'item-3',
       uuid: 'item-3-uuid',
+      cost_code_uuid: 'cc-uuid-3',
       cost_code_label: 'CC-003',
       item_type_label: 'Material',
       item_label: 'Lumber',
@@ -92,6 +95,25 @@ describe('EstimateItemsSelectionModal', () => {
               </div>
             `,
           },
+          CustomAccordion: {
+            props: ["items", "type", "collapsible"],
+            template: `
+              <div>
+                <div v-for="(item, index) in items" :key="item.key || index">
+                  <slot name="trigger" :item="item" :isOpen="true" />
+                  <slot name="content" :item="item" />
+                </div>
+              </div>
+            `,
+          },
+          UBadge: {
+            props: ["label", "color", "variant", "size"],
+            template: '<span class="badge">{{ label }}</span>',
+          },
+          UIcon: {
+            props: ["name"],
+            template: '<span class="icon"></span>',
+          },
         },
       },
     });
@@ -106,10 +128,15 @@ describe('EstimateItemsSelectionModal', () => {
   })
 
   it('selects all items by default when modal opens', async () => {
-    // All checkboxes should be checked by default
+    // All items should be selected in the selectedItems set
+    const vm = wrapper.vm as any
+    expect(vm.selectedItems.size).toBe(mockItems.length)
+    
+    // Checkboxes should exist for the filtered items (first cost code is auto-selected)
+    // Since items are filtered by cost code, only items from the selected cost code are shown
     const checkboxes = wrapper.findAll('input[type="checkbox"]')
-    // First checkbox is the "select all", then one for each item
-    expect(checkboxes.length).toBeGreaterThanOrEqual(mockItems.length)
+    // Should have at least the header checkbox and one item checkbox
+    expect(checkboxes.length).toBeGreaterThanOrEqual(1)
   })
 
   it('emits confirm event with selected items', async () => {
@@ -161,14 +188,28 @@ describe('EstimateItemsSelectionModal', () => {
     expect(text).toContain("Concrete");
   })
 
-  it('calculates item totals correctly', () => {
+  it('calculates item totals correctly', async () => {
+    const vm = wrapper.vm as any
+    
     // First item: 150 * 10 = 1500
     // Should format as $1,500.00
     expect(wrapper.text()).toContain('1,500.00')
     
+    // Switch to second cost code to see second item
+    vm.selectCostCode('cc-uuid-2')
+    await wrapper.vm.$nextTick()
+    
     // Second item: 0.75 * 1000 = 750
     // Should format as $750.00
     expect(wrapper.text()).toContain('750.00')
+    
+    // Switch to third cost code to see third item
+    vm.selectCostCode('cc-uuid-3')
+    await wrapper.vm.$nextTick()
+    
+    // Third item: 5.50 * 100 = 550
+    // Should format as $550.00
+    expect(wrapper.text()).toContain('550.00')
   })
 
   it('shows correct selected count', () => {

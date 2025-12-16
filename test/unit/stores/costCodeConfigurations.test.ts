@@ -534,6 +534,42 @@ describe('Cost Code Configurations Store', () => {
       const config = store.configurations[0]
       expect(config.preferred_items).toEqual([])
     })
+
+    it('should include model_number in preferred items', async () => {
+      const configWithModelNumber = {
+        ...mockConfiguration,
+        preferred_items: [
+          {
+            ...mockConfiguration.preferred_items[0],
+            model_number: 'MODEL-123'
+          }
+        ]
+      }
+      mockDbHelpers.getCostCodeConfigurations.mockResolvedValue([configWithModelNumber])
+
+      await store.fetchConfigurations('corp-1')
+
+      const config = store.configurations[0]
+      expect(config.preferred_items[0].model_number).toBe('MODEL-123')
+    })
+
+    it('should handle preferred items without model_number', async () => {
+      const configWithoutModelNumber = {
+        ...mockConfiguration,
+        preferred_items: [
+          {
+            ...mockConfiguration.preferred_items[0],
+            model_number: null
+          }
+        ]
+      }
+      mockDbHelpers.getCostCodeConfigurations.mockResolvedValue([configWithoutModelNumber])
+
+      await store.fetchConfigurations('corp-1')
+
+      const config = store.configurations[0]
+      expect(config.preferred_items[0].model_number).toBeNull()
+    })
   })
 
   describe('Error Handling', () => {

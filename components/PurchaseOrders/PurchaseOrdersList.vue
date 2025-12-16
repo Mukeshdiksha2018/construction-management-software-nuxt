@@ -584,52 +584,6 @@
     </UModal>
 
     <!-- Change Order Form Modal (for exceeded quantities) -->
-    <UModal v-model:open="showChangeOrderModal" :title="'Create Change Order for Exceeded Quantities'" fullscreen scrollable>
-      <template #header>
-        <div class="flex items-center justify-between w-full gap-4">
-          <div class="flex items-center gap-4 flex-shrink-0">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-              Create Change Order for Exceeded Quantities
-            </h3>
-            <span class="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium border bg-warning-100 text-warning-700 border-warning-200 dark:bg-warning-900 dark:text-warning-200 dark:border-warning-700">
-              Draft
-            </span>
-          </div>
-
-          <div class="flex items-center gap-2 flex-1 justify-end">
-            <UButton
-              data-testid="btn-save-co-draft"
-              color="warning"
-              variant="solid"
-              icon="i-heroicons-document"
-              size="sm"
-              :disabled="savingCO"
-              :loading="savingCO"
-              @click="handleSaveChangeOrder"
-            >
-              Save as Draft
-            </UButton>
-            <UTooltip text="Close Modal" color="neutral">
-              <UButton
-                color="neutral"
-                variant="solid"
-                icon="i-heroicons-x-mark"
-                size="sm"
-                @click="closeChangeOrderModal"
-              />
-            </UTooltip>
-          </div>
-        </div>
-      </template>
-      <template #body>
-        <ChangeOrderForm
-          v-if="changeOrderFormData"
-          v-model:form="changeOrderFormData"
-          :loading="false"
-          :readonly="false"
-        />
-      </template>
-    </UModal>
   </div>
 </template>
 
@@ -647,7 +601,6 @@ import { usePermissions } from '@/composables/usePermissions'
 import type { TableColumn } from '@nuxt/ui'
 import { usePurchaseOrderResourcesStore } from '@/stores/purchaseOrderResources'
 import { useChangeOrdersStore } from '@/stores/changeOrders'
-import ChangeOrderForm from '@/components/ChangeOrders/ChangeOrderForm.vue'
 import { usePurchaseOrderPrint } from '@/composables/usePurchaseOrderPrint'
 import { useProjectsStore } from '@/stores/projects'
 import { useVendorStore } from '@/stores/vendors'
@@ -725,8 +678,6 @@ const isFormValid = ref(true) // Track form validation state
 const showExceededQuantityModal = ref(false)
 const exceededItems = ref<any[]>([])
 const pendingSaveAction = ref<(() => Promise<void>) | null>(null)
-const showChangeOrderModal = ref(false)
-const changeOrderFormData = ref<any>(null)
 const savingCO = ref(false)
 
 // Column pinning for sticky actions column
@@ -1282,7 +1233,7 @@ const openCreateModal = () => {
         icon: "i-heroicons-x-circle",
       });
     } catch (error) {
-      console.error('Error showing toast:', error);
+      // Error showing toast
     }
     return;
   }
@@ -1334,7 +1285,6 @@ const openCreateModal = () => {
 
 const loadPurchaseOrderForModal = async (po: any, viewMode: boolean = false) => {
   if (!po?.uuid) {
-    console.warn('[POL] loadPurchaseOrderForModal called without UUID', po)
     return
   }
 
@@ -1373,7 +1323,6 @@ const loadPurchaseOrderForModal = async (po: any, viewMode: boolean = false) => 
       removed_po_items: detailed.removed_po_items || [],
     };
   } catch (error) {
-    console.error("[POL] Failed to fetch purchase order details:", error);
     const toast = useToast();
     toast.add({
       title: "Error",
@@ -1397,7 +1346,7 @@ const editPurchaseOrder = async (po: any) => {
         icon: "i-heroicons-x-circle",
       });
     } catch (error) {
-      console.error('Error showing toast:', error);
+      // Error showing toast
     }
     return;
   }
@@ -1521,16 +1470,22 @@ const submitWithStatus = async (status: 'Draft' | 'Ready' | 'Approved') => {
   
   poForm.value.status = status
   
-  // Check for exceeded quantities before saving
-  const { hasExceeded, items } = checkForExceededQuantities()
+  // Only check for exceeded quantities and show modal for NEW purchase orders
+  // For existing purchase orders, skip the modal and save directly
+  const isNewPurchaseOrder = !poForm.value?.uuid
   
-  if (hasExceeded) {
-    exceededItems.value = items
-    pendingSaveAction.value = async () => {
-      await savePurchaseOrder()
+  if (isNewPurchaseOrder) {
+    // Check for exceeded quantities before saving
+    const { hasExceeded, items } = checkForExceededQuantities()
+    
+    if (hasExceeded) {
+      exceededItems.value = items
+      pendingSaveAction.value = async () => {
+        await savePurchaseOrder()
+      }
+      showExceededQuantityModal.value = true
+      return
     }
-    showExceededQuantityModal.value = true
-    return
   }
   
   await savePurchaseOrder()
@@ -1552,7 +1507,7 @@ const handleApproveAndRaise = async () => {
 
 const handleRejectToDraft = () => submitWithStatus('Draft')
 
-const savePurchaseOrder = async () => {
+const savePurchaseOrder = async (skipModalClose = false): Promise<any | null> => {
   // Determine the correct corporation_uuid to use
   // For new POs: use poForm.value.corporation_uuid (from form selector) or fallback to TopBar's selected
   // For editing: use poForm.value.corporation_uuid (from form, which should match the loaded PO's corporation)
@@ -1569,38 +1524,11 @@ const savePurchaseOrder = async () => {
   if (!corporationUuid) {
     const toast = useToast();
     toast.add({ title: 'Error', description: 'Corporation is required to save purchase order', color: 'error' })
-    return
+    return null
   }
   
   savingPO.value = true
   try {
-    console.log('[POL] savePurchaseOrder - poForm.value:', {
-      uuid: poForm.value.uuid,
-      corporation_uuid: poForm.value.corporation_uuid,
-      selectedCorporationId: corporationStore.selectedCorporationId,
-      resolvedCorporationUuid: corporationUuid,
-      po_type: poForm.value.po_type,
-      credit_days: poForm.value.credit_days,
-      include_items: poForm.value.include_items,
-      ship_via: poForm.value.ship_via,
-      ship_via_uuid: poForm.value.ship_via_uuid,
-      freight: poForm.value.freight,
-      freight_uuid: poForm.value.freight_uuid,
-      status: poForm.value.status,
-    })
-    const firstItem = Array.isArray(poForm.value.po_items) ? poForm.value.po_items[0] : undefined
-    if (firstItem) {
-      console.log('[POL] first PO item before save:', {
-        cost_code_uuid: firstItem.cost_code_uuid,
-        item_uuid: firstItem.item_uuid,
-        po_unit_price: firstItem.po_unit_price,
-        po_quantity: firstItem.po_quantity,
-        po_total: firstItem.po_total,
-        quantity: firstItem.quantity,
-        unit_price: firstItem.unit_price,
-      })
-    }
-    
     let result = null
     
     if (poForm.value.uuid) {
@@ -1611,17 +1539,8 @@ const savePurchaseOrder = async () => {
         corporation_uuid: corporationUuid, // Explicitly set to ensure correct corporation
         raise_against: poForm.value.raise_against || null, // Explicitly include raise_against
       }
-      console.log('[POL] savePurchaseOrder - update payload:', {
-        uuid: payload.uuid,
-        corporation_uuid: payload.corporation_uuid,
-        po_type: payload.po_type,
-        credit_days: payload.credit_days,
-        include_items: payload.include_items,
-        raise_against: payload.raise_against,
-        status: payload.status,
-      })
       result = await purchaseOrdersStore.updatePurchaseOrder(payload)
-      if (result) {
+      if (result && !skipModalClose) {
         const toast = useToast();
         toast.add({ 
           title: 'Updated', 
@@ -1639,16 +1558,8 @@ const savePurchaseOrder = async () => {
         corporation_uuid: corporationUuid, // Use form's corporation_uuid, not TopBar's
         raise_against: poForm.value.raise_against || null, // Explicitly include raise_against
       }
-      console.log('[POL] savePurchaseOrder - create payload:', {
-        corporation_uuid: payload.corporation_uuid,
-        po_type: payload.po_type,
-        credit_days: payload.credit_days,
-        include_items: payload.include_items,
-        raise_against: payload.raise_against,
-        status: payload.status,
-      })
       result = await purchaseOrdersStore.createPurchaseOrder(payload)
-      if (result) {
+      if (result && !skipModalClose) {
         const toast = useToast();
         toast.add({ title: 'Created', description: 'Purchase order created', color: 'success' })
         closeFormModal()
@@ -1658,10 +1569,12 @@ const savePurchaseOrder = async () => {
     if (!result) {
       throw new Error('Failed to save purchase order')
     }
+    
+    return result
   } catch (e) {
-    console.error('Error saving purchase order:', e)
     const toast = useToast();
     toast.add({ title: 'Error', description: 'Failed to save purchase order', color: 'error' })
+    return null
   } finally {
     savingPO.value = false
   }
@@ -1749,7 +1662,6 @@ const confirmDelete = async () => {
       purchaseOrdersStore.error = null
     }
   } catch (error: any) {
-    console.error('Error deleting purchase order:', error)
     // Clear the store error after handling it so it doesn't affect the table display
     purchaseOrdersStore.error = null
     
@@ -1789,15 +1701,20 @@ const handleContinueSavingPO = async () => {
 
 const handleRaiseChangeOrder = async () => {
   showExceededQuantityModal.value = false
-  
+
+  // Store the current form data before it gets cleared during PO save
+  // This must happen BEFORE calling pendingSaveAction since that clears the form
+  // Use deep clone to avoid reactive proxy issues
+  const currentFormData = JSON.parse(JSON.stringify(poForm.value))
+
   // Adjust PO items quantities/amounts to match estimate quantities/amounts before saving
   const exceededItemsList = exceededItems.value
-  const currentPoType = String(poForm.value?.po_type || '').toUpperCase()
+  const currentPoType = String(currentFormData?.po_type || '').toUpperCase()
   const isCurrentLaborPO = currentPoType === 'LABOR'
   
   if (exceededItemsList.length > 0) {
     // Handle material items
-    if (!isCurrentLaborPO && Array.isArray(poForm.value.po_items)) {
+    if (!isCurrentLaborPO && Array.isArray(currentFormData.po_items)) {
       // Create a map of exceeded items by item_uuid for quick lookup
       const exceededMap = new Map<string, any>()
       exceededItemsList
@@ -1808,9 +1725,9 @@ const handleRaiseChangeOrder = async () => {
             exceededMap.set(key, item)
           }
         })
-      
+
       // Update PO items to set po_quantity to estimate quantity (quantity field)
-      const updatedPoItems = poForm.value.po_items.map((item: any) => {
+      const updatedPoItems = currentFormData.po_items.map((item: any) => {
         const key = String(item.item_uuid || '').toLowerCase()
         const exceededItem = key ? exceededMap.get(key) : null
         
@@ -1834,15 +1751,15 @@ const handleRaiseChangeOrder = async () => {
         const poTotal = parseFloat(String(item.po_total || 0))
         return sum + poTotal
       }, 0)
-      
+
       // Round to 2 decimal places
       const roundedItemTotal = Math.round((newItemTotal + Number.EPSILON) * 100) / 100
-      
+
       // Recalculate charges based on percentages
-      const freightPercentage = parseFloat(String(poForm.value.freight_charges_percentage || 0))
-      const packingPercentage = parseFloat(String(poForm.value.packing_charges_percentage || 0))
-      const customDutiesPercentage = parseFloat(String(poForm.value.custom_duties_percentage || 0))
-      const otherChargesPercentage = parseFloat(String(poForm.value.other_charges_percentage || 0))
+      const freightPercentage = parseFloat(String(currentFormData.freight_charges_percentage || 0))
+      const packingPercentage = parseFloat(String(currentFormData.packing_charges_percentage || 0))
+      const customDutiesPercentage = parseFloat(String(currentFormData.custom_duties_percentage || 0))
+      const otherChargesPercentage = parseFloat(String(currentFormData.other_charges_percentage || 0))
       
       const freightAmount = Math.round((roundedItemTotal * (freightPercentage / 100) + Number.EPSILON) * 100) / 100
       const packingAmount = Math.round((roundedItemTotal * (packingPercentage / 100) + Number.EPSILON) * 100) / 100
@@ -1937,7 +1854,7 @@ const handleRaiseChangeOrder = async () => {
     }
     
     // Handle labor items
-    if (isCurrentLaborPO && Array.isArray(poForm.value.labor_po_items)) {
+    if (isCurrentLaborPO && Array.isArray(currentFormData.labor_po_items)) {
       // Create a map of exceeded items by cost_code_uuid for quick lookup
       const exceededMap = new Map<string, any>()
       exceededItemsList
@@ -1948,9 +1865,9 @@ const handleRaiseChangeOrder = async () => {
             exceededMap.set(key, item)
           }
         })
-      
+
       // Update labor PO items to set po_amount to labor_budgeted_amount
-      const updatedLaborItems = poForm.value.labor_po_items.map((item: any) => {
+      const updatedLaborItems = currentFormData.labor_po_items.map((item: any) => {
         const key = String(item.cost_code_uuid || '').toLowerCase()
         const exceededItem = key ? exceededMap.get(key) : null
         
@@ -2075,91 +1992,109 @@ const handleRaiseChangeOrder = async () => {
     }
   }
   
-  // First, save the PO to get the UUID
-  if (pendingSaveAction.value) {
-    savingPO.value = true
+  // First, save the PO to get the UUID (skip modal close since we're creating CO)
+  let savedPo: any = null
+  
+  // Check if PO is already saved (has UUID)
+  if (currentFormData.uuid) {
+    // PO is already saved, use currentFormData but we'll still fetch to get complete data
+    savedPo = { uuid: currentFormData.uuid }
+  } else if (pendingSaveAction.value) {
+    // PO needs to be saved
     try {
-      await pendingSaveAction.value()
+      // Call savePurchaseOrder directly with skipModalClose=true to get the returned PO
+      savedPo = await savePurchaseOrder(true)
       
-      // Reload PO to get the UUID if it was just created
-      if (!poForm.value.uuid && corporationStore.selectedCorporationId) {
-        // PO was just created, need to fetch it
-        // Wait a bit for the store to update, then find the latest PO
-        await nextTick()
-        const allPOs = purchaseOrdersStore.purchaseOrders || []
-        // Find the PO by matching po_number and corporation
-        const latestPO = allPOs
-          .filter((po: any) => 
-            po.po_number === poForm.value.po_number &&
-            po.corporation_uuid === corporationStore.selectedCorporationId
-          )
-          .sort((a: any, b: any) => {
-            // Sort by created date descending to get the latest
-            const dateA = new Date(a.created_at || a.entry_date || 0).getTime()
-            const dateB = new Date(b.created_at || b.entry_date || 0).getTime()
-            return dateB - dateA
-          })[0]
-        
-        if (latestPO?.uuid) {
-          const detailed = await purchaseOrdersStore.fetchPurchaseOrder(latestPO.uuid)
-          if (detailed) {
-            poForm.value = {
-              ...detailed,
-              po_type: detailed.po_type || "",
-              po_type_uuid: detailed.po_type_uuid || "",
-              credit_days: detailed.credit_days || "",
-              include_items: detailed.include_items || "",
-              raise_against: (detailed as any).raise_against || null,
-              po_items: detailed.po_items || [],
-              labor_po_items: (detailed as any).labor_po_items || [],
-              attachments: detailed.attachments || [],
-              removed_po_items: detailed.removed_po_items || [],
-            }
-          }
-        } else {
-          // If we still don't have a UUID, try fetching all POs again
-          await purchaseOrdersStore.fetchPurchaseOrders(corporationStore.selectedCorporationId)
-          const updatedPOs = purchaseOrdersStore.purchaseOrders || []
-          const foundPO = updatedPOs.find((po: any) => 
-            po.po_number === poForm.value.po_number &&
-            po.corporation_uuid === corporationStore.selectedCorporationId
-          )
-          if (foundPO?.uuid) {
-            const detailed = await purchaseOrdersStore.fetchPurchaseOrder(foundPO.uuid)
-            if (detailed) {
-              poForm.value = {
-                ...detailed,
-                po_type: detailed.po_type || "",
-                po_type_uuid: detailed.po_type_uuid || "",
-                credit_days: detailed.credit_days || "",
-                include_items: detailed.include_items || "",
-                raise_against: (detailed as any).raise_against || null,
-                po_items: detailed.po_items || [],
-                labor_po_items: (detailed as any).labor_po_items || [],
-                attachments: detailed.attachments || [],
-                removed_po_items: detailed.removed_po_items || [],
-              }
-            }
-          }
-        }
+      if (!savedPo || !savedPo.uuid) {
+        throw new Error('Failed to save purchase order or get UUID')
       }
     } catch (error) {
-      console.error('Error saving PO before creating CO:', error)
       const toast = useToast()
       toast.add({
         title: 'Error',
         description: 'Failed to save purchase order. Cannot create change order.',
         color: 'error',
       })
-      savingPO.value = false
       return
-    } finally {
-      savingPO.value = false
+    }
+  } else {
+    // No pending save action and no UUID - need to save the PO
+    try {
+      savedPo = await savePurchaseOrder(true)
+      if (!savedPo || !savedPo.uuid) {
+        throw new Error('Failed to save purchase order or get UUID')
+      }
+    } catch (error) {
+      const toast = useToast()
+      toast.add({
+        title: 'Error',
+        description: 'Failed to save purchase order. Cannot create change order.',
+        color: 'error',
+      })
+      return
     }
   }
   
-  // Pre-populate change order form with PO data
-  const poData = poForm.value
+  // Refetch the saved purchase order using its UUID to get all the complete data
+  // Start with currentFormData which has all the form fields, then merge with fetched data
+  let poData: any = { ...currentFormData } // Start with form data
+  
+  if (savedPo?.uuid && corporationStore.selectedCorporationId) {
+    try {
+      const detailed = await purchaseOrdersStore.fetchPurchaseOrder(savedPo.uuid)
+      if (detailed) {
+        // Cast to any to access all properties
+        const detailedAny = detailed as any
+        // Merge fetched data (from DB) with currentFormData (from form)
+        // Fetched data has the UUID and all DB fields, form data has user-entered values
+        poData = {
+          ...currentFormData, // Start with form data
+          ...detailedAny, // Override with DB data (includes UUID and all fields)
+          // Ensure critical fields are set
+          uuid: detailedAny.uuid,
+          corporation_uuid: detailedAny.corporation_uuid || currentFormData.corporation_uuid,
+          project_uuid: detailedAny.project_uuid || currentFormData.project_uuid,
+          vendor_uuid: detailedAny.vendor_uuid || currentFormData.vendor_uuid,
+          credit_days: detailedAny.credit_days || currentFormData.credit_days,
+          ship_via_uuid: detailedAny.ship_via_uuid || currentFormData.ship_via_uuid,
+          freight_uuid: detailedAny.freight_uuid || currentFormData.freight_uuid,
+          shipping_address_uuid: detailedAny.shipping_address_uuid || currentFormData.shipping_address_uuid,
+          terms_and_conditions_uuid: detailedAny.terms_and_conditions_uuid || currentFormData.terms_and_conditions_uuid,
+          po_type: detailedAny.po_type || currentFormData.po_type || "",
+          po_type_uuid: detailedAny.po_type_uuid || currentFormData.po_type_uuid || "",
+          include_items: detailedAny.include_items || currentFormData.include_items || "",
+          raise_against: detailedAny.raise_against || currentFormData.raise_against || null,
+          po_items: detailedAny.po_items || currentFormData.po_items || [],
+          labor_po_items: detailedAny.labor_po_items || currentFormData.labor_po_items || [],
+          attachments: detailedAny.attachments || currentFormData.attachments || [],
+          removed_po_items: detailedAny.removed_po_items || currentFormData.removed_po_items || [],
+        }
+      } else {
+        poData = {
+          ...currentFormData,
+          ...savedPo,
+          uuid: savedPo.uuid, // Ensure UUID is set
+        }
+      }
+    } catch (error) {
+      // Merge saved PO with currentFormData as fallback
+      poData = {
+        ...currentFormData,
+        ...savedPo,
+        uuid: savedPo?.uuid || currentFormData.uuid,
+      }
+    }
+  } else if (savedPo) {
+    // Use saved PO merged with currentFormData if we have it but couldn't fetch detailed
+    poData = {
+      ...currentFormData,
+      ...savedPo,
+      uuid: savedPo.uuid,
+    }
+  } else {
+    // Use currentFormData as-is, but it won't have UUID
+  }
+  
   const exceeded = exceededItems.value
   const changeOrderPoType = String(poData?.po_type || '').toUpperCase()
   const isChangeOrderLaborPO = changeOrderPoType === 'LABOR'
@@ -2182,18 +2117,65 @@ const handleRaiseChangeOrder = async () => {
   const laborExceeded = exceeded.filter((item: any) => item.item_type === 'labor')
   
   // Prepare change order items from exceeded quantities (for material POs)
-  const coItems = materialExceeded.map((item: any) => ({
-    cost_code_uuid: item.cost_code_uuid || null,
-    item_uuid: item.item_uuid || null,
-    model_number: item.model_number || '',
-    name: item.name || item.description || '',
-    description: item.description || '',
-    // Original PO values (estimate quantity)
-    co_unit_price: item.unit_price || item.po_unit_price || null,
-    co_quantity: item.exceeded_quantity, // Only the exceeded portion
-    co_total: item.exceeded_quantity * (item.unit_price || item.po_unit_price || 0),
-    approval_checks: item.approval_checks || [],
-  }))
+  // Include all fields from the original PO item to ensure proper display
+  const coItems = materialExceeded.map((item: any) => {
+    // Get cost code info from display_metadata or item itself
+    const display = item?.display_metadata || item?.metadata || {}
+    const costCodeNumber = display.cost_code_number || item.cost_code_number || ''
+    const costCodeName = display.cost_code_name || item.cost_code_name || ''
+    const costCodeLabel = display.cost_code_label || item.cost_code_label || [costCodeNumber, costCodeName].filter(Boolean).join(' ').trim()
+    
+    // Get unit info
+    const unitLabel = display.unit_label || item.unit_label || item.uom_label || item.unit || item.uom || ''
+    const unitUuid = item.uom_uuid || item.unit_uuid || display.unit_uuid || null
+    
+    // Get location info
+    const locationLabel = display.location_display || item.location || ''
+    const locationUuid = item.location_uuid || display.location_uuid || null
+    
+    // Get item type info
+    const itemTypeLabel = display.item_type_label || item.item_type_label || ''
+    const itemTypeUuid = item.item_type_uuid || display.item_type_uuid || null
+    
+    // Original estimate values (for display in CO form)
+    const estimateQuantity = item.estimate_quantity || item.quantity || 0
+    const estimateUnitPrice = item.unit_price || 0
+    const estimateTotal = estimateQuantity * estimateUnitPrice
+    
+    // CO values (exceeded portion)
+    // Use the PO unit price, defaulting to 0 if not available
+    const coUnitPrice = parseFloat(String(item.po_unit_price ?? item.unit_price ?? 0)) || 0
+    const coQuantity = parseFloat(String(item.exceeded_quantity ?? 0)) || 0
+    const coTotal = coQuantity * coUnitPrice
+    
+    return {
+      cost_code_uuid: item.cost_code_uuid || null,
+      cost_code_number: costCodeNumber || null,
+      cost_code_name: costCodeName || null,
+      cost_code_label: costCodeLabel || null,
+      division_name: display.division_name || item.division_name || null,
+      item_type_uuid: itemTypeUuid,
+      item_type_label: itemTypeLabel || null,
+      item_uuid: item.item_uuid || null,
+      name: item.name || item.item_name || item.description || '',
+      description: item.description || '',
+      model_number: item.model_number || '',
+      location_uuid: locationUuid,
+      location_label: locationLabel || null,
+      unit_uuid: unitUuid,
+      unit_label: unitLabel || null,
+      // Original estimate values (for reference in CO form)
+      // These should be the original estimate quantity/price/total
+      quantity: estimateQuantity > 0 ? estimateQuantity : null,
+      unit_price: estimateUnitPrice > 0 ? estimateUnitPrice : null,
+      total: estimateTotal > 0 ? estimateTotal : null,
+      // CO values (exceeded portion) - these are what the CO is for
+      co_unit_price: coUnitPrice,
+      co_quantity: coQuantity,
+      co_total: coTotal,
+      approval_checks: item.approval_checks || item.approval_checks_uuids || [],
+    }
+  })
   
   // Prepare labor change order items from exceeded amounts (for labor POs)
   const laborCoItems = laborExceeded.map((item: any, index: number) => ({
@@ -2207,24 +2189,161 @@ const handleRaiseChangeOrder = async () => {
     order_index: index,
   }))
   
+  // Normalize PO type to CO type (LABOR or MATERIAL)
+  const poType = String(poData.po_type || poData.po_type_uuid || 'MATERIAL').toUpperCase()
+  const normalizedCoType = poType === 'LABOR' ? 'LABOR' : 'MATERIAL'
+  
+  // Calculate CO item total from exceeded items
+  const calculateCOItemTotal = () => {
+    if (normalizedCoType === 'LABOR') {
+      return laborCoItems.reduce((sum: number, item: any) => {
+        const coAmount = parseFloat(item.co_amount) || 0
+        return sum + coAmount
+      }, 0)
+    } else {
+      return coItems.reduce((sum: number, item: any) => {
+        const coTotal = parseFloat(item.co_total) || 0
+        return sum + coTotal
+      }, 0)
+    }
+  }
+  
+  const coItemTotal = calculateCOItemTotal()
+  
+  // Calculate financial breakdown from PO's financial breakdown
+  // Use the same percentages and taxable flags, but recalculate amounts based on CO item total
+  const buildFinancialBreakdown = () => {
+    const formData = poData && typeof poData === 'object' ? poData : poForm.value
+    const poBreakdown = formData?.financial_breakdown || formData?.financialBreakdown || {}
+    const charges = poBreakdown.charges || {}
+    const salesTaxes = poBreakdown.sales_taxes || {}
+    
+    // Recalculate charges based on CO item total
+    const chargeStates: Record<string, any> = {}
+    const chargeKeys = ['freight', 'packing', 'custom_duties', 'other'] as const
+    let chargesTotal = 0
+    
+    chargeKeys.forEach((key) => {
+      const entry = charges[key] || {}
+      const percentage = parseFloat(entry.percentage) || 0
+      const taxable = Boolean(entry.taxable)
+      const amount = (coItemTotal * percentage) / 100
+      
+      chargeStates[key] = {
+        percentage,
+        amount: Math.round((amount + Number.EPSILON) * 100) / 100,
+        taxable,
+      }
+      
+      chargesTotal += chargeStates[key].amount
+    })
+    
+    // Calculate taxable base (CO item total + taxable charges)
+    const taxableCharges = Object.values(chargeStates).reduce((sum: number, state: any) => {
+      return sum + (state.taxable ? state.amount : 0)
+    }, 0)
+    const taxableBase = coItemTotal + taxableCharges
+    
+    // Recalculate sales taxes based on taxable base
+    const salesTaxStates: Record<string, any> = {}
+    let taxTotal = 0
+    
+    const salesKeys = ['sales_tax_1', 'sales_tax_2'] as const
+    salesKeys.forEach((key) => {
+      const entry = salesTaxes[key] || {}
+      const percentage = parseFloat(entry.percentage) || 0
+      const amount = (taxableBase * percentage) / 100
+      
+      salesTaxStates[key] = {
+        percentage,
+        amount: Math.round((amount + Number.EPSILON) * 100) / 100,
+      }
+      
+      taxTotal += salesTaxStates[key].amount
+    })
+    
+    const totalCOAmount = coItemTotal + chargesTotal + taxTotal
+    
+    return {
+      charges: chargeStates,
+      sales_taxes: salesTaxStates,
+      totals: {
+        item_total: Math.round((coItemTotal + Number.EPSILON) * 100) / 100,
+        charges_total: Math.round((chargesTotal + Number.EPSILON) * 100) / 100,
+        tax_total: Math.round((taxTotal + Number.EPSILON) * 100) / 100,
+        total_co_amount: Math.round((totalCOAmount + Number.EPSILON) * 100) / 100,
+      },
+    }
+  }
+  
+  const financialBreakdown = buildFinancialBreakdown()
+  
+  // Helper to normalize empty strings to null
+  const normalizeToNull = (value: any): any => {
+    if (value === '' || value === undefined) return null
+    return value
+  }
+  
+  // Ensure we have valid poData - use poForm.value directly if poData is invalid
+  const formData = poData && typeof poData === 'object' ? poData : poForm.value
+  
   const changeOrderData: any = {
+    // Required fields
+    corporation_uuid: normalizeToNull(formData?.corporation_uuid || corporationStore.selectedCorporationId),
     co_number: nextCONumber,
     created_date: new Date().toISOString(),
     status: 'Draft',
-    co_type: poData.po_type || 'MATERIAL',
-    project_uuid: poData.project_uuid || null,
-    vendor_uuid: poData.vendor_uuid || null,
-    original_purchase_order_uuid: poData.uuid || null, // Now we have the PO UUID
-    credit_days: poData.credit_days || '',
-    ship_via: poData.ship_via || '',
-    freight: poData.freight || '',
-    shipping_instructions: poData.shipping_instructions || '',
-    estimated_delivery_date: poData.estimated_delivery_date || '',
-    requested_by: poData.requested_by || '',
+    co_type: normalizedCoType,
+    
+    // Project and vendor
+    project_uuid: normalizeToNull(formData?.project_uuid),
+    vendor_uuid: normalizeToNull(formData?.vendor_uuid),
+    original_purchase_order_uuid: normalizeToNull(formData?.uuid),
+    
+    // Shipping and delivery
+    credit_days: normalizeToNull(formData?.credit_days),
+    ship_via: normalizeToNull(formData?.ship_via),
+    ship_via_uuid: normalizeToNull(formData?.ship_via_uuid),
+    freight: normalizeToNull(formData?.freight),
+    freight_uuid: normalizeToNull(formData?.freight_uuid),
+    shipping_instructions: normalizeToNull(formData?.shipping_instructions),
+    shipping_address_uuid: normalizeToNull(formData?.shipping_address_uuid),
+    estimated_delivery_date: normalizeToNull(formData?.estimated_delivery_date),
+    
+    // Additional fields
+    requested_by: normalizeToNull(formData?.requested_by),
+    terms_and_conditions_uuid: normalizeToNull(formData?.terms_and_conditions_uuid),
     reason: isChangeOrderLaborPO 
-      ? `Change order for amounts exceeding estimate in PO ${poData.po_number || ''}`
-      : `Change order for quantities exceeding estimate in PO ${poData.po_number || ''}`,
+      ? `Change order for amounts exceeding estimate in PO ${formData?.po_number || ''}`
+      : `Change order for quantities exceeding estimate in PO ${formData?.po_number || ''}`,
     attachments: [],
+    
+    // Financial breakdown (calculated from CO items)
+    financial_breakdown: financialBreakdown,
+    
+    // Financial totals
+    item_total: financialBreakdown.totals.item_total,
+    charges_total: financialBreakdown.totals.charges_total,
+    tax_total: financialBreakdown.totals.tax_total,
+    total_co_amount: financialBreakdown.totals.total_co_amount,
+    
+    // Copy charge percentages and taxable flags from PO
+    freight_charges_percentage: formData?.freight_charges_percentage || null,
+    freight_charges_amount: financialBreakdown.charges.freight?.amount || null,
+    freight_charges_taxable: formData?.freight_charges_taxable || null,
+    packing_charges_percentage: formData?.packing_charges_percentage || null,
+    packing_charges_amount: financialBreakdown.charges.packing?.amount || null,
+    packing_charges_taxable: formData?.packing_charges_taxable || null,
+    custom_duties_charges_percentage: formData?.custom_duties_charges_percentage || null,
+    custom_duties_charges_amount: financialBreakdown.charges.custom_duties?.amount || null,
+    custom_duties_charges_taxable: formData?.custom_duties_charges_taxable || null,
+    other_charges_percentage: formData?.other_charges_percentage || null,
+    other_charges_amount: financialBreakdown.charges.other?.amount || null,
+    other_charges_taxable: formData?.other_charges_taxable || null,
+    sales_tax_1_percentage: formData?.sales_tax_1_percentage || null,
+    sales_tax_1_amount: financialBreakdown.sales_taxes.sales_tax_1?.amount || null,
+    sales_tax_2_percentage: formData?.sales_tax_2_percentage || null,
+    sales_tax_2_amount: financialBreakdown.sales_taxes.sales_tax_2?.amount || null,
   }
   
   // Add items based on PO type
@@ -2236,13 +2355,46 @@ const handleRaiseChangeOrder = async () => {
     changeOrderData.removed_co_items = []
   }
   
-  changeOrderFormData.value = changeOrderData
-  
-  pendingSaveAction.value = null
-  exceededItems.value = []
-  
-  // Show change order form modal
-  showChangeOrderModal.value = true
+  // Create change order directly without showing modal
+  savingCO.value = true
+  try {
+    const result = await changeOrdersStore.createChangeOrder(changeOrderData)
+    
+    if (result) {
+      const toast = useToast()
+      toast.add({
+        title: 'Success',
+        description: `Change order ${result.co_number} created successfully for exceeded quantities`,
+        color: 'success',
+      })
+      
+      // Close exceeded quantity modal
+      closeExceededQuantityModal()
+      
+      // Refresh change orders list
+      const corpUuid = changeOrderData.corporation_uuid
+      if (corpUuid) {
+        await changeOrdersStore.fetchChangeOrders(corpUuid, false)
+      }
+      
+      // PO was already saved at the beginning of this function, no need to save again
+      // Close the form modal now that CO is created
+      closeFormModal()
+    } else {
+      throw new Error('Failed to create change order')
+    }
+  } catch (error: any) {
+    const toast = useToast()
+    toast.add({
+      title: 'Error',
+      description: error.message || 'Failed to create change order',
+      color: 'error',
+    })
+  } finally {
+    savingCO.value = false
+    pendingSaveAction.value = null
+    exceededItems.value = []
+  }
 }
 
 const closeExceededQuantityModal = () => {
@@ -2251,51 +2403,6 @@ const closeExceededQuantityModal = () => {
   exceededItems.value = []
 }
 
-const closeChangeOrderModal = () => {
-  showChangeOrderModal.value = false
-  changeOrderFormData.value = null
-}
-
-// Save change order from PurchaseOrdersList
-const handleSaveChangeOrder = async () => {
-  if (!changeOrderFormData.value || !corporationStore.selectedCorporationId) {
-    const toast = useToast()
-    toast.add({ title: 'Error', description: 'Select a corporation first', color: 'error' })
-    return
-  }
-
-  savingCO.value = true
-  try {
-    const payload = { ...changeOrderFormData.value }
-    
-    // Ensure corporation_uuid is set
-    payload.corporation_uuid = payload.corporation_uuid || corporationStore.selectedCorporationId
-    
-    // Create the change order
-    const result = await changeOrdersStore.createChangeOrder(payload)
-    
-    if (result) {
-      const toast = useToast()
-      toast.add({
-        title: 'Success',
-        description: 'Purchase order and change order created successfully',
-        color: 'success',
-      })
-      
-      // Close modals
-      closeChangeOrderModal()
-      closeFormModal()
-    } else {
-      throw new Error('Failed to create change order')
-    }
-  } catch (e) {
-    console.error('Error saving change order:', e)
-    const toast = useToast()
-    toast.add({ title: 'Error', description: 'Failed to save change order', color: 'error' })
-  } finally {
-    savingCO.value = false
-  }
-}
 
 const previewPurchaseOrder = async (po: any) => {
   if (!hasPermission('po_view')) {
@@ -2333,7 +2440,6 @@ const fetchPOItemsForRow = async (poUuid: string) => {
       error: null
     }
   } catch (error: any) {
-    console.error('[POL] Failed to fetch PO items:', error)
     poItemsCache.value[poUuid] = {
       items: [],
       loading: false,
@@ -2371,3 +2477,4 @@ watch(showFormModal, (isOpen, wasOpen) => {
 // Purchase orders are automatically fetched by TopBar.vue when corporation changes
 // No need to fetch here - just use the store data reactively
 </script>
+

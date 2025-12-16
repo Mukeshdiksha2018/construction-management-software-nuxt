@@ -1,5 +1,5 @@
 <template>
-  <UModal v-model:open="isOpen" title="Select Cost Codes" description="Select cost codes to include in the estimate" :ui="{ content: 'w-full max-w-4xl', body: 'flex-1 py-0 overflow-y-auto' }">
+  <UModal v-model:open="isOpen" title="Select Cost Codes" description="Select cost codes to include in the estimate" :ui="{ content: 'w-full max-w-6xl', body: 'flex-1 py-4 overflow-hidden' }">
     <template #header>
       <div class="flex items-center justify-between w-full">
         <div class="flex items-center gap-2">
@@ -30,31 +30,45 @@
     </template>
 
     <template #body>
-      <div v-if="hierarchicalData.length === 0" class="text-center text-muted">
+      <div v-if="hierarchicalData.length === 0" class="text-center text-muted py-8">
         <p class="text-sm">No cost codes available</p>
       </div>
 
-      <div v-else class="divide-y divide-default">
-        <!-- Division -->
-        <div
-          v-for="division in hierarchicalData"
-          :key="division.uuid"
-          class="divide-y divide-default/50"
-        >
-              <!-- Division Header -->
-              <div class="px-4 py-3 bg-gray-50 dark:bg-gray-800/50 font-semibold text-sm text-gray-900 dark:text-gray-100 sticky top-0 z-10">
-                <div class="flex items-center gap-2">
-                  <UCheckbox
-                    :model-value="isDivisionFullySelected(division)"
-                    :indeterminate="isDivisionPartiallySelected(division)"
-                    @update:model-value="(value) => handleDivisionToggle(division, !!value)"
-                  />
-                  <span>{{ division.division_number }} {{ division.division_name }}</span>
-                </div>
-              </div>
+      <div v-else class="flex gap-4 min-h-[500px] max-h-[70vh]">
+        <!-- Vertical Tabs on the Left -->
+        <div class="w-64 flex-shrink-0">
+          <UTabs 
+            orientation="vertical" 
+            variant="pill" 
+            :content="false"
+            :items="divisionTabs" 
+            :model-value="activeDivisionTab"
+            @update:model-value="(value) => activeDivisionTab = String(value)"
+            class="w-full"
+          />
+        </div>
 
-              <!-- Cost Codes -->
-              <div v-for="costCode in division.costCodes" :key="costCode.uuid" class="pl-4">
+        <!-- Content on the Right -->
+        <div class="flex-1 overflow-y-auto min-w-0">
+          <div v-if="!activeDivision" class="flex items-center justify-center h-full text-center text-muted py-8">
+            <p class="text-sm">Select a division to view cost codes</p>
+          </div>
+          <div v-else class="py-4">
+            <!-- Division Header with Select All -->
+            <div class="px-4 py-3 bg-gray-50 dark:bg-gray-800/50 font-semibold text-sm text-gray-900 dark:text-gray-100 sticky top-0 z-10 mb-2 rounded-lg">
+              <div class="flex items-center gap-2">
+                <UCheckbox
+                  :model-value="isDivisionFullySelected(activeDivision)"
+                  :indeterminate="isDivisionPartiallySelected(activeDivision)"
+                  @update:model-value="(value) => handleDivisionToggle(activeDivision, !!value)"
+                />
+                <span>{{ activeDivision.division_number }} {{ activeDivision.division_name }}</span>
+              </div>
+            </div>
+
+            <!-- Cost Codes Tree -->
+            <div class="divide-y divide-default/50">
+              <div v-for="costCode in activeDivision.costCodes" :key="costCode.uuid" class="pl-4">
                 <!-- Cost Code Row -->
                 <div class="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800/30">
                   <UCheckbox
@@ -109,6 +123,8 @@
                 </div>
               </div>
             </div>
+          </div>
+        </div>
       </div>
     </template>
 
@@ -177,6 +193,38 @@ const isOpen = computed({
 })
 
 const localRemovedUuids = ref<Set<string>>(new Set())
+const activeDivisionTab = ref<string>('')
+
+// Create tabs from divisions
+const divisionTabs = computed(() => {
+  return props.hierarchicalData.map((division, index) => {
+    const tabValue = division.uuid || `division-${index}`
+    return {
+      label: `${division.division_number} ${division.division_name}`,
+      value: tabValue
+    }
+  })
+})
+
+// Get the active division based on the active tab
+const activeDivision = computed(() => {
+  if (!activeDivisionTab.value) return null
+  return props.hierarchicalData.find(
+    (division) => (division.uuid || `division-${props.hierarchicalData.indexOf(division)}`) === activeDivisionTab.value
+  ) || null
+})
+
+// Set initial active tab when modal opens or data changes
+watch([() => props.open, () => props.hierarchicalData], ([isOpenValue, hierarchicalDataValue]) => {
+  if (isOpenValue && hierarchicalDataValue && hierarchicalDataValue.length > 0) {
+    // Set first division as active tab
+    const firstDivision = hierarchicalDataValue[0]
+    const firstTabValue = firstDivision?.uuid || `division-0`
+    if (!activeDivisionTab.value || !hierarchicalDataValue.find((d: Division, idx: number) => (d.uuid || `division-${idx}`) === activeDivisionTab.value)) {
+      activeDivisionTab.value = firstTabValue
+    }
+  }
+}, { immediate: true })
 
 // Initialize local removed UUIDs from props
 watch(() => props.removedCostCodeUuids, (newUuids) => {
