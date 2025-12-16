@@ -62,14 +62,16 @@ export const useSalesTaxStore = defineStore("salesTax", {
           data = await dbHelpers.getSalesTaxGlobal();
           // If empty, fallback to API
           if (!data || data.length === 0) {
-            const response = await $fetch("/api/sales-tax", { method: "GET" });
+            const { apiFetch } = useApiClient();
+            const response = await apiFetch("/api/sales-tax", { method: "GET" });
             data = response?.data || response;
             if (data && Array.isArray(data)) {
               await dbHelpers.saveSalesTaxGlobal(data);
             }
           }
         } else {
-          const response = await $fetch("/api/sales-tax", { method: "GET" });
+          const { apiFetch } = useApiClient();
+          const response = await apiFetch("/api/sales-tax", { method: "GET" });
           data = response?.data || response;
           const { dbHelpers } = await import("@/utils/indexedDb");
           if (data && Array.isArray(data)) {
@@ -92,7 +94,8 @@ export const useSalesTaxStore = defineStore("salesTax", {
       this.loading = true;
       this.error = null;
       try {
-        const response = await $fetch("/api/sales-tax", {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch("/api/sales-tax", {
           method: "POST",
           body: {
             corporation_uuid: null,
@@ -120,7 +123,8 @@ export const useSalesTaxStore = defineStore("salesTax", {
       this.loading = true;
       this.error = null;
       try {
-        const response = await $fetch(`/api/sales-tax/${uuid}`, {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch(`/api/sales-tax/${uuid}`, {
           method: "PUT",
           body: salesTaxData,
         });
@@ -148,7 +152,8 @@ export const useSalesTaxStore = defineStore("salesTax", {
       this.loading = true;
       this.error = null;
       try {
-        const response = await $fetch(`/api/sales-tax/${uuid}`, {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch(`/api/sales-tax/${uuid}`, {
           method: "DELETE",
         });
 

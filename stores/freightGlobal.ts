@@ -47,12 +47,14 @@ export const useFreightStore = defineStore('freightGlobal', {
           const { dbHelpers } = await import('@/utils/indexedDb')
           data = await dbHelpers.getFreight()
           if (!data || data.length === 0) {
-            const response = await $fetch('/api/freight', { method: 'GET' })
+            const { apiFetch } = useApiClient();
+            const response = await apiFetch('/api/freight', { method: 'GET' })
             data = response?.data || response
             if (Array.isArray(data)) await dbHelpers.saveFreight(data)
           }
         } else {
-          const response = await $fetch('/api/freight', { method: 'GET' })
+          const { apiFetch } = useApiClient();
+          const response = await apiFetch('/api/freight', { method: 'GET' })
           data = response?.data || response
           const { dbHelpers } = await import('@/utils/indexedDb')
           if (Array.isArray(data)) await dbHelpers.saveFreight(data)
@@ -70,7 +72,8 @@ export const useFreightStore = defineStore('freightGlobal', {
       this.loading = true
       this.error = null
       try {
-        const response = await $fetch('/api/freight', { method: 'POST', body: payload })
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch('/api/freight', { method: 'POST', body: payload })
         const data = response?.data || response
         if (data) {
           this.freight.push(data)
@@ -90,7 +93,8 @@ export const useFreightStore = defineStore('freightGlobal', {
       this.loading = true
       this.error = null
       try {
-        const response = await $fetch(`/api/freight/${uuid}`, { method: 'PUT', body: payload })
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch(`/api/freight/${uuid}`, { method: 'PUT', body: payload })
         const data = response?.data || response
         if (data) {
           const idx = this.freight.findIndex(f => f.uuid === uuid)
@@ -111,7 +115,8 @@ export const useFreightStore = defineStore('freightGlobal', {
       this.loading = true
       this.error = null
       try {
-        const response = await $fetch(`/api/freight/${uuid}`, { method: 'DELETE' })
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch(`/api/freight/${uuid}`, { method: 'DELETE' })
         this.freight = this.freight.filter(f => f.uuid !== uuid)
         const { dbHelpers } = await import('@/utils/indexedDb')
         await dbHelpers.deleteFreight(uuid)

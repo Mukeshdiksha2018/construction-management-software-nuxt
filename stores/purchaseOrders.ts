@@ -548,7 +548,8 @@ const normalizePurchaseOrderRecord = (raw: any): PurchaseOrder => {
   ) => {
     try {
       const preparedItems = prepareItemsForSave(items);
-      await $fetch("/api/purchase-order-items", {
+      const { apiFetch } = useApiClient();
+      await apiFetch("/api/purchase-order-items", {
         method: "POST",
         body: {
           purchase_order_uuid: purchaseOrderUuid,

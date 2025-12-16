@@ -47,7 +47,8 @@ export const useRoleStore = defineStore(
       error.value = null;
 
       try {
-        const response = await $fetch("/api/roles");
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch("/api/roles");
 
         if (response?.success) {
           roles.value = (response as any).data;
@@ -69,7 +70,8 @@ export const useRoleStore = defineStore(
       error.value = null;
 
       try {
-        const response = await $fetch("/api/roles", {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch("/api/roles", {
           method: "POST",
           body: roleData,
         });
@@ -94,7 +96,8 @@ export const useRoleStore = defineStore(
       error.value = null;
 
       try {
-        const response = await $fetch(`/api/roles/${id}`, {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch(`/api/roles/${id}`, {
           method: "PUT",
           body: roleData,
         });
@@ -127,7 +130,8 @@ export const useRoleStore = defineStore(
       error.value = null;
 
       try {
-        const response = await $fetch(`/api/roles/${id}`, {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch(`/api/roles/${id}`, {
           method: "DELETE",
         });
 

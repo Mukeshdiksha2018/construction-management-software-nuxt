@@ -325,7 +325,8 @@ export const useStockReceiptNotesStore = defineStore(
       const corporationUuid = existing?.corporation_uuid;
 
       try {
-        await $fetch("/api/stock-receipt-notes", {
+        const { apiFetch } = useApiClient();
+        await apiFetch("/api/stock-receipt-notes", {
           method: "DELETE",
           query: { uuid },
         });

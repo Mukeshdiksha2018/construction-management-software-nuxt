@@ -131,7 +131,8 @@ export const useServiceTypesStore = defineStore("serviceTypes", () => {
     error.value = null;
 
     try {
-      await $fetch(`/api/service-types/${id}`, {
+      const { apiFetch } = useApiClient();
+      await apiFetch(`/api/service-types/${id}`, {
         method: "DELETE",
       });
 

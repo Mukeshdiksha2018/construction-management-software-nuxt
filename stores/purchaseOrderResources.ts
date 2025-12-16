@@ -201,7 +201,8 @@ export const usePurchaseOrderResourcesStore = defineStore(
       try {
         // Fetch item types directly from API - scoped to this store only
         // NOTE: This does NOT affect the global itemTypesStore or update IndexedDB
-        const response: any = await $fetch("/api/item-types", {
+        const { apiFetch } = useApiClient();
+        const response: any = await apiFetch("/api/item-types", {
           method: "GET",
           query: {
             corporation_uuid: corporationUuid,
@@ -269,7 +270,8 @@ export const usePurchaseOrderResourcesStore = defineStore(
           // Fetch cost code configurations directly from API - scoped to this store only
           // NOTE: This does NOT affect the global costCodeConfigurationsStore or update IndexedDB
           // IMPORTANT: Include with_preferred_items to get the preferred items for each configuration
-          const response: any = await $fetch("/api/cost-code-configurations", {
+          const { apiFetch } = useApiClient();
+          const response: any = await apiFetch("/api/cost-code-configurations", {
             method: "GET",
             query: {
               corporation_uuid: corporationUuid,
@@ -435,7 +437,8 @@ export const usePurchaseOrderResourcesStore = defineStore(
       try {
         // Fetch estimate line items directly from API - scoped to this store only
         // NOTE: This does NOT affect any global stores or update IndexedDB
-        const response: any = await $fetch("/api/estimate-line-items", {
+        const { apiFetch } = useApiClient();
+        const response: any = await apiFetch("/api/estimate-line-items", {
           method: "GET",
           query: {
             project_uuid: projectUuid,
@@ -566,7 +569,8 @@ export const usePurchaseOrderResourcesStore = defineStore(
       try {
         // Fetch estimates directly from API - scoped to this store only
         // NOTE: This does NOT affect the global estimatesStore or update IndexedDB
-        const response: any = await $fetch("/api/estimates", {
+        const { apiFetch } = useApiClient();
+        const response: any = await apiFetch("/api/estimates", {
           method: "GET",
           query: { corporation_uuid: corporationUuid },
         });
@@ -770,7 +774,8 @@ export const usePurchaseOrderResourcesStore = defineStore(
       }
 
       try {
-        const response: any = await $fetch("/api/purchase-order-items", {
+        const { apiFetch } = useApiClient();
+        const response: any = await apiFetch("/api/purchase-order-items", {
           method: "GET",
           query: {
             purchase_order_uuid: purchaseOrderUuid,

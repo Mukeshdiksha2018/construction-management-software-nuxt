@@ -133,7 +133,8 @@ export const useVendorStore = defineStore(
       loading.value = true;
       error.value = null;
       try {
-        const response = await $fetch(
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch(
           `/api/purchase-orders/vendors?corporation_uuid=${corporationUUID}`
         );
         if (response?.error) throw new Error(response.error);
@@ -160,7 +161,8 @@ export const useVendorStore = defineStore(
       loading.value = true;
       error.value = null;
       try {
-        const response = await $fetch("/api/purchase-orders/vendors", {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch("/api/purchase-orders/vendors", {
           method: "POST",
           body: {
             ...vendorData,
@@ -204,7 +206,8 @@ export const useVendorStore = defineStore(
       loading.value = true;
       error.value = null;
       try {
-        const response = await $fetch("/api/purchase-orders/vendors", {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch("/api/purchase-orders/vendors", {
           method: "PUT",
           body: {
             ...updatedData,
@@ -249,7 +252,8 @@ export const useVendorStore = defineStore(
       loading.value = true;
       error.value = null;
       try {
-        const response = await $fetch(
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch(
           `/api/purchase-orders/vendors?uuid=${vendor.uuid}`,
           {
             method: "DELETE",
@@ -308,7 +312,8 @@ export const useVendorStore = defineStore(
       error.value = null;
 
       try {
-        const result = await $fetch<{ data: any; message: string }>(
+        const { apiFetch } = useApiClient();
+        const result = await apiFetch<{ data: any; message: string }>(
           "/api/purchase-orders/vendors/bulk",
           {
             method: "POST",
@@ -341,7 +346,8 @@ export const useVendorStore = defineStore(
       error.value = null;
 
       try {
-        const result = await $fetch(`/api/purchase-orders/vendors/delete-all`, {
+        const { apiFetch } = useApiClient();
+        const result = await apiFetch(`/api/purchase-orders/vendors/delete-all`, {
           method: "DELETE",
           query: { corporation_uuid: corporationUUID },
         });

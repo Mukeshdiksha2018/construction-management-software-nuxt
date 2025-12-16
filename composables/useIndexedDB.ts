@@ -12,7 +12,8 @@ export const useIndexedDB = () => {
     try {
       // First, sync corporations data (global, not per-corporation)
       try {
-        const corporationsResponse: any = await $fetch("/api/corporations", {
+        const { apiFetch } = useApiClient();
+        const corporationsResponse: any = await apiFetch("/api/corporations", {
           method: "GET",
         });
 
@@ -26,8 +27,11 @@ export const useIndexedDB = () => {
       // Fetch data for all corporations in parallel
       const syncPromises = corporationIds.map(async (corpId) => {
         try {
+          // Initialize apiFetch once for this corporation
+          const { apiFetch } = useApiClient();
+
           // Fetch bill entries
-          const billEntriesResponse: any = await $fetch("/api/bill-entries", {
+          const billEntriesResponse: any = await apiFetch("/api/bill-entries", {
             method: "GET",
             params: {
               corporation_uuid: corpId,
@@ -40,7 +44,7 @@ export const useIndexedDB = () => {
           }
 
           // Fetch vendors
-          const vendorsResponse: any = await $fetch(
+          const vendorsResponse: any = await apiFetch(
             "/api/purchase-orders/vendors",
             {
               method: "GET",
@@ -55,7 +59,7 @@ export const useIndexedDB = () => {
           }
 
           // Fetch project types
-          const projectTypesResponse: any = await $fetch("/api/project-types", {
+          const projectTypesResponse: any = await apiFetch("/api/project-types", {
             method: "GET",
             params: {
               corporation_uuid: corpId,
@@ -67,7 +71,7 @@ export const useIndexedDB = () => {
           }
 
           // Fetch service types
-          const serviceTypesResponse: any = await $fetch("/api/service-types", {
+          const serviceTypesResponse: any = await apiFetch("/api/service-types", {
             method: "GET",
             params: {
               corporation_uuid: corpId,
@@ -79,7 +83,7 @@ export const useIndexedDB = () => {
           }
 
           // Fetch terms and conditions
-          const termsAndConditionsResponse: any = await $fetch("/api/terms-and-conditions", {
+          const termsAndConditionsResponse: any = await apiFetch("/api/terms-and-conditions", {
             method: "GET",
             params: {
               corporation_uuid: corpId,
@@ -91,7 +95,7 @@ export const useIndexedDB = () => {
           }
 
           // Fetch PO instructions
-          const poInstructionsResponse: any = await $fetch(
+          const poInstructionsResponse: any = await apiFetch(
             "/api/po-instructions",
             {
               method: "GET",
@@ -109,7 +113,7 @@ export const useIndexedDB = () => {
           }
 
           // Fetch UOM
-          const uomResponse: any = await $fetch("/api/uom", {
+          const uomResponse: any = await apiFetch("/api/uom", {
             method: "GET",
             params: {
               corporation_uuid: corpId,
@@ -121,7 +125,7 @@ export const useIndexedDB = () => {
           }
 
           // Fetch Projects
-          const projectsResponse: any = await $fetch("/api/projects", {
+          const projectsResponse: any = await apiFetch("/api/projects", {
             method: "GET",
             params: {
               corporation_uuid: corpId,
@@ -133,7 +137,7 @@ export const useIndexedDB = () => {
           }
 
           // Fetch cost code divisions
-          const costCodeDivisionsResponse: any = await $fetch(
+          const costCodeDivisionsResponse: any = await apiFetch(
             "/api/cost-code-divisions",
             {
               method: "GET",
@@ -151,7 +155,7 @@ export const useIndexedDB = () => {
           }
 
           // Fetch cost code configurations
-          const costCodeConfigurationsResponse: any = await $fetch(
+          const costCodeConfigurationsResponse: any = await apiFetch(
             "/api/cost-code-configurations",
             {
               method: "GET",
@@ -169,7 +173,7 @@ export const useIndexedDB = () => {
           }
 
           // Fetch item types
-          const itemTypesResponse: any = await $fetch("/api/item-types", {
+          const itemTypesResponse: any = await apiFetch("/api/item-types", {
             method: "GET",
             params: {
               corporation_uuid: corpId,
@@ -181,7 +185,7 @@ export const useIndexedDB = () => {
           }
 
           // Fetch estimates
-          const estimatesResponse: any = await $fetch("/api/estimates", {
+          const estimatesResponse: any = await apiFetch("/api/estimates", {
             method: "GET",
             params: {
               corporation_uuid: corpId,
@@ -229,9 +233,12 @@ export const useIndexedDB = () => {
 
       if (force || shipViaNeedsSync) {
         syncPromises.push(
-          $fetch("/api/ship-via", {
-            method: "GET",
-          })
+          (async () => {
+            const { apiFetch } = useApiClient();
+            return apiFetch("/api/ship-via", {
+              method: "GET",
+            });
+          })()
             .then(async (response: any) => {
               const data = response?.data || response;
               if (Array.isArray(data)) {
@@ -246,9 +253,12 @@ export const useIndexedDB = () => {
 
       if (force || freightNeedsSync) {
         syncPromises.push(
-          $fetch("/api/freight", {
-            method: "GET",
-          })
+          (async () => {
+            const { apiFetch } = useApiClient();
+            return apiFetch("/api/freight", {
+              method: "GET",
+            });
+          })()
             .then(async (response: any) => {
               const data = response?.data || response;
               if (Array.isArray(data)) {
@@ -261,9 +271,12 @@ export const useIndexedDB = () => {
 
       if (force || locationsNeedsSync) {
         syncPromises.push(
-          $fetch("/api/location", {
-            method: "GET",
-          })
+          (async () => {
+            const { apiFetch } = useApiClient();
+            return apiFetch("/api/location", {
+              method: "GET",
+            });
+          })()
             .then(async (response: any) => {
               const data = response?.data || response;
               if (
@@ -279,9 +292,12 @@ export const useIndexedDB = () => {
 
       if (force || approvalChecksNeedsSync) {
         syncPromises.push(
-          $fetch("/api/approval-checks", {
-            method: "GET",
-          })
+          (async () => {
+            const { apiFetch } = useApiClient();
+            return apiFetch("/api/approval-checks", {
+              method: "GET",
+            });
+          })()
             .then(async (response: any) => {
               const data = response?.data || response;
               if (Array.isArray(data)) {
@@ -294,9 +310,12 @@ export const useIndexedDB = () => {
 
       if (force || uomNeedsSync) {
         syncPromises.push(
-          $fetch("/api/uom", {
-            method: "GET",
-          })
+          (async () => {
+            const { apiFetch } = useApiClient();
+            return apiFetch("/api/uom", {
+              method: "GET",
+            });
+          })()
             .then(async (response: any) => {
               const data = response?.data || response;
               if (Array.isArray(data) && typeof dbHelpers.saveUOMGlobal === "function") {
@@ -370,13 +389,16 @@ export const useIndexedDB = () => {
       // Only sync bill entries if needed
       if (billEntriesNeedsSync || forceSync) {
         syncPromises.push(
-          $fetch("/api/bill-entries", {
-            method: "GET",
-            params: {
-              corporation_uuid: corporationId,
-              ...dateRange,
-            },
-          }).then(async (billEntriesResponse: any) => {
+          (async () => {
+            const { apiFetch } = useApiClient();
+            return apiFetch("/api/bill-entries", {
+              method: "GET",
+              params: {
+                corporation_uuid: corporationId,
+                ...dateRange,
+              },
+            });
+          })().then(async (billEntriesResponse: any) => {
             if (billEntriesResponse?.data) {
               await dbHelpers.saveBillEntries(
                 corporationId,
@@ -390,12 +412,15 @@ export const useIndexedDB = () => {
       // Only sync vendors if needed (vendors don't depend on date range)
       if (vendorsNeedsSync || forceSync) {
         syncPromises.push(
-          $fetch("/api/purchase-orders/vendors", {
-            method: "GET",
-            params: {
-              corporation_uuid: corporationId,
-            },
-          }).then(async (vendorsResponse: any) => {
+          (async () => {
+            const { apiFetch } = useApiClient();
+            return apiFetch("/api/purchase-orders/vendors", {
+              method: "GET",
+              params: {
+                corporation_uuid: corporationId,
+              },
+            });
+          })().then(async (vendorsResponse: any) => {
             if (vendorsResponse?.data) {
               await dbHelpers.saveVendors(corporationId, vendorsResponse.data);
             }
@@ -406,12 +431,15 @@ export const useIndexedDB = () => {
       // Only sync project types if needed (project types don't depend on date range)
       if (projectTypesNeedsSync || forceSync) {
         syncPromises.push(
-          $fetch("/api/project-types", {
-            method: "GET",
-            params: {
-              corporation_uuid: corporationId,
-            },
-          }).then(async (projectTypesResponse: any) => {
+          (async () => {
+            const { apiFetch } = useApiClient();
+            return apiFetch("/api/project-types", {
+              method: "GET",
+              params: {
+                corporation_uuid: corporationId,
+              },
+            });
+          })().then(async (projectTypesResponse: any) => {
             if (projectTypesResponse?.data) {
               await dbHelpers.saveProjectTypes(
                 corporationId,
@@ -425,12 +453,15 @@ export const useIndexedDB = () => {
       // Only sync service types if needed (service types don't depend on date range)
       if (serviceTypesNeedsSync || forceSync) {
         syncPromises.push(
-          $fetch("/api/service-types", {
-            method: "GET",
-            params: {
-              corporation_uuid: corporationId,
-            },
-          }).then(async (serviceTypesResponse: any) => {
+          (async () => {
+            const { apiFetch } = useApiClient();
+            return apiFetch("/api/service-types", {
+              method: "GET",
+              params: {
+                corporation_uuid: corporationId,
+              },
+            });
+          })().then(async (serviceTypesResponse: any) => {
             if (serviceTypesResponse?.data) {
               await dbHelpers.saveServiceTypes(
                 corporationId,
@@ -444,12 +475,15 @@ export const useIndexedDB = () => {
       // Only sync terms and conditions if needed (terms and conditions don't depend on date range)
       if (termsAndConditionsNeedsSync || forceSync) {
         syncPromises.push(
-          $fetch("/api/terms-and-conditions", {
-            method: "GET",
-            params: {
-              corporation_uuid: corporationId,
-            },
-          }).then(async (termsAndConditionsResponse: any) => {
+          (async () => {
+            const { apiFetch } = useApiClient();
+            return apiFetch("/api/terms-and-conditions", {
+              method: "GET",
+              params: {
+                corporation_uuid: corporationId,
+              },
+            });
+          })().then(async (termsAndConditionsResponse: any) => {
             if (termsAndConditionsResponse?.data) {
               await dbHelpers.saveTermsAndConditions(
                 corporationId,
@@ -463,12 +497,15 @@ export const useIndexedDB = () => {
       // Only sync PO instructions if needed (PO instructions don't depend on date range)
       if (poInstructionsNeedsSync || forceSync) {
         syncPromises.push(
-          $fetch("/api/po-instructions", {
-            method: "GET",
-            params: {
-              corporation_uuid: corporationId,
-            },
-          }).then(async (poInstructionsResponse: any) => {
+          (async () => {
+            const { apiFetch } = useApiClient();
+            return apiFetch("/api/po-instructions", {
+              method: "GET",
+              params: {
+                corporation_uuid: corporationId,
+              },
+            });
+          })().then(async (poInstructionsResponse: any) => {
             if (poInstructionsResponse?.data) {
               await dbHelpers.savePOInstructions(
                 corporationId,
@@ -482,12 +519,15 @@ export const useIndexedDB = () => {
       // Only sync UOM if needed (UOM don't depend on date range)
       if (uomNeedsSync || forceSync) {
         syncPromises.push(
-          $fetch("/api/uom", {
-            method: "GET",
-            params: {
-              corporation_uuid: corporationId,
-            },
-          }).then(async (uomResponse: any) => {
+          (async () => {
+            const { apiFetch } = useApiClient();
+            return apiFetch("/api/uom", {
+              method: "GET",
+              params: {
+                corporation_uuid: corporationId,
+              },
+            });
+          })().then(async (uomResponse: any) => {
             if (uomResponse?.data) {
               await dbHelpers.saveUOM(corporationId, uomResponse.data);
             }
@@ -498,12 +538,15 @@ export const useIndexedDB = () => {
       // Only sync projects if needed (projects don't depend on date range)
       if (projectsNeedsSync || forceSync) {
         syncPromises.push(
-          $fetch("/api/projects", {
-            method: "GET",
-            params: {
-              corporation_uuid: corporationId,
-            },
-          }).then(async (projectsResponse: any) => {
+          (async () => {
+            const { apiFetch } = useApiClient();
+            return apiFetch("/api/projects", {
+              method: "GET",
+              params: {
+                corporation_uuid: corporationId,
+              },
+            });
+          })().then(async (projectsResponse: any) => {
             if (projectsResponse?.data) {
               await dbHelpers.saveProjects(
                 corporationId,
@@ -517,12 +560,15 @@ export const useIndexedDB = () => {
       // Only sync item types if needed (item types depend on projects)
       if (itemTypesNeedsSync || forceSync) {
         syncPromises.push(
-          $fetch("/api/item-types", {
-            method: "GET",
-            params: {
-              corporation_uuid: corporationId,
-            },
-          }).then(async (itemTypesResponse: any) => {
+          (async () => {
+            const { apiFetch } = useApiClient();
+            return apiFetch("/api/item-types", {
+              method: "GET",
+              params: {
+                corporation_uuid: corporationId,
+              },
+            });
+          })().then(async (itemTypesResponse: any) => {
             if (itemTypesResponse?.data) {
               await dbHelpers.saveItemTypes(
                 corporationId,
@@ -536,12 +582,15 @@ export const useIndexedDB = () => {
       // Only sync chart of accounts if needed (chart of accounts don't depend on date range)
       if (chartOfAccountsNeedsSync || forceSync) {
         syncPromises.push(
-          $fetch("/api/corporations/chart-of-accounts", {
-            method: "GET",
-            params: {
-              corporation_uuid: corporationId,
-            },
-          }).then(async (chartOfAccountsResponse: any) => {
+          (async () => {
+            const { apiFetch } = useApiClient();
+            return apiFetch("/api/corporations/chart-of-accounts", {
+              method: "GET",
+              params: {
+                corporation_uuid: corporationId,
+              },
+            });
+          })().then(async (chartOfAccountsResponse: any) => {
             if (chartOfAccountsResponse?.data) {
               await dbHelpers.saveChartOfAccounts(
                 corporationId,
@@ -555,12 +604,15 @@ export const useIndexedDB = () => {
       // Only sync storage locations if needed (storage locations don't depend on date range)
       if (storageLocationsNeedsSync || forceSync) {
         syncPromises.push(
-          $fetch("/api/storage-locations", {
-            method: "GET",
-            params: {
-              corporation_uuid: corporationId,
-            },
-          }).then(async (storageLocationsResponse: any) => {
+          (async () => {
+            const { apiFetch } = useApiClient();
+            return apiFetch("/api/storage-locations", {
+              method: "GET",
+              params: {
+                corporation_uuid: corporationId,
+              },
+            });
+          })().then(async (storageLocationsResponse: any) => {
             if (storageLocationsResponse?.data) {
               await dbHelpers.saveStorageLocations(
                 corporationId,
@@ -574,12 +626,15 @@ export const useIndexedDB = () => {
       // Only sync cost code divisions if needed (cost code divisions don't depend on date range)
       if (costCodeDivisionsNeedsSync || forceSync) {
         syncPromises.push(
-          $fetch("/api/cost-code-divisions", {
-            method: "GET",
-            params: {
-              corporation_uuid: corporationId,
-            },
-          }).then(async (costCodeDivisionsResponse: any) => {
+          (async () => {
+            const { apiFetch } = useApiClient();
+            return apiFetch("/api/cost-code-divisions", {
+              method: "GET",
+              params: {
+                corporation_uuid: corporationId,
+              },
+            });
+          })().then(async (costCodeDivisionsResponse: any) => {
             if (costCodeDivisionsResponse?.data) {
               await dbHelpers.saveCostCodeDivisions(
                 corporationId,
@@ -593,12 +648,15 @@ export const useIndexedDB = () => {
       // Only sync cost code configurations if needed (cost code configurations don't depend on date range)
       if (costCodeConfigurationsNeedsSync || forceSync) {
         syncPromises.push(
-          $fetch("/api/cost-code-configurations", {
-            method: "GET",
-            params: {
-              corporation_uuid: corporationId,
-            },
-          }).then(async (costCodeConfigurationsResponse: any) => {
+          (async () => {
+            const { apiFetch } = useApiClient();
+            return apiFetch("/api/cost-code-configurations", {
+              method: "GET",
+              params: {
+                corporation_uuid: corporationId,
+              },
+            });
+          })().then(async (costCodeConfigurationsResponse: any) => {
             if (costCodeConfigurationsResponse?.data) {
               await dbHelpers.saveCostCodeConfigurations(
                 corporationId,
@@ -612,12 +670,15 @@ export const useIndexedDB = () => {
       // Only sync estimates if needed (estimates don't depend on date range)
       if (estimatesNeedsSync || forceSync) {
         syncPromises.push(
-          $fetch("/api/estimates", {
-            method: "GET",
-            params: {
-              corporation_uuid: corporationId,
-            },
-          }).then(async (estimatesResponse: any) => {
+          (async () => {
+            const { apiFetch } = useApiClient();
+            return apiFetch("/api/estimates", {
+              method: "GET",
+              params: {
+                corporation_uuid: corporationId,
+              },
+            });
+          })().then(async (estimatesResponse: any) => {
             if (estimatesResponse?.data) {
               await dbHelpers.storeEstimates(estimatesResponse.data);
             }
@@ -628,12 +689,15 @@ export const useIndexedDB = () => {
       // Only sync purchase orders if needed (purchase orders don't depend on date range)
       if (purchaseOrdersNeedsSync || forceSync) {
         syncPromises.push(
-          $fetch("/api/purchase-order-forms", {
-            method: "GET",
-            params: {
-              corporation_uuid: corporationId,
-            },
-          }).then(async (purchaseOrdersResponse: any) => {
+          (async () => {
+            const { apiFetch } = useApiClient();
+            return apiFetch("/api/purchase-order-forms", {
+              method: "GET",
+              params: {
+                corporation_uuid: corporationId,
+              },
+            });
+          })().then(async (purchaseOrdersResponse: any) => {
             const orders = purchaseOrdersResponse?.data;
             if (Array.isArray(orders)) {
               await dbHelpers.savePurchaseOrders(corporationId, orders);
@@ -645,12 +709,15 @@ export const useIndexedDB = () => {
       // Only sync change orders if needed (change orders don't depend on date range)
       if (changeOrdersNeedsSync || forceSync) {
         syncPromises.push(
-          $fetch("/api/change-orders", {
-            method: "GET",
-            params: {
-              corporation_uuid: corporationId,
-            },
-          }).then(async (changeOrdersResponse: any) => {
+          (async () => {
+            const { apiFetch } = useApiClient();
+            return apiFetch("/api/change-orders", {
+              method: "GET",
+              params: {
+                corporation_uuid: corporationId,
+              },
+            });
+          })().then(async (changeOrdersResponse: any) => {
             const orders = changeOrdersResponse?.data;
             if (Array.isArray(orders)) {
               await dbHelpers.saveChangeOrders(corporationId, orders);
@@ -662,12 +729,15 @@ export const useIndexedDB = () => {
       // Only sync stock receipt notes if needed (receipt notes don't depend on date range)
       if (stockReceiptNotesNeedsSync || forceSync) {
         syncPromises.push(
-          $fetch("/api/stock-receipt-notes", {
-            method: "GET",
-            params: {
-              corporation_uuid: corporationId,
-            },
-          }).then(async (receiptNotesResponse: any) => {
+          (async () => {
+            const { apiFetch } = useApiClient();
+            return apiFetch("/api/stock-receipt-notes", {
+              method: "GET",
+              params: {
+                corporation_uuid: corporationId,
+              },
+            });
+          })().then(async (receiptNotesResponse: any) => {
             const notes = receiptNotesResponse?.data;
             if (Array.isArray(notes)) {
               await dbHelpers.saveStockReceiptNotes(corporationId, notes);
@@ -679,12 +749,15 @@ export const useIndexedDB = () => {
       // Only sync stock return notes if needed (return notes don't depend on date range)
       if (stockReturnNotesNeedsSync || forceSync) {
         syncPromises.push(
-          $fetch("/api/stock-return-notes", {
-            method: "GET",
-            params: {
-              corporation_uuid: corporationId,
-            },
-          }).then(async (returnNotesResponse: any) => {
+          (async () => {
+            const { apiFetch } = useApiClient();
+            return apiFetch("/api/stock-return-notes", {
+              method: "GET",
+              params: {
+                corporation_uuid: corporationId,
+              },
+            });
+          })().then(async (returnNotesResponse: any) => {
             const notes = returnNotesResponse?.data;
             if (Array.isArray(notes)) {
               await dbHelpers.saveStockReturnNotes(corporationId, notes);

@@ -52,7 +52,8 @@ export const useEstimateCreationStore = defineStore(
         }
 
         // Fallback to API (or force from API)
-        const response: any = await $fetch("/api/projects", {
+        const { apiFetch } = useApiClient();
+        const response: any = await apiFetch("/api/projects", {
           query: { corporation_uuid: corporationUuid },
         });
 
@@ -156,7 +157,8 @@ export const useEstimateCreationStore = defineStore(
     const fetchItemTypes = async (corporationUuid: string) => {
       try {
         // Item types are not stored in IndexedDB, fetch directly from API
-        const response: any = await $fetch("/api/item-types", {
+        const { apiFetch } = useApiClient();
+        const response: any = await apiFetch("/api/item-types", {
           query: { corporation_uuid: corporationUuid },
         });
 
@@ -184,7 +186,8 @@ export const useEstimateCreationStore = defineStore(
         }
 
         // Fallback to API
-        const response: any = await $fetch("/api/uom", { method: "GET" });
+        const { apiFetch } = useApiClient();
+        const response: any = await apiFetch("/api/uom", { method: "GET" });
         const data = response?.data || response || [];
         uom.value = Array.isArray(data) ? data : [];
         

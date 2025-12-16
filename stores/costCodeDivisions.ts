@@ -247,7 +247,8 @@ export const useCostCodeDivisionsStore = defineStore("costCodeDivisions", () => 
         (division) => division.uuid === uuid
       );
 
-      await $fetch(`/api/cost-code-divisions/${uuid}`, {
+      const { apiFetch } = useApiClient();
+      await apiFetch(`/api/cost-code-divisions/${uuid}`, {
         method: "DELETE",
       });
 
@@ -326,7 +327,8 @@ export const useCostCodeDivisionsStore = defineStore("costCodeDivisions", () => 
     error.value = null;
 
     try {
-      await $fetch(`/api/cost-code-divisions/delete-all`, {
+      const { apiFetch } = useApiClient();
+      await apiFetch(`/api/cost-code-divisions/delete-all`, {
         method: "DELETE",
         query: { corporation_uuid: corporationUuid },
       });

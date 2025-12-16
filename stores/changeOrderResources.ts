@@ -81,7 +81,8 @@ export const useChangeOrderResourcesStore = defineStore('changeOrderResources', 
     state.originalMap[key] = originalState
 
     try {
-      const response: any = await $fetch('/api/purchase-order-items', {
+      const { apiFetch } = useApiClient();
+      const response: any = await apiFetch('/api/purchase-order-items', {
         method: 'GET',
         query: {
           purchase_order_uuid: purchaseOrderUuid,

@@ -38,7 +38,8 @@ export const useLaborChangeOrderItemsStore = defineStore('laborChangeOrderItems'
     error.value = null
 
     try {
-      const response: any = await $fetch('/api/labor-change-order-items', {
+      const { apiFetch } = useApiClient();
+      const response: any = await apiFetch('/api/labor-change-order-items', {
         method: 'GET',
         query: {
           change_order_uuid: changeOrderUuid,
@@ -77,7 +78,8 @@ export const useLaborChangeOrderItemsStore = defineStore('laborChangeOrderItems'
     error.value = null
 
     try {
-      const response: any = await $fetch('/api/labor-change-order-items', {
+      const { apiFetch } = useApiClient();
+      const response: any = await apiFetch('/api/labor-change-order-items', {
         method: 'GET',
         query: {
           purchase_order_uuid: purchaseOrderUuid,
@@ -99,7 +101,8 @@ export const useLaborChangeOrderItemsStore = defineStore('laborChangeOrderItems'
     error.value = null
 
     try {
-      const response: any = await $fetch('/api/labor-change-order-items', {
+      const { apiFetch } = useApiClient();
+      const response: any = await apiFetch('/api/labor-change-order-items', {
         method: 'POST',
         body: {
           change_order_uuid: changeOrderUuid,
@@ -126,7 +129,8 @@ export const useLaborChangeOrderItemsStore = defineStore('laborChangeOrderItems'
     error.value = null
 
     try {
-      await $fetch('/api/labor-change-order-items', {
+      const { apiFetch } = useApiClient();
+      await apiFetch('/api/labor-change-order-items', {
         method: 'DELETE',
         query: {
           change_order_uuid: changeOrderUuid,

@@ -177,7 +177,8 @@ export const useChartOfAccountsStore = defineStore(
       loading.value = true;
       error.value = null;
       try {
-        const response = (await $fetch(
+        const { apiFetch } = useApiClient();
+        const response = (await apiFetch(
           `/api/corporations/chart-of-accounts?corporation_uuid=${corporationUUID}`
         )) as any;
         if (response?.error) throw new Error(response.error);
@@ -210,7 +211,8 @@ export const useChartOfAccountsStore = defineStore(
       loading.value = true;
       error.value = null;
       try {
-        const response = (await $fetch("/api/corporations/chart-of-accounts", {
+        const { apiFetch } = useApiClient();
+        const response = (await apiFetch("/api/corporations/chart-of-accounts", {
           method: "POST",
           body: {
             ...accountData,
@@ -257,7 +259,8 @@ export const useChartOfAccountsStore = defineStore(
       loading.value = true;
       error.value = null;
       try {
-        const response = (await $fetch(
+        const { apiFetch } = useApiClient();
+        const response = (await apiFetch(
           "/api/corporations/chart-of-accounts/bulk",
           {
             method: "POST",
@@ -290,7 +293,8 @@ export const useChartOfAccountsStore = defineStore(
       loading.value = true;
       error.value = null;
       try {
-        const response = (await $fetch("/api/corporations/chart-of-accounts", {
+        const { apiFetch } = useApiClient();
+        const response = (await apiFetch("/api/corporations/chart-of-accounts", {
           method: "PUT",
           body: {
             ...accountData,
@@ -342,7 +346,8 @@ export const useChartOfAccountsStore = defineStore(
       loading.value = true;
       error.value = null;
       try {
-        const response = (await $fetch(
+        const { apiFetch } = useApiClient();
+        const response = (await apiFetch(
           `/api/corporations/chart-of-accounts?id=${id}`,
           {
             method: "DELETE",
@@ -385,7 +390,8 @@ export const useChartOfAccountsStore = defineStore(
       loading.value = true;
       error.value = null;
       try {
-        const response = (await $fetch(
+        const { apiFetch } = useApiClient();
+        const response = (await apiFetch(
           `/api/corporations/chart-of-accounts/delete-all?corporation_uuid=${corporationUUID}`,
           {
             method: "DELETE",
@@ -412,7 +418,8 @@ export const useChartOfAccountsStore = defineStore(
       error.value = null;
       try {
         // First, fetch the default accounts
-        const defaultResponse = (await $fetch(
+        const { apiFetch } = useApiClient();
+        const defaultResponse = (await apiFetch(
           "/api/default-chart-of-accounts"
         )) as any;
 

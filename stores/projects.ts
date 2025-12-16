@@ -210,7 +210,8 @@ export const useProjectsStore = defineStore(
       loading.value = true;
       error.value = null;
       try {
-        const response = (await $fetch(
+        const { apiFetch } = useApiClient();
+        const response = (await apiFetch(
           `/api/projects?corporation_uuid=${corporationUUID}`
         )) as any;
         if (response?.error) throw new Error(response.error);
@@ -322,7 +323,8 @@ export const useProjectsStore = defineStore(
       loading.value = true;
       error.value = null;
       try {
-        const response = await $fetch<ProjectResponse>(`/api/projects/${uuid}`);
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch<ProjectResponse>(`/api/projects/${uuid}`);
         if (response?.error) throw new Error(response.error);
         return response?.data || null;
       } catch (err: any) {
@@ -342,7 +344,8 @@ export const useProjectsStore = defineStore(
       loading.value = true;
       error.value = null;
       try {
-        const response = await $fetch<ProjectResponse>("/api/projects", {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch<ProjectResponse>("/api/projects", {
           method: "POST",
           body: projectData,
         });

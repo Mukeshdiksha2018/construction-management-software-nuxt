@@ -102,7 +102,8 @@ export const useStorageLocationsStore = defineStore(
       loading.value = true;
       error.value = null;
       try {
-        const response = await $fetch(
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch(
           `/api/storage-locations?corporation_uuid=${corporationUUID}`
         );
         if (response?.error) throw new Error(response.error);
@@ -129,7 +130,8 @@ export const useStorageLocationsStore = defineStore(
       loading.value = true;
       error.value = null;
       try {
-        const response = await $fetch("/api/storage-locations", {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch("/api/storage-locations", {
           method: "POST",
           body: {
             ...locationData,
@@ -175,7 +177,8 @@ export const useStorageLocationsStore = defineStore(
       loading.value = true;
       error.value = null;
       try {
-        const response = await $fetch("/api/storage-locations", {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch("/api/storage-locations", {
           method: "PUT",
           body: {
             ...updatedData,
@@ -231,7 +234,8 @@ export const useStorageLocationsStore = defineStore(
       loading.value = true;
       error.value = null;
       try {
-        const response = await $fetch(
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch(
           `/api/storage-locations?uuid=${location.uuid}`,
           {
             method: "DELETE",

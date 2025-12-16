@@ -39,7 +39,8 @@ export const useLocationsStore = defineStore('locations', {
       try {
         let data: LocationRecord[] = []
         if (forceFromAPI) {
-          const response: any = await $fetch('/api/location', { method: 'GET' })
+          const { apiFetch } = useApiClient();
+          const response: any = await apiFetch('/api/location', { method: 'GET' })
           data = response?.data || response || []
         } else {
           const { dbHelpers } = await import('@/utils/indexedDb')
@@ -48,7 +49,8 @@ export const useLocationsStore = defineStore('locations', {
             data = await (dbHelpers as any).getLocations()
           }
           if (!data || data.length === 0) {
-            const response: any = await $fetch('/api/location', { method: 'GET' })
+            const { apiFetch } = useApiClient();
+          const response: any = await apiFetch('/api/location', { method: 'GET' })
             data = response?.data || response || []
             if (Array.isArray(data) && (dbHelpers as any).saveLocations) {
               await (dbHelpers as any).saveLocations(data)
@@ -64,7 +66,8 @@ export const useLocationsStore = defineStore('locations', {
     },
     async createLocation(payload: CreateLocationData) {
       this.error = null
-      const response: any = await $fetch('/api/location', { method: 'POST', body: payload })
+      const { apiFetch } = useApiClient();
+      const response: any = await apiFetch('/api/location', { method: 'POST', body: payload })
       const created: LocationRecord = response?.data || response
       if (created) {
         this.locations.unshift(created)
@@ -77,7 +80,8 @@ export const useLocationsStore = defineStore('locations', {
     },
     async updateLocation(uuid: string, payload: UpdateLocationData) {
       this.error = null
-      const response: any = await $fetch(`/api/location/${uuid}`, { method: 'PUT', body: payload })
+      const { apiFetch } = useApiClient();
+      const response: any = await apiFetch(`/api/location/${uuid}`, { method: 'PUT', body: payload })
       const updated: LocationRecord = response?.data || response
       if (updated) {
         const idx = this.locations.findIndex(l => l.uuid === uuid)
@@ -91,7 +95,8 @@ export const useLocationsStore = defineStore('locations', {
     },
     async deleteLocation(uuid: string) {
       this.error = null
-      await $fetch(`/api/location/${uuid}`, { method: 'DELETE' })
+      const { apiFetch } = useApiClient();
+      await apiFetch(`/api/location/${uuid}`, { method: 'DELETE' })
       this.locations = this.locations.filter(l => l.uuid !== uuid)
       const { dbHelpers } = await import('@/utils/indexedDb')
       if ((dbHelpers as any).deleteLocation) {

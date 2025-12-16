@@ -61,7 +61,8 @@ export const usePOWiseStockReport = () => {
     error.value = null
 
     try {
-      const response = await $fetch('/api/reports/po-wise-stock-report', {
+      const { apiFetch } = useApiClient();
+      const response = await apiFetch('/api/reports/po-wise-stock-report', {
         method: 'GET',
         params: {
           corporation_uuid: corporationUuid,

@@ -136,7 +136,8 @@ describe('Projects Store', () => {
       expect(store.error).toBe(null);
       expect(store.projects).toEqual([]);
       expect(mockFetch).toHaveBeenCalledWith(
-        "/api/projects?corporation_uuid=corp-1"
+        "/api/projects?corporation_uuid=corp-1",
+        undefined
       );
     });
 
@@ -200,7 +201,8 @@ describe('Projects Store', () => {
       });
       // Should fetch from API
       expect(mockFetch).toHaveBeenCalledWith(
-        "/api/projects?corporation_uuid=corp-1"
+        "/api/projects?corporation_uuid=corp-1",
+        undefined
       );
       // Should sync to IndexedDB
       expect(mockDbHelpers.saveProjects).toHaveBeenCalledWith(
@@ -239,7 +241,8 @@ describe('Projects Store', () => {
       expect(store.projects).toHaveLength(1);
       // Should fetch from API (not IndexedDB)
       expect(mockFetch).toHaveBeenCalledWith(
-        "/api/projects?corporation_uuid=corp-1"
+        "/api/projects?corporation_uuid=corp-1",
+        undefined
       );
       expect(mockDbHelpers.getProjects).not.toHaveBeenCalled();
       // Should sync to IndexedDB

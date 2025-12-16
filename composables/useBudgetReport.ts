@@ -203,7 +203,8 @@ export const useBudgetReport = () => {
       for (const estimate of projectEstimates) {
         if (!estimate.line_items || estimate.line_items.length === 0) {
           try {
-            const estimateResponse: any = await $fetch(
+            const { apiFetch } = useApiClient();
+            const estimateResponse: any = await apiFetch(
               `/api/estimates/${estimate.uuid}`,
               {
                 method: "GET",
@@ -236,7 +237,8 @@ export const useBudgetReport = () => {
       for (const po of projectPurchaseOrders) {
         if (!po.po_items || po.po_items.length === 0) {
           try {
-            const itemsResponse: any = await $fetch(
+            const { apiFetch } = useApiClient();
+            const itemsResponse: any = await apiFetch(
               "/api/purchase-order-items",
               {
                 method: "GET",
@@ -261,7 +263,8 @@ export const useBudgetReport = () => {
         const poType = (po.po_type || "MATERIAL").toUpperCase();
         if (poType === "LABOR") {
           try {
-            const laborItemsResponse: any = await $fetch(
+            const { apiFetch } = useApiClient();
+            const laborItemsResponse: any = await apiFetch(
               "/api/labor-purchase-order-items",
               {
                 method: "GET",
@@ -304,7 +307,8 @@ export const useBudgetReport = () => {
       for (const co of projectChangeOrders) {
         if (!co.co_items || co.co_items.length === 0) {
           try {
-            const itemsResponse: any = await $fetch("/api/change-order-items", {
+            const { apiFetch } = useApiClient();
+            const itemsResponse: any = await apiFetch("/api/change-order-items", {
               method: "GET",
               query: { change_order_uuid: co.uuid },
             });
@@ -325,7 +329,8 @@ export const useBudgetReport = () => {
         // Only fetch labor items if CO type is LABOR
         if (co.co_type === "LABOR") {
           try {
-            const laborItemsResponse: any = await $fetch(
+            const { apiFetch } = useApiClient();
+            const laborItemsResponse: any = await apiFetch(
               "/api/labor-change-order-items",
               {
                 method: "GET",
@@ -655,7 +660,8 @@ export const useBudgetReport = () => {
       // Aggregate paid amounts from vendor invoices with status = 'Paid'
       // Fetch all vendor invoices for this corporation and filter for paid status and project
       try {
-        const invoicesResponse: any = await $fetch("/api/vendor-invoices", {
+        const { apiFetch } = useApiClient();
+        const invoicesResponse: any = await apiFetch("/api/vendor-invoices", {
           method: "GET",
           query: {
             corporation_uuid: corporationUuid,
@@ -679,7 +685,8 @@ export const useBudgetReport = () => {
 
           try {
             // Fetch full invoice details which includes all related items
-            const fullInvoiceResponse: any = await $fetch(
+            const { apiFetch } = useApiClient();
+            const fullInvoiceResponse: any = await apiFetch(
               `/api/vendor-invoices/${invoice.uuid}`,
               {
                 method: "GET",

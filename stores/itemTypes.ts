@@ -251,7 +251,8 @@ export const useItemTypesStore = defineStore(
       loading.value = true;
       error.value = null;
       try {
-        const response = await $fetch(`/api/item-types/${uuid}`, {
+        const { apiFetch } = useApiClient();
+        const response = await apiFetch(`/api/item-types/${uuid}`, {
           method: "DELETE",
         });
         if (response?.error) throw new Error(response.error);

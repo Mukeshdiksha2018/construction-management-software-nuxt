@@ -18,6 +18,29 @@ global.useToast = vi.fn(() => ({
   add: vi.fn()
 }));
 
+// Mock $fetch (used by useApiClient)
+global.$fetch = vi.fn();
+
+// Mock useRuntimeConfig (used by useApiClient)
+global.useRuntimeConfig = vi.fn(() => ({
+  public: {
+    BASE_URL: ''
+  }
+}));
+
+// Mock useApiClient composable
+global.useApiClient = vi.fn(() => {
+  const apiFetch = vi.fn((path: string, options?: any) => {
+    return (global.$fetch as any)(path, options);
+  });
+  
+  return {
+    apiFetch,
+    getApiUrl: vi.fn((path: string) => path),
+    baseUrl: ''
+  };
+});
+
 // Mock Nuxt auto-imports
 global.defineStore = defineStore;
 global.ref = ref;

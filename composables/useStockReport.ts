@@ -56,49 +56,61 @@ export const useStockReport = () => {
         costCodesResponse,
       ] = await Promise.all([
         // Fetch receipt note items for the project
-        $fetch("/api/receipt-note-items", {
-          method: "GET",
-          params: {
-            corporation_uuid: corporationUuid,
-            project_uuid: projectUuid,
-          },
-        }).catch((err) => {
-          console.error("Error fetching receipt note items:", err);
-          return { data: [] };
-        }),
+        (async () => {
+          const { apiFetch } = useApiClient();
+          return apiFetch("/api/receipt-note-items", {
+            method: "GET",
+            params: {
+              corporation_uuid: corporationUuid,
+              project_uuid: projectUuid,
+            },
+          }).catch((err) => {
+            console.error("Error fetching receipt note items:", err);
+            return { data: [] };
+          });
+        })(),
         // Fetch return note items for the project
-        $fetch("/api/return-note-items", {
-          method: "GET",
-          params: {
-            corporation_uuid: corporationUuid,
-            project_uuid: projectUuid,
-          },
-        }).catch((err) => {
-          console.error("Error fetching return note items:", err);
-          return { data: [] };
-        }),
+        (async () => {
+          const { apiFetch } = useApiClient();
+          return apiFetch("/api/return-note-items", {
+            method: "GET",
+            params: {
+              corporation_uuid: corporationUuid,
+              project_uuid: projectUuid,
+            },
+          }).catch((err) => {
+            console.error("Error fetching return note items:", err);
+            return { data: [] };
+          });
+        })(),
 
         // Fetch vendors for vendor name lookup
-        $fetch("/api/purchase-orders/vendors", {
-          method: "GET",
-          params: {
-            corporation_uuid: corporationUuid,
-          },
-        }).catch((err) => {
-          console.error("Error fetching vendors:", err);
-          return { data: [] };
-        }),
+        (async () => {
+          const { apiFetch } = useApiClient();
+          return apiFetch("/api/purchase-orders/vendors", {
+            method: "GET",
+            params: {
+              corporation_uuid: corporationUuid,
+            },
+          }).catch((err) => {
+            console.error("Error fetching vendors:", err);
+            return { data: [] };
+          });
+        })(),
 
         // Fetch cost codes for cost code lookup
-        $fetch("/api/cost-code-configurations", {
-          method: "GET",
-          params: {
-            corporation_uuid: corporationUuid,
-          },
-        }).catch((err) => {
-          console.error("Error fetching cost codes:", err);
-          return { data: [] };
-        }),
+        (async () => {
+          const { apiFetch } = useApiClient();
+          return apiFetch("/api/cost-code-configurations", {
+            method: "GET",
+            params: {
+              corporation_uuid: corporationUuid,
+            },
+          }).catch((err) => {
+            console.error("Error fetching cost codes:", err);
+            return { data: [] };
+          });
+        })(),
       ]);
 
       // Receipt note items are already filtered by the API to only include active receipt notes
@@ -162,7 +174,8 @@ export const useStockReport = () => {
       // Step 4: Batch fetch all purchase order items and change order items in parallel
       const poItemsPromises = Array.from(uniquePOUuids).map(async (poUuid) => {
         try {
-          const response = await $fetch("/api/purchase-order-items", {
+          const { apiFetch } = useApiClient();
+          const response = await apiFetch("/api/purchase-order-items", {
             method: "GET",
             params: { purchase_order_uuid: poUuid },
           });
@@ -178,7 +191,8 @@ export const useStockReport = () => {
 
       const coItemsPromises = Array.from(uniqueCOUuids).map(async (coUuid) => {
         try {
-          const response = await $fetch("/api/change-order-items", {
+          const { apiFetch } = useApiClient();
+          const response = await apiFetch("/api/change-order-items", {
             method: "GET",
             params: { change_order_uuid: coUuid },
           });
@@ -195,7 +209,8 @@ export const useStockReport = () => {
       // Step 5: Batch fetch all PO forms and CO forms for vendor info in parallel
       const poFormsPromises = Array.from(uniquePOUuids).map(async (poUuid) => {
         try {
-          const response = await $fetch(`/api/purchase-order-forms/${poUuid}`, {
+          const { apiFetch } = useApiClient();
+          const response = await apiFetch(`/api/purchase-order-forms/${poUuid}`, {
             method: "GET",
           });
           return { poUuid, po: (response as any)?.data };
@@ -207,7 +222,8 @@ export const useStockReport = () => {
 
       const coFormsPromises = Array.from(uniqueCOUuids).map(async (coUuid) => {
         try {
-          const response = await $fetch("/api/change-orders", {
+          const { apiFetch } = useApiClient();
+          const response = await apiFetch("/api/change-orders", {
             method: "GET",
             params: { uuid: coUuid },
           });

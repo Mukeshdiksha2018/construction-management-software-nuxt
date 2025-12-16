@@ -68,7 +68,8 @@ describe('chartOfAccounts Store', () => {
       await store.fetchAccounts("corp-1", false, false); // Force API fetch
 
       expect(global.$fetch).toHaveBeenCalledWith(
-        "/api/corporations/chart-of-accounts?corporation_uuid=corp-1"
+        "/api/corporations/chart-of-accounts?corporation_uuid=corp-1",
+        undefined
       );
       expect(store.accounts).toEqual(mockAccounts);
       expect(store.loading).toBe(false);

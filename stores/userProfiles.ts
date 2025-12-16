@@ -91,7 +91,8 @@ export const useUserProfilesStore = defineStore(
       error.value = null;
 
       try {
-        const data = await $fetch<ListResponse>("/api/users/list");
+        const { apiFetch } = useApiClient();
+        const data = await apiFetch<ListResponse>("/api/users/list");
 
         if (data?.success && data.data) {
           users.value = data.data;
@@ -115,7 +116,8 @@ export const useUserProfilesStore = defineStore(
       error.value = null;
 
       try {
-        const data = await $fetch<InviteResponse>("/api/users/invite", {
+        const { apiFetch } = useApiClient();
+        const data = await apiFetch<InviteResponse>("/api/users/invite", {
           method: "POST",
           body: { email },
         });
@@ -142,7 +144,8 @@ export const useUserProfilesStore = defineStore(
       error.value = null;
 
       try {
-        const data = await $fetch<UpdateResponse>("/api/users/update", {
+        const { apiFetch } = useApiClient();
+        const data = await apiFetch<UpdateResponse>("/api/users/update", {
           method: "PUT",
           body: userData,
         });
@@ -169,7 +172,8 @@ export const useUserProfilesStore = defineStore(
       error.value = null;
 
       try {
-        const data = await $fetch<DeleteResponse>(`/api/users/${id}`, {
+        const { apiFetch } = useApiClient();
+        const data = await apiFetch<DeleteResponse>(`/api/users/${id}`, {
           method: "DELETE",
         });
 

@@ -110,7 +110,7 @@ describe("userProfiles Store", () => {
       await store.fetchUsers(true);
 
       // Assert
-      expect(mockFetch).toHaveBeenCalledWith("/api/users/list");
+      expect(mockFetch).toHaveBeenCalledWith("/api/users/list", undefined);
       expect(store.users).toEqual(mockUsers);
       expect(store.hasData).toBe(true);
       expect(store.lastFetched).not.toBe(0);

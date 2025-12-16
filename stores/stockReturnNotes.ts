@@ -317,7 +317,8 @@ export const useStockReturnNotesStore = defineStore(
       const corporationUuid = existing?.corporation_uuid;
 
       try {
-        await $fetch("/api/stock-return-notes", {
+        const { apiFetch } = useApiClient();
+        await apiFetch("/api/stock-return-notes", {
           method: "DELETE",
           query: { uuid },
         });

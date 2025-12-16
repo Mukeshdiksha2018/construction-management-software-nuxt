@@ -135,7 +135,8 @@ export const useCostCodeConfigurationsStore = defineStore("costCodeConfiguration
     error.value = null;
 
     try {
-      const { data } = await $fetch<{ data: CostCodeConfiguration[] }>(
+      const { apiFetch } = useApiClient();
+      const { data } = await apiFetch<{ data: CostCodeConfiguration[] }>(
         `/api/cost-code-configurations`,
         {
           query: { corporation_uuid: corporationUuid },
@@ -181,7 +182,8 @@ export const useCostCodeConfigurationsStore = defineStore("costCodeConfiguration
     error.value = null;
 
     try {
-      const { data } = await $fetch<{ data: CostCodeConfiguration }>(
+      const { apiFetch } = useApiClient();
+      const { data } = await apiFetch<{ data: CostCodeConfiguration }>(
         "/api/cost-code-configurations",
         {
           method: "POST",
@@ -228,7 +230,8 @@ export const useCostCodeConfigurationsStore = defineStore("costCodeConfiguration
     error.value = null;
 
     try {
-      const { data } = await $fetch<{ data: CostCodeConfiguration }>(
+      const { apiFetch } = useApiClient();
+      const { data } = await apiFetch<{ data: CostCodeConfiguration }>(
         `/api/cost-code-configurations/${uuid}`,
         {
           method: "PUT",
@@ -282,7 +285,8 @@ export const useCostCodeConfigurationsStore = defineStore("costCodeConfiguration
         (configuration) => configuration.uuid === uuid
       );
 
-      await $fetch(`/api/cost-code-configurations/${uuid}`, {
+      const { apiFetch } = useApiClient();
+      await apiFetch(`/api/cost-code-configurations/${uuid}`, {
         method: "DELETE",
       });
 
@@ -334,7 +338,8 @@ export const useCostCodeConfigurationsStore = defineStore("costCodeConfiguration
     error.value = null;
 
     try {
-      const result = await $fetch<{ data: any; message: string }>(
+      const { apiFetch } = useApiClient();
+      const result = await apiFetch<{ data: any; message: string }>(
         "/api/cost-code-configurations/bulk",
         {
           method: "POST",
@@ -367,7 +372,8 @@ export const useCostCodeConfigurationsStore = defineStore("costCodeConfiguration
     error.value = null;
 
     try {
-      await $fetch(`/api/cost-code-configurations/delete-all`, {
+      const { apiFetch } = useApiClient();
+      await apiFetch(`/api/cost-code-configurations/delete-all`, {
         method: "DELETE",
         query: { corporation_uuid: corporationUuid },
       });

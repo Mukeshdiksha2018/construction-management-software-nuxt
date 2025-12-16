@@ -153,18 +153,23 @@ export const useEstimatesStore = defineStore("estimates", () => {
   };
 
   // Optional: Explicit network refresh if a caller wants to force an update
-  const refreshEstimatesFromAPI = async (corporationUuid: string, page = 1, pageSize = 100) => {
+  const refreshEstimatesFromAPI = async (
+    corporationUuid: string,
+    page = 1,
+    pageSize = 100
+  ) => {
     if (!corporationUuid) return;
     loading.value = true;
     error.value = null;
-    
+
     const corpKey = corporationUuid;
     if (!loadedPages.value[corpKey]) {
       loadedPages.value[corpKey] = new Set();
     }
-    
+
     try {
-      const response: any = await $fetch("/api/estimates", {
+      const { apiFetch } = useApiClient();
+      const response: any = await apiFetch("/api/estimates", {
         method: "GET",
         query: { corporation_uuid: corporationUuid, page, page_size: pageSize },
       });
@@ -173,19 +178,21 @@ export const useEstimatesStore = defineStore("estimates", () => {
         if (page === 1) {
           estimates.value = response.data;
         } else {
-          const existingUuids = new Set(estimates.value.map(e => e.uuid));
-          const newEstimates = response.data.filter((e: Estimate) => e.uuid && !existingUuids.has(e.uuid));
+          const existingUuids = new Set(estimates.value.map((e) => e.uuid));
+          const newEstimates = response.data.filter(
+            (e: Estimate) => e.uuid && !existingUuids.has(e.uuid)
+          );
           estimates.value = [...estimates.value, ...newEstimates];
         }
-        
+
         // Store pagination info
         if (response.pagination) {
           paginationInfo.value[corpKey] = response.pagination;
         }
-        
+
         // Mark this page as loaded
         loadedPages.value[corpKey].add(page);
-        
+
         await dbHelpers.storeEstimates(estimates.value);
       }
     } catch (e) {
@@ -195,11 +202,13 @@ export const useEstimatesStore = defineStore("estimates", () => {
       loading.value = false;
     }
   };
-  
+
   /**
    * Get pagination info for a corporation
    */
-  const getPaginationInfo = (corporationUuid: string): PaginationInfo | null => {
+  const getPaginationInfo = (
+    corporationUuid: string
+  ): PaginationInfo | null => {
     return paginationInfo.value[corporationUuid] || null;
   };
 
@@ -215,21 +224,30 @@ export const useEstimatesStore = defineStore("estimates", () => {
 
       // Get user info for audit log
       const user = authStore.user;
-      const userInfo = user ? {
-        user_id: user.id || '',
-        user_name: user.user_metadata?.full_name || 
-                   `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() ||
-                   user.email?.split('@')[0] || 
-                   'Unknown User',
-        user_email: user.email || '',
-        user_image_url: user.user_metadata?.avatar_url || user.user_metadata?.image_url || null
-      } : null;
+      const userInfo = user
+        ? {
+            user_id: user.id || "",
+            user_name:
+              user.user_metadata?.full_name ||
+              `${user.user_metadata?.first_name || ""} ${
+                user.user_metadata?.last_name || ""
+              }`.trim() ||
+              user.email?.split("@")[0] ||
+              "Unknown User",
+            user_email: user.email || "",
+            user_image_url:
+              user.user_metadata?.avatar_url ||
+              user.user_metadata?.image_url ||
+              null,
+          }
+        : null;
 
-      const response: any = await $fetch("/api/estimates", {
+      const { apiFetch } = useApiClient();
+      const response: any = await apiFetch("/api/estimates", {
         method: "POST",
         body: {
           ...normalizeDatesToUTC(payload),
-          ...(userInfo || {})
+          ...(userInfo || {}),
         },
       });
 
@@ -249,7 +267,9 @@ export const useEstimatesStore = defineStore("estimates", () => {
         // Only add to local store if it matches the currently selected corporation
         // This prevents showing estimates from other corporations in the list
         const corpStore = useCorporationStore();
-        if (response.data.corporation_uuid === corpStore.selectedCorporationId) {
+        if (
+          response.data.corporation_uuid === corpStore.selectedCorporationId
+        ) {
           estimates.value.unshift(response.data);
         }
 
@@ -278,21 +298,30 @@ export const useEstimatesStore = defineStore("estimates", () => {
 
       // Get user info for audit log
       const user = authStore.user;
-      const userInfo = user ? {
-        user_id: user.id || '',
-        user_name: user.user_metadata?.full_name || 
-                   `${user.user_metadata?.first_name || ''} ${user.user_metadata?.last_name || ''}`.trim() ||
-                   user.email?.split('@')[0] || 
-                   'Unknown User',
-        user_email: user.email || '',
-        user_image_url: user.user_metadata?.avatar_url || user.user_metadata?.image_url || null
-      } : null;
+      const userInfo = user
+        ? {
+            user_id: user.id || "",
+            user_name:
+              user.user_metadata?.full_name ||
+              `${user.user_metadata?.first_name || ""} ${
+                user.user_metadata?.last_name || ""
+              }`.trim() ||
+              user.email?.split("@")[0] ||
+              "Unknown User",
+            user_email: user.email || "",
+            user_image_url:
+              user.user_metadata?.avatar_url ||
+              user.user_metadata?.image_url ||
+              null,
+          }
+        : null;
 
-      const response: any = await $fetch(`/api/estimates/${payload.uuid}`, {
+      const { apiFetch } = useApiClient();
+      const response: any = await apiFetch(`/api/estimates/${payload.uuid}`, {
         method: "PUT",
         body: {
           ...normalizeDatesToUTC(payload),
-          ...(userInfo || {})
+          ...(userInfo || {}),
         },
       });
 
@@ -312,8 +341,12 @@ export const useEstimatesStore = defineStore("estimates", () => {
         // Only update in local store if it matches the currently selected corporation
         // This prevents showing estimates from other corporations in the list
         const corpStore = useCorporationStore();
-        if (response.data.corporation_uuid === corpStore.selectedCorporationId) {
-          const index = estimates.value.findIndex((e) => e.uuid === payload.uuid);
+        if (
+          response.data.corporation_uuid === corpStore.selectedCorporationId
+        ) {
+          const index = estimates.value.findIndex(
+            (e) => e.uuid === payload.uuid
+          );
           if (index !== -1) {
             estimates.value[index] = response.data;
           }
@@ -340,7 +373,8 @@ export const useEstimatesStore = defineStore("estimates", () => {
     try {
       console.log("Deleting estimate:", estimateUuid);
 
-      const response: any = await $fetch(`/api/estimates/${estimateUuid}`, {
+      const { apiFetch } = useApiClient();
+      const response: any = await apiFetch(`/api/estimates/${estimateUuid}`, {
         method: "DELETE",
       });
 
@@ -373,7 +407,8 @@ export const useEstimatesStore = defineStore("estimates", () => {
     } catch (err: any) {
       console.error("Error deleting estimate:", err);
       // Re-throw the full error object so the component can access statusCode, statusMessage, and data
-      error.value = err.message || err.statusMessage || "Failed to delete estimate";
+      error.value =
+        err.message || err.statusMessage || "Failed to delete estimate";
       // Re-throw the error so the component can handle it with full details
       throw err;
     } finally {
