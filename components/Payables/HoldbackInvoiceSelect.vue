@@ -93,33 +93,54 @@ const vendorInvoices = ref<any[]>([])
 const loading = ref(false)
 const invoiceOptionsWithHoldback = ref<any[]>([])
 
-// Helper function to get holdback amount from related PO/CO financial_breakdown
-// Priority: PO/CO financial_breakdown.totals.holdback_amount > invoice financial_breakdown > calculated from percentage
-const calculateHoldbackAmount = async (invoice: any): Promise<number> => {
-  // First, try to get holdback_amount from related Purchase Order or Change Order's financial_breakdown
+// Helper function to fetch PO/CO financial breakdown and extract holdback amount
+// Also extracts invoice's item total (from financial_breakdown.totals.item_total)
+// Returns { totalAmount: number, holdbackAmount: number }
+const getPOCOFinancialData = async (invoice: any): Promise<{ totalAmount: number; holdbackAmount: number }> => {
+  // Get invoice's item total (from invoice's financial_breakdown.totals.item_total)
+  let totalAmount: number | null = null
+  
+  // First try to get from invoice's financial_breakdown.totals.item_total
+  let invoiceFinancialBreakdown = invoice.financial_breakdown
+  if (typeof invoiceFinancialBreakdown === 'string') {
+    try {
+      invoiceFinancialBreakdown = JSON.parse(invoiceFinancialBreakdown)
+    } catch (e) {
+      // Failed to parse
+    }
+  }
+  
+  if (invoiceFinancialBreakdown && typeof invoiceFinancialBreakdown === 'object' && invoiceFinancialBreakdown.totals) {
+    const itemTotalValue = invoiceFinancialBreakdown.totals.item_total
+    if (itemTotalValue !== null && itemTotalValue !== undefined && itemTotalValue !== '') {
+      const parsed = typeof itemTotalValue === 'number' 
+        ? itemTotalValue 
+        : (parseFloat(String(itemTotalValue)) || 0)
+      totalAmount = parsed
+    }
+  }
+  
+  // Fallback to invoice.amount if financial_breakdown doesn't have item_total
+  if (totalAmount === null) {
+    totalAmount = typeof invoice.amount === 'number' ? invoice.amount : (parseFloat(String(invoice.amount || '0')) || 0)
+  }
+  
+  // Fetch holdback amount from PO/CO financial_breakdown
+  let holdbackAmount: number | null = null
+  let poCoFinancialBreakdown: any = null
+  
+  // For AGAINST_PO invoices, fetch PO financial_breakdown
   if (invoice.invoice_type === 'AGAINST_PO' && invoice.purchase_order_uuid) {
     try {
       const poResponse = await $fetch<{ data: any }>(`/api/purchase-order-forms/${invoice.purchase_order_uuid}`)
       const po = poResponse?.data
       if (po?.financial_breakdown) {
-        let poFinancialBreakdown = po.financial_breakdown
-        if (typeof poFinancialBreakdown === 'string') {
+        poCoFinancialBreakdown = po.financial_breakdown
+        if (typeof poCoFinancialBreakdown === 'string') {
           try {
-            poFinancialBreakdown = JSON.parse(poFinancialBreakdown)
+            poCoFinancialBreakdown = JSON.parse(poCoFinancialBreakdown)
           } catch (e) {
-            // Failed to parse, continue with fallback
-          }
-        }
-        
-        if (poFinancialBreakdown && typeof poFinancialBreakdown === 'object' && poFinancialBreakdown.totals) {
-          const holdbackFromPO = poFinancialBreakdown.totals.holdback_amount
-          if (holdbackFromPO !== null && holdbackFromPO !== undefined && holdbackFromPO !== '') {
-            const parsed = typeof holdbackFromPO === 'number' 
-              ? holdbackFromPO 
-              : (parseFloat(String(holdbackFromPO)) || 0)
-            if (parsed >= 0) {
-              return parsed
-            }
+            console.error('[HoldbackInvoiceSelect] Error parsing PO financial_breakdown:', e)
           }
         }
       }
@@ -127,28 +148,17 @@ const calculateHoldbackAmount = async (invoice: any): Promise<number> => {
       console.error('[HoldbackInvoiceSelect] Error fetching PO financial_breakdown:', error)
     }
   } else if (invoice.invoice_type === 'AGAINST_CO' && invoice.change_order_uuid) {
+    // For AGAINST_CO invoices, fetch CO financial_breakdown
     try {
       const coResponse = await $fetch<{ data: any }>(`/api/change-orders/${invoice.change_order_uuid}`)
       const co = coResponse?.data
       if (co?.financial_breakdown) {
-        let coFinancialBreakdown = co.financial_breakdown
-        if (typeof coFinancialBreakdown === 'string') {
+        poCoFinancialBreakdown = co.financial_breakdown
+        if (typeof poCoFinancialBreakdown === 'string') {
           try {
-            coFinancialBreakdown = JSON.parse(coFinancialBreakdown)
+            poCoFinancialBreakdown = JSON.parse(poCoFinancialBreakdown)
           } catch (e) {
-            // Failed to parse, continue with fallback
-          }
-        }
-        
-        if (coFinancialBreakdown && typeof coFinancialBreakdown === 'object' && coFinancialBreakdown.totals) {
-          const holdbackFromCO = coFinancialBreakdown.totals.holdback_amount
-          if (holdbackFromCO !== null && holdbackFromCO !== undefined && holdbackFromCO !== '') {
-            const parsed = typeof holdbackFromCO === 'number' 
-              ? holdbackFromCO 
-              : (parseFloat(String(holdbackFromCO)) || 0)
-            if (parsed >= 0) {
-              return parsed
-            }
+            console.error('[HoldbackInvoiceSelect] Error parsing CO financial_breakdown:', e)
           }
         }
       }
@@ -157,35 +167,39 @@ const calculateHoldbackAmount = async (invoice: any): Promise<number> => {
     }
   }
   
-  // Fallback: try invoice's own financial_breakdown
-  let financialBreakdown = invoice.financial_breakdown
-  if (typeof financialBreakdown === 'string') {
-    try {
-      financialBreakdown = JSON.parse(financialBreakdown)
-    } catch (e) {
-      // Failed to parse, continue with fallback
+  // Extract holdback amount from PO/CO financial_breakdown
+  if (poCoFinancialBreakdown && typeof poCoFinancialBreakdown === 'object' && poCoFinancialBreakdown.totals) {
+    const holdbackValue = poCoFinancialBreakdown.totals.holdback_amount
+    if (holdbackValue !== null && holdbackValue !== undefined && holdbackValue !== '') {
+      const parsed = typeof holdbackValue === 'number' 
+        ? holdbackValue 
+        : (parseFloat(String(holdbackValue)) || 0)
+      holdbackAmount = parsed
     }
   }
   
-  if (financialBreakdown && typeof financialBreakdown === 'object' && financialBreakdown.totals) {
-    const holdbackFromBreakdown = financialBreakdown.totals.holdback_amount
-    if (holdbackFromBreakdown !== null && holdbackFromBreakdown !== undefined && holdbackFromBreakdown !== '') {
-      const parsed = typeof holdbackFromBreakdown === 'number' 
-        ? holdbackFromBreakdown 
-        : (parseFloat(String(holdbackFromBreakdown)) || 0)
-      if (parsed >= 0) {
-        return parsed
-      }
+  // Fallback for holdback: try invoice's own financial_breakdown
+  if (holdbackAmount === null && invoiceFinancialBreakdown && typeof invoiceFinancialBreakdown === 'object' && invoiceFinancialBreakdown.totals) {
+    const holdbackFromInvoice = invoiceFinancialBreakdown.totals.holdback_amount
+    if (holdbackFromInvoice !== null && holdbackFromInvoice !== undefined && holdbackFromInvoice !== '') {
+      holdbackAmount = typeof holdbackFromInvoice === 'number' 
+        ? holdbackFromInvoice 
+        : (parseFloat(String(holdbackFromInvoice)) || 0)
     }
   }
   
   // Final fallback: calculate from invoice amount and holdback percentage
-  const invoiceAmount = typeof invoice.amount === 'number' ? invoice.amount : (parseFloat(String(invoice.amount || '0')) || 0)
-  const holdbackPercentage = typeof invoice.holdback === 'number' ? invoice.holdback : (parseFloat(String(invoice.holdback || '0')) || 0)
-  if (holdbackPercentage > 0 && invoiceAmount > 0) {
-    return (invoiceAmount * holdbackPercentage) / 100
+  if (holdbackAmount === null) {
+    const invoiceAmount = typeof invoice.amount === 'number' ? invoice.amount : (parseFloat(String(invoice.amount || '0')) || 0)
+    const holdbackPercentage = typeof invoice.holdback === 'number' ? invoice.holdback : (parseFloat(String(invoice.holdback || '0')) || 0)
+    if (holdbackPercentage > 0 && invoiceAmount > 0) {
+      holdbackAmount = (invoiceAmount * holdbackPercentage) / 100
+    } else {
+      holdbackAmount = 0
+    }
   }
-  return 0
+  
+  return { totalAmount: totalAmount ?? 0, holdbackAmount: holdbackAmount ?? 0 }
 }
 
 // Process invoices and fetch holdback amounts from PO/CO financial_breakdown
@@ -206,12 +220,12 @@ const processInvoiceOptions = async () => {
     return matchesCorporation && matchesProject && matchesVendor && isAgainstPOOrCO && isActive
   })
   
-  // Process invoices and fetch holdback amounts
+  // Process invoices and fetch holdback amounts from PO/CO and invoice totals
   const processed = await Promise.all(filteredInvoices.map(async (invoice) => {
     const invoiceNumber = invoice.number || 'Unnamed Invoice'
-    const invoiceAmount = typeof invoice.amount === 'number' ? invoice.amount : (parseFloat(String(invoice.amount || '0')) || 0)
+    // Fetch invoice total amount and holdback amount from PO/CO financial_breakdown
+    const { totalAmount, holdbackAmount } = await getPOCOFinancialData(invoice)
     const holdbackPercentage = typeof invoice.holdback === 'number' ? invoice.holdback : (parseFloat(String(invoice.holdback || '0')) || 0)
-    const holdbackAmount = await calculateHoldbackAmount(invoice)
     
     // Get PO/CO number based on invoice type
     const poCoNumber = invoice.invoice_type === 'AGAINST_PO' 
@@ -229,8 +243,8 @@ const processInvoiceOptions = async () => {
       invoiceNumber: invoiceNumber,
       poCoNumber: poCoNumber,
       formattedDate: formattedDate || 'N/A',
-      invoiceAmount: invoiceAmount,
-      formattedInvoiceAmount: formatCurrency(invoiceAmount),
+      invoiceAmount: totalAmount, // Invoice's item total from financial_breakdown.totals.item_total
+      formattedInvoiceAmount: formatCurrency(totalAmount),
       holdbackPercentage: holdbackPercentage,
       holdbackAmount: holdbackAmount,
       formattedHoldbackAmount: formatCurrency(holdbackAmount),
