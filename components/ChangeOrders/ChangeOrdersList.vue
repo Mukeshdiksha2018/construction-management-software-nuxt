@@ -353,11 +353,14 @@ import { useCorporationStore } from '@/stores/corporations'
 import { useChangeOrderResourcesStore } from '@/stores/changeOrderResources'
 import { useLaborChangeOrderItemsStore } from '@/stores/laborChangeOrderItems'
 import { useChangeOrderPrint } from '@/composables/useChangeOrderPrint'
+import { useShipViaStore } from '@/stores/freight'
+import { useProjectAddressesStore } from '@/stores/projectAddresses'
 
 const UButton = resolveComponent('UButton')
 const UTooltip = resolveComponent('UTooltip')
 const UIcon = resolveComponent('UIcon')
 const UBadge = resolveComponent('UBadge')
+const UPopover = resolveComponent('UPopover')
 
 const { formatDate } = useDateFormat()
 const { formatCurrency, formatCurrencyAbbreviated } = useCurrencyFormat()
@@ -540,6 +543,8 @@ const corporationStore = useCorporationStore()
 const changeOrderResourcesStore = useChangeOrderResourcesStore()
 const laborChangeOrderItemsStore = useLaborChangeOrderItemsStore()
 const { openChangeOrderPrint } = useChangeOrderPrint()
+const shipViaStore = useShipViaStore()
+const projectAddressesStore = useProjectAddressesStore()
 const table = useTemplateRef<any>('table')
 
 // Watch for corporation changes and fetch change orders
@@ -584,6 +589,21 @@ const corporationNameByUuid = computed<Record<string, string>>(() => {
   })
   return map
 })
+
+// Ship via lookup
+const shipViaNameByUuid = computed<Record<string, string>>(() => {
+  const list = shipViaStore.getAllShipVia || []
+  const map: Record<string, string> = {}
+  list.forEach((sv: any) => { 
+    if (sv?.uuid) {
+      map[sv.uuid] = sv.ship_via || sv.uuid
+    }
+  })
+  return map
+})
+
+// Address popover state - track which CO's popover is open
+const shippingAddressPopoverOpen = ref<Record<string, boolean>>({})
 
 // Status stats computed properties - filter by TopBar's corporation
 const allCOStats = computed(() => {
@@ -689,6 +709,88 @@ const clearStatusFilter = () => {
   }
 }
 
+// Shipping address methods (must be defined before columns that reference them)
+const loadShippingAddress = async (addressUuid: string, projectUuid?: string) => {
+  if (!addressUuid) return
+  
+  // If we have project UUID, fetch all project addresses (they're cached by project)
+  if (projectUuid) {
+    const existingAddresses = projectAddressesStore.getAddresses(projectUuid)
+    if (existingAddresses.length > 0) {
+      // Check if the specific address is already loaded
+      const address = existingAddresses.find(addr => addr.uuid === addressUuid)
+      if (address) {
+        return // Already loaded
+      }
+    }
+    
+    // Fetch all project addresses (will be cached in store)
+    try {
+      await projectAddressesStore.fetchAddresses(projectUuid)
+    } catch (error) {
+      console.error('Error fetching project addresses:', error)
+    }
+  }
+}
+
+const formatShippingAddress = (address: any) => {
+  const parts = []
+  if (address.address_line_1) parts.push(address.address_line_1)
+  if (address.address_line_2) parts.push(address.address_line_2)
+  const cityStateZip = [address.city, address.state, address.zip_code].filter(Boolean).join(', ')
+  if (cityStateZip) parts.push(cityStateZip)
+  if (address.country) parts.push(address.country)
+  return parts.join('\n') || 'No address'
+}
+
+const renderShippingAddressPopover = (addressUuid: string, projectUuid?: string) => {
+  let address: any = null
+  
+  // Try to find the address from project addresses if we have project UUID
+  if (projectUuid) {
+    const addresses = projectAddressesStore.getAddresses(projectUuid)
+    address = addresses.find(addr => addr.uuid === addressUuid)
+  }
+  
+  if (!address) {
+    return h('div', { class: 'p-4 w-80' }, [
+      h('div', { class: 'text-sm text-gray-500 dark:text-gray-400' }, 'Address not found')
+    ])
+  }
+  
+  return h('div', { class: 'p-4 w-80' }, [
+    h('div', { class: 'text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3' }, 'Shipping Address'),
+    h('div', { 
+      class: 'mb-4 pb-4 border-b border-gray-200 dark:border-gray-700 last:border-0 last:pb-0 last:mb-0'
+    }, [
+      // Header with icon and label
+      h('div', { class: 'flex items-center gap-2 mb-2' }, [
+        h(UIcon, { 
+          name: 'i-heroicons-truck', 
+          class: 'w-4 h-4 text-info' 
+        }),
+        h('div', { class: 'text-xs font-semibold text-info' }, 'Shipping Address')
+      ]),
+      // Address content
+      h('div', { class: 'text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line mb-2' }, formatShippingAddress(address)),
+      // Contact information
+      ...(address.contact_person || address.phone || address.email ? [
+        h('div', { class: 'space-y-1 mt-2 pt-2 border-t border-gray-100 dark:border-gray-700' }, [
+          ...(address.contact_person ? [
+            h('div', { class: 'text-xs text-gray-500 dark:text-gray-500' }, `Contact: ${address.contact_person}`)
+          ] : []),
+          ...(address.phone ? [
+            h('div', { class: 'text-xs text-gray-500 dark:text-gray-500' }, `Phone: ${address.phone}`)
+          ] : []),
+          ...(address.email ? [
+            h('div', { class: 'text-xs text-gray-500 dark:text-gray-500' }, `Email: ${address.email}`)
+          ] : [])
+        ])
+      ] : [])
+    ])
+  ])
+}
+
 const columns = computed<TableColumn<any>[]>(() => [
   {
     accessorKey: 'corporation_uuid',
@@ -744,13 +846,51 @@ const columns = computed<TableColumn<any>[]>(() => [
     cell: ({ row }: { row: { original: any } }) => h('div', row.original.po_number || 'N/A')
   },
   {
-    accessorKey: 'estimated_delivery_date',
-    header: 'Est. Delivery Date',
+    accessorKey: 'ship_via_uuid',
+    header: 'Shipped Via',
     enableSorting: false,
     meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: { original: any } }) => {
-      const date = row.original.estimated_delivery_date;
-      return h('div', date ? formatDate(date) : 'N/A');
+      const uuid = row.original.ship_via_uuid
+      const label = uuid ? (shipViaNameByUuid.value[uuid] || row.original.ship_via || 'N/A') : (row.original.ship_via || 'N/A')
+      return h('div', label)
+    }
+  },
+  {
+    accessorKey: 'shipping_address_uuid',
+    header: 'Shipped To',
+    enableSorting: false,
+    meta: { class: { th: 'text-center', td: 'text-center' } },
+    cell: ({ row }: { row: { original: any } }) => {
+      const coUuid = row.original.uuid
+      const shippingAddressUuid = row.original.shipping_address_uuid
+      const isOpen = shippingAddressPopoverOpen.value[coUuid] || false
+      
+      if (!shippingAddressUuid) {
+        return h('div', { class: 'flex justify-center' }, 'N/A')
+      }
+      
+      return h('div', { class: 'flex justify-center' }, [
+        h(UPopover, {
+          open: isOpen,
+          'onUpdate:open': (value: boolean) => {
+            shippingAddressPopoverOpen.value[coUuid] = value
+            if (value && shippingAddressUuid) {
+              // Lazy load shipping address when popover opens
+              loadShippingAddress(shippingAddressUuid, row.original.project_uuid)
+            }
+          }
+        }, {
+          default: () => h(UButton, {
+            icon: 'i-heroicons-map-pin',
+            size: 'xs',
+            variant: 'ghost',
+            color: 'neutral',
+            class: 'hover:scale-105 transition-transform'
+          }),
+          content: () => renderShippingAddressPopover(shippingAddressUuid, row.original.project_uuid)
+        })
+      ])
     }
   },
   {
@@ -1289,6 +1429,15 @@ const cancelDelete = () => {
   showDeleteModal.value = false
   coToDelete.value = null
 }
+
+// Load ship via data on mount
+onMounted(async () => {
+  try {
+    await shipViaStore.fetchShipVia()
+  } catch (error) {
+    console.error('Error fetching ship via:', error)
+  }
+})
 
 // Watch modal close to ensure cleanup happens regardless of how it's closed
 // (ESC key, click outside modal, or clicking X button)
