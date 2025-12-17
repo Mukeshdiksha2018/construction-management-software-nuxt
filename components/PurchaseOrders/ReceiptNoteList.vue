@@ -828,7 +828,7 @@ const columns: TableColumn<any>[] = [
     id: "actions",
     header: "Actions",
     enableSorting: false,
-    meta: { class: { th: 'text-right sticky right-0 z-10', td: 'text-right sticky right-0' } },
+    meta: { class: { th: 'text-right sticky right-0 z-10 w-32', td: 'text-right sticky right-0 w-32' } },
     cell: ({ row }) => {
       const buttons = [];
       
