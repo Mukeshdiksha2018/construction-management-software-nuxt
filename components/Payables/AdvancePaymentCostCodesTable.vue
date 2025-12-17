@@ -72,7 +72,7 @@
               <td class="px-3 py-2 align-middle">
                 <ChartOfAccountsSelect
                   :model-value="row.gl_account_uuid || undefined"
-                  :corporation-uuid="corporationUuid"
+                  :local-accounts="localChartOfAccounts"
                   size="xs"
                   class="w-full"
                   :disabled="readonly || !row.cost_code_uuid"
@@ -237,6 +237,9 @@ const costCodeConfigurationsStore = useCostCodeConfigurationsStore()
 const loading = ref(false)
 const costCodeRows = ref<any[]>([])
 const costCodeConfigMap = ref<Map<string, any>>(new Map())
+// Local chart of accounts for the form's corporation (not TopBar's)
+// This ensures we don't pollute the global store
+const localChartOfAccounts = ref<any[]>([])
 // Track cost codes that have been explicitly removed by the user
 // Store full cost code data for restoration
 // Use a reactive array instead of Map for better Vue reactivity
@@ -327,15 +330,45 @@ const fetchCostCodeConfigurations = async (corporationUuid: string) => {
   if (!corporationUuid) return
   
   try {
+    // Fetch configurations for the specific corporation
     await costCodeConfigurationsStore.fetchConfigurations(corporationUuid, false, false)
-    const configs = costCodeConfigurationsStore.configurations
     
-    // Create a map for quick lookup
+    // Get configurations filtered by corporation (using the store's getter method)
+    // This ensures we only get configurations for the specified corporation
+    const configs = costCodeConfigurationsStore.getActiveConfigurations(corporationUuid)
+    
+    // Clear the map and rebuild it with configurations for this corporation only
+    costCodeConfigMap.value.clear()
     configs.forEach((config: any) => {
-      costCodeConfigMap.value.set(config.uuid, config)
+      if (config.uuid) {
+        costCodeConfigMap.value.set(config.uuid, config)
+      }
     })
   } catch (error) {
     console.error('[AdvancePaymentCostCodesTable] Error fetching cost code configurations:', error)
+  }
+}
+
+// Fetch chart of accounts directly from API for the form's corporation
+// This ensures we don't pollute the global store which is scoped to TopBar's corporation
+const fetchChartOfAccounts = async (corporationUuid: string) => {
+  if (!corporationUuid) return
+  
+  try {
+    // Fetch accounts directly from API for the form's corporation
+    const response = await $fetch<{ data: any[] }>(`/api/corporations/chart-of-accounts?corporation_uuid=${corporationUuid}`)
+    
+    // Handle different response types
+    if (response?.data) {
+      localChartOfAccounts.value = Array.isArray(response.data) ? response.data : []
+    } else if (Array.isArray(response)) {
+      localChartOfAccounts.value = response
+    } else {
+      localChartOfAccounts.value = []
+    }
+  } catch (error) {
+    console.error('[AdvancePaymentCostCodesTable] Error fetching chart of accounts:', error)
+    localChartOfAccounts.value = []
   }
 }
 
@@ -368,9 +401,13 @@ const processItems = async () => {
       ? await fetchPOItems(uuid)
       : await fetchCOItems(uuid)
 
-    // Fetch cost code configurations if needed
+    // Fetch cost code configurations and chart of accounts if needed
+    // This ensures both cost codes and GL accounts are available
     if (props.corporationUuid) {
-      await fetchCostCodeConfigurations(props.corporationUuid)
+      await Promise.all([
+        fetchCostCodeConfigurations(props.corporationUuid),
+        fetchChartOfAccounts(props.corporationUuid)
+      ])
     }
 
     // Group items by cost_code_uuid and calculate totals
@@ -496,12 +533,22 @@ const processItems = async () => {
       })
 
     // Update existing rows with new totalAmount from PO/CO (in case it changed)
+    // Also populate GL account from cost code configuration if not already set
     const updatedExistingRows = costCodeRows.value.map(row => {
       if (row.cost_code_uuid && costCodeMap.has(row.cost_code_uuid)) {
         const costCode = costCodeMap.get(row.cost_code_uuid)!
+        const config = costCodeConfigMap.value.get(row.cost_code_uuid)
+        
+        // Populate GL account from cost code configuration if not already set
+        let glAccountUuid = row.gl_account_uuid
+        if (!glAccountUuid && config?.gl_account_uuid) {
+          glAccountUuid = config.gl_account_uuid
+        }
+        
         return {
           ...row,
-          totalAmount: costCode.totalAmount
+          totalAmount: costCode.totalAmount,
+          gl_account_uuid: glAccountUuid
         }
       }
       return row
@@ -843,17 +890,36 @@ watch(
   () => props.modelValue,
   async (newValue) => {
     if (Array.isArray(newValue) && newValue.length > 0) {
+      // Fetch cost code configurations and chart of accounts first to populate GL accounts
+      if (props.corporationUuid) {
+        await Promise.all([
+          fetchCostCodeConfigurations(props.corporationUuid),
+          fetchChartOfAccounts(props.corporationUuid)
+        ])
+      }
+      
       // Map database field names to component field names
-      const mappedRows = newValue.map((row: any) => ({
-        id: row.id || row.uuid || `row-${Date.now()}-${Math.random().toString(36).substring(2)}`,
-        cost_code_uuid: row.cost_code_uuid || null,
-        cost_code_label: row.cost_code_label || null,
-        cost_code_number: row.cost_code_number || null,
-        cost_code_name: row.cost_code_name || null,
-        totalAmount: row.totalAmount || row.total_amount || 0,
-        advanceAmount: row.advanceAmount !== undefined ? row.advanceAmount : (row.advance_amount !== undefined ? row.advance_amount : null),
-        gl_account_uuid: row.gl_account_uuid || null
-      }))
+      const mappedRows = newValue.map((row: any) => {
+        // Get cost code configuration to populate GL account if not already set
+        let glAccountUuid = row.gl_account_uuid || null
+        if (!glAccountUuid && row.cost_code_uuid) {
+          const config = costCodeConfigMap.value.get(row.cost_code_uuid)
+          if (config?.gl_account_uuid) {
+            glAccountUuid = config.gl_account_uuid
+          }
+        }
+        
+        return {
+          id: row.id || row.uuid || `row-${Date.now()}-${Math.random().toString(36).substring(2)}`,
+          cost_code_uuid: row.cost_code_uuid || null,
+          cost_code_label: row.cost_code_label || null,
+          cost_code_number: row.cost_code_number || null,
+          cost_code_name: row.cost_code_name || null,
+          totalAmount: row.totalAmount || row.total_amount || 0,
+          advanceAmount: row.advanceAmount !== undefined ? row.advanceAmount : (row.advance_amount !== undefined ? row.advance_amount : null),
+          gl_account_uuid: glAccountUuid
+        }
+      })
       
       // Build a set of cost codes that are present in the loaded data
       const presentCostCodeUuids = new Set(
@@ -959,9 +1025,20 @@ watch(
       const currentIds = new Set(costCodeRows.value.map(r => r.id))
       const newIds = new Set(mappedRows.map((r: any) => r.id))
       
+      // Check if GL accounts were populated (even if IDs are the same)
+      const glAccountsPopulated = mappedRows.some((row: any, index: number) => {
+        const currentRow = costCodeRows.value[index]
+        return row.gl_account_uuid && (!currentRow || currentRow.gl_account_uuid !== row.gl_account_uuid)
+      })
+      
       if (currentIds.size !== newIds.size || 
-          !Array.from(currentIds).every(id => newIds.has(id))) {
+          !Array.from(currentIds).every(id => newIds.has(id)) ||
+          glAccountsPopulated) {
         costCodeRows.value = mappedRows
+        // Emit update to ensure parent component knows about GL account changes
+        if (glAccountsPopulated) {
+          emit('update:modelValue', costCodeRows.value)
+        }
       }
     } else if (Array.isArray(newValue) && newValue.length === 0 && costCodeRows.value.length > 0) {
       // Only clear if we're not in the middle of processing
@@ -976,10 +1053,87 @@ watch(
   { deep: true }
 )
 
+// Watch for corporation changes to fetch cost code configurations and chart of accounts
+watch(
+  () => props.corporationUuid,
+  async (newCorpUuid, oldCorpUuid) => {
+    if (newCorpUuid && newCorpUuid !== oldCorpUuid) {
+      // Clear local chart of accounts when corporation changes
+      localChartOfAccounts.value = []
+      
+      // Fetch cost code configurations and chart of accounts when corporation changes
+      await Promise.all([
+        fetchCostCodeConfigurations(newCorpUuid),
+        fetchChartOfAccounts(newCorpUuid)
+      ])
+      
+      // Update GL accounts in existing rows if they're not set
+      if (costCodeRows.value.length > 0) {
+        const updatedRows = costCodeRows.value.map((row: any) => {
+          if (!row.gl_account_uuid && row.cost_code_uuid) {
+            const config = costCodeConfigMap.value.get(row.cost_code_uuid)
+            if (config?.gl_account_uuid) {
+              return {
+                ...row,
+                gl_account_uuid: config.gl_account_uuid
+              }
+            }
+          }
+          return row
+        })
+        
+        // Only update if any GL accounts were populated
+        const hasChanges = updatedRows.some((row: any, index: number) => 
+          row.gl_account_uuid !== costCodeRows.value[index]?.gl_account_uuid
+        )
+        
+        if (hasChanges) {
+          costCodeRows.value = updatedRows
+          emit('update:modelValue', costCodeRows.value)
+        }
+      }
+    } else if (!newCorpUuid) {
+      // Clear local chart of accounts when corporation is cleared
+      localChartOfAccounts.value = []
+    }
+  },
+  { immediate: false }
+)
+
 // Initialize
-onMounted(() => {
+onMounted(async () => {
+  // Fetch cost code configurations and chart of accounts on mount to ensure GL accounts are available
   if (props.corporationUuid) {
-    fetchCostCodeConfigurations(props.corporationUuid)
+    await Promise.all([
+      fetchCostCodeConfigurations(props.corporationUuid),
+      fetchChartOfAccounts(props.corporationUuid)
+    ])
+    
+    // If we have existing data in modelValue, populate GL accounts after fetching configs
+    if (Array.isArray(props.modelValue) && props.modelValue.length > 0) {
+      const updatedRows = costCodeRows.value.map((row: any) => {
+        if (!row.gl_account_uuid && row.cost_code_uuid) {
+          const config = costCodeConfigMap.value.get(row.cost_code_uuid)
+          if (config?.gl_account_uuid) {
+            return {
+              ...row,
+              gl_account_uuid: config.gl_account_uuid
+            }
+          }
+        }
+        return row
+      })
+      
+      // Check if any GL accounts were populated
+      const hasChanges = updatedRows.some((row: any, index: number) => 
+        row.gl_account_uuid !== costCodeRows.value[index]?.gl_account_uuid
+      )
+      
+      if (hasChanges) {
+        costCodeRows.value = updatedRows
+        emit('update:modelValue', costCodeRows.value)
+      }
+    }
   }
   
   // Initialize removed cost codes from props if available
