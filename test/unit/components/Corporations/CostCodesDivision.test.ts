@@ -51,6 +51,7 @@ const mockDivisionsStore = {
 
 const mockCorpStore = reactive({
   selectedCorporation: null as any,
+  corporations: [] as any[],
   ensureReady: vi.fn()
 })
 
@@ -117,6 +118,7 @@ describe('CostCodesDivision Component', () => {
     mockDivisionsStore.loading = false;
     mockDivisionsStore.error = null;
     mockCorpStore.selectedCorporation = mockCorporation;
+    mockCorpStore.corporations = [mockCorporation];
 
     // Reset permissions mock
     mockHasPermission.mockReturnValue(true);
@@ -1262,13 +1264,14 @@ describe('CostCodesDivision Component', () => {
       
       const columns = wrapper.vm.columns
       
-      expect(columns).toHaveLength(6)
-      expect(columns[0].accessorKey).toBe('division_number')
-      expect(columns[1].accessorKey).toBe('division_name')
-      expect(columns[2].accessorKey).toBe('division_order')
-      expect(columns[3].accessorKey).toBe('description')
-      expect(columns[4].accessorKey).toBe('is_active')
-      expect(columns[5].accessorKey).toBe('actions')
+      expect(columns).toHaveLength(7)
+      expect(columns[0].accessorKey).toBe('corporation_uuid')
+      expect(columns[1].accessorKey).toBe('division_number')
+      expect(columns[2].accessorKey).toBe('division_name')
+      expect(columns[3].accessorKey).toBe('division_order')
+      expect(columns[4].accessorKey).toBe('description')
+      expect(columns[5].accessorKey).toBe('is_active')
+      expect(columns[6].accessorKey).toBe('actions')
     })
 
     it('should have correct preview columns for CSV import', () => {

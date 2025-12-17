@@ -35,6 +35,10 @@ const mockCorpStore = {
     corporation_name: "Test Corporation",
   },
   selectedCorporationId: "corp-1",
+  corporations: [{
+    uuid: "corp-1",
+    corporation_name: "Test Corporation",
+  }],
 };
 
 const mockProjectsStore = {
@@ -333,20 +337,22 @@ describe('ProjectDetails Component', () => {
 
       const columns = wrapper.vm.columns;
 
-      expect(columns).toHaveLength(11);
-      expect(columns[0].accessorKey).toBe("project_id");
-      expect(columns[1].accessorKey).toBe("project_name");
-      expect(columns[2].accessorKey).toBe("project_type_uuid");
-      expect(columns[3].accessorKey).toBe("project_status");
-      expect(columns[4].accessorKey).toBe("service_type_uuid");
-      expect(columns[5].accessorKey).toBe("project_start_date");
-      expect(columns[6].accessorKey).toBe("project_estimated_completion_date");
-      expect(columns[7].accessorKey).toBe("estimated_amount");
-      expect(columns[8].accessorKey).toBe("billed_to_date");
-      expect(columns[9].accessorKey).toBe("estimate_status");
+      expect(columns).toHaveLength(13);
+      expect(columns[0].accessorKey).toBe("corporation_uuid");
+      expect(columns[1].accessorKey).toBe("project_id");
+      expect(columns[2].accessorKey).toBe("project_name");
+      expect(columns[3].accessorKey).toBe("project_type_uuid");
+      expect(columns[4].accessorKey).toBe("project_status");
+      expect(columns[5].accessorKey).toBe("service_type_uuid");
+      expect(columns[6].accessorKey).toBe("addresses");
+      expect(columns[7].accessorKey).toBe("project_start_date");
+      expect(columns[8].accessorKey).toBe("project_estimated_completion_date");
+      expect(columns[9].accessorKey).toBe("estimated_amount");
+      expect(columns[10].accessorKey).toBe("billed_to_date");
+      expect(columns[11].accessorKey).toBe("estimate_status");
       // Actions column doesn't have accessorKey, it uses id instead (matching ItemsList.vue)
-      expect(columns[10].id).toBe("actions");
-      expect(columns[10].accessorKey).toBeUndefined();
+      expect(columns[12].id).toBe("actions");
+      expect(columns[12].accessorKey).toBeUndefined();
     })
   })
 
