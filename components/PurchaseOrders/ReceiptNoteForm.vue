@@ -125,6 +125,22 @@
             />
           </div>
 
+          <div>
+            <label class="block text-xs font-medium text-default mb-1">
+              Vendor
+            </label>
+            <VendorSelect
+              :model-value="form.vendor_uuid"
+              :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
+              :local-vendors="localVendors"
+              placeholder="Select vendor"
+              size="sm"
+              class="w-full"
+              :disabled="!form.corporation_uuid && !corpStore.selectedCorporation || props.readonly"
+              @update:model-value="handleVendorChange"
+            />
+          </div>
+
           <div v-if="receiptType === 'purchase_order'">
             <label class="block text-xs font-medium text-default mb-1">
               Purchase Order <span class="text-red-500">*</span>
@@ -485,6 +501,7 @@ import { useLocalPOCOData } from "@/composables/useLocalPOCOData";
 import ProjectSelect from "@/components/Shared/ProjectSelect.vue";
 import LocationSelect from "@/components/Shared/LocationSelect.vue";
 import CorporationSelect from "@/components/Shared/CorporationSelect.vue";
+import VendorSelect from "@/components/Shared/VendorSelect.vue";
 import ReceiptNoteItemsTable from "@/components/PurchaseOrders/ReceiptNoteItemsTable.vue";
 import { useUserProfilesStore } from "@/stores/userProfiles";
 import { useItemTypesStore } from "@/stores/itemTypes";
@@ -535,6 +552,41 @@ const pendingSourceType = ref<string | null>(null);
 
 // Local purchase orders and change orders (independent from global store)
 const { localPurchaseOrders, localChangeOrders, fetchLocalPurchaseOrders, fetchLocalChangeOrders } = useLocalPOCOData();
+
+// Local vendors (independent from global store)
+const localVendors = ref<any[]>([]);
+
+/**
+ * Fetch vendors directly via API (independent from global store)
+ * @param corporationUuid - The corporation UUID to fetch vendors for
+ */
+const fetchLocalVendors = async (corporationUuid: string) => {
+  if (!corporationUuid) {
+    localVendors.value = [];
+    return;
+  }
+  
+  try {
+    const response: any = await $fetch("/api/purchase-orders/vendors", {
+      method: "GET",
+      query: {
+        corporation_uuid: corporationUuid,
+      },
+    });
+    
+    // Handle different response formats
+    const vendors = Array.isArray(response)
+      ? response
+      : Array.isArray(response?.data)
+      ? response.data
+      : [];
+    
+    localVendors.value = vendors;
+  } catch (error: any) {
+    console.error("[ReceiptNoteForm] Failed to fetch vendors:", error);
+    localVendors.value = [];
+  }
+};
 
 // Receipt type state - sync with form
 const receiptType = computed({
@@ -748,6 +800,9 @@ const poOptions = computed(() => {
   const projectUuid = props.form.project_uuid
     ? String(props.form.project_uuid)
     : null;
+  const vendorUuid = props.form.vendor_uuid
+    ? String(props.form.vendor_uuid)
+    : null;
 
   // Determine allowed statuses based on whether we're editing an existing receipt note
   const isEditing = props.editingReceiptNote || !!props.form.uuid;
@@ -760,6 +815,10 @@ const poOptions = computed(() => {
       if (!po?.uuid) return false;
       // Filter by corporation UUID (form's corporation takes priority)
       if (corporationUuid && po.corporation_uuid !== corporationUuid) return false;
+      // Filter by project UUID if provided
+      if (projectUuid && po.project_uuid !== projectUuid) return false;
+      // Filter by vendor UUID if provided
+      if (vendorUuid && po.vendor_uuid !== vendorUuid) return false;
       // Only show material purchase orders (exclude labor)
       const poType = String(po.po_type || '').trim().toUpperCase();
       if (poType !== 'MATERIAL') return false;
@@ -769,11 +828,11 @@ const poOptions = computed(() => {
         (status) => poStatus.toLowerCase() === status.toLowerCase()
       );
       if (!isAllowedStatus) return false;
-      if (!projectUuid) return true;
-      return po.project_uuid === projectUuid;
+      return true;
     })
     .map((po) => {
-      const vendor = vendorStore.vendors.find(v => v.uuid === po.vendor_uuid)
+      // Use local vendors instead of global store
+      const vendor = localVendors.value.find(v => v.uuid === po.vendor_uuid)
       const vendorName = vendor?.vendor_name || 'N/A'
       const poNum = po?.po_number || 'Unnamed PO'
       const typeInfo = getPOTypeInfo(String(po.po_type || '').toUpperCase())
@@ -819,6 +878,9 @@ const coOptions = computed(() => {
   const projectUuid = props.form.project_uuid
     ? String(props.form.project_uuid)
     : null;
+  const vendorUuid = props.form.vendor_uuid
+    ? String(props.form.vendor_uuid)
+    : null;
 
   // Determine allowed statuses based on whether we're editing an existing receipt note
   const isEditing = props.editingReceiptNote || !!props.form.uuid;
@@ -831,6 +893,10 @@ const coOptions = computed(() => {
       if (!co?.uuid) return false;
       // Filter by corporation UUID (form's corporation takes priority)
       if (corporationUuid && co.corporation_uuid !== corporationUuid) return false;
+      // Filter by project UUID if provided
+      if (projectUuid && co.project_uuid !== projectUuid) return false;
+      // Filter by vendor UUID if provided
+      if (vendorUuid && co.vendor_uuid !== vendorUuid) return false;
       // Only show material change orders (exclude labor)
       const coType = String(co.co_type || '').trim().toUpperCase();
       if (coType !== 'MATERIAL') return false;
@@ -840,11 +906,11 @@ const coOptions = computed(() => {
         (status) => coStatus.toLowerCase() === status.toLowerCase()
       );
       if (!isAllowedStatus) return false;
-      if (!projectUuid) return true;
-      return co.project_uuid === projectUuid;
+      return true;
     })
     .map((co) => {
-      const vendor = vendorStore.vendors.find(v => v.uuid === co.vendor_uuid)
+      // Use local vendors instead of global store
+      const vendor = localVendors.value.find(v => v.uuid === co.vendor_uuid)
       const vendorName = vendor?.vendor_name || co.vendor_name || 'N/A'
       const coNum = co?.co_number || 'Unnamed CO'
       const typeInfo = getCOTypeInfo(String(co.co_type || '').toUpperCase())
@@ -1017,6 +1083,7 @@ watch(
     if (corpUuid) {
       await Promise.allSettled([
         ensureVendorsLoaded(),
+        fetchLocalVendors(String(corpUuid)),
         fetchLocalPurchaseOrders(String(corpUuid)),
         fetchLocalChangeOrders(String(corpUuid)),
       ]);
@@ -1044,6 +1111,7 @@ onMounted(async () => {
   if (corpUuid) {
     await Promise.allSettled([
       ensureVendorsLoaded(),
+      fetchLocalVendors(String(corpUuid)),
       fetchLocalPurchaseOrders(String(corpUuid)),
       fetchLocalChangeOrders(String(corpUuid)),
     ]);
@@ -1227,6 +1295,43 @@ const handleProjectChange = (projectUuid?: string | null) => {
     }
   } else {
     // Clear both PO and CO when no project is selected
+    if (currentPurchaseOrderUuid) {
+      updateFormField("purchase_order_uuid", null, nextForm);
+    }
+    if (currentChangeOrderUuid) {
+      updateFormField("change_order_uuid", null, nextForm);
+    }
+  }
+};
+
+const handleVendorChange = (vendorUuid?: string | null) => {
+  const nextForm = updateFormField("vendor_uuid", vendorUuid || null);
+
+  const currentPurchaseOrderUuid = nextForm.purchase_order_uuid;
+  const currentChangeOrderUuid = nextForm.change_order_uuid;
+
+  if (vendorUuid) {
+    // Check PO's vendor_uuid directly from localPurchaseOrders instead of poOptions
+    // because poOptions is filtered by vendor_uuid and might not include the current PO
+    // when the vendor changes
+    if (currentPurchaseOrderUuid) {
+      const po = localPurchaseOrders.value.find((p: any) => p.uuid === currentPurchaseOrderUuid);
+      if (!po || po.vendor_uuid !== vendorUuid) {
+        updateFormField("purchase_order_uuid", null, nextForm);
+      }
+    }
+
+    // Check CO's vendor_uuid directly from localChangeOrders instead of coOptions
+    // because coOptions is filtered by vendor_uuid and might not include the current CO
+    // when the vendor changes
+    if (currentChangeOrderUuid) {
+      const co = localChangeOrders.value.find((c: any) => c.uuid === currentChangeOrderUuid);
+      if (!co || co.vendor_uuid !== vendorUuid) {
+        updateFormField("change_order_uuid", null, nextForm);
+      }
+    }
+  } else {
+    // Clear both PO and CO when no vendor is selected
     if (currentPurchaseOrderUuid) {
       updateFormField("purchase_order_uuid", null, nextForm);
     }
