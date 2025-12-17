@@ -429,9 +429,9 @@ const columns: TableColumn<any>[] = [
     enableSorting: false,
     enableHiding: false,
     meta: { 
-      style: {
-        th: 'width: 15%; min-width: 120px;',
-        td: 'width: 15%; min-width: 120px;'
+      class: {
+        th: 'text-right sticky right-0 z-10 w-24',
+        td: 'text-right sticky right-0 w-24'
       }
     },
     cell: ({ row }: { row: { original: any } }) => {

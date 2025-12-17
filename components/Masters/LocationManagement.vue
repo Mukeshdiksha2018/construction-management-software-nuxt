@@ -13,6 +13,11 @@
     <div v-else-if="store.error" class="text-red-500">{{ store.error }}</div>
     <div v-else-if="filtered.length">
       <UTable
+        ref="table"
+        sticky
+        v-model:pagination="pagination"
+        v-model:column-pinning="columnPinning"
+        :pagination-options="paginationOptions"
         :data="filtered"
         :columns="columns"
         v-model:global-filter="globalFilter"
@@ -89,7 +94,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, h, resolveComponent, onMounted } from 'vue'
+import { ref, computed, h, resolveComponent, onMounted, useTemplateRef } from 'vue'
+import { getPaginationRowModel } from '@tanstack/vue-table'
 import type { TableColumn } from '@nuxt/ui'
 import { useLocationsStore } from '@/stores/locations'
 
@@ -105,6 +111,11 @@ const showModal = ref(false)
 const editing = ref<any>(null)
 const saving = ref(false)
 const globalFilter = ref('')
+
+const pagination = ref({ pageIndex: 0, pageSize: 10 })
+const columnPinning = ref({ left: [], right: ['actions'] })
+const paginationOptions = ref({ getPaginationRowModel: getPaginationRowModel() })
+const table = useTemplateRef<any>('table')
 
 const form = ref({
   location_name: '',
@@ -149,6 +160,7 @@ const columns: TableColumn<any>[] = [
   },
   {
     accessorKey: 'actions', header: 'Actions', enableSorting: false, enableHiding: false,
+    meta: { class: { th: 'text-right sticky right-0 z-10 w-24', td: 'text-right sticky right-0 w-24' } },
     cell: ({ row }: any) => h('div', { class: 'flex justify-end gap-1' }, [
       h(UTooltip, { text: 'Edit' }, () => [
         h(UButton, { icon: 'tdesign:edit-filled', size: 'xs', color: 'secondary', variant: 'soft', onClick: () => edit(row.original) })
