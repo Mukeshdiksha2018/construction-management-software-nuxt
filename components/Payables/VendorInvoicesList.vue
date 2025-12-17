@@ -389,9 +389,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, h, watch, onMounted, useTemplateRef, resolveComponent } from "vue";
+import { ref, computed, h, watch, onMounted, useTemplateRef, resolveComponent, nextTick } from "vue";
 import { useCorporationStore } from '@/stores/corporations'
 import { useVendorInvoicesStore } from '@/stores/vendorInvoices'
+import { useVendorStore } from '@/stores/vendors'
+import { useProjectsStore } from '@/stores/projects'
+import { useCostCodeConfigurationsStore } from '@/stores/costCodeConfigurations'
+import { usePurchaseOrdersStore } from '@/stores/purchaseOrders'
+import { useChangeOrdersStore } from '@/stores/changeOrders'
+import { usePurchaseOrderResourcesStore } from '@/stores/purchaseOrderResources'
 import { useTableStandard } from '@/composables/useTableStandard'
 import { useDateFormat } from '@/composables/useDateFormat'
 import { useCurrencyFormat } from '@/composables/useCurrencyFormat'
@@ -411,6 +417,12 @@ const UIcon = resolveComponent('UIcon')
 // Stores
 const corporationStore = useCorporationStore()
 const vendorInvoicesStore = useVendorInvoicesStore()
+const vendorStore = useVendorStore()
+const projectsStore = useProjectsStore()
+const costCodeConfigurationsStore = useCostCodeConfigurationsStore()
+const purchaseOrdersStore = usePurchaseOrdersStore()
+const changeOrdersStore = useChangeOrdersStore()
+const purchaseOrderResourcesStore = usePurchaseOrderResourcesStore()
 const { formatDate } = useDateFormat()
 const { formatCurrency } = useCurrencyFormat()
 const { toUTCString, getCurrentLocal } = useUTCDateFormat()
@@ -839,37 +851,137 @@ const loadInvoiceForModal = async (invoice: any, viewMode: boolean = false) => {
     return
   }
 
-  // Set po_co_uuid based on purchase_order_uuid or change_order_uuid for POCOSelect component
-  // This is needed when loading existing invoices with "Against Advance Payment" type
-  const initialInvoice = { ...invoice }
-  if (initialInvoice.invoice_type === 'AGAINST_ADVANCE_PAYMENT') {
-    if (initialInvoice.purchase_order_uuid) {
-      initialInvoice.po_co_uuid = `PO:${initialInvoice.purchase_order_uuid}`
-    } else if (initialInvoice.change_order_uuid) {
-      initialInvoice.po_co_uuid = `CO:${initialInvoice.change_order_uuid}`
-    }
-  }
-  
-  invoiceForm.value = initialInvoice
+  // Reset form first
+  invoiceForm.value = { attachments: [] }
   isViewMode.value = viewMode
-  
   showFormModal.value = true
   loadingEditInvoice.value = true
   
   try {
     const detailed = await vendorInvoicesStore.fetchVendorInvoice(invoice.uuid)
-    if (detailed) {
-      // Set po_co_uuid based on purchase_order_uuid or change_order_uuid for POCOSelect component
-      // This is needed when loading existing invoices with "Against Advance Payment" type
-      if (detailed.invoice_type === 'AGAINST_ADVANCE_PAYMENT') {
-        if (detailed.purchase_order_uuid) {
-          (detailed as any).po_co_uuid = `PO:${detailed.purchase_order_uuid}`
-        } else if (detailed.change_order_uuid) {
-          (detailed as any).po_co_uuid = `CO:${detailed.change_order_uuid}`
-        }
-      }
-      invoiceForm.value = detailed
+    if (!detailed) {
+      return
     }
+
+    // Set po_co_uuid based on purchase_order_uuid or change_order_uuid for POCOSelect component
+    // This is needed when loading existing invoices with "Against Advance Payment" type
+    if (detailed.invoice_type === 'AGAINST_ADVANCE_PAYMENT') {
+      if (detailed.purchase_order_uuid) {
+        (detailed as any).po_co_uuid = `PO:${detailed.purchase_order_uuid}`
+      } else if (detailed.change_order_uuid) {
+        (detailed as any).po_co_uuid = `CO:${detailed.change_order_uuid}`
+      }
+    }
+
+    // Load fields in sequence to ensure dependencies are resolved correctly:
+    // 1. Corporation (must be first - other fields depend on it)
+    if (detailed.corporation_uuid) {
+      invoiceForm.value = { ...invoiceForm.value, corporation_uuid: detailed.corporation_uuid }
+      await nextTick()
+      
+      // Fetch data for the corporation (projects, vendors, etc.)
+      await Promise.allSettled([
+        vendorStore.fetchVendors(detailed.corporation_uuid),
+        projectsStore.fetchProjectsMetadata(detailed.corporation_uuid),
+        costCodeConfigurationsStore.fetchConfigurations(detailed.corporation_uuid, false, false),
+        purchaseOrdersStore.fetchPurchaseOrders(detailed.corporation_uuid, false),
+        changeOrdersStore.fetchChangeOrders(detailed.corporation_uuid, false),
+      ])
+      
+      // Wait a bit for watchers to settle
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+
+    // 2. Project (depends on corporation)
+    if (detailed.project_uuid) {
+      invoiceForm.value = { ...invoiceForm.value, project_uuid: detailed.project_uuid }
+      await nextTick()
+      
+      // Ensure project resources are loaded
+      if (detailed.corporation_uuid) {
+        await purchaseOrderResourcesStore.ensureProjectResources({
+          corporationUuid: detailed.corporation_uuid,
+          projectUuid: detailed.project_uuid,
+        })
+      }
+      
+      // Wait for project watchers to fire
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+
+    // 3. Invoice type (depends on project)
+    if (detailed.invoice_type) {
+      invoiceForm.value = { ...invoiceForm.value, invoice_type: detailed.invoice_type }
+      await nextTick()
+      // Wait for invoice type watchers to fire
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+
+    // 4. Vendor (depends on corporation)
+    if (detailed.vendor_uuid) {
+      invoiceForm.value = { ...invoiceForm.value, vendor_uuid: detailed.vendor_uuid }
+      await nextTick()
+      // Wait for vendor watchers to fire
+      await new Promise(resolve => setTimeout(resolve, 50))
+    }
+
+    // 5. Purchase order / Change order / PO/CO (depends on project, vendor, corporation)
+    // Set purchase_order_uuid or change_order_uuid first
+    if (detailed.purchase_order_uuid) {
+      invoiceForm.value = { 
+        ...invoiceForm.value, 
+        purchase_order_uuid: detailed.purchase_order_uuid,
+        po_number: detailed.po_number || ''
+      }
+      await nextTick()
+    }
+    if (detailed.change_order_uuid) {
+      invoiceForm.value = { 
+        ...invoiceForm.value, 
+        change_order_uuid: detailed.change_order_uuid,
+        co_number: detailed.co_number || ''
+      }
+      await nextTick()
+    }
+    // Set po_co_uuid for advance payment invoices
+    if (detailed.po_co_uuid) {
+      invoiceForm.value = { ...invoiceForm.value, po_co_uuid: detailed.po_co_uuid }
+      await nextTick()
+    }
+
+    // 6. Now set all remaining fields at once (dates, amounts, etc.)
+    const remainingFields = {
+      bill_date: detailed.bill_date,
+      due_date: detailed.due_date,
+      number: detailed.number,
+      credit_days: detailed.credit_days,
+      holdback: detailed.holdback,
+      amount: detailed.amount,
+      line_items: detailed.line_items || [],
+      attachments: detailed.attachments || [],
+      advance_payment_cost_codes: detailed.advance_payment_cost_codes || [],
+      removed_advance_payment_cost_codes: detailed.removed_advance_payment_cost_codes || [],
+      po_invoice_items: detailed.po_invoice_items || [],
+      co_invoice_items: detailed.co_invoice_items || [],
+      financial_breakdown: detailed.financial_breakdown,
+      uuid: detailed.uuid,
+      status: detailed.status,
+      // Include any other fields that might be needed
+      ...Object.keys(detailed).reduce((acc: any, key: string) => {
+        // Only include fields that haven't been set yet
+        if (!['corporation_uuid', 'project_uuid', 'invoice_type', 'vendor_uuid', 
+              'purchase_order_uuid', 'change_order_uuid', 'po_co_uuid', 'po_number', 'co_number'].includes(key)) {
+          acc[key] = detailed[key]
+        }
+        return acc
+      }, {})
+    }
+    
+    invoiceForm.value = { ...invoiceForm.value, ...remainingFields }
+    await nextTick()
+    
+    // Wait a bit more for all watchers to settle
+    await new Promise(resolve => setTimeout(resolve, 100))
   } catch (error) {
     console.error("[VIL] Failed to fetch invoice details:", error);
   } finally {

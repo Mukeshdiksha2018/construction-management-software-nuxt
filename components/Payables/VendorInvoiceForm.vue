@@ -1523,7 +1523,8 @@ const handleCorporationChange = async (corporationUuid?: string | null) => {
   }
   
   // Clear project if corporation changes (project must belong to the selected corporation)
-  if (normalizedCorporationUuid && props.form.project_uuid) {
+  // But skip this check if we're loading an existing invoice (project might not be in store yet)
+  if (normalizedCorporationUuid && props.form.project_uuid && !props.form.uuid) {
     // Check if the current project belongs to the new corporation
     const projects = projectsStore.getProjectsMetadata(normalizedCorporationUuid);
     const currentProject = projects?.find((p: any) => p.uuid === props.form.project_uuid);
@@ -3450,6 +3451,13 @@ watch(
 watch(
   () => props.form.project_uuid,
   (newProjectUuid, oldProjectUuid) => {
+    // Skip clearing fields if we're loading an existing invoice (uuid exists)
+    // This prevents watchers from clearing fields during initial load
+    if (props.form.uuid && props.editingInvoice && !oldProjectUuid) {
+      // This is initial load of existing invoice - don't clear fields
+      return;
+    }
+    
     // If project is cleared, clear invoice type and all subsequent fields
     if (!newProjectUuid && oldProjectUuid) {
       handleFormUpdate('invoice_type', null);
