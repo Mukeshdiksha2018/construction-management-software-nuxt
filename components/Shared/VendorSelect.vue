@@ -167,14 +167,52 @@ const updateSelectedObject = () => {
 
 // Methods
 const handleSelection = (vendor: any) => {
-  if (vendor) {
-    selectedVendor.value = vendor.value
-    emit('update:modelValue', vendor.value)
-    emit('change', vendor)
-  } else {
-    selectedVendor.value = undefined
-    emit('update:modelValue', undefined)
+  console.log('[VendorSelect] handleSelection called:', {
+    vendor,
+    vendorType: typeof vendor,
+    isNull: vendor === null,
+    isUndefined: vendor === undefined,
+    vendorValue: vendor?.value,
+    vendorValueType: typeof vendor?.value,
+  });
+  
+  if (!vendor) {
+    console.log('[VendorSelect] Vendor is falsy, emitting undefined');
+    selectedVendor.value = undefined;
+    emit('update:modelValue', undefined);
+    return;
   }
+  
+  // Handle both string (UUID) and object formats
+  let vendorValue: string | undefined;
+  let vendorObject: any;
+  
+  if (typeof vendor === 'string') {
+    // USelectMenu passed the UUID string directly
+    vendorValue = vendor;
+    vendorObject = vendorOptionsMap.value.get(vendor);
+  } else if (vendor && typeof vendor === 'object') {
+    // USelectMenu passed an object (should have value property)
+    vendorValue = vendor.value || vendor.uuid || vendor.id;
+    vendorObject = vendor;
+  } else {
+    console.log('[VendorSelect] Unknown vendor format, emitting undefined');
+    selectedVendor.value = undefined;
+    emit('update:modelValue', undefined);
+    return;
+  }
+  
+  if (!vendorValue) {
+    console.log('[VendorSelect] No vendor value found, emitting undefined');
+    selectedVendor.value = undefined;
+    emit('update:modelValue', undefined);
+    return;
+  }
+  
+  console.log('[VendorSelect] Emitting vendor value:', vendorValue);
+  selectedVendor.value = vendorValue;
+  emit('update:modelValue', vendorValue);
+  emit('change', vendorObject || vendor);
 }
 
 // Watchers

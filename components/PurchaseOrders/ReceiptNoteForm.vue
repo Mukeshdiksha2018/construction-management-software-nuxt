@@ -137,7 +137,10 @@
               size="sm"
               class="w-full"
               :disabled="!form.corporation_uuid && !corpStore.selectedCorporation || props.readonly"
-              @update:model-value="handleVendorChange"
+              @update:model-value="(value) => {
+                console.log('[ReceiptNoteForm] VendorSelect emitted value:', { value, valueType: typeof value });
+                handleVendorChange(value);
+              }"
             />
           </div>
 
@@ -148,7 +151,7 @@
             <USelectMenu
               v-model="poOption"
               :items="poOptions"
-              :disabled="!props.form.project_uuid || (!props.form.vendor_uuid && !props.editingReceiptNote && !props.form.uuid) || props.readonly"
+              :disabled="isPODropdownDisabled"
               placeholder="Select PO"
               size="sm"
               class="w-full"
@@ -181,7 +184,7 @@
             <USelectMenu
               v-model="coOption"
               :items="coOptions"
-              :disabled="!props.form.project_uuid || (!props.form.vendor_uuid && !props.editingReceiptNote && !props.form.uuid) || props.readonly"
+              :disabled="isCODropdownDisabled"
               placeholder="Select Change Order"
               size="sm"
               class="w-full"
@@ -874,6 +877,26 @@ const poOptions = computed(() => {
     });
 });
 
+// Computed property to determine if PO dropdown should be disabled
+const isPODropdownDisabled = computed(() => {
+  // Always disabled if readonly
+  if (props.readonly) return true;
+  
+  // Always disabled if project is not selected
+  if (!props.form?.project_uuid) return true;
+  
+  // For new receipt notes (not editing and no UUID), require both vendor and project
+  const isCreatingNew = !props.editingReceiptNote && !props.form?.uuid;
+  if (isCreatingNew) {
+    // Creating new - require both vendor and project selection
+    if (!props.form?.vendor_uuid) return true;
+  }
+  
+  // For editing existing receipt notes, allow if project is selected (vendor optional)
+  // Otherwise enabled
+  return false;
+});
+
 const poOption = computed({
   get: () => {
     if (!props.form.purchase_order_uuid) return null;
@@ -898,47 +921,29 @@ const coOptions = computed(() => {
   const list = localChangeOrders.value ?? [];
   if (!Array.isArray(list)) return [];
 
-  const corporationUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
-  const projectUuid = props.form.project_uuid
-    ? String(props.form.project_uuid)
-    : null;
-  const vendorUuid = props.form.vendor_uuid
-    ? String(props.form.vendor_uuid)
-    : null;
-
   // Determine allowed statuses based on whether we're editing an existing receipt note
   const isEditing = props.editingReceiptNote || !!props.form.uuid;
   const allowedStatuses = isEditing
     ? ['Approved', 'Partially_Received', 'Completed']
     : ['Approved', 'Partially_Received'];
 
-  // Get current CO UUID if editing (for fallback when vendor is not set)
+  // Get current CO UUID if editing (for fallback when vendor/project is not set)
   const currentCoUuid = props.form.change_order_uuid || null;
+  const vendorUuid = props.form.vendor_uuid;
+  const projectUuid = props.form.project_uuid;
   
   return list
     .filter((co) => {
       if (!co?.uuid) return false;
       
-      // Filter by corporation UUID (form's corporation takes priority)
-      if (corporationUuid && co.corporation_uuid !== corporationUuid) return false;
-      
-      // Filter by project UUID if provided
-      if (projectUuid && co.project_uuid !== projectUuid) return false;
-      
-      // Vendor filtering logic:
-      // 1. If vendor is selected: Only show COs matching that vendor
-      // 2. If vendor is NOT selected AND editing: Show only the current CO (if it exists)
-      // 3. If vendor is NOT selected AND creating new: Show nothing (require vendor selection)
-      if (vendorUuid) {
-        // Vendor is selected - filter by vendor
-        if (co.vendor_uuid !== vendorUuid) return false;
-      } else {
-        // Vendor is NOT selected
+      // If vendor and project are selected, list is already filtered by fetchLocalChangeOrders
+      // But we still need to handle the case when editing and vendor/project might not be set
+      if (!vendorUuid || !projectUuid) {
+        // If vendor/project not selected but editing, show only current CO
         if (isEditing && currentCoUuid) {
-          // Editing existing receipt note - only show the current CO
           if (co.uuid !== currentCoUuid) return false;
         } else {
-          // Creating new receipt note - require vendor selection (show nothing)
+          // Creating new receipt note - require vendor and project selection
           return false;
         }
       }
@@ -974,6 +979,26 @@ const coOptions = computed(() => {
         co: co
       };
     });
+});
+
+// Computed property to determine if CO dropdown should be disabled
+const isCODropdownDisabled = computed(() => {
+  // Always disabled if readonly
+  if (props.readonly) return true;
+  
+  // Always disabled if project is not selected
+  if (!props.form?.project_uuid) return true;
+  
+  // For new receipt notes (not editing and no UUID), require both vendor and project
+  const isCreatingNew = !props.editingReceiptNote && !props.form?.uuid;
+  if (isCreatingNew) {
+    // Creating new - require both vendor and project selection
+    if (!props.form?.vendor_uuid) return true;
+  }
+  
+  // For editing existing receipt notes, allow if project is selected (vendor optional)
+  // Otherwise enabled
+  return false;
 });
 
 const coOption = computed({
@@ -1129,12 +1154,86 @@ watch(
     // Prioritize form's corporation_uuid
     const corpUuid = formCorpUuid || selectedCorporationUuid.value;
     if (corpUuid) {
+      // Only fetch vendors initially - POs/COs will be fetched when vendor and project are selected
       await Promise.allSettled([
         ensureVendorsLoaded(),
         fetchLocalVendors(String(corpUuid)),
-        fetchLocalPurchaseOrders(String(corpUuid)),
-        fetchLocalChangeOrders(String(corpUuid)),
       ]);
+      
+      // Clear POs/COs when corporation changes
+      localPurchaseOrders.value = [];
+      localChangeOrders.value = [];
+    }
+  },
+  { immediate: true }
+);
+
+// Watch for vendor and project changes together to fetch matching POs/COs
+watch(
+  [() => props.form.vendor_uuid, () => props.form.project_uuid, () => props.form.corporation_uuid],
+  async ([vendorUuid, projectUuid, formCorpUuid], [oldVendorUuid, oldProjectUuid, oldFormCorpUuid]) => {
+    console.log("[ReceiptNoteForm] Watcher triggered:", {
+      vendorUuid,
+      vendorUuidType: typeof vendorUuid,
+      projectUuid,
+      projectUuidType: typeof projectUuid,
+      formCorpUuid,
+      oldVendorUuid,
+      oldProjectUuid,
+      oldFormCorpUuid,
+      editingReceiptNote: props.editingReceiptNote,
+      formUuid: props.form.uuid,
+      fullForm: { ...props.form },
+    });
+    
+    const corpUuid = formCorpUuid || corpStore.selectedCorporation?.uuid;
+    
+    // Skip on initial mount if values haven't changed (to avoid duplicate fetches in onMounted)
+    const isInitialMount = oldVendorUuid === undefined && oldProjectUuid === undefined && oldFormCorpUuid === undefined;
+    
+    console.log("[ReceiptNoteForm] Watcher check:", {
+      corpUuid,
+      isInitialMount,
+      shouldFetch: vendorUuid && projectUuid && corpUuid,
+      shouldSkip: isInitialMount && props.editingReceiptNote && props.form.uuid,
+    });
+    
+    // Only fetch when both vendor and project are selected
+    if (vendorUuid && projectUuid && corpUuid) {
+      // Skip if this is initial mount and we're editing (onMounted will handle it)
+      if (isInitialMount && props.editingReceiptNote && props.form.uuid) {
+        console.log("[ReceiptNoteForm] Skipping fetch - initial mount and editing");
+        return;
+      }
+      
+      console.log("[ReceiptNoteForm] Fetching POs/COs with:", {
+        corpUuid,
+        vendorUuid,
+        projectUuid,
+      });
+      
+      await Promise.allSettled([
+        fetchLocalPurchaseOrders(String(corpUuid), vendorUuid, projectUuid),
+        fetchLocalChangeOrders(String(corpUuid), vendorUuid, projectUuid),
+      ]);
+      
+      console.log("[ReceiptNoteForm] Fetch completed. Results:", {
+        poCount: localPurchaseOrders.value.length,
+        coCount: localChangeOrders.value.length,
+      });
+    } else {
+      console.log("[ReceiptNoteForm] Not fetching - missing requirements:", {
+        hasVendor: !!vendorUuid,
+        hasProject: !!projectUuid,
+        hasCorp: !!corpUuid,
+      });
+      
+      // Clear POs/COs when vendor or project is cleared (but not on initial mount)
+      if (!isInitialMount) {
+        console.log("[ReceiptNoteForm] Clearing POs/COs");
+        localPurchaseOrders.value = [];
+        localChangeOrders.value = [];
+      }
     }
   },
   { immediate: true }
@@ -1157,12 +1256,32 @@ onMounted(async () => {
   }
   
   if (corpUuid) {
+    // Only fetch vendors initially - POs/COs will be fetched when vendor and project are selected
     await Promise.allSettled([
       ensureVendorsLoaded(),
       fetchLocalVendors(String(corpUuid)),
-      fetchLocalPurchaseOrders(String(corpUuid)),
-      fetchLocalChangeOrders(String(corpUuid)),
     ]);
+    
+    // If editing existing receipt note
+    if (props.editingReceiptNote && props.form.uuid) {
+      const vendorUuid = props.form.vendor_uuid;
+      const projectUuid = props.form.project_uuid;
+      
+      if (vendorUuid && projectUuid) {
+        // Both vendor and project are set - fetch filtered POs/COs
+        await Promise.allSettled([
+          fetchLocalPurchaseOrders(String(corpUuid), vendorUuid, projectUuid),
+          fetchLocalChangeOrders(String(corpUuid), vendorUuid, projectUuid),
+        ]);
+      } else if (projectUuid && (props.form.purchase_order_uuid || props.form.change_order_uuid)) {
+        // Project is set but vendor is not - fetch all POs/COs for the project
+        // This allows showing the current PO/CO even if vendor isn't set
+        await Promise.allSettled([
+          fetchLocalPurchaseOrders(String(corpUuid), null, projectUuid),
+          fetchLocalChangeOrders(String(corpUuid), null, projectUuid),
+        ]);
+      }
+    }
   }
   
   // When editing an existing receipt note, ensure financial data is loaded
@@ -1287,8 +1406,22 @@ const updateAttachments = (attachments: any[]) => {
 };
 
 const updateFormField = (field: string, value: any, base?: Record<string, any>) => {
+  console.log("[ReceiptNoteForm] updateFormField called:", {
+    field,
+    value,
+    valueType: typeof value,
+    hasBase: !!base,
+  });
+  
   const source = base ?? props.form;
   const next = { ...source, [field]: value };
+  
+  console.log("[ReceiptNoteForm] updateFormField result:", {
+    field,
+    oldValue: source[field],
+    newValue: next[field],
+  });
+  
   emit("update:form", next);
   return next;
 };
@@ -1297,52 +1430,84 @@ const handleCorporationChange = async (corporationUuid?: string | null) => {
   const normalizedCorporationUuid = corporationUuid || '';
   updateFormField('corporation_uuid', normalizedCorporationUuid);
   
-  // Fetch data for the selected corporation
+  // Fetch vendors for the selected corporation
   // NOTE: We do NOT update corpStore.selectedCorporation here to avoid affecting other components
   // The form operates independently with its own corporation selection
   if (normalizedCorporationUuid) {
     await Promise.allSettled([
       vendorStore.fetchVendors(normalizedCorporationUuid),
-      fetchLocalPurchaseOrders(normalizedCorporationUuid),
-      fetchLocalChangeOrders(normalizedCorporationUuid),
+      fetchLocalVendors(normalizedCorporationUuid),
       ensureUsersLoaded(),
     ]);
     
-    // Clear project selection when corporation changes (projects are corporation-specific)
+    // Clear POs/COs when corporation changes
+    localPurchaseOrders.value = [];
+    localChangeOrders.value = [];
+    
+    // Clear project, vendor, PO, and CO selections when corporation changes
     if (props.form.project_uuid) {
       updateFormField("project_uuid", null);
+    }
+    if (props.form.vendor_uuid) {
+      updateFormField("vendor_uuid", null);
+    }
+    if (props.form.purchase_order_uuid) {
+      updateFormField("purchase_order_uuid", null);
+    }
+    if (props.form.change_order_uuid) {
+      updateFormField("change_order_uuid", null);
     }
   }
 };
 
-const handleProjectChange = (projectUuid?: string | null) => {
+const handleProjectChange = async (projectUuid?: string | null) => {
+  console.log("[ReceiptNoteForm] handleProjectChange called:", { projectUuid });
+  
   const nextForm = updateFormField("project_uuid", projectUuid || null);
 
   const currentPurchaseOrderUuid = nextForm.purchase_order_uuid;
   const currentChangeOrderUuid = nextForm.change_order_uuid;
+  const vendorUuid = nextForm.vendor_uuid;
 
-  if (projectUuid) {
-    // Check PO's project_uuid directly from localPurchaseOrders instead of poOptions
-    // because poOptions is filtered by project_uuid and might not include the current PO
-    // when the project changes
+  console.log("[ReceiptNoteForm] handleProjectChange state:", {
+    projectUuid,
+    vendorUuid,
+    currentPurchaseOrderUuid,
+    currentChangeOrderUuid,
+  });
+
+  // The watcher will handle fetching POs/COs when both vendor and project are available
+  // Here we just need to check if current selections are still valid
+  
+  if (projectUuid && vendorUuid) {
+    console.log("[ReceiptNoteForm] Both vendor and project selected, waiting for watcher...");
+    // Wait a bit for the watcher to fetch the data
+    await nextTick();
+    
+    console.log("[ReceiptNoteForm] After nextTick, checking current selections:", {
+      poCount: localPurchaseOrders.value.length,
+      coCount: localChangeOrders.value.length,
+    });
+    
+    // Check if current PO/CO still matches the new project
     if (currentPurchaseOrderUuid) {
       const po = localPurchaseOrders.value.find((p: any) => p.uuid === currentPurchaseOrderUuid);
       if (!po || po.project_uuid !== projectUuid) {
+        console.log("[ReceiptNoteForm] Clearing PO - doesn't match project");
         updateFormField("purchase_order_uuid", null, nextForm);
       }
     }
 
-    // Check CO's project_uuid directly from localChangeOrders instead of coOptions
-    // because coOptions is filtered by project_uuid and might not include the current CO
-    // when the project changes
     if (currentChangeOrderUuid) {
       const co = localChangeOrders.value.find((c: any) => c.uuid === currentChangeOrderUuid);
       if (!co || co.project_uuid !== projectUuid) {
+        console.log("[ReceiptNoteForm] Clearing CO - doesn't match project");
         updateFormField("change_order_uuid", null, nextForm);
       }
     }
   } else {
-    // Clear both PO and CO when no project is selected
+    console.log("[ReceiptNoteForm] Missing vendor or project, clearing PO/CO selections");
+    // Clear both PO and CO when project is cleared
     if (currentPurchaseOrderUuid) {
       updateFormField("purchase_order_uuid", null, nextForm);
     }
@@ -1352,34 +1517,67 @@ const handleProjectChange = (projectUuid?: string | null) => {
   }
 };
 
-const handleVendorChange = (vendorUuid?: string | null) => {
+const handleVendorChange = async (vendorUuid?: string | null) => {
+  console.log("[ReceiptNoteForm] handleVendorChange called:", { 
+    vendorUuid,
+    vendorUuidType: typeof vendorUuid,
+    isNull: vendorUuid === null,
+    isUndefined: vendorUuid === undefined,
+    currentFormVendorUuid: props.form.vendor_uuid,
+  });
+  
+  // If vendorUuid is undefined but we're trying to set it, this is likely a clearing action
+  // Don't proceed if vendorUuid is explicitly undefined (not null)
+  if (vendorUuid === undefined && props.form.vendor_uuid) {
+    console.log("[ReceiptNoteForm] VendorUuid is undefined but form has a vendor - this might be a clearing action, skipping");
+    return;
+  }
+  
   const nextForm = updateFormField("vendor_uuid", vendorUuid || null);
 
   const currentPurchaseOrderUuid = nextForm.purchase_order_uuid;
   const currentChangeOrderUuid = nextForm.change_order_uuid;
+  const projectUuid = nextForm.project_uuid;
 
-  if (vendorUuid) {
-    // Check PO's vendor_uuid directly from localPurchaseOrders instead of poOptions
-    // because poOptions is filtered by vendor_uuid and might not include the current PO
-    // when the vendor changes
+  console.log("[ReceiptNoteForm] handleVendorChange state:", {
+    vendorUuid,
+    projectUuid,
+    currentPurchaseOrderUuid,
+    currentChangeOrderUuid,
+  });
+
+  // The watcher will handle fetching POs/COs when both vendor and project are available
+  // Here we just need to check if current selections are still valid
+  
+  if (vendorUuid && projectUuid) {
+    console.log("[ReceiptNoteForm] Both vendor and project selected, waiting for watcher...");
+    // Wait a bit for the watcher to fetch the data
+    await nextTick();
+    
+    console.log("[ReceiptNoteForm] After nextTick, checking current selections:", {
+      poCount: localPurchaseOrders.value.length,
+      coCount: localChangeOrders.value.length,
+    });
+    
+    // Check if current PO/CO still matches the new vendor
     if (currentPurchaseOrderUuid) {
       const po = localPurchaseOrders.value.find((p: any) => p.uuid === currentPurchaseOrderUuid);
       if (!po || po.vendor_uuid !== vendorUuid) {
+        console.log("[ReceiptNoteForm] Clearing PO - doesn't match vendor");
         updateFormField("purchase_order_uuid", null, nextForm);
       }
     }
 
-    // Check CO's vendor_uuid directly from localChangeOrders instead of coOptions
-    // because coOptions is filtered by vendor_uuid and might not include the current CO
-    // when the vendor changes
     if (currentChangeOrderUuid) {
       const co = localChangeOrders.value.find((c: any) => c.uuid === currentChangeOrderUuid);
       if (!co || co.vendor_uuid !== vendorUuid) {
+        console.log("[ReceiptNoteForm] Clearing CO - doesn't match vendor");
         updateFormField("change_order_uuid", null, nextForm);
       }
     }
   } else {
-    // Clear both PO and CO when no vendor is selected
+    console.log("[ReceiptNoteForm] Missing vendor or project, clearing PO/CO selections");
+    // Clear both PO and CO when vendor is cleared
     if (currentPurchaseOrderUuid) {
       updateFormField("purchase_order_uuid", null, nextForm);
     }
