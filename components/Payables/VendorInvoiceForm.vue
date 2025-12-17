@@ -66,12 +66,13 @@
               <label class="block text-xs font-medium text-default mb-1">
                 Corporation <span class="text-red-500">*</span>
               </label>
-              <UInput
-                :model-value="getCorporationName"
-                disabled
+              <CorporationSelect
+                :model-value="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
+                :disabled="props.readonly"
+                placeholder="Select corporation"
                 size="sm"
                 class="w-full"
-                icon="i-heroicons-building-office-2-solid"
+                @update:model-value="handleCorporationChange"
               />
             </div>
 
@@ -82,8 +83,8 @@
               </label>
               <ProjectSelect
                 :model-value="form.project_uuid"
-                :corporation-uuid="corpStore.selectedCorporation?.uuid"
-                :disabled="!corpStore.selectedCorporation || props.readonly"
+                :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
+                :disabled="!form.corporation_uuid && !corpStore.selectedCorporation || props.readonly"
                 placeholder="Select project"
                 size="sm"
                 class="w-full"
@@ -151,8 +152,8 @@
               </label>
               <VendorSelect
                 :model-value="form.vendor_uuid"
-                :corporation-uuid="corpStore.selectedCorporation?.uuid"
-                :disabled="!corpStore.selectedCorporation || areSubsequentFieldsDisabled"
+                :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
+                :disabled="!form.corporation_uuid && !corpStore.selectedCorporation || areSubsequentFieldsDisabled"
                 placeholder="Select vendor"
                 size="sm"
                 class="w-full"
@@ -207,7 +208,7 @@
               <POCOSelect
                 :model-value="form.po_co_uuid || (form.purchase_order_uuid ? `PO:${form.purchase_order_uuid}` : undefined)"
                 :project-uuid="form.project_uuid"
-                :corporation-uuid="corpStore.selectedCorporation?.uuid"
+                :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
                 :vendor-uuid="form.vendor_uuid"
                 :show-invoice-summary="true"
                 :showOnlyPOs="true"
@@ -228,7 +229,7 @@
               <POCOSelect
                 :model-value="form.po_co_uuid || (form.change_order_uuid ? `CO:${form.change_order_uuid}` : undefined)"
                 :project-uuid="form.project_uuid"
-                :corporation-uuid="corpStore.selectedCorporation?.uuid"
+                :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
                 :vendor-uuid="form.vendor_uuid"
                 :show-invoice-summary="true"
                 :showOnlyCOs="true"
@@ -249,7 +250,7 @@
               <POCOSelect
                 :model-value="form.po_co_uuid"
                 :project-uuid="form.project_uuid"
-                :corporation-uuid="corpStore.selectedCorporation?.uuid"
+                :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
                 :vendor-uuid="form.vendor_uuid"
                 :disabled="areSubsequentFieldsDisabled"
                 placeholder="Select PO or CO"
@@ -311,7 +312,7 @@
       v-if="isAgainstAdvancePayment"
       :po-co-uuid="form.po_co_uuid"
       :po-co-type="poCoType"
-      :corporation-uuid="corpStore.selectedCorporation?.uuid"
+      :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
       :readonly="props.readonly"
       :model-value="advancePaymentCostCodes"
       :removed-cost-codes="removedAdvancePaymentCostCodes"
@@ -328,7 +329,7 @@
         :items="poItems"
         :loading="poItemsLoading"
         :error="poItemsError"
-        :corporation-uuid="corpStore.selectedCorporation?.uuid"
+        :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
         :project-uuid="form.project_uuid"
         :show-estimate-values="false"
         :show-invoice-values="true"
@@ -377,7 +378,7 @@
     <div v-if="isDirectInvoice" class="mt-6">
       <DirectVendorInvoiceLineItemsTable
         :items="lineItems"
-        :corporation-uuid="corpStore.selectedCorporation?.uuid"
+        :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
         :readonly="props.readonly"
         @add-row="handleAddLineItem"
         @remove-row="handleRemoveLineItem"
@@ -971,6 +972,7 @@ import { useProjectsStore } from "@/stores/projects";
 import { useVendorInvoicesStore } from "@/stores/vendorInvoices";
 import { useCostCodeConfigurationsStore } from "@/stores/costCodeConfigurations";
 import { useUTCDateFormat } from '@/composables/useUTCDateFormat';
+import CorporationSelect from '@/components/Shared/CorporationSelect.vue';
 import ProjectSelect from '@/components/Shared/ProjectSelect.vue';
 import VendorSelect from '@/components/Shared/VendorSelect.vue';
 import PurchaseOrderSelect from '@/components/Shared/PurchaseOrderSelect.vue';
@@ -1033,7 +1035,7 @@ const roundCurrencyValue = (value: number): number => {
 function generateInvoiceNumber() {
   // Do not override if already set (e.g., editing)
   if (props.form.number && String(props.form.number).trim() !== '') return;
-  const corporationId = corpStore.selectedCorporation?.uuid || corpStore.selectedCorporationId;
+  const corporationId = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid || corpStore.selectedCorporationId;
   if (!corporationId) return;
 
   // Ensure vendor invoices are available in store
@@ -1069,11 +1071,6 @@ const creditDaysOptions = [
   { label: 'Net 45', value: 'NET_45' },
   { label: 'Net 60', value: 'NET_60' },
 ];
-
-// Computed properties
-const getCorporationName = computed(() => {
-  return corpStore.selectedCorporation?.corporation_name || 'Select Corporation';
-});
 
 // Check if invoice type is selected
 const isInvoiceTypeSelected = computed(() => {
@@ -1402,6 +1399,38 @@ const handleFormUpdate = (field: string, value: any) => {
   }
   
   emit('update:form', updatedForm);
+};
+
+const handleCorporationChange = async (corporationUuid?: string | null) => {
+  const normalizedCorporationUuid = corporationUuid || '';
+  handleFormUpdate('corporation_uuid', normalizedCorporationUuid);
+  
+  // Fetch data for the selected corporation
+  // NOTE: We do NOT update corpStore.selectedCorporation here to avoid affecting other components
+  // The form operates independently with its own corporation selection
+  if (normalizedCorporationUuid) {
+    await Promise.allSettled([
+      vendorStore.fetchVendors(normalizedCorporationUuid),
+      projectsStore.fetchProjectsMetadata(normalizedCorporationUuid),
+      vendorInvoicesStore.fetchVendorInvoices(normalizedCorporationUuid),
+      costCodeConfigurationsStore.fetchConfigurations(normalizedCorporationUuid),
+    ]);
+  }
+  
+  // Auto-generate Invoice Number on corporation selection if not set
+  if (normalizedCorporationUuid) {
+    generateInvoiceNumber();
+  }
+  
+  // Clear project if corporation changes (project must belong to the selected corporation)
+  if (normalizedCorporationUuid && props.form.project_uuid) {
+    // Check if the current project belongs to the new corporation
+    const projects = projectsStore.getProjectsMetadata(normalizedCorporationUuid);
+    const currentProject = projects?.find((p: any) => p.uuid === props.form.project_uuid);
+    if (!currentProject) {
+      handleFormUpdate('project_uuid', null);
+    }
+  }
 };
 
 const handleProjectChange = async (projectUuid?: string | null) => {
@@ -3875,9 +3904,9 @@ watch(() => uploadedFiles.value, async () => {
   }
 }, { deep: true });
 
-// Watch for corporation changes to regenerate invoice number if needed
+// Watch for form corporation_uuid changes to regenerate invoice number if needed
 watch(
-  () => corpStore.selectedCorporation?.uuid,
+  () => props.form.corporation_uuid,
   async (newCorpUuid) => {
     if (newCorpUuid) {
       // Fetch vendor invoices and cost code configurations for the new corporation
@@ -3896,7 +3925,18 @@ watch(
 
 // Initialize
 onMounted(async () => {
-  const corpUuid = corpStore.selectedCorporation?.uuid;
+  // Initialize corporation_uuid from form or fallback to selected corporation
+  // For new invoices, use the selected corporation from TopBar as default
+  // For existing invoices, use the form's corporation_uuid
+  if (!props.form.corporation_uuid && !props.form.uuid) {
+    // New invoice: initialize with selected corporation from TopBar
+    const selectedCorpUuid = corpStore.selectedCorporation?.uuid;
+    if (selectedCorpUuid) {
+      handleFormUpdate('corporation_uuid', selectedCorpUuid);
+    }
+  }
+  
+  const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
   if (corpUuid) {
     await Promise.allSettled([
       vendorStore.fetchVendors(corpUuid),
