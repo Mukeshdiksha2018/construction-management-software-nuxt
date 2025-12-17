@@ -98,7 +98,7 @@ const getAccountTypeColor = (accountType: string): "error" | "warning" | "info" 
 const accountOptions = computed(() => {
   // If local accounts are provided, format them similar to store
   if (props.localAccounts !== undefined) {
-    return props.localAccounts.map((account: any) => ({
+    const options = props.localAccounts.map((account: any) => ({
       label: `${account.code} - ${account.account_name}`,
       value: account.uuid,
       account_type: account.account_type,
@@ -108,6 +108,16 @@ const accountOptions = computed(() => {
       defaultAccountName: undefined,
       searchText: `${account.code} ${account.account_name} ${account.account_type}`,
     }));
+    
+    console.log('[ChartOfAccountsSelect] accountOptions computed (local accounts):', {
+      localAccountsCount: props.localAccounts?.length || 0,
+      optionsCount: options.length,
+      modelValue: props.modelValue,
+      selectedAccount: selectedAccount.value,
+      sampleUuids: options.slice(0, 3).map((o: any) => o.value)
+    });
+    
+    return options;
   }
   
   // Otherwise use pre-computed account options from the store
@@ -123,8 +133,28 @@ const accountOptionsMap = computed(() => {
 const updateSelectedObject = () => {
   if (!selectedAccount.value) {
     selectedAccountObject.value = undefined
+    return
+  }
+  
+  const account = accountOptionsMap.value.get(selectedAccount.value)
+  if (account) {
+    selectedAccountObject.value = account
+    console.log('[ChartOfAccountsSelect] Found account for display:', {
+      uuid: selectedAccount.value,
+      label: account.label,
+      usingLocalAccounts: props.localAccounts !== undefined,
+      localAccountsCount: props.localAccounts?.length || 0,
+      accountOptionsCount: accountOptions.value.length
+    })
   } else {
-    selectedAccountObject.value = accountOptionsMap.value.get(selectedAccount.value) || undefined
+    selectedAccountObject.value = undefined
+    console.warn('[ChartOfAccountsSelect] Account not found in options:', {
+      uuid: selectedAccount.value,
+      usingLocalAccounts: props.localAccounts !== undefined,
+      localAccountsCount: props.localAccounts?.length || 0,
+      accountOptionsCount: accountOptions.value.length,
+      availableUuids: accountOptions.value.slice(0, 3).map((a: any) => a.value)
+    })
   }
 }
 
@@ -146,7 +176,43 @@ watch(() => props.modelValue, (newValue) => {
   updateSelectedObject()
 })
 
+// Watch for localAccounts changes to update selected object when accounts are loaded
+watch(() => props.localAccounts, (newAccounts, oldAccounts) => {
+  console.log('[ChartOfAccountsSelect] localAccounts changed:', {
+    newCount: newAccounts?.length || 0,
+    oldCount: oldAccounts?.length || 0,
+    hasSelection: !!selectedAccount.value,
+    hasModelValue: !!props.modelValue,
+    selection: selectedAccount.value,
+    modelValue: props.modelValue
+  })
+  
+  if (props.localAccounts !== undefined) {
+    // If we have a modelValue but selectedAccount is not set, set it first
+    if (props.modelValue && !selectedAccount.value) {
+      selectedAccount.value = props.modelValue
+    }
+    
+    // Always update when local accounts change (accounts loaded or updated)
+    if (selectedAccount.value || props.modelValue) {
+      if (props.modelValue && !selectedAccount.value) {
+        selectedAccount.value = props.modelValue
+      }
+      updateSelectedObject()
+    }
+  }
+}, { immediate: true, deep: true })
+
 watch(accountOptions, () => {
+  // If local accounts are provided, always update the selected object when accounts change
+  // This ensures the selected value is displayed when accounts are loaded
+  if (props.localAccounts !== undefined) {
+    // When using local accounts, just update the display object
+    // Don't validate against corporationUuid since we're using local accounts
+    updateSelectedObject()
+    return
+  }
+  
   // Only validate if accounts are actually loaded and we have a corporation
   // This prevents clearing valid selections when accounts are still being fetched
   if (selectedAccount.value && props.corporationUuid) {
@@ -233,6 +299,10 @@ if (props.localAccounts === undefined && props.corporationUuid) {
   }
 } else if (props.localAccounts !== undefined) {
   // Local accounts provided, just update the selected object
+  // If we have a modelValue, set selectedAccount first
+  if (props.modelValue && !selectedAccount.value) {
+    selectedAccount.value = props.modelValue
+  }
   updateSelectedObject()
 }
 

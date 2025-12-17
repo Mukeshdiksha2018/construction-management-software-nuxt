@@ -71,15 +71,26 @@
               <!-- GL Account -->
               <td class="px-3 py-2 align-middle">
                 <ChartOfAccountsSelect
+                  :key="`gl-account-${row.id}-${localChartOfAccounts.length}`"
                   :model-value="row.gl_account_uuid || undefined"
                   :local-accounts="localChartOfAccounts"
                   size="xs"
                   class="w-full"
                   :disabled="readonly || !row.cost_code_uuid"
                   placeholder="Select GL Account"
-                  @update:model-value="(value) => handleGLAccountChange(index, value)"
-                  @change="(account) => handleGLAccountChange(index, account?.value, account)"
+                  @update:model-value="(value) => {
+                    console.log('[AdvancePaymentCostCodesTable] GL account changed via update:model-value:', { index, rowId: row.id, value })
+                    handleGLAccountChange(index, value)
+                  }"
+                  @change="(account) => {
+                    console.log('[AdvancePaymentCostCodesTable] GL account changed via change event:', { index, rowId: row.id, account })
+                    handleGLAccountChange(index, account?.value, account)
+                  }"
                 />
+                <!-- Debug info -->
+                <div v-if="row.gl_account_uuid" class="text-xs text-gray-500 mt-1">
+                  UUID: {{ row.gl_account_uuid.substring(0, 8) }}...
+                </div>
               </td>
 
               <!-- Total Amount -->
@@ -359,13 +370,24 @@ const fetchChartOfAccounts = async (corporationUuid: string) => {
     const response = await $fetch<{ data: any[] }>(`/api/corporations/chart-of-accounts?corporation_uuid=${corporationUuid}`)
     
     // Handle different response types
+    let accounts: any[] = []
     if (response?.data) {
-      localChartOfAccounts.value = Array.isArray(response.data) ? response.data : []
+      accounts = Array.isArray(response.data) ? response.data : []
     } else if (Array.isArray(response)) {
-      localChartOfAccounts.value = response
-    } else {
-      localChartOfAccounts.value = []
+      accounts = response
     }
+    
+    localChartOfAccounts.value = accounts
+    
+    console.log('[AdvancePaymentCostCodesTable] Fetched chart of accounts:', {
+      corporationUuid,
+      count: accounts.length,
+      sample: accounts.slice(0, 2).map((a: any) => ({
+        uuid: a?.uuid,
+        code: a?.code,
+        account_name: a?.account_name
+      }))
+    })
   } catch (error) {
     console.error('[AdvancePaymentCostCodesTable] Error fetching chart of accounts:', error)
     localChartOfAccounts.value = []
@@ -519,6 +541,20 @@ const processItems = async () => {
       })
       .map((costCode, index) => {
         const config = costCodeConfigMap.value.get(costCode.cost_code_uuid)
+        const glAccountUuid = config?.gl_account_uuid ?? null
+        
+        // Debug logging
+        console.log('[AdvancePaymentCostCodesTable] Creating row for cost code:', {
+          index,
+          cost_code_uuid: costCode.cost_code_uuid,
+          cost_code_number: costCode.cost_code_number,
+          cost_code_name: costCode.cost_code_name,
+          configExists: !!config,
+          gl_account_uuid: glAccountUuid,
+          configGlAccount: config?.gl_account_uuid,
+          accountsLoaded: localChartOfAccounts.value.length > 0,
+          accountsCount: localChartOfAccounts.value.length
+        })
         
         return {
           id: `cost-code-${costCode.cost_code_uuid}-${index}`,
@@ -528,7 +564,7 @@ const processItems = async () => {
           cost_code_name: costCode.cost_code_name,
           totalAmount: costCode.totalAmount,
           advanceAmount: null,
-          gl_account_uuid: config?.gl_account_uuid ?? null
+          gl_account_uuid: glAccountUuid
         }
       })
 
@@ -542,6 +578,14 @@ const processItems = async () => {
         // Populate GL account from cost code configuration if not already set
         let glAccountUuid = row.gl_account_uuid
         if (!glAccountUuid && config?.gl_account_uuid) {
+          console.log('[AdvancePaymentCostCodesTable] Populating GL account for existing row:', {
+            rowId: row.id,
+            cost_code_uuid: row.cost_code_uuid,
+            cost_code_number: row.cost_code_number,
+            existingGlAccount: row.gl_account_uuid,
+            newGlAccount: config.gl_account_uuid,
+            configExists: !!config
+          })
           glAccountUuid = config.gl_account_uuid
         }
         
@@ -567,7 +611,26 @@ const processItems = async () => {
     )
 
     // Combine: existing rows (filtered) + new rows
-    costCodeRows.value = [...rowsToKeep, ...newRows]
+    const finalRows = [...rowsToKeep, ...newRows]
+    
+    console.log('[AdvancePaymentCostCodesTable] Final rows after processing:', {
+      totalRows: finalRows.length,
+      rowsWithGlAccount: finalRows.filter(r => r.gl_account_uuid).length,
+      accountsLoaded: localChartOfAccounts.value.length > 0,
+      accountsCount: localChartOfAccounts.value.length,
+      rows: finalRows.map(r => ({
+        id: r.id,
+        cost_code_uuid: r.cost_code_uuid,
+        cost_code_number: r.cost_code_number,
+        gl_account_uuid: r.gl_account_uuid
+      }))
+    })
+    
+    costCodeRows.value = finalRows
+    
+    // Wait for next tick to ensure ChartOfAccountsSelect components have received the accounts
+    // This ensures the GL account value can be properly displayed
+    await nextTick()
     
     // Emit the updated rows
     emit('update:modelValue', costCodeRows.value)
@@ -588,9 +651,15 @@ const handleCostCodeChange = async (index: number, value: string | null, option?
 
   // Update GL account and cost code info
   if (value) {
-    // Ensure we have cost code configurations loaded
-    if (props.corporationUuid && costCodeConfigMap.value.size === 0) {
-      await fetchCostCodeConfigurations(props.corporationUuid)
+    // Ensure we have cost code configurations and chart of accounts loaded
+    if (props.corporationUuid) {
+      if (costCodeConfigMap.value.size === 0) {
+        await fetchCostCodeConfigurations(props.corporationUuid)
+      }
+      // Ensure chart of accounts are loaded so ChartOfAccountsSelect can display the selected value
+      if (localChartOfAccounts.value.length === 0) {
+        await fetchChartOfAccounts(props.corporationUuid)
+      }
     }
     
     const config = costCodeConfigMap.value.get(value)
@@ -625,6 +694,16 @@ const handleCostCodeChange = async (index: number, value: string | null, option?
   }
 
   costCodeRows.value[index] = row
+  
+  // If GL account was set, ensure accounts are loaded and wait for next tick
+  // This ensures ChartOfAccountsSelect can display the selected value
+  if (row.gl_account_uuid && localChartOfAccounts.value.length === 0 && props.corporationUuid) {
+    await fetchChartOfAccounts(props.corporationUuid)
+  }
+  
+  // Wait for next tick to ensure ChartOfAccountsSelect has received the accounts
+  await nextTick()
+  
   emit('update:modelValue', costCodeRows.value)
 }
 
@@ -1035,6 +1114,11 @@ watch(
           !Array.from(currentIds).every(id => newIds.has(id)) ||
           glAccountsPopulated) {
         costCodeRows.value = mappedRows
+        
+        // Wait for next tick to ensure ChartOfAccountsSelect components have received the accounts
+        // This ensures the GL account value can be properly displayed
+        await nextTick()
+        
         // Emit update to ensure parent component knows about GL account changes
         if (glAccountsPopulated) {
           emit('update:modelValue', costCodeRows.value)
@@ -1087,15 +1171,19 @@ watch(
           row.gl_account_uuid !== costCodeRows.value[index]?.gl_account_uuid
         )
         
-        if (hasChanges) {
-          costCodeRows.value = updatedRows
-          emit('update:modelValue', costCodeRows.value)
-        }
+      if (hasChanges) {
+        costCodeRows.value = updatedRows
+        
+        // Wait for next tick to ensure ChartOfAccountsSelect components have received the accounts
+        await nextTick()
+        
+        emit('update:modelValue', costCodeRows.value)
       }
-    } else if (!newCorpUuid) {
-      // Clear local chart of accounts when corporation is cleared
-      localChartOfAccounts.value = []
     }
+  } else if (!newCorpUuid) {
+    // Clear local chart of accounts when corporation is cleared
+    localChartOfAccounts.value = []
+  }
   },
   { immediate: false }
 )
@@ -1131,6 +1219,10 @@ onMounted(async () => {
       
       if (hasChanges) {
         costCodeRows.value = updatedRows
+        
+        // Wait for next tick to ensure ChartOfAccountsSelect components have received the accounts
+        await nextTick()
+        
         emit('update:modelValue', costCodeRows.value)
       }
     }
