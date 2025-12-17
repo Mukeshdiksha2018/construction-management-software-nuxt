@@ -85,13 +85,13 @@
     <div v-if="loading" class="space-y-2">
       <div class="relative overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         <div class="bg-gray-50 dark:bg-gray-700">
-          <div class="grid grid-cols-8 gap-4 px-2 py-2 text-sm font-bold text-gray-800 dark:text-gray-200 tracking-wider border-b border-gray-200 dark:border-gray-600">
-            <USkeleton v-for="n in 8" :key="`header-${n}`" class="h-4 w-20" />
+          <div class="grid grid-cols-9 gap-4 px-2 py-2 text-sm font-bold text-gray-800 dark:text-gray-200 tracking-wider border-b border-gray-200 dark:border-gray-600">
+            <USkeleton v-for="n in 9" :key="`header-${n}`" class="h-4 w-20" />
           </div>
         </div>
         <div class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-          <div v-for="i in 6" :key="`row-${i}`" class="grid grid-cols-8 gap-4 px-2 py-2">
-            <USkeleton v-for="n in 8" :key="`row-${i}-${n}`" class="h-4 w-full" />
+          <div v-for="i in 6" :key="`row-${i}`" class="grid grid-cols-9 gap-4 px-2 py-2">
+            <USkeleton v-for="n in 9" :key="`row-${i}-${n}`" class="h-4 w-full" />
           </div>
         </div>
       </div>
@@ -432,6 +432,7 @@ import { usePurchaseOrdersStore } from "@/stores/purchaseOrders";
 import { usePurchaseOrderResourcesStore } from "@/stores/purchaseOrderResources";
 import { useChangeOrdersStore } from "@/stores/changeOrders";
 import { useProjectsStore } from "@/stores/projects";
+import { useVendorStore } from "@/stores/vendors";
 import { usePermissions } from "@/composables/usePermissions";
 import { useDateFormat } from "@/composables/useDateFormat";
 import { useCurrencyFormat } from "@/composables/useCurrencyFormat";
@@ -461,6 +462,7 @@ const purchaseOrdersStore = usePurchaseOrdersStore();
 const purchaseOrderResourcesStore = usePurchaseOrderResourcesStore();
 const changeOrdersStore = useChangeOrdersStore();
 const projectsStore = useProjectsStore();
+const vendorStore = useVendorStore();
 const { hasPermission, isReady } = usePermissions();
 const { formatDate } = useDateFormat();
 const { formatCurrency, formatCurrencyAbbreviated } = useCurrencyFormat();
@@ -639,7 +641,7 @@ const projectLookup = computed(() => {
 const purchaseOrderLookup = computed(() => {
   const map = new Map<
     string,
-    { poNumber: string; total: number; projectUuid?: string | null }
+    { poNumber: string; total: number; projectUuid?: string | null; vendorUuid?: string | null }
   >();
   const list = purchaseOrdersStore.purchaseOrders ?? [];
   list.forEach((po: any) => {
@@ -648,6 +650,7 @@ const purchaseOrderLookup = computed(() => {
         poNumber: po.po_number || "Unnamed PO",
         total: Number(po.total_po_amount) || 0,
         projectUuid: po.project_uuid,
+        vendorUuid: po.vendor_uuid || null,
       });
     }
   });
@@ -657,7 +660,7 @@ const purchaseOrderLookup = computed(() => {
 const changeOrderLookup = computed(() => {
   const map = new Map<
     string,
-    { coNumber: string; total: number; projectUuid?: string | null }
+    { coNumber: string; total: number; projectUuid?: string | null; vendorUuid?: string | null }
   >();
   const list = changeOrdersStore.changeOrders ?? [];
   list.forEach((co: any) => {
@@ -666,7 +669,19 @@ const changeOrderLookup = computed(() => {
         coNumber: co.co_number || "Unnamed CO",
         total: Number(co.total_co_amount) || 0,
         projectUuid: co.project_uuid,
+        vendorUuid: co.vendor_uuid || null,
       });
+    }
+  });
+  return map;
+});
+
+const vendorLookup = computed(() => {
+  const map = new Map<string, string>();
+  const list = vendorStore.vendors ?? [];
+  list.forEach((vendor: any) => {
+    if (vendor?.uuid) {
+      map.set(vendor.uuid, vendor.vendor_name || vendor.uuid);
     }
   });
   return map;
@@ -754,12 +769,15 @@ const columns: TableColumn<any>[] = [
     }
   },
   {
-    accessorKey: "entry_date",
-    header: "Entry Date",
+    accessorKey: "project_uuid",
+    header: "Project",
     enableSorting: false,
     meta: { class: { th: 'text-left', td: 'text-left' } },
-    cell: ({ row }) =>
-      h("div", formatDate(row.original.entry_date || new Date().toISOString())),
+    cell: ({ row }) => {
+      const name =
+        projectLookup.value.get(row.original.project_uuid || "") || "N/A";
+      return h("div", name);
+    },
   },
   {
     accessorKey: "grn_number",
@@ -774,32 +792,54 @@ const columns: TableColumn<any>[] = [
       ),
   },
   {
-    accessorKey: "project_uuid",
-    header: "Project",
-    enableSorting: false,
-    meta: { class: { th: 'text-left', td: 'text-left' } },
-    cell: ({ row }) => {
-      const name =
-        projectLookup.value.get(row.original.project_uuid || "") || "N/A";
-      return h("div", name);
-    },
-  },
-  {
-    accessorKey: "purchase_order_uuid",
-    header: "PO Number",
+    accessorKey: "vendor",
+    header: "Vendor",
     enableSorting: false,
     meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }) => {
       const receiptType = row.original.receipt_type || 'purchase_order';
+      let vendorUuid: string | null = null;
+      
       if (receiptType === 'change_order') {
-        const co =
-          changeOrderLookup.value.get(row.original.purchase_order_uuid || "");
-        return h("div", co?.coNumber || "N/A");
+        const co = changeOrderLookup.value.get(row.original.purchase_order_uuid || "");
+        vendorUuid = co?.vendorUuid || null;
       } else {
-        const po =
-          purchaseOrderLookup.value.get(row.original.purchase_order_uuid || "");
-        return h("div", po?.poNumber || "N/A");
+        const po = purchaseOrderLookup.value.get(row.original.purchase_order_uuid || "");
+        vendorUuid = po?.vendorUuid || null;
       }
+      
+      const vendorName = vendorUuid ? (vendorLookup.value.get(vendorUuid) || "N/A") : "N/A";
+      return h("div", vendorName);
+    },
+  },
+  {
+    accessorKey: "entry_date",
+    header: "Entry date",
+    enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
+    cell: ({ row }) =>
+      h("div", formatDate(row.original.entry_date || new Date().toISOString())),
+  },
+  {
+    accessorKey: "received_by",
+    header: "Received by",
+    enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
+    cell: ({ row }) =>
+      h("div", row.original.received_by || "N/A"),
+  },
+  {
+    accessorKey: "total_received_amount",
+    header: "Amount",
+    enableSorting: false,
+    meta: { class: { th: 'text-right', td: 'text-right' } },
+    cell: ({ row }) => {
+      const amount = row.original.total_received_amount || 0;
+      return h(
+        "div",
+        { class: "text-right font-mono text-sm" },
+        formatCurrency(amount)
+      );
     },
   },
   {
@@ -833,22 +873,8 @@ const columns: TableColumn<any>[] = [
     },
   },
   {
-    accessorKey: "total_received_amount",
-    header: "Total Received",
-    enableSorting: false,
-    meta: { class: { th: 'text-right', td: 'text-right' } },
-    cell: ({ row }) => {
-      const amount = row.original.total_received_amount || 0;
-      return h(
-        "div",
-        { class: "text-right font-mono text-sm" },
-        formatCurrency(amount)
-      );
-    },
-  },
-  {
     id: "actions",
-    header: "Actions",
+    header: "Action",
     enableSorting: false,
     meta: { class: { th: 'text-right sticky right-0 z-10 w-32', td: 'text-right sticky right-0 w-32' } },
     cell: ({ row }) => {
@@ -950,6 +976,7 @@ const ensureSupportingData = async (corporationUuid: string) => {
     purchaseOrdersStore.fetchPurchaseOrders(corporationUuid),
     changeOrdersStore.fetchChangeOrders(corporationUuid),
     projectsStore.fetchProjectsMetadata(corporationUuid).catch(() => {}),
+    vendorStore.fetchVendors(corporationUuid).catch(() => {}),
   ]);
 };
 
@@ -1888,7 +1915,12 @@ const resetTablePage = () => {
 };
 
 // Receipt notes are automatically fetched by TopBar.vue when corporation changes
-// No need to fetch here - just use the store data reactively
+// Fetch vendors when corporation changes to ensure they're available for the table
+watch(selectedCorporationId, (newCorpUuid) => {
+  if (newCorpUuid) {
+    vendorStore.fetchVendors(newCorpUuid).catch(() => {});
+  }
+}, { immediate: true });
 
 watch(globalFilter, () => {
   resetTablePage();
