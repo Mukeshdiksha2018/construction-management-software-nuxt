@@ -99,8 +99,8 @@
 
             <!-- Total Amount -->
             <td class="px-4 py-3 text-right">
-              <div class="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                {{ formatCurrency(payment.amount || 0) }}
+              <div class="text-sm font-semibold text-red-600 dark:text-red-400">
+                {{ formatCurrency(-getAmountWithoutTaxes(payment)) }}
               </div>
               <div v-if="taxChargesSummaries.get(payment.uuid)" class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 {{ taxChargesSummaries.get(payment.uuid) }}
@@ -113,8 +113,8 @@
             <td colspan="3" class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100 text-right">
               Total Advance Paid:
             </td>
-            <td colspan="2" class="px-4 py-3 text-sm font-bold text-primary-600 dark:text-primary-400 text-right">
-              {{ formatCurrency(totalAdvancePaid) }}
+            <td colspan="2" class="px-4 py-3 text-sm font-bold text-red-600 dark:text-red-400 text-right">
+              {{ formatCurrency(-totalAdvancePaidWithoutTaxes) }}
             </td>
           </tr>
         </tfoot>
@@ -202,10 +202,52 @@ const fetchAdvancePayments = async () => {
   }
 }
 
-// Calculate total advance paid
-const totalAdvancePaid = computed(() => {
+// Get amount without taxes for a payment
+const getAmountWithoutTaxes = (payment: any): number => {
+  const totalAmount = parseFloat(payment.amount || '0') || 0
+  
+  // Try to get tax total from financial_breakdown
+  let taxTotal = 0
+  if (payment.financial_breakdown) {
+    try {
+      let breakdown = payment.financial_breakdown
+      
+      // Parse if it's a string
+      if (typeof breakdown === 'string') {
+        try {
+          breakdown = JSON.parse(breakdown)
+        } catch (parseError) {
+          // If parsing fails, use 0 for tax
+        }
+      }
+
+      // Handle both nested structure and flattened structure
+      const totals = breakdown?.totals || breakdown || {}
+      
+      // Calculate total tax from sales taxes if available
+      if (breakdown?.sales_taxes) {
+        const salesTaxes = breakdown.sales_taxes
+        const tax1 = parseFloat(salesTaxes.sales_tax_1?.amount || salesTaxes.salesTax1?.amount || '0') || 0
+        const tax2 = parseFloat(salesTaxes.sales_tax_2?.amount || salesTaxes.salesTax2?.amount || '0') || 0
+        taxTotal = tax1 + tax2
+      } else {
+        // Fallback to totals.tax_total
+        taxTotal = parseFloat(totals.tax_total || totals.taxTotal || '0') || 0
+      }
+    } catch (error) {
+      // If there's an error, use 0 for tax
+      taxTotal = 0
+    }
+  }
+  
+  // Return amount without taxes
+  return totalAmount - taxTotal
+}
+
+// Calculate total advance paid without taxes
+const totalAdvancePaidWithoutTaxes = computed(() => {
   return advancePayments.value.reduce(
-    (sum, payment) => sum + (parseFloat(payment.amount || '0') || 0),
+    (sum, payment) => sum + getAmountWithoutTaxes(payment),
     0
   )
 })
