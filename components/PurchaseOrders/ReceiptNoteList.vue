@@ -85,13 +85,13 @@
     <div v-if="loading" class="space-y-2">
       <div class="relative overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         <div class="bg-gray-50 dark:bg-gray-700">
-          <div class="grid grid-cols-7 gap-4 px-2 py-2 text-sm font-bold text-gray-800 dark:text-gray-200 tracking-wider border-b border-gray-200 dark:border-gray-600">
-            <USkeleton v-for="n in 7" :key="`header-${n}`" class="h-4 w-20" />
+          <div class="grid grid-cols-8 gap-4 px-2 py-2 text-sm font-bold text-gray-800 dark:text-gray-200 tracking-wider border-b border-gray-200 dark:border-gray-600">
+            <USkeleton v-for="n in 8" :key="`header-${n}`" class="h-4 w-20" />
           </div>
         </div>
         <div class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-          <div v-for="i in 6" :key="`row-${i}`" class="grid grid-cols-7 gap-4 px-2 py-2">
-            <USkeleton v-for="n in 7" :key="`row-${i}-${n}`" class="h-4 w-full" />
+          <div v-for="i in 6" :key="`row-${i}`" class="grid grid-cols-8 gap-4 px-2 py-2">
+            <USkeleton v-for="n in 8" :key="`row-${i}-${n}`" class="h-4 w-full" />
           </div>
         </div>
       </div>
@@ -444,6 +444,17 @@ const UTooltip = resolveComponent("UTooltip");
 const UBadge = resolveComponent("UBadge");
 
 const corporationStore = useCorporationStore();
+
+const corporationNameByUuid = computed<Record<string, string>>(() => {
+  const list = corporationStore.corporations || []
+  const map: Record<string, string> = {}
+  list.forEach((corp: any) => { 
+    if (corp?.uuid) {
+      map[corp.uuid] = corp.corporation_name || corp.uuid
+    }
+  })
+  return map
+})
 const stockReceiptNotesStore = useStockReceiptNotesStore();
 const stockReturnNotesStore = useStockReturnNotesStore();
 const purchaseOrdersStore = usePurchaseOrdersStore();
@@ -731,7 +742,18 @@ const filteredReceiptNotes = computed(() => {
 });
 
 const columns: TableColumn<any>[] = [
-    {
+  {
+    accessorKey: 'corporation_uuid',
+    header: 'Corporation',
+    enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
+    cell: ({ row }: { row: { original: any } }) => {
+      const uuid = row.original.corporation_uuid
+      const label = uuid ? (corporationNameByUuid.value[uuid] || uuid) : 'N/A'
+      return h('div', label)
+    }
+  },
+  {
     accessorKey: "entry_date",
     header: "Entry Date",
     enableSorting: false,

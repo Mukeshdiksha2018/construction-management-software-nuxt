@@ -574,6 +574,17 @@ const generateChangeOrderNumber = () => {
 // Computed
 const selectedCorporationId = computed(() => corporationStore.selectedCorporationId)
 
+const corporationNameByUuid = computed<Record<string, string>>(() => {
+  const list = corporationStore.corporations || []
+  const map: Record<string, string> = {}
+  list.forEach((corp: any) => { 
+    if (corp?.uuid) {
+      map[corp.uuid] = corp.corporation_name || corp.uuid
+    }
+  })
+  return map
+})
+
 // Status stats computed properties - filter by TopBar's corporation
 const allCOStats = computed(() => {
   const filtered = changeOrders.value.filter((c: any) => 
@@ -679,6 +690,17 @@ const clearStatusFilter = () => {
 }
 
 const columns = computed<TableColumn<any>[]>(() => [
+  {
+    accessorKey: 'corporation_uuid',
+    header: 'Corporation',
+    enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
+    cell: ({ row }: { row: { original: any } }) => {
+      const uuid = row.original.corporation_uuid
+      const label = uuid ? (corporationNameByUuid.value[uuid] || uuid) : 'N/A'
+      return h('div', label)
+    }
+  },
   {
     accessorKey: 'created_date',
     header: 'Created Date',
