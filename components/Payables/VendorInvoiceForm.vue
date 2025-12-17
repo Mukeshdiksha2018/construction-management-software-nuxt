@@ -1669,25 +1669,32 @@ const fetchPOItems = async (poUuid: string) => {
         }
       }
       
-      // Build options array from preferred items
+      // Build options array - use item.options from API if available, otherwise build from preferred items
       // Include the current item if it's not in preferred items (for saved items)
-      const options: any[] = [...preferredItems];
-      if (item.item_uuid && !preferredItemOptionMap.has(String(item.item_uuid))) {
-        // Add the current item to options if it's not in the preferred items list
-        // This ensures the select components can display the saved item
-        const resolvedItemName = item.description || item.item_name || item.name || String(item.item_uuid);
-        const resolvedSequence = sequenceValue || item.sequence || item.item_sequence || '';
-        options.push({
-          label: resolvedItemName,
-          value: String(item.item_uuid),
-          uuid: String(item.item_uuid),
-          item_uuid: String(item.item_uuid),
-          item_name: resolvedItemName,
-          name: resolvedItemName,
-          item_sequence: resolvedSequence,
-          sequence: resolvedSequence,
-          raw: item,
-        });
+      let options: any[] = [];
+      if (item.options && Array.isArray(item.options) && item.options.length > 0) {
+        // Use options from API response if available
+        options = item.options;
+      } else {
+        // Fall back to building from preferred items
+        options = [...preferredItems];
+        if (item.item_uuid && !preferredItemOptionMap.has(String(item.item_uuid))) {
+          // Add the current item to options if it's not in the preferred items list
+          // This ensures the select components can display the saved item
+          const resolvedItemName = item.description || item.item_name || item.name || String(item.item_uuid);
+          const resolvedSequence = sequenceValue || item.sequence || item.item_sequence || '';
+          options.push({
+            label: resolvedItemName,
+            value: String(item.item_uuid),
+            uuid: String(item.item_uuid),
+            item_uuid: String(item.item_uuid),
+            item_name: resolvedItemName,
+            name: resolvedItemName,
+            item_sequence: resolvedSequence,
+            sequence: resolvedSequence,
+            raw: item,
+          });
+        }
       }
       
       return {
@@ -1740,7 +1747,7 @@ const fetchPOItems = async (poUuid: string) => {
       approval_checks: props.form.uuid && savedInvoiceItem
         ? (savedInvoiceItem.approval_checks || [])
         : (item.approval_checks || item.approval_checks_uuids || []),
-      options: options // Populate from preferred items
+      options: options // Use options from API if available, otherwise from preferred items
       };
     });
     
