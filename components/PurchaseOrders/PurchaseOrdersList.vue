@@ -154,7 +154,7 @@
       <div class="relative overflow-auto rounded-2xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         <!-- Loading skeleton -->
         <div class="bg-gray-50 dark:bg-gray-700">
-          <div class="grid grid-cols-11 gap-4 px-2 py-2 text-sm font-bold text-gray-800 dark:text-gray-200 tracking-wider border-b border-gray-200 dark:border-gray-600">
+          <div class="grid gap-4 px-2 py-2 text-sm font-bold text-gray-800 dark:text-gray-200 tracking-wider border-b border-gray-200 dark:border-gray-600" style="grid-template-columns: repeat(13, minmax(0, 1fr));">
             <div class="flex items-center gap-2">
               <USkeleton class="h-4 w-4 rounded" />
               <USkeleton class="h-4 w-6" />
@@ -199,6 +199,25 @@
               <USkeleton class="h-4 w-4 rounded" />
               <USkeleton class="h-4 w-20" />
             </div>
+            <div class="flex items-center gap-2">
+              <USkeleton class="h-4 w-4 rounded" />
+              <USkeleton class="h-4 w-20" />
+            </div>
+            <div class="flex items-center justify-center">
+              <USkeleton class="h-4 w-4 rounded" />
+            </div>
+            <div class="flex items-center gap-2">
+              <USkeleton class="h-4 w-4 rounded" />
+              <USkeleton class="h-4 w-16" />
+            </div>
+            <div class="flex items-center gap-2">
+              <USkeleton class="h-4 w-4 rounded" />
+              <USkeleton class="h-4 w-20" />
+            </div>
+            <div class="flex items-center gap-2">
+              <USkeleton class="h-4 w-4 rounded" />
+              <USkeleton class="h-4 w-20" />
+            </div>
             <div class="flex items-center justify-center">
               <USkeleton class="h-4 w-16" />
             </div>
@@ -208,7 +227,7 @@
         <!-- Table Body -->
         <div class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
           <div v-for="i in 8" :key="i" class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150">
-            <div class="grid grid-cols-11 gap-4 px-2 py-1 text-xs text-gray-900 dark:text-gray-100 border-gray-100 dark:border-gray-700">
+            <div class="grid grid-cols-13 gap-4 px-2 py-1 text-xs text-gray-900 dark:text-gray-100 border-gray-100 dark:border-gray-700" style="grid-template-columns: repeat(13, minmax(0, 1fr));">
               <div class="flex items-center">
                 <USkeleton class="h-4 w-6" />
               </div>
@@ -232,6 +251,12 @@
               </div>
               <div class="flex items-center">
                 <USkeleton class="h-4 w-20" />
+              </div>
+              <div class="flex items-center">
+                <USkeleton class="h-4 w-20" />
+              </div>
+              <div class="flex items-center justify-center">
+                <USkeleton class="h-4 w-4 rounded" />
               </div>
               <div class="flex items-center">
                 <USkeleton class="h-4 w-16" />
@@ -588,6 +613,8 @@ import { useChangeOrdersStore } from '@/stores/changeOrders'
 import { usePurchaseOrderPrint } from '@/composables/usePurchaseOrderPrint'
 import { useProjectsStore } from '@/stores/projects'
 import { useVendorStore } from '@/stores/vendors'
+import { useShipViaStore } from '@/stores/freight'
+import { useProjectAddressesStore } from '@/stores/projectAddresses'
 import ProjectSelect from '@/components/Shared/ProjectSelect.vue'
 import VendorSelect from '@/components/Shared/VendorSelect.vue'
 import POBreakdown from '@/components/PurchaseOrders/POBreakdown.vue'
@@ -597,6 +624,7 @@ const UButton = resolveComponent('UButton')
 const UTooltip = resolveComponent('UTooltip')
 const UIcon = resolveComponent('UIcon')
 const UBadge = resolveComponent('UBadge')
+const UPopover = resolveComponent('UPopover')
 
 // Router
 const router = useRouter()
@@ -607,6 +635,8 @@ const purchaseOrdersStore = usePurchaseOrdersStore()
 const changeOrdersStore = useChangeOrdersStore()
 const projectsStore = useProjectsStore()
 const vendorStore = useVendorStore()
+const shipViaStore = useShipViaStore()
+const projectAddressesStore = useProjectAddressesStore()
 const { formatDate } = useDateFormat()
 const { formatCurrency, formatCurrencyAbbreviated } = useCurrencyFormat()
 const { toUTCString, getCurrentLocal } = useUTCDateFormat()
@@ -816,6 +846,21 @@ const corporationNameByUuid = computed<Record<string, string>>(() => {
   })
   return map
 })
+
+// Ship via lookup
+const shipViaNameByUuid = computed<Record<string, string>>(() => {
+  const list = shipViaStore.getAllShipVia || []
+  const map: Record<string, string> = {}
+  list.forEach((sv: any) => { 
+    if (sv?.uuid) {
+      map[sv.uuid] = sv.ship_via || sv.uuid
+    }
+  })
+  return map
+})
+
+// Address popover state - track which PO's popover is open
+const shippingAddressPopoverOpen = ref<Record<string, boolean>>({})
 
 // Status stats computed properties
 const allPOStats = computed(() => {
@@ -1032,13 +1077,51 @@ const columns: TableColumn<any>[] = [
     cell: ({ row }: { row: { original: any } }) => h('div', formatDate(row.original.entry_date))
   },
   {
-    accessorKey: 'estimated_delivery_date',
-    header: 'Est. Delivery Date',
+    accessorKey: 'ship_via_uuid',
+    header: 'Shipped Via',
     enableSorting: false,
     meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: { original: any } }) => {
-      const date = row.original.estimated_delivery_date;
-      return h('div', date ? formatDate(date) : 'N/A');
+      const uuid = row.original.ship_via_uuid
+      const label = uuid ? (shipViaNameByUuid.value[uuid] || row.original.ship_via || 'N/A') : (row.original.ship_via || 'N/A')
+      return h('div', label)
+    }
+  },
+  {
+    accessorKey: 'shipping_address_uuid',
+    header: 'Shipped To',
+    enableSorting: false,
+    meta: { class: { th: 'text-center', td: 'text-center' } },
+    cell: ({ row }: { row: { original: any } }) => {
+      const poUuid = row.original.uuid
+      const shippingAddressUuid = row.original.shipping_address_uuid
+      const isOpen = shippingAddressPopoverOpen.value[poUuid] || false
+      
+      if (!shippingAddressUuid) {
+        return h('div', { class: 'flex justify-center' }, 'N/A')
+      }
+      
+      return h('div', { class: 'flex justify-center' }, [
+        h(UPopover, {
+          open: isOpen,
+          'onUpdate:open': (value: boolean) => {
+            shippingAddressPopoverOpen.value[poUuid] = value
+            if (value && shippingAddressUuid) {
+              // Lazy load shipping address when popover opens
+              loadShippingAddress(shippingAddressUuid, row.original.project_uuid)
+            }
+          }
+        }, {
+          default: () => h(UButton, {
+            icon: 'i-heroicons-map-pin',
+            size: 'xs',
+            variant: 'ghost',
+            color: 'neutral',
+            class: 'hover:scale-105 transition-transform'
+          }),
+          content: () => renderShippingAddressPopover(shippingAddressUuid, row.original.project_uuid)
+        })
+      ])
     }
   },
   {
@@ -2425,6 +2508,88 @@ const previewPurchaseOrder = async (po: any) => {
   await loadPurchaseOrderForModal(po, true)
 }
 
+// Shipping address methods
+const loadShippingAddress = async (addressUuid: string, projectUuid?: string) => {
+  if (!addressUuid) return
+  
+  // If we have project UUID, fetch all project addresses (they're cached by project)
+  if (projectUuid) {
+    const existingAddresses = projectAddressesStore.getAddresses(projectUuid)
+    if (existingAddresses.length > 0) {
+      // Check if the specific address is already loaded
+      const address = existingAddresses.find(addr => addr.uuid === addressUuid)
+      if (address) {
+        return // Already loaded
+      }
+    }
+    
+    // Fetch all project addresses (will be cached in store)
+    try {
+      await projectAddressesStore.fetchAddresses(projectUuid)
+    } catch (error) {
+      console.error('Error fetching project addresses:', error)
+    }
+  }
+}
+
+const formatShippingAddress = (address: any) => {
+  const parts = []
+  if (address.address_line_1) parts.push(address.address_line_1)
+  if (address.address_line_2) parts.push(address.address_line_2)
+  const cityStateZip = [address.city, address.state, address.zip_code].filter(Boolean).join(', ')
+  if (cityStateZip) parts.push(cityStateZip)
+  if (address.country) parts.push(address.country)
+  return parts.join('\n') || 'No address'
+}
+
+const renderShippingAddressPopover = (addressUuid: string, projectUuid?: string) => {
+  let address: any = null
+  
+  // Try to find the address from project addresses if we have project UUID
+  if (projectUuid) {
+    const addresses = projectAddressesStore.getAddresses(projectUuid)
+    address = addresses.find(addr => addr.uuid === addressUuid)
+  }
+  
+  if (!address) {
+    return h('div', { class: 'p-4 w-80' }, [
+      h('div', { class: 'text-sm text-gray-500 dark:text-gray-400' }, 'Address not found')
+    ])
+  }
+  
+  return h('div', { class: 'p-4 w-80' }, [
+    h('div', { class: 'text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3' }, 'Shipping Address'),
+    h('div', { 
+      class: 'mb-4 pb-4 border-b border-gray-200 dark:border-gray-700 last:border-0 last:pb-0 last:mb-0'
+    }, [
+      // Header with icon and label
+      h('div', { class: 'flex items-center gap-2 mb-2' }, [
+        h(UIcon, { 
+          name: 'i-heroicons-truck', 
+          class: 'w-4 h-4 text-info' 
+        }),
+        h('div', { class: 'text-xs font-semibold text-info' }, 'Shipping Address')
+      ]),
+      // Address content
+      h('div', { class: 'text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line mb-2' }, formatShippingAddress(address)),
+      // Contact information
+      ...(address.contact_person || address.phone || address.email ? [
+        h('div', { class: 'space-y-1 mt-2 pt-2 border-t border-gray-100 dark:border-gray-700' }, [
+          ...(address.contact_person ? [
+            h('div', { class: 'text-xs text-gray-500 dark:text-gray-500' }, `Contact: ${address.contact_person}`)
+          ] : []),
+          ...(address.phone ? [
+            h('div', { class: 'text-xs text-gray-500 dark:text-gray-500' }, `Phone: ${address.phone}`)
+          ] : []),
+          ...(address.email ? [
+            h('div', { class: 'text-xs text-gray-500 dark:text-gray-500' }, `Email: ${address.email}`)
+          ] : [])
+        ])
+      ] : [])
+    ])
+  ])
+}
+
 // Fetch PO items for expanded row
 const fetchPOItemsForRow = async (poUuid: string) => {
   if (!poUuid || poItemsCache.value[poUuid]) {
@@ -2479,6 +2644,15 @@ watch(showFormModal, (isOpen, wasOpen) => {
     isFormValid.value = false
   }
 });
+
+// Load ship via data on mount
+onMounted(async () => {
+  try {
+    await shipViaStore.fetchShipVia()
+  } catch (error) {
+    console.error('Error fetching ship via:', error)
+  }
+})
 
 // Purchase orders are automatically fetched by TopBar.vue when corporation changes
 // No need to fetch here - just use the store data reactively
