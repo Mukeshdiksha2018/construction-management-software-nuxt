@@ -148,7 +148,7 @@
             <USelectMenu
               v-model="poOption"
               :items="poOptions"
-              :disabled="!props.form.project_uuid || props.readonly"
+              :disabled="!props.form.project_uuid || (!props.form.vendor_uuid && !props.editingReceiptNote && !props.form.uuid) || props.readonly"
               placeholder="Select PO"
               size="sm"
               class="w-full"
@@ -181,7 +181,7 @@
             <USelectMenu
               v-model="coOption"
               :items="coOptions"
-              :disabled="!props.form.project_uuid || props.readonly"
+              :disabled="!props.form.project_uuid || (!props.form.vendor_uuid && !props.editingReceiptNote && !props.form.uuid) || props.readonly"
               placeholder="Select Change Order"
               size="sm"
               class="w-full"
@@ -810,24 +810,48 @@ const poOptions = computed(() => {
     ? ['Approved', 'Partially_Received', 'Completed']
     : ['Approved', 'Partially_Received'];
 
+  // Get current PO UUID if editing (for fallback when vendor is not set)
+  const currentPoUuid = props.form.purchase_order_uuid || null;
+  
   return list
     .filter((po) => {
       if (!po?.uuid) return false;
+      
       // Filter by corporation UUID (form's corporation takes priority)
       if (corporationUuid && po.corporation_uuid !== corporationUuid) return false;
+      
       // Filter by project UUID if provided
       if (projectUuid && po.project_uuid !== projectUuid) return false;
-      // Filter by vendor UUID if provided
-      if (vendorUuid && po.vendor_uuid !== vendorUuid) return false;
+      
+      // Vendor filtering logic:
+      // 1. If vendor is selected: Only show POs matching that vendor
+      // 2. If vendor is NOT selected AND editing: Show only the current PO (if it exists)
+      // 3. If vendor is NOT selected AND creating new: Show nothing (require vendor selection)
+      if (vendorUuid) {
+        // Vendor is selected - filter by vendor
+        if (po.vendor_uuid !== vendorUuid) return false;
+      } else {
+        // Vendor is NOT selected
+        if (isEditing && currentPoUuid) {
+          // Editing existing receipt note - only show the current PO
+          if (po.uuid !== currentPoUuid) return false;
+        } else {
+          // Creating new receipt note - require vendor selection (show nothing)
+          return false;
+        }
+      }
+      
       // Only show material purchase orders (exclude labor)
       const poType = String(po.po_type || '').trim().toUpperCase();
       if (poType !== 'MATERIAL') return false;
+      
       // Show purchase orders with allowed statuses (case-insensitive)
       const poStatus = String(po.status || '').trim();
       const isAllowedStatus = allowedStatuses.some(
         (status) => poStatus.toLowerCase() === status.toLowerCase()
       );
       if (!isAllowedStatus) return false;
+      
       return true;
     })
     .map((po) => {
@@ -888,24 +912,48 @@ const coOptions = computed(() => {
     ? ['Approved', 'Partially_Received', 'Completed']
     : ['Approved', 'Partially_Received'];
 
+  // Get current CO UUID if editing (for fallback when vendor is not set)
+  const currentCoUuid = props.form.change_order_uuid || null;
+  
   return list
     .filter((co) => {
       if (!co?.uuid) return false;
+      
       // Filter by corporation UUID (form's corporation takes priority)
       if (corporationUuid && co.corporation_uuid !== corporationUuid) return false;
+      
       // Filter by project UUID if provided
       if (projectUuid && co.project_uuid !== projectUuid) return false;
-      // Filter by vendor UUID if provided
-      if (vendorUuid && co.vendor_uuid !== vendorUuid) return false;
+      
+      // Vendor filtering logic:
+      // 1. If vendor is selected: Only show COs matching that vendor
+      // 2. If vendor is NOT selected AND editing: Show only the current CO (if it exists)
+      // 3. If vendor is NOT selected AND creating new: Show nothing (require vendor selection)
+      if (vendorUuid) {
+        // Vendor is selected - filter by vendor
+        if (co.vendor_uuid !== vendorUuid) return false;
+      } else {
+        // Vendor is NOT selected
+        if (isEditing && currentCoUuid) {
+          // Editing existing receipt note - only show the current CO
+          if (co.uuid !== currentCoUuid) return false;
+        } else {
+          // Creating new receipt note - require vendor selection (show nothing)
+          return false;
+        }
+      }
+      
       // Only show material change orders (exclude labor)
       const coType = String(co.co_type || '').trim().toUpperCase();
       if (coType !== 'MATERIAL') return false;
+      
       // Show change orders with allowed statuses (case-insensitive)
       const coStatus = String(co.status || '').trim();
       const isAllowedStatus = allowedStatuses.some(
         (status) => coStatus.toLowerCase() === status.toLowerCase()
       );
       if (!isAllowedStatus) return false;
+      
       return true;
     })
     .map((co) => {

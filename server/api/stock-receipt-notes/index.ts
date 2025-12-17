@@ -515,6 +515,7 @@ export default defineEventHandler(async (event: H3Event) => {
         purchase_order_uuid: purchaseOrderUuid,
         change_order_uuid: changeOrderUuid,
         receipt_type: receiptType,
+        vendor_uuid: body.vendor_uuid || null,
         location_uuid: body.location_uuid || null,
         entry_date: normalizeTimestamp(body.entry_date),
         received_date: normalizeTimestamp(body.received_date),
@@ -822,6 +823,10 @@ export default defineEventHandler(async (event: H3Event) => {
       maybeSet(
         "project_uuid",
         body.project_uuid ?? existing?.project_uuid ?? null
+      );
+      maybeSet(
+        "vendor_uuid",
+        body.vendor_uuid ?? existing?.vendor_uuid ?? null
       );
       maybeSet(
         "location_uuid",
