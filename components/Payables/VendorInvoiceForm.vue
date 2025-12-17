@@ -2809,28 +2809,31 @@ const updateFinancialBreakdownForAdvancePayment = (amount: number, skipGuard = f
     };
   }
   
-  // For existing invoices, preserve charges_total and tax_total if they exist
-  // Only reset them to 0 if this is a new invoice or if they're not already set
-  const isExistingInvoice = props.form.uuid && props.editingInvoice;
-  const existingChargesTotal = updatedForm.financial_breakdown.totals.charges_total;
-  const existingTaxTotal = updatedForm.financial_breakdown.totals.tax_total;
-  const shouldPreserveChargesAndTax = isExistingInvoice && 
-    (existingChargesTotal !== null && existingChargesTotal !== undefined && existingChargesTotal !== 0 ||
-     existingTaxTotal !== null && existingTaxTotal !== undefined && existingTaxTotal !== 0);
+  // For advance payment invoices, charges are hidden, so charges_total should always be 0
+  // The FinancialBreakdown component will recalculate tax_total based on sales tax percentages
+  // We need to update item_total so the component can recalculate correctly
   
-  // Only update if the amount actually changed to avoid unnecessary updates
+  const currentItemTotal = updatedForm.financial_breakdown.totals.item_total || 0;
+  const currentTaxTotal = updatedForm.financial_breakdown.totals.tax_total || 0;
   const currentTotal = updatedForm.financial_breakdown.totals.total_invoice_amount || 0;
-  if (Math.abs(amount - currentTotal) > 0.01) {
-    // Set totals as numbers (not null) to ensure they're saved
-    updatedForm.financial_breakdown.totals.total_invoice_amount = amount || 0;
-    updatedForm.financial_breakdown.totals.item_total = amount || 0; // For advance payment, item total equals the amount
+  
+  // Only update if item_total changed - this will trigger FinancialBreakdown to recalculate
+  if (Math.abs(amount - currentItemTotal) > 0.01) {
+    // Update item_total to match the advance payment total
+    // The FinancialBreakdown component will recalculate tax_total and total_invoice_amount
+    updatedForm.financial_breakdown.totals.item_total = amount || 0;
     
-    // Preserve charges and tax totals for existing invoices, otherwise set to 0
-    if (!shouldPreserveChargesAndTax) {
-      updatedForm.financial_breakdown.totals.charges_total = 0;
-      updatedForm.financial_breakdown.totals.tax_total = 0;
-    }
-    // If preserving, keep the existing values (already in the cloned object)
+    // For advance payment invoices, charges are always 0 (hideCharges=true)
+    updatedForm.financial_breakdown.totals.charges_total = 0;
+    
+    // Preserve existing tax_total temporarily - FinancialBreakdown will recalculate it
+    // based on sales tax percentages and the new item_total
+    // We keep the existing value so the component can use it as a starting point
+    // The component will recalculate when it detects the item_total change
+    
+    // Calculate total_invoice_amount = item_total + tax_total
+    // FinancialBreakdown will update this when it recalculates, but we'll set a reasonable initial value
+    updatedForm.financial_breakdown.totals.total_invoice_amount = amount + currentTaxTotal;
     
     emit('update:form', updatedForm);
   }
@@ -3635,25 +3638,10 @@ watch(
       return;
     }
     
-    // For existing invoices with populated financial_breakdown, preserve it during initial load
-    // Only update if this is a user-initiated change (not initial load)
+    // For existing invoices, we still need to update the financial breakdown
+    // to ensure item_total and total_invoice_amount match the current advance payment total
+    // But we'll preserve taxes if they exist
     const isExistingInvoice = props.form.uuid && props.editingInvoice;
-    // Check if financial_breakdown exists and has a structure (even if charges/taxes are 0)
-    // This ensures we preserve the breakdown structure for existing invoices
-    const hasExistingFinancialBreakdown = props.form.financial_breakdown && 
-      typeof props.form.financial_breakdown === 'object' &&
-      props.form.financial_breakdown.totals &&
-      props.form.financial_breakdown.totals.total_invoice_amount !== null &&
-      props.form.financial_breakdown.totals.total_invoice_amount !== undefined;
-    
-    // On initial load of existing invoice with financial breakdown, skip updating to preserve existing data
-    if (isInitialLoad.value && isExistingInvoice && hasExistingFinancialBreakdown) {
-      // Mark initial load as complete after first run
-      nextTick(() => {
-        isInitialLoad.value = false;
-      });
-      return;
-    }
     
     // Mark initial load as complete after first run
     if (isInitialLoad.value) {
@@ -3663,15 +3651,21 @@ watch(
     const newTotal = advancePaymentTotal.value;
     const currentAmount = props.form.amount || 0;
     
-    // Only update if the total actually changed to avoid unnecessary updates
-    // Skip if we're in the middle of an update (to prevent recursion)
-    const shouldUpdate = Math.abs(newTotal - currentAmount) > 0.01;
+    // For existing invoices on initial load, always update to ensure financial breakdown is correct
+    // For subsequent changes, only update if the total actually changed
+    const isInitialLoadOfExisting = isInitialLoad.value && isExistingInvoice;
+    const shouldUpdate = isInitialLoadOfExisting || Math.abs(newTotal - currentAmount) > 0.01;
     
     if (shouldUpdate) {
       isUpdatingAdvancePaymentAmount.value = true;
       try {
         handleFormUpdate('amount', newTotal);
+        // Update financial breakdown - this will trigger FinancialBreakdown component to recalculate
         updateFinancialBreakdownForAdvancePayment(newTotal, true); // Pass skipGuard=true since we already have guard
+        // Use nextTick to ensure the update is processed and FinancialBreakdown component can detect the change
+        nextTick(() => {
+          // FinancialBreakdown component should now recalculate with the updated item_total
+        });
       } finally {
         // Reset flag after a short delay to allow the update to complete
         nextTick(() => {
