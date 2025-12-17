@@ -3210,12 +3210,8 @@ describe("VendorInvoiceForm.vue", () => {
         .mockResolvedValueOnce(mockPOData) // PO details from purchase-order-forms
         .mockResolvedValueOnce(mockPOItems) // PO items
         .mockResolvedValueOnce({
-          data: {
-            advance_paid: 0,
-            invoiced_value: 0,
-            balance_to_be_invoiced: 2380,
-          },
-        }); // Advance payment summary
+          data: [], // No advance payments
+        }); // Advance payments
 
       const wrapper = mount(VendorInvoiceForm, {
         props: {
@@ -3337,7 +3333,7 @@ describe("VendorInvoiceForm.vue", () => {
         ],
       };
 
-      // Mock fetch to handle purchase-order-forms, purchase-order-items, and invoice-summary calls
+      // Mock fetch to handle purchase-order-forms, purchase-order-items, and advance-payments calls
       mockFetch.mockImplementation((url: string) => {
         if (url.includes('purchase-order-forms') && url.includes(poUuid)) {
           return Promise.resolve(mockPOData);
@@ -3345,16 +3341,12 @@ describe("VendorInvoiceForm.vue", () => {
         if (url.includes('purchase-order-items') && url.includes(poUuid)) {
           return Promise.resolve(mockPOItems);
         }
-        if (url.includes('purchase-orders') && url.includes(poUuid) && !url.includes('invoice-summary')) {
+        if (url.includes('purchase-orders') && url.includes(poUuid) && !url.includes('advance-payments')) {
           return Promise.resolve(mockPOData);
         }
-        if (url.includes('invoice-summary') && url.includes(poUuid)) {
+        if (url.includes('advance-payments') && url.includes(poUuid)) {
           return Promise.resolve({
-            data: {
-              advance_paid: 0,
-              invoiced_value: 0,
-              balance_to_be_invoiced: 1130,
-            },
+            data: [], // No advance payments
           });
         }
         return Promise.reject(new Error(`Unexpected URL: ${url}`));
@@ -3548,7 +3540,7 @@ describe("VendorInvoiceForm.vue", () => {
 
       const mockPOItems = { data: [] };
 
-      // Mock fetch to handle purchase-order-forms, purchase-order-items, and invoice-summary calls
+      // Mock fetch to handle purchase-order-forms, purchase-order-items, and advance-payments calls
       mockFetch.mockImplementation((url: string) => {
         if (typeof url === 'string') {
           if (url.includes('purchase-order-forms') && url.includes(poUuid)) {
@@ -3557,16 +3549,12 @@ describe("VendorInvoiceForm.vue", () => {
           if (url.includes('purchase-order-items') && url.includes(poUuid)) {
             return Promise.resolve(mockPOItems);
           }
-          if (url.includes('purchase-orders') && url.includes(poUuid) && !url.includes('invoice-summary')) {
+          if (url.includes('purchase-orders') && url.includes(poUuid) && !url.includes('advance-payments')) {
             return Promise.resolve(mockPOData);
           }
-          if (url.includes('invoice-summary') && url.includes(poUuid)) {
+          if (url.includes('advance-payments') && url.includes(poUuid)) {
             return Promise.resolve({
-              data: {
-                advance_paid: 0,
-                invoiced_value: 0,
-                balance_to_be_invoiced: 5900,
-              },
+              data: [], // No advance payments
             });
           }
         }
@@ -3813,17 +3801,13 @@ describe("VendorInvoiceForm.vue", () => {
         ],
       };
 
-      // Mock fetch to handle purchase-order-forms, purchase-order-items, and invoice-summary calls
-      // Note: advance payment summary is now fetched FIRST before PO items
+      // Mock fetch to handle purchase-order-forms, purchase-order-items, and advance-payments calls
+      // Note: advance payments are now fetched before PO items
       mockFetch.mockImplementation((url: string) => {
-        if (url.includes('purchase-orders/invoice-summary') && url.includes(poUuid)) {
-          // Advance payment summary - fetched first
+        if (url.includes('advance-payments') && url.includes(poUuid)) {
+          // Advance payments - fetched before PO items
           return Promise.resolve({
-            data: {
-              advance_paid: 0,
-              total_invoiced: 0,
-              balance_remaining: 17700,
-            },
+            data: [], // No advance payments
           });
         }
         if (url.includes('purchase-order-forms') && url.includes(poUuid)) {
@@ -3832,7 +3816,7 @@ describe("VendorInvoiceForm.vue", () => {
         if (url.includes('purchase-order-items') && url.includes(poUuid)) {
           return Promise.resolve(mockPOItems);
         }
-        if (url.includes('purchase-orders') && url.includes(poUuid) && !url.includes('invoice-summary')) {
+        if (url.includes('purchase-orders') && url.includes(poUuid) && !url.includes('advance-payments')) {
           return Promise.resolve(mockPOData);
         }
         return Promise.reject(new Error(`Unexpected URL: ${url}`));
@@ -3928,17 +3912,13 @@ describe("VendorInvoiceForm.vue", () => {
         ],
       };
 
-      // Mock fetch to handle purchase-order-forms, purchase-order-items, and invoice-summary calls
+      // Mock fetch to handle purchase-order-forms, purchase-order-items, and advance-payments calls
       // Note: advance payment summary is now fetched FIRST before PO items
       mockFetch.mockImplementation((url: string) => {
-        if (url.includes('purchase-orders/invoice-summary') && url.includes(poUuid)) {
-          // Advance payment summary - fetched first
+        if (url.includes('advance-payments') && url.includes(poUuid)) {
+          // Advance payments - fetched before PO items
           return Promise.resolve({
-            data: {
-              advance_paid: 0,
-              total_invoiced: savedPartialPayment,
-              balance_remaining: 10200,
-            },
+            data: [], // No advance payments
           });
         }
         if (url.includes('purchase-order-forms') && url.includes(poUuid)) {
@@ -3947,7 +3927,7 @@ describe("VendorInvoiceForm.vue", () => {
         if (url.includes('purchase-order-items') && url.includes(poUuid)) {
           return Promise.resolve(mockPOItems);
         }
-        if (url.includes('purchase-orders') && url.includes(poUuid) && !url.includes('invoice-summary')) {
+        if (url.includes('purchase-orders') && url.includes(poUuid) && !url.includes('advance-payments')) {
           return Promise.resolve(mockPOData);
         }
         return Promise.reject(new Error(`Unexpected URL: ${url}`));
@@ -5902,14 +5882,10 @@ describe("VendorInvoiceForm.vue", () => {
       };
 
       mockFetch.mockImplementation((url: string) => {
-        if (url.includes('purchase-orders/invoice-summary') && url.includes(poUuid)) {
-          // Advance payment summary - fetched first
+        if (url.includes('advance-payments') && url.includes(poUuid)) {
+          // Advance payments - fetched before PO items
           return Promise.resolve({
-            data: {
-              advance_paid: 0,
-              total_invoiced: 0,
-              balance_remaining: 1150,
-            },
+            data: [], // No advance payments
           });
         }
         if (url.includes('purchase-order-forms') && url.includes(poUuid)) {
@@ -5918,7 +5894,7 @@ describe("VendorInvoiceForm.vue", () => {
         if (url.includes('purchase-order-items') && url.includes(poUuid)) {
           return Promise.resolve(mockPOItems);
         }
-        if (url.includes('purchase-orders') && url.includes(poUuid) && !url.includes('invoice-summary')) {
+        if (url.includes('purchase-orders') && url.includes(poUuid) && !url.includes('advance-payments')) {
           return Promise.resolve(mockPOData);
         }
         return Promise.reject(new Error(`Unexpected URL: ${url}`));
@@ -6050,14 +6026,10 @@ describe("VendorInvoiceForm.vue", () => {
       };
 
       mockFetch.mockImplementation((url: string) => {
-        if (url.includes('purchase-orders/invoice-summary') && url.includes(poUuid)) {
-          // Advance payment summary - fetched first
+        if (url.includes('advance-payments') && url.includes(poUuid)) {
+          // Advance payments - fetched before PO items
           return Promise.resolve({
-            data: {
-              advance_paid: 0,
-              total_invoiced: 1000,
-              balance_remaining: 150,
-            },
+            data: [], // No advance payments
           });
         }
         if (url.includes('purchase-order-forms') && url.includes(poUuid)) {
@@ -6066,7 +6038,7 @@ describe("VendorInvoiceForm.vue", () => {
         if (url.includes('purchase-order-items') && url.includes(poUuid)) {
           return Promise.resolve(mockPOItems);
         }
-        if (url.includes('purchase-orders') && url.includes(poUuid) && !url.includes('invoice-summary')) {
+        if (url.includes('purchase-orders') && url.includes(poUuid) && !url.includes('advance-payments')) {
           return Promise.resolve(mockPOData);
         }
         return Promise.reject(new Error(`Unexpected URL: ${url}`));
@@ -8091,7 +8063,7 @@ describe("VendorInvoiceForm.vue", () => {
 
     it('fetches advance payment summary when PO is selected', async () => {
       const poUuid = 'po-uuid-1';
-      const advancePaid = 2000;
+      const advancePaid = 1800; // Amount without taxes (2000 - 200 tax)
       
       // Mock PO fetch
       mockFetch
@@ -8107,12 +8079,22 @@ describe("VendorInvoiceForm.vue", () => {
         })
         .mockResolvedValueOnce({ data: [] }) // PO items
         .mockResolvedValueOnce({
-          data: {
-            advance_paid: advancePaid,
-            invoiced_value: 0,
-            balance_to_be_invoiced: 8000,
-          },
-        }); // Advance payment summary
+          data: [
+            {
+              uuid: 'inv-1',
+              amount: '2000.00',
+              financial_breakdown: {
+                totals: {
+                  tax_total: 200,
+                },
+                sales_taxes: {
+                  sales_tax_1: { amount: 150 },
+                  sales_tax_2: { amount: 50 },
+                },
+              },
+            },
+          ],
+        }); // Advance payments (amount without taxes = 2000 - 200 = 1800)
 
       const wrapper = mount(VendorInvoiceForm, {
         props: {
@@ -8159,7 +8141,7 @@ describe("VendorInvoiceForm.vue", () => {
 
     it('passes advance payment deduction to FinancialBreakdown component', async () => {
       const poUuid = 'po-uuid-1';
-      const advancePaid = 2000;
+      const advancePaid = 1800; // Amount without taxes (2000 - 200 tax)
 
       mockFetch
         .mockResolvedValueOnce({
@@ -8174,12 +8156,22 @@ describe("VendorInvoiceForm.vue", () => {
         })
         .mockResolvedValueOnce({ data: [] }) // PO items
         .mockResolvedValueOnce({
-          data: {
-            advance_paid: advancePaid,
-            invoiced_value: 0,
-            balance_to_be_invoiced: 8000,
-          },
-        }); // Advance payment summary
+          data: [
+            {
+              uuid: 'inv-1',
+              amount: '2000.00',
+              financial_breakdown: {
+                totals: {
+                  tax_total: 200,
+                },
+                sales_taxes: {
+                  sales_tax_1: { amount: 150 },
+                  sales_tax_2: { amount: 50 },
+                },
+              },
+            },
+          ],
+        }); // Advance payments (amount without taxes = 2000 - 200 = 1800)
 
       const wrapper = mount(VendorInvoiceForm, {
         props: {
@@ -8233,12 +8225,22 @@ describe("VendorInvoiceForm.vue", () => {
         })
         .mockResolvedValueOnce({ data: [] })
         .mockResolvedValueOnce({
-          data: {
-            advance_paid: 2000,
-            invoiced_value: 0,
-            balance_to_be_invoiced: 8000,
-          },
-        });
+          data: [
+            {
+              uuid: 'inv-1',
+              amount: '2000.00',
+              financial_breakdown: {
+                totals: {
+                  tax_total: 200,
+                },
+                sales_taxes: {
+                  sales_tax_1: { amount: 150 },
+                  sales_tax_2: { amount: 50 },
+                },
+              },
+            },
+          ],
+        }); // Advance payments (amount without taxes = 2000 - 200 = 1800)
 
       const wrapper = mount(VendorInvoiceForm, {
         props: {
@@ -8268,7 +8270,7 @@ describe("VendorInvoiceForm.vue", () => {
       );
 
       if (poFinancialBreakdown) {
-        expect(poFinancialBreakdown.props('advancePaymentDeduction')).toBe(2000);
+        expect(poFinancialBreakdown.props('advancePaymentDeduction')).toBe(1800); // Amount without taxes (2000 - 200)
       }
 
       // Change to second PO with no advance payment
@@ -8285,11 +8287,7 @@ describe("VendorInvoiceForm.vue", () => {
         })
         .mockResolvedValueOnce({ data: [] })
         .mockResolvedValueOnce({
-          data: {
-            advance_paid: 0,
-            invoiced_value: 0,
-            balance_to_be_invoiced: 5000,
-          },
+          data: [], // No advance payments
         });
 
       await wrapper.setProps({
@@ -8388,16 +8386,18 @@ describe("VendorInvoiceForm.vue", () => {
 
       await flushPromises();
 
-      // Should not call advance payment summary API
+      // Should not call advance payment API
       const advancePaymentCalls = mockFetch.mock.calls.filter((call) =>
-        call[0]?.includes('invoice-summary')
+        call[0]?.includes('advance-payments')
       );
       expect(advancePaymentCalls.length).toBe(0);
     });
 
     it('calculates total invoice amount correctly with advance payment deduction', async () => {
       const poUuid = 'po-uuid-1';
-      const advancePaid = 2000;
+      const advancePaidTotal = 2000; // Total with taxes
+      const advancePaidTax = 200; // Tax amount
+      const advancePaid = advancePaidTotal - advancePaidTax; // Amount without taxes = 1800
       const itemTotal = 10000;
 
       mockFetch
@@ -8422,12 +8422,22 @@ describe("VendorInvoiceForm.vue", () => {
           ],
         })
         .mockResolvedValueOnce({
-          data: {
-            advance_paid: advancePaid,
-            invoiced_value: 0,
-            balance_to_be_invoiced: itemTotal - advancePaid,
-          },
-        });
+          data: [
+            {
+              uuid: 'inv-1',
+              amount: String(advancePaidTotal),
+              financial_breakdown: {
+                totals: {
+                  tax_total: advancePaidTax,
+                },
+                sales_taxes: {
+                  sales_tax_1: { amount: 150 },
+                  sales_tax_2: { amount: 50 },
+                },
+              },
+            },
+          ],
+        }); // Advance payments (amount without taxes = 2000 - 200 = 1800)
 
       const wrapper = mount(VendorInvoiceForm, {
         props: {
@@ -8499,12 +8509,8 @@ describe("VendorInvoiceForm.vue", () => {
         })
         .mockResolvedValueOnce({ data: [] }) // PO items
         .mockResolvedValueOnce({
-          data: {
-            advance_paid: 0,
-            invoiced_value: 0,
-            balance_to_be_invoiced: itemTotal + chargesTotal + taxTotal,
-          },
-        }); // Advance payment summary
+          data: [], // No advance payments
+        }); // Advance payments
 
       const wrapper = mount(VendorInvoiceForm, {
         props: {
@@ -8570,12 +8576,8 @@ describe("VendorInvoiceForm.vue", () => {
         })
         .mockResolvedValueOnce({ data: [] }) // CO items
         .mockResolvedValueOnce({
-          data: {
-            advance_paid: 0,
-            invoiced_value: 0,
-            balance_to_be_invoiced: itemTotal + chargesTotal + taxTotal,
-          },
-        }); // Advance payment summary
+          data: [], // No advance payments
+        }); // Advance payments
 
       const wrapper = mount(VendorInvoiceForm, {
         props: {
@@ -8633,12 +8635,8 @@ describe("VendorInvoiceForm.vue", () => {
         })
         .mockResolvedValueOnce({ data: [] }) // PO items
         .mockResolvedValueOnce({
-          data: {
-            advance_paid: 0,
-            invoiced_value: 0,
-            balance_to_be_invoiced: 10000,
-          },
-        }); // Advance payment summary
+          data: [], // No advance payments
+        }); // Advance payments
 
       const wrapper = mount(VendorInvoiceForm, {
         props: {
@@ -8723,12 +8721,8 @@ describe("VendorInvoiceForm.vue", () => {
         })
         .mockResolvedValueOnce({ data: [] }) // PO items
         .mockResolvedValueOnce({
-          data: {
-            advance_paid: 0,
-            invoiced_value: 0,
-            balance_to_be_invoiced: baseTotal,
-          },
-        }); // Advance payment summary
+          data: [], // No advance payments
+        }); // Advance payments
 
       const wrapper = mount(VendorInvoiceForm, {
         props: {
@@ -8815,12 +8809,8 @@ describe("VendorInvoiceForm.vue", () => {
         })
         .mockResolvedValueOnce({ data: [] }) // PO items
         .mockResolvedValueOnce({
-          data: {
-            advance_paid: 0,
-            invoiced_value: 0,
-            balance_to_be_invoiced: 10000,
-          },
-        }); // Advance payment summary
+          data: [], // No advance payments
+        }); // Advance payments
 
       const wrapper = mount(VendorInvoiceForm, {
         props: {
@@ -8892,7 +8882,9 @@ describe("VendorInvoiceForm.vue", () => {
 
     it('passes both advance payment and holdback deductions to FinancialBreakdown', async () => {
       const poUuid = 'po-uuid-1';
-      const advancePaid = 2000;
+      const advancePaidTotal = 2000; // Total with taxes
+      const advancePaidTax = 200; // Tax amount
+      const advancePaid = advancePaidTotal - advancePaidTax; // Amount without taxes = 1800
       const itemTotal = 10000;
       const chargesTotal = 500;
       const taxTotal = 1000;
@@ -8915,12 +8907,22 @@ describe("VendorInvoiceForm.vue", () => {
         })
         .mockResolvedValueOnce({ data: [] }) // PO items
         .mockResolvedValueOnce({
-          data: {
-            advance_paid: advancePaid,
-            invoiced_value: 0,
-            balance_to_be_invoiced: itemTotal + chargesTotal + taxTotal - advancePaid,
-          },
-        }); // Advance payment summary
+          data: [
+            {
+              uuid: 'inv-1',
+              amount: String(advancePaidTotal),
+              financial_breakdown: {
+                totals: {
+                  tax_total: advancePaidTax,
+                },
+                sales_taxes: {
+                  sales_tax_1: { amount: 150 },
+                  sales_tax_2: { amount: 50 },
+                },
+              },
+            },
+          ],
+        }); // Advance payments (amount without taxes = 2000 - 200 = 1800)
 
       const wrapper = mount(VendorInvoiceForm, {
         props: {
@@ -8990,12 +8992,8 @@ describe("VendorInvoiceForm.vue", () => {
           ],
         }) // PO items
         .mockResolvedValueOnce({
-          data: {
-            advance_paid: 0,
-            invoiced_value: 0,
-            balance_to_be_invoiced: itemTotal,
-          },
-        }); // Advance payment summary
+          data: [], // No advance payments
+        }); // Advance payments
 
       const wrapper = mount(VendorInvoiceForm, {
         props: {

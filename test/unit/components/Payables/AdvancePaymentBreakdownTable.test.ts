@@ -288,8 +288,8 @@ describe("AdvancePaymentBreakdownTable.vue", () => {
 
       expect(wrapper.text()).toContain("INV-001");
       expect(wrapper.text()).toContain("INV-002");
-      expect(wrapper.text()).toContain("$240.00");
-      expect(wrapper.text()).toContain("$100.00");
+      expect(wrapper.text()).toContain("$-240.00"); // Amount without taxes, displayed as negative
+      expect(wrapper.text()).toContain("$-100.00"); // Amount without taxes, displayed as negative
     });
 
     it("displays cost code breakdown for each invoice", async () => {
@@ -439,7 +439,7 @@ describe("AdvancePaymentBreakdownTable.vue", () => {
       await flushPromises();
 
       expect(wrapper.text()).toContain("Total Advance Paid");
-      expect(wrapper.text()).toContain("$340.00"); // 240 + 100
+      expect(wrapper.text()).toContain("$-340.00"); // 240 + 100, displayed as negative without taxes
     });
 
     it("handles empty cost code label gracefully", async () => {
