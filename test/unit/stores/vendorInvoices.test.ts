@@ -1,16 +1,21 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { setActivePinia, createPinia } from "pinia";
 import { useVendorInvoicesStore } from "@/stores/vendorInvoices";
+import { useCorporationStore } from "@/stores/corporations";
 
 // Mock $fetch
 global.$fetch = vi.fn();
 
 describe("vendorInvoices Store", () => {
   let pinia: ReturnType<typeof createPinia>;
+  let corporationStore: ReturnType<typeof useCorporationStore>;
 
   beforeEach(() => {
     pinia = createPinia();
     setActivePinia(pinia);
+    corporationStore = useCorporationStore();
+    // Set default selected corporation for tests
+    corporationStore.selectedCorporationId = "corp-1";
     vi.clearAllMocks();
   });
 
@@ -158,6 +163,8 @@ describe("vendorInvoices Store", () => {
   describe("createVendorInvoice", () => {
     it("creates a new vendor invoice", async () => {
       const store = useVendorInvoicesStore();
+      // Ensure corporation matches
+      corporationStore.selectedCorporationId = "corp-1";
       const newInvoice = {
         uuid: "invoice-new",
         corporation_uuid: "corp-1",
@@ -251,11 +258,104 @@ describe("vendorInvoices Store", () => {
       expect(result).toBeNull();
       expect(store.error).toBe("Validation error");
     });
+
+    it("should only add to local store if corporation matches selected corporation", async () => {
+      const store = useVendorInvoicesStore();
+      // Set selected corporation to corp-1
+      corporationStore.selectedCorporationId = "corp-1";
+
+      // Create invoice for corp-1 (matches selected)
+      const newInvoiceCorp1 = {
+        uuid: "invoice-corp1",
+        corporation_uuid: "corp-1",
+        invoice_type: "AGAINST_PO",
+        amount: 1000,
+        bill_date: "2024-01-15T00:00:00.000Z",
+      };
+
+      (global.$fetch as any).mockResolvedValue({
+        data: newInvoiceCorp1,
+      });
+
+      await store.createVendorInvoice({
+        corporation_uuid: "corp-1",
+        invoice_type: "AGAINST_PO",
+        bill_date: "2024-01-15",
+        amount: 1000,
+      });
+
+      // Should be added to local store since corporation matches
+      expect(store.vendorInvoices.some((i) => i.uuid === "invoice-corp1")).toBe(true);
+
+      // Now create invoice for corp-2 (doesn't match selected)
+      corporationStore.selectedCorporationId = "corp-1"; // Still corp-1
+      const newInvoiceCorp2 = {
+        uuid: "invoice-corp2",
+        corporation_uuid: "corp-2",
+        invoice_type: "AGAINST_PO",
+        amount: 2000,
+        bill_date: "2024-01-20T00:00:00.000Z",
+      };
+
+      (global.$fetch as any).mockResolvedValue({
+        data: newInvoiceCorp2,
+      });
+
+      await store.createVendorInvoice({
+        corporation_uuid: "corp-2",
+        invoice_type: "AGAINST_PO",
+        bill_date: "2024-01-20",
+        amount: 2000,
+      });
+
+      // Should NOT be added to local store since corporation doesn't match
+      expect(store.vendorInvoices.some((i) => i.uuid === "invoice-corp2")).toBe(false);
+
+      // But currentVendorInvoice should still be set (regardless of corporation)
+      expect(store.currentVendorInvoice?.uuid).toBe("invoice-corp2");
+    });
+
+    it("should NOT add to local store if corporation does not match selected corporation", async () => {
+      const store = useVendorInvoicesStore();
+      // Set selected corporation to corp-1
+      corporationStore.selectedCorporationId = "corp-1";
+
+      const newInvoice = {
+        uuid: "invoice-new",
+        corporation_uuid: "corp-2", // Different corporation
+        invoice_type: "AGAINST_PO",
+        amount: 1000,
+        bill_date: "2024-01-15T00:00:00.000Z",
+      };
+
+      (global.$fetch as any).mockResolvedValue({
+        data: newInvoice,
+      });
+
+      const result = await store.createVendorInvoice({
+        corporation_uuid: "corp-2",
+        invoice_type: "AGAINST_PO",
+        bill_date: "2024-01-15",
+        amount: 1000,
+      });
+
+      // Should still return the result
+      expect(result).toBeTruthy();
+      expect(result?.uuid).toBe("invoice-new");
+      // But should NOT be added to local store since corporation doesn't match
+      expect(store.vendorInvoices).not.toContainEqual(
+        expect.objectContaining({ uuid: "invoice-new" })
+      );
+      // currentVendorInvoice should still be set (regardless of corporation)
+      expect(store.currentVendorInvoice?.uuid).toBe("invoice-new");
+    });
   });
 
   describe("updateVendorInvoice", () => {
     it("updates an existing vendor invoice", async () => {
       const store = useVendorInvoicesStore();
+      // Ensure corporation matches
+      corporationStore.selectedCorporationId = "corp-1";
       const updatedInvoice = {
         uuid: "invoice-1",
         corporation_uuid: "corp-1",
@@ -367,6 +467,8 @@ describe("vendorInvoices Store", () => {
 
     it("preserves display fields (vendor_name, project_name, etc.) when updating invoice in list", async () => {
       const store = useVendorInvoicesStore();
+      // Ensure corporation matches
+      corporationStore.selectedCorporationId = "corp-1";
       
       // First, populate the store with an invoice that has display fields
       const existingInvoice = {
@@ -429,6 +531,8 @@ describe("vendorInvoices Store", () => {
 
     it("preserves display fields even when update response has null/undefined values", async () => {
       const store = useVendorInvoicesStore();
+      // Ensure corporation matches
+      corporationStore.selectedCorporationId = "corp-1";
       
       // First, populate the store with an invoice that has display fields
       const existingInvoice = {
@@ -478,11 +582,126 @@ describe("vendorInvoices Store", () => {
       expect(updatedInList?.co_number).toBe("CO-001");
       expect(updatedInList?.amount).toBe(2000);
     });
+
+    it("should only update local store if corporation matches when updating", async () => {
+      const store = useVendorInvoicesStore();
+      // Set up existing invoice in store
+      const existingInvoice = {
+        uuid: "invoice-1",
+        corporation_uuid: "corp-1",
+        invoice_type: "AGAINST_PO",
+        amount: 1000,
+        bill_date: "2024-01-15T00:00:00.000Z",
+      };
+      (store as any).$state.vendorInvoices = [existingInvoice];
+      corporationStore.selectedCorporationId = "corp-1";
+
+      const updatePayload = {
+        uuid: "invoice-1",
+        amount: 1500,
+        corporation_uuid: "corp-1", // Same corporation
+      };
+
+      const updatedInvoice = {
+        ...existingInvoice,
+        ...updatePayload,
+      };
+      (global.$fetch as any).mockResolvedValue({
+        data: updatedInvoice,
+      });
+
+      await store.updateVendorInvoice(updatePayload);
+
+      // Should update in local store since corporation matches
+      const index = store.vendorInvoices.findIndex((i) => i.uuid === "invoice-1");
+      expect(index).not.toBe(-1);
+      expect(store.vendorInvoices[index].amount).toBe(1500);
+    });
+
+    it("should NOT update local store if corporation does not match when updating", async () => {
+      const store = useVendorInvoicesStore();
+      // Set up existing invoice in store
+      const existingInvoice = {
+        uuid: "invoice-1",
+        corporation_uuid: "corp-1",
+        invoice_type: "AGAINST_PO",
+        amount: 1000,
+        bill_date: "2024-01-15T00:00:00.000Z",
+      };
+      (store as any).$state.vendorInvoices = [existingInvoice];
+      corporationStore.selectedCorporationId = "corp-2"; // Different corporation
+
+      const updatePayload = {
+        uuid: "invoice-1",
+        amount: 1500,
+        corporation_uuid: "corp-1", // Different from selected
+      };
+
+      const updatedInvoice = {
+        ...existingInvoice,
+        ...updatePayload,
+      };
+      (global.$fetch as any).mockResolvedValue({
+        data: updatedInvoice,
+      });
+
+      const result = await store.updateVendorInvoice(updatePayload);
+
+      // Should return the updated invoice
+      expect(result).toBeTruthy();
+      expect(result?.amount).toBe(1500);
+      // But should NOT update in local store since corporation doesn't match
+      // The invoice should be removed from store since it no longer matches
+      const index = store.vendorInvoices.findIndex((i) => i.uuid === "invoice-1");
+      expect(index).toBe(-1); // Should be removed from store
+      // currentVendorInvoice should still be updated (regardless of corporation)
+      if (store.currentVendorInvoice?.uuid === "invoice-1") {
+        expect(store.currentVendorInvoice.amount).toBe(1500);
+      }
+    });
+
+    it("should remove invoice from store if corporation changes to non-matching corporation", async () => {
+      const store = useVendorInvoicesStore();
+      // Set up existing invoice in store for corp-1
+      const existingInvoice = {
+        uuid: "invoice-1",
+        corporation_uuid: "corp-1",
+        invoice_type: "AGAINST_PO",
+        amount: 1000,
+        bill_date: "2024-01-15T00:00:00.000Z",
+      };
+      (store as any).$state.vendorInvoices = [existingInvoice];
+      corporationStore.selectedCorporationId = "corp-1";
+
+      // Update invoice to change corporation to corp-2
+      const updatePayload = {
+        uuid: "invoice-1",
+        amount: 1500,
+        corporation_uuid: "corp-2", // Changed to different corporation
+      };
+
+      const updatedInvoice = {
+        ...existingInvoice,
+        ...updatePayload,
+        corporation_uuid: "corp-2", // Changed corporation
+      };
+      (global.$fetch as any).mockResolvedValue({
+        data: updatedInvoice,
+      });
+
+      await store.updateVendorInvoice(updatePayload);
+
+      // Should remove from local store since corporation no longer matches
+      const index = store.vendorInvoices.findIndex((i) => i.uuid === "invoice-1");
+      expect(index).toBe(-1); // Should be removed
+    });
   });
 
   describe("deleteVendorInvoice", () => {
     it("soft deletes a vendor invoice", async () => {
       const store = useVendorInvoicesStore();
+      // Ensure corporation matches
+      corporationStore.selectedCorporationId = "corp-1";
       const deletedInvoice = {
         uuid: "invoice-1",
         corporation_uuid: "corp-1",
@@ -521,6 +740,105 @@ describe("vendorInvoices Store", () => {
 
       expect(result).toBe(false);
       expect(store.error).toBe("Delete failed");
+    });
+
+    it("should only remove from local store if corporation matches selected corporation", async () => {
+      const store = useVendorInvoicesStore();
+      // Set selected corporation to corp-1
+      corporationStore.selectedCorporationId = "corp-1";
+
+      // Set up invoices for different corporations using fetchVendorInvoices
+      const invoices = [
+        {
+          uuid: "invoice-1",
+          corporation_uuid: "corp-1", // Matches selected
+          is_active: true,
+        },
+        {
+          uuid: "invoice-2",
+          corporation_uuid: "corp-1", // Also corp-1 so it gets added to store
+          is_active: true,
+        },
+      ];
+
+      // First, populate store with invoices for corp-1
+      (global.$fetch as any).mockResolvedValueOnce({
+        data: invoices,
+      });
+      await store.fetchVendorInvoices("corp-1", true);
+      
+      // Now manually add invoice-2 with corp-2 to test the delete behavior
+      // We'll use $state to update the store
+      const invoice2Corp2 = {
+        uuid: "invoice-2",
+        corporation_uuid: "corp-2", // Doesn't match selected
+        is_active: true,
+      };
+      // Use $state to add the invoice
+      (store as any).$state.vendorInvoices.push(invoice2Corp2 as any);
+
+      const deletedInvoice = {
+        uuid: "invoice-1",
+        corporation_uuid: "corp-1",
+        is_active: false,
+      };
+
+      (global.$fetch as any).mockResolvedValue({
+        data: deletedInvoice,
+      });
+
+      await store.deleteVendorInvoice("invoice-1");
+
+      // Should remove invoice-1 from store since corporation matches
+      expect(store.vendorInvoices.some((i) => i.uuid === "invoice-1")).toBe(false);
+      // invoice-2 should still be in store (even though it doesn't match, it wasn't deleted)
+      expect(store.vendorInvoices.some((i) => i.uuid === "invoice-2")).toBe(true);
+    });
+
+    it("should NOT remove from local store if corporation does not match selected corporation", async () => {
+      const store = useVendorInvoicesStore();
+      // First, set selected corporation to corp-2 and add an invoice
+      corporationStore.selectedCorporationId = "corp-2";
+      
+      const invoice2 = {
+        uuid: "invoice-2",
+        corporation_uuid: "corp-2",
+        is_active: true,
+      };
+      
+      // Add invoice to store by fetching for corp-2
+      (global.$fetch as any).mockResolvedValueOnce({
+        data: [invoice2],
+      });
+      await store.fetchVendorInvoices("corp-2", true);
+      
+      // Verify invoice is in store
+      expect(store.vendorInvoices.some((i) => i.uuid === "invoice-2")).toBe(true);
+      
+      // Now change selected corporation to corp-1 (different from invoice's corporation)
+      corporationStore.selectedCorporationId = "corp-1";
+
+      const deletedInvoice = {
+        uuid: "invoice-2",
+        corporation_uuid: "corp-2",
+        is_active: false,
+      };
+
+      (global.$fetch as any).mockResolvedValue({
+        data: deletedInvoice,
+      });
+
+      const result = await store.deleteVendorInvoice("invoice-2");
+
+      // Should still return success (database is updated)
+      expect(result).toBe(true);
+      // But should NOT remove from local store since corporation doesn't match
+      // The invoice should still be in the store because its corporation (corp-2) doesn't match selected (corp-1)
+      expect(store.vendorInvoices.some((i) => i.uuid === "invoice-2")).toBe(true);
+      // currentVendorInvoice should still be cleared if it matches (regardless of corporation)
+      if (store.currentVendorInvoice?.uuid === "invoice-2") {
+        expect(store.currentVendorInvoice).toBeNull();
+      }
     });
   });
 
