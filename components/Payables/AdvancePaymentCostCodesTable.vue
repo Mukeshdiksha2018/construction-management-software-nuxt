@@ -896,7 +896,9 @@ watch(
     const [newPoCoUuid, newPoCoType] = newValues || []
     const [oldPoCoUuid, oldPoCoType] = oldValues || []
     
-    if (newPoCoUuid !== oldPoCoUuid || newPoCoType !== oldPoCoType) {
+    const poCoChanged = newPoCoUuid !== oldPoCoUuid || newPoCoType !== oldPoCoType
+    
+    if (poCoChanged) {
       // Create new empty array to ensure reactivity
       removedCostCodes.value = []
       // Only emit if not initializing to prevent recursive updates
@@ -905,7 +907,14 @@ watch(
       }
     }
     
-    processItems()
+    // Don't process items if we're loading existing data (modelValue has data) and PO/CO hasn't changed
+    // This prevents clearing existing advance amounts when loading an invoice
+    // The modelValue watcher will handle loading existing data
+    // But if PO/CO changed, we should process items to get the new cost codes
+    const hasExistingData = Array.isArray(props.modelValue) && props.modelValue.length > 0
+    if (!hasExistingData || poCoChanged) {
+      processItems()
+    }
   },
   { immediate: true }
 )
