@@ -78,19 +78,9 @@
                   class="w-full"
                   :disabled="readonly || !row.cost_code_uuid"
                   placeholder="Select GL Account"
-                  @update:model-value="(value) => {
-                    console.log('[AdvancePaymentCostCodesTable] GL account changed via update:model-value:', { index, rowId: row.id, value })
-                    handleGLAccountChange(index, value)
-                  }"
-                  @change="(account) => {
-                    console.log('[AdvancePaymentCostCodesTable] GL account changed via change event:', { index, rowId: row.id, account })
-                    handleGLAccountChange(index, account?.value, account)
-                  }"
+                  @update:model-value="(value) => handleGLAccountChange(index, value)"
+                  @change="(account) => handleGLAccountChange(index, account?.value, account)"
                 />
-                <!-- Debug info -->
-                <div v-if="row.gl_account_uuid" class="text-xs text-gray-500 mt-1">
-                  UUID: {{ row.gl_account_uuid.substring(0, 8) }}...
-                </div>
               </td>
 
               <!-- Total Amount -->
@@ -351,7 +341,7 @@ const fetchCostCodeConfigurations = async (corporationUuid: string) => {
     // Clear the map and rebuild it with configurations for this corporation only
     costCodeConfigMap.value.clear()
     configs.forEach((config: any) => {
-      if (config.uuid) {
+      if (config?.uuid) {
         costCodeConfigMap.value.set(config.uuid, config)
       }
     })
@@ -378,16 +368,6 @@ const fetchChartOfAccounts = async (corporationUuid: string) => {
     }
     
     localChartOfAccounts.value = accounts
-    
-    console.log('[AdvancePaymentCostCodesTable] Fetched chart of accounts:', {
-      corporationUuid,
-      count: accounts.length,
-      sample: accounts.slice(0, 2).map((a: any) => ({
-        uuid: a?.uuid,
-        code: a?.code,
-        account_name: a?.account_name
-      }))
-    })
   } catch (error) {
     console.error('[AdvancePaymentCostCodesTable] Error fetching chart of accounts:', error)
     localChartOfAccounts.value = []
@@ -543,19 +523,6 @@ const processItems = async () => {
         const config = costCodeConfigMap.value.get(costCode.cost_code_uuid)
         const glAccountUuid = config?.gl_account_uuid ?? null
         
-        // Debug logging
-        console.log('[AdvancePaymentCostCodesTable] Creating row for cost code:', {
-          index,
-          cost_code_uuid: costCode.cost_code_uuid,
-          cost_code_number: costCode.cost_code_number,
-          cost_code_name: costCode.cost_code_name,
-          configExists: !!config,
-          gl_account_uuid: glAccountUuid,
-          configGlAccount: config?.gl_account_uuid,
-          accountsLoaded: localChartOfAccounts.value.length > 0,
-          accountsCount: localChartOfAccounts.value.length
-        })
-        
         return {
           id: `cost-code-${costCode.cost_code_uuid}-${index}`,
           cost_code_uuid: costCode.cost_code_uuid,
@@ -578,14 +545,6 @@ const processItems = async () => {
         // Populate GL account from cost code configuration if not already set
         let glAccountUuid = row.gl_account_uuid
         if (!glAccountUuid && config?.gl_account_uuid) {
-          console.log('[AdvancePaymentCostCodesTable] Populating GL account for existing row:', {
-            rowId: row.id,
-            cost_code_uuid: row.cost_code_uuid,
-            cost_code_number: row.cost_code_number,
-            existingGlAccount: row.gl_account_uuid,
-            newGlAccount: config.gl_account_uuid,
-            configExists: !!config
-          })
           glAccountUuid = config.gl_account_uuid
         }
         
@@ -612,19 +571,6 @@ const processItems = async () => {
 
     // Combine: existing rows (filtered) + new rows
     const finalRows = [...rowsToKeep, ...newRows]
-    
-    console.log('[AdvancePaymentCostCodesTable] Final rows after processing:', {
-      totalRows: finalRows.length,
-      rowsWithGlAccount: finalRows.filter(r => r.gl_account_uuid).length,
-      accountsLoaded: localChartOfAccounts.value.length > 0,
-      accountsCount: localChartOfAccounts.value.length,
-      rows: finalRows.map(r => ({
-        id: r.id,
-        cost_code_uuid: r.cost_code_uuid,
-        cost_code_number: r.cost_code_number,
-        gl_account_uuid: r.gl_account_uuid
-      }))
-    })
     
     costCodeRows.value = finalRows
     

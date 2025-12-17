@@ -98,7 +98,7 @@ const getAccountTypeColor = (accountType: string): "error" | "warning" | "info" 
 const accountOptions = computed(() => {
   // If local accounts are provided, format them similar to store
   if (props.localAccounts !== undefined) {
-    const options = props.localAccounts.map((account: any) => ({
+    return props.localAccounts.map((account: any) => ({
       label: `${account.code} - ${account.account_name}`,
       value: account.uuid,
       account_type: account.account_type,
@@ -108,16 +108,6 @@ const accountOptions = computed(() => {
       defaultAccountName: undefined,
       searchText: `${account.code} ${account.account_name} ${account.account_type}`,
     }));
-    
-    console.log('[ChartOfAccountsSelect] accountOptions computed (local accounts):', {
-      localAccountsCount: props.localAccounts?.length || 0,
-      optionsCount: options.length,
-      modelValue: props.modelValue,
-      selectedAccount: selectedAccount.value,
-      sampleUuids: options.slice(0, 3).map((o: any) => o.value)
-    });
-    
-    return options;
   }
   
   // Otherwise use pre-computed account options from the store
@@ -139,22 +129,8 @@ const updateSelectedObject = () => {
   const account = accountOptionsMap.value.get(selectedAccount.value)
   if (account) {
     selectedAccountObject.value = account
-    console.log('[ChartOfAccountsSelect] Found account for display:', {
-      uuid: selectedAccount.value,
-      label: account.label,
-      usingLocalAccounts: props.localAccounts !== undefined,
-      localAccountsCount: props.localAccounts?.length || 0,
-      accountOptionsCount: accountOptions.value.length
-    })
   } else {
     selectedAccountObject.value = undefined
-    console.warn('[ChartOfAccountsSelect] Account not found in options:', {
-      uuid: selectedAccount.value,
-      usingLocalAccounts: props.localAccounts !== undefined,
-      localAccountsCount: props.localAccounts?.length || 0,
-      accountOptionsCount: accountOptions.value.length,
-      availableUuids: accountOptions.value.slice(0, 3).map((a: any) => a.value)
-    })
   }
 }
 
@@ -174,19 +150,10 @@ const handleSelection = (account: any) => {
 watch(() => props.modelValue, (newValue) => {
   selectedAccount.value = newValue
   updateSelectedObject()
-})
+}, { immediate: true })
 
 // Watch for localAccounts changes to update selected object when accounts are loaded
-watch(() => props.localAccounts, (newAccounts, oldAccounts) => {
-  console.log('[ChartOfAccountsSelect] localAccounts changed:', {
-    newCount: newAccounts?.length || 0,
-    oldCount: oldAccounts?.length || 0,
-    hasSelection: !!selectedAccount.value,
-    hasModelValue: !!props.modelValue,
-    selection: selectedAccount.value,
-    modelValue: props.modelValue
-  })
-  
+watch(() => props.localAccounts, () => {
   if (props.localAccounts !== undefined) {
     // If we have a modelValue but selectedAccount is not set, set it first
     if (props.modelValue && !selectedAccount.value) {
@@ -223,7 +190,6 @@ watch(accountOptions, () => {
     if (hasAccountsForCorp && !chartOfAccountsStore.loading) {
       const isValid = accountOptions.value.some(acc => acc.value === selectedAccount.value)
       if (!isValid) {
-        console.log('[ChartOfAccountsSelect] Selection no longer valid in new account options, clearing')
         selectedAccount.value = undefined
         emit('update:modelValue', undefined)
         emit('change', undefined)
@@ -254,8 +220,6 @@ watch(() => props.corporationUuid, async (newCorporationUuid, oldCorporationUuid
   }
   
   if (newCorporationUuid && newCorporationUuid !== oldCorporationUuid) {
-    console.log('[ChartOfAccountsSelect] Corporation changed, fetching accounts for:', newCorporationUuid)
-    
     // Store the current selection before fetching
     const currentSelection = selectedAccount.value
     
@@ -267,7 +231,6 @@ watch(() => props.corporationUuid, async (newCorporationUuid, oldCorporationUuid
     if (currentSelection && accountOptions.value.length > 0) {
       const isValid = accountOptions.value.some(acc => acc.value === currentSelection)
       if (!isValid) {
-        console.log('[ChartOfAccountsSelect] Selection invalid after corporation change, clearing')
         selectedAccount.value = undefined
         emit('update:modelValue', undefined)
         emit('change', undefined)
