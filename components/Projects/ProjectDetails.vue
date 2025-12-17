@@ -1331,12 +1331,32 @@ const formatAddress = (address: any) => {
 
 const getAddressTypeLabel = (type: string) => {
   const labels: Record<string, string> = {
-    'shipment': 'Shipment Address',
-    'bill': 'Billing Address',
+    'shipment': 'Shipment',
+    'bill': 'Billing',
     'final-destination': 'Final Destination',
     'other': 'Other Address'
   }
   return labels[type] || type
+}
+
+const getAddressTypeIcon = (type: string) => {
+  const typeIcons: Record<string, string> = {
+    'shipment': 'i-heroicons-truck',
+    'bill': 'i-heroicons-credit-card',
+    'final-destination': 'i-heroicons-map-pin',
+    'other': 'i-heroicons-map-pin'
+  }
+  return typeIcons[type] || 'i-heroicons-map-pin'
+}
+
+const getAddressTypeColor = (type: string): "error" | "warning" | "info" | "success" | "primary" | "secondary" | "neutral" => {
+  const typeColors: Record<string, "error" | "warning" | "info" | "success" | "primary" | "secondary" | "neutral"> = {
+    'shipment': 'info',
+    'bill': 'warning',
+    'final-destination': 'success',
+    'other': 'neutral'
+  }
+  return typeColors[type] || 'neutral'
 }
 
 const renderAddressPopover = (projectUuid: string) => {
@@ -1355,20 +1375,43 @@ const renderAddressPopover = (projectUuid: string) => {
       const address = primaryAddresses[type]
       if (!address) return null
       
+      const iconName = getAddressTypeIcon(type)
+      const color = getAddressTypeColor(type)
+      const colorClasses: Record<string, string> = {
+        'info': 'text-info',
+        'warning': 'text-warning',
+        'success': 'text-success',
+        'neutral': 'text-gray-500 dark:text-gray-400'
+      }
+      const iconColorClass = colorClasses[color] || colorClasses.neutral
+      
       return h('div', { 
         key: type,
         class: 'mb-4 pb-4 border-b border-gray-200 dark:border-gray-700 last:border-0 last:pb-0 last:mb-0'
       }, [
-        h('div', { class: 'text-xs font-medium text-gray-700 dark:text-gray-300 mb-1' }, getAddressTypeLabel(type)),
-        h('div', { class: 'text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line' }, formatAddress(address)),
-        ...(address.contact_person ? [
-          h('div', { class: 'text-xs text-gray-500 dark:text-gray-500 mt-1' }, `Contact: ${address.contact_person}`)
-        ] : []),
-        ...(address.phone ? [
-          h('div', { class: 'text-xs text-gray-500 dark:text-gray-500' }, `Phone: ${address.phone}`)
-        ] : []),
-        ...(address.email ? [
-          h('div', { class: 'text-xs text-gray-500 dark:text-gray-500' }, `Email: ${address.email}`)
+        // Header with icon and label
+        h('div', { class: 'flex items-center gap-2 mb-2' }, [
+          h(UIcon, { 
+            name: iconName, 
+            class: `w-4 h-4 ${iconColorClass}` 
+          }),
+          h('div', { class: `text-xs font-semibold ${iconColorClass}` }, getAddressTypeLabel(type))
+        ]),
+        // Address content
+        h('div', { class: 'text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line mb-2' }, formatAddress(address)),
+        // Contact information
+        ...(address.contact_person || address.phone || address.email ? [
+          h('div', { class: 'space-y-1 mt-2 pt-2 border-t border-gray-100 dark:border-gray-700' }, [
+            ...(address.contact_person ? [
+              h('div', { class: 'text-xs text-gray-500 dark:text-gray-500' }, `Contact: ${address.contact_person}`)
+            ] : []),
+            ...(address.phone ? [
+              h('div', { class: 'text-xs text-gray-500 dark:text-gray-500' }, `Phone: ${address.phone}`)
+            ] : []),
+            ...(address.email ? [
+              h('div', { class: 'text-xs text-gray-500 dark:text-gray-500' }, `Email: ${address.email}`)
+            ] : [])
+          ])
         ] : [])
       ])
     }).filter(Boolean)
