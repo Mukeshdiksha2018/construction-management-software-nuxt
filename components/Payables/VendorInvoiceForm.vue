@@ -261,6 +261,28 @@
               />
             </div>
 
+            <!-- Holdback Invoice Select (only visible when invoice type is "Against Holdback Amount") -->
+            <div v-if="isAgainstHoldback">
+              <label class="block text-xs font-medium text-default mb-1">
+                Select PO/CO for Holdback <span class="text-red-500">*</span>
+              </label>
+              <UButton
+                :disabled="areSubsequentFieldsDisabled"
+                color="neutral"
+                variant="outline"
+                size="sm"
+                class="w-full justify-start"
+                @click="showHoldbackModal = true"
+              >
+                <span v-if="form.po_co_uuid">
+                  {{ form.po_number || form.co_number || 'Selected' }}
+                </span>
+                <span v-else>
+                  {{ !form.project_uuid ? 'Select project first' : !form.vendor_uuid ? 'Select vendor first' : 'Select PO/CO for holdback invoice' }}
+                </span>
+              </UButton>
+            </div>
+
             <!-- Total Invoice Amount -->
             <div>
               <label class="block text-xs font-medium text-default mb-1">
@@ -962,6 +984,15 @@
         </div>
       </template>
     </UModal>
+
+    <!-- Holdback Invoice Select Modal -->
+    <HoldbackInvoiceSelect
+      v-model="showHoldbackModal"
+      :project-uuid="form.project_uuid"
+      :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
+      :vendor-uuid="form.vendor_uuid"
+      @select="handleHoldbackSelection"
+    />
   </div>
 </template>
 
@@ -986,6 +1017,7 @@ import FilePreview from '@/components/Shared/FilePreview.vue';
 import DirectVendorInvoiceLineItemsTable from '@/components/Payables/DirectVendorInvoiceLineItemsTable.vue';
 import AdvancePaymentCostCodesTable from '@/components/Payables/AdvancePaymentCostCodesTable.vue';
 import AdvancePaymentBreakdownTable from '@/components/Payables/AdvancePaymentBreakdownTable.vue';
+import HoldbackInvoiceSelect from '@/components/Payables/HoldbackInvoiceSelect.vue';
 import FinancialBreakdown from '@/components/PurchaseOrders/FinancialBreakdown.vue';
 import POItemsTableWithEstimates from '@/components/PurchaseOrders/POItemsTableWithEstimates.vue';
 import COItemsTableFromOriginal from '@/components/ChangeOrders/COItemsTableFromOriginal.vue';
@@ -1125,6 +1157,11 @@ const isDirectInvoice = computed(() => {
 // Check if invoice type is "Against Advance Payment"
 const isAgainstAdvancePayment = computed(() => {
   return String(props.form.invoice_type || '').toUpperCase() === 'AGAINST_ADVANCE_PAYMENT';
+});
+
+// Check if invoice type is "Against Holdback Amount"
+const isAgainstHoldback = computed(() => {
+  return String(props.form.invoice_type || '').toUpperCase() === 'AGAINST_HOLDBACK_AMOUNT';
 });
 
 // Determine PO/CO type from po_co_uuid
@@ -1415,6 +1452,9 @@ const dueDatePopoverOpen = ref(false);
 // File preview functionality
 const showFilePreviewModal = ref(false);
 const selectedFileForPreview = ref<any>(null);
+
+// Holdback invoice selection modal
+const showHoldbackModal = ref(false);
 
 // PO items state (for Against PO invoice type)
 const poItems = ref<any[]>([]);
@@ -2753,6 +2793,80 @@ const handleHoldbackChange = (value: string | null) => {
   }
 };
 
+// Handle holdback invoice selection
+const handleHoldbackSelection = async (option: any) => {
+  if (!option || typeof option !== 'object') {
+    return;
+  }
+  
+  const optionValue = option.value; // This should be "PO:uuid" or "CO:uuid"
+  const optionOrder = option.order; // The full PO or CO object
+  
+  if (optionValue && typeof optionValue === 'string') {
+    if (optionValue.startsWith('PO:')) {
+      const extractedUuid = optionValue.replace(/^PO:/, '').trim();
+      if (extractedUuid && extractedUuid.length > 0) {
+        const updatedForm = { ...props.form };
+        updatedForm.purchase_order_uuid = extractedUuid;
+        updatedForm.po_co_uuid = optionValue;
+        updatedForm.change_order_uuid = null;
+        
+        if (optionOrder) {
+          updatedForm.po_number = optionOrder.po_number || '';
+        }
+        updatedForm.co_number = '';
+        
+        // Set holdback percentage from the option
+        if (option.holdbackPercentage && option.holdbackPercentage > 0) {
+          updatedForm.holdback = option.holdbackPercentage;
+        }
+        
+        // Set amount to holdback amount
+        if (option.holdbackAmount && option.holdbackAmount > 0) {
+          updatedForm.amount = option.holdbackAmount;
+        }
+        
+        emit('update:form', updatedForm);
+        
+        // Fetch PO items if needed
+        if (isAgainstHoldback.value) {
+          await fetchPOItems(extractedUuid);
+        }
+      }
+    } else if (optionValue.startsWith('CO:')) {
+      const extractedUuid = optionValue.replace(/^CO:/, '').trim();
+      if (extractedUuid && extractedUuid.length > 0) {
+        const updatedForm = { ...props.form };
+        updatedForm.change_order_uuid = extractedUuid;
+        updatedForm.po_co_uuid = optionValue;
+        updatedForm.purchase_order_uuid = null;
+        
+        if (optionOrder) {
+          updatedForm.co_number = optionOrder.co_number || '';
+        }
+        updatedForm.po_number = '';
+        
+        // Set holdback percentage from the option
+        if (option.holdbackPercentage && option.holdbackPercentage > 0) {
+          updatedForm.holdback = option.holdbackPercentage;
+        }
+        
+        // Set amount to holdback amount
+        if (option.holdbackAmount && option.holdbackAmount > 0) {
+          updatedForm.amount = option.holdbackAmount;
+        }
+        
+        emit('update:form', updatedForm);
+        
+        // Fetch CO items if needed
+        if (isAgainstHoldback.value) {
+          await fetchCOItems(extractedUuid);
+        }
+      }
+    }
+  }
+};
+
 // Handle advance payment cost codes update
 const handleAdvancePaymentCostCodesUpdate = (value: any[]) => {
   handleFormUpdate('advance_payment_cost_codes', value);
@@ -3419,6 +3533,28 @@ watch(
       handleFormUpdate('po_number', '');
       handleFormUpdate('co_number', '');
       handleFormUpdate('advance_payment_cost_codes', []);
+    }
+    
+    // If switching away from "Against Holdback Amount", clear PO/CO selection
+    const wasAgainstHoldback = String(oldInvoiceType || '').toUpperCase() === 'AGAINST_HOLDBACK_AMOUNT';
+    const isNowAgainstHoldback = String(newInvoiceType || '').toUpperCase() === 'AGAINST_HOLDBACK_AMOUNT';
+    
+    if (wasAgainstHoldback && !isNowAgainstHoldback) {
+      handleFormUpdate('po_co_uuid', null);
+      handleFormUpdate('purchase_order_uuid', null);
+      handleFormUpdate('change_order_uuid', null);
+      handleFormUpdate('po_number', '');
+      handleFormUpdate('co_number', '');
+      handleFormUpdate('holdback', null);
+      poItems.value = [];
+      coItems.value = [];
+      poItemsError.value = null;
+      coItemsError.value = null;
+    }
+    
+    // If switching to "Against Holdback Amount", open modal if project and vendor are selected
+    if (!wasAgainstHoldback && isNowAgainstHoldback && props.form.project_uuid && props.form.vendor_uuid) {
+      showHoldbackModal.value = true;
     }
     
     // If switching to "Enter Direct Invoice", initialize line items if empty
