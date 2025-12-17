@@ -1862,23 +1862,52 @@ const fetchPOItems = async (poUuid: string) => {
       }
     }
     
-    // Fetch advance payment summary for this PO
+    // Fetch advance payment invoices for this PO to calculate amount without taxes
     // If viewing an existing invoice, include advance payments adjusted against it
     try {
-      const queryParams = new URLSearchParams({ purchase_order_uuid: poUuid });
+      const queryParams: Record<string, string> = {};
       if (props.form.uuid) {
-        queryParams.append('currentInvoiceUuid', props.form.uuid);
+        queryParams.currentInvoiceUuid = props.form.uuid;
       }
-      const summaryResponse = await $fetch<{ data: any }>(
-        `/api/purchase-orders/invoice-summary?${queryParams.toString()}`
+      const advancePaymentsResponse = await $fetch<{ data: any[] }>(
+        `/api/purchase-orders/${poUuid}/advance-payments`,
+        { query: queryParams }
       );
-      if (summaryResponse?.data) {
-        poAdvancePaid.value = parseFloat(summaryResponse.data.advance_paid || '0') || 0;
-      } else {
-        poAdvancePaid.value = 0;
-      }
+      
+      const advancePayments = Array.isArray(advancePaymentsResponse?.data) ? advancePaymentsResponse.data : [];
+      
+      // Calculate total advance paid without taxes
+      const totalWithoutTaxes = advancePayments.reduce((sum, payment) => {
+        const totalAmount = parseFloat(payment.amount || '0') || 0;
+        
+        // Get tax total from financial_breakdown
+        let taxTotal = 0;
+        if (payment.financial_breakdown) {
+          try {
+            let breakdown = payment.financial_breakdown;
+            if (typeof breakdown === 'string') {
+              breakdown = JSON.parse(breakdown);
+            }
+            const totals = breakdown?.totals || breakdown || {};
+            if (breakdown?.sales_taxes) {
+              const salesTaxes = breakdown.sales_taxes;
+              const tax1 = parseFloat(salesTaxes.sales_tax_1?.amount || salesTaxes.salesTax1?.amount || '0') || 0;
+              const tax2 = parseFloat(salesTaxes.sales_tax_2?.amount || salesTaxes.salesTax2?.amount || '0') || 0;
+              taxTotal = tax1 + tax2;
+            } else {
+              taxTotal = parseFloat(totals.tax_total || totals.taxTotal || '0') || 0;
+            }
+          } catch (e) {
+            // If parsing fails, use 0 for tax
+          }
+        }
+        
+        return sum + (totalAmount - taxTotal);
+      }, 0);
+      
+      poAdvancePaid.value = totalWithoutTaxes;
     } catch (error) {
-      console.warn('[VendorInvoiceForm] Failed to fetch advance payment summary:', error);
+      console.warn('[VendorInvoiceForm] Failed to fetch advance payments:', error);
       poAdvancePaid.value = 0;
     }
     
@@ -2121,24 +2150,53 @@ const fetchCOItems = async (coUuid: string) => {
   coItemsLoading.value = true;
   coItemsError.value = null;
   
-  // Fetch advance payment summary FIRST before fetching CO items
+  // Fetch advance payment invoices for this CO to calculate amount without taxes
   // This ensures coAdvancePaid is set before FinancialBreakdown calculates totals
   // If viewing an existing invoice, include advance payments adjusted against it
   try {
-    const queryParams = new URLSearchParams({ change_order_uuid: coUuid });
+    const queryParams: Record<string, string> = {};
     if (props.form.uuid) {
-      queryParams.append('currentInvoiceUuid', props.form.uuid);
+      queryParams.currentInvoiceUuid = props.form.uuid;
     }
-    const summaryResponse = await $fetch<{ data: any }>(
-      `/api/change-orders/invoice-summary?${queryParams.toString()}`
+    const advancePaymentsResponse = await $fetch<{ data: any[] }>(
+      `/api/change-orders/${coUuid}/advance-payments`,
+      { query: queryParams }
     );
-    if (summaryResponse?.data) {
-      coAdvancePaid.value = parseFloat(summaryResponse.data.advance_paid || '0') || 0;
-    } else {
-      coAdvancePaid.value = 0;
-    }
+    
+    const advancePayments = Array.isArray(advancePaymentsResponse?.data) ? advancePaymentsResponse.data : [];
+    
+    // Calculate total advance paid without taxes
+    const totalWithoutTaxes = advancePayments.reduce((sum, payment) => {
+      const totalAmount = parseFloat(payment.amount || '0') || 0;
+      
+      // Get tax total from financial_breakdown
+      let taxTotal = 0;
+      if (payment.financial_breakdown) {
+        try {
+          let breakdown = payment.financial_breakdown;
+          if (typeof breakdown === 'string') {
+            breakdown = JSON.parse(breakdown);
+          }
+          const totals = breakdown?.totals || breakdown || {};
+          if (breakdown?.sales_taxes) {
+            const salesTaxes = breakdown.sales_taxes;
+            const tax1 = parseFloat(salesTaxes.sales_tax_1?.amount || salesTaxes.salesTax1?.amount || '0') || 0;
+            const tax2 = parseFloat(salesTaxes.sales_tax_2?.amount || salesTaxes.salesTax2?.amount || '0') || 0;
+            taxTotal = tax1 + tax2;
+          } else {
+            taxTotal = parseFloat(totals.tax_total || totals.taxTotal || '0') || 0;
+          }
+        } catch (e) {
+          // If parsing fails, use 0 for tax
+        }
+      }
+      
+      return sum + (totalAmount - taxTotal);
+    }, 0);
+    
+    coAdvancePaid.value = totalWithoutTaxes;
   } catch (error) {
-    console.warn('[VendorInvoiceForm] Failed to fetch CO advance payment summary:', error);
+    console.warn('[VendorInvoiceForm] Failed to fetch CO advance payments:', error);
     coAdvancePaid.value = 0;
   }
   
