@@ -858,7 +858,7 @@ const loadInvoiceForModal = async (invoice: any, viewMode: boolean = false) => {
   loadingEditInvoice.value = true
   
   try {
-    const detailed = await vendorInvoicesStore.fetchVendorInvoice(invoice.uuid)
+    const detailed = await vendorInvoicesStore.fetchVendorInvoice(invoice.uuid) as any
     if (!detailed) {
       return
     }
@@ -867,9 +867,9 @@ const loadInvoiceForModal = async (invoice: any, viewMode: boolean = false) => {
     // This is needed when loading existing invoices with "Against Advance Payment" type
     if (detailed.invoice_type === 'AGAINST_ADVANCE_PAYMENT') {
       if (detailed.purchase_order_uuid) {
-        (detailed as any).po_co_uuid = `PO:${detailed.purchase_order_uuid}`
+        detailed.po_co_uuid = `PO:${detailed.purchase_order_uuid}`
       } else if (detailed.change_order_uuid) {
-        (detailed as any).po_co_uuid = `CO:${detailed.change_order_uuid}`
+        detailed.po_co_uuid = `CO:${detailed.change_order_uuid}`
       }
     }
 
@@ -934,6 +934,9 @@ const loadInvoiceForModal = async (invoice: any, viewMode: boolean = false) => {
         po_number: detailed.po_number || ''
       }
       await nextTick()
+    } else {
+      // Explicitly set to null if not present
+      invoiceForm.value = { ...invoiceForm.value, purchase_order_uuid: null }
     }
     if (detailed.change_order_uuid) {
       invoiceForm.value = { 
@@ -942,11 +945,17 @@ const loadInvoiceForModal = async (invoice: any, viewMode: boolean = false) => {
         co_number: detailed.co_number || ''
       }
       await nextTick()
+    } else {
+      // Explicitly set to null if not present
+      invoiceForm.value = { ...invoiceForm.value, change_order_uuid: null }
     }
     // Set po_co_uuid for advance payment invoices
     if (detailed.po_co_uuid) {
       invoiceForm.value = { ...invoiceForm.value, po_co_uuid: detailed.po_co_uuid }
       await nextTick()
+    } else {
+      // Explicitly set to null if not present (for non-advance-payment invoices)
+      invoiceForm.value = { ...invoiceForm.value, po_co_uuid: null }
     }
 
     // 6. Now set all remaining fields at once (dates, amounts, etc.)
