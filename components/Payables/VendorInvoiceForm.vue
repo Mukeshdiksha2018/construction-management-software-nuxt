@@ -1044,21 +1044,39 @@ const roundCurrencyValue = (value: number): number => {
 }
 
 // Generate next Invoice number with pattern INV-<n>, starting at 1
-function generateInvoiceNumber() {
+async function generateInvoiceNumber() {
   // Do not override if already set (e.g., editing)
   if (props.form.number && String(props.form.number).trim() !== '') return;
   const corporationId = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid || corpStore.selectedCorporationId;
   if (!corporationId) return;
 
-  // Ensure vendor invoices are available in store
-  const existing = (vendorInvoicesStore.vendorInvoices || []).filter((inv: any) => inv.corporation_uuid === corporationId);
-  let maxNum = 0;
-  for (const inv of existing) {
-    const num = parseInt(String(inv.number || '').replace(/^INV-/i, ''), 10);
-    if (!isNaN(num)) maxNum = Math.max(maxNum, num);
+  // Fetch vendor invoices directly from API for the form's corporation
+  // This ensures we get invoices for the form's corporation, not TopBar's
+  try {
+    const response = await $fetch<{ data: any[] }>(`/api/vendor-invoices?corporation_uuid=${corporationId}`);
+    const invoices = Array.isArray(response?.data) ? response.data : [];
+    
+    // Filter invoices for this corporation (in case API returns more)
+    const existing = invoices.filter((inv: any) => inv.corporation_uuid === corporationId);
+    let maxNum = 0;
+    for (const inv of existing) {
+      const num = parseInt(String(inv.number || '').replace(/^INV-/i, ''), 10);
+      if (!isNaN(num)) maxNum = Math.max(maxNum, num);
+    }
+    const next = maxNum + 1;
+    handleFormUpdate('number', `INV-${next}`);
+  } catch (error) {
+    console.error('[VendorInvoiceForm] Error fetching vendor invoices for invoice number generation:', error);
+    // Fallback: use store if API fails (though it may have TopBar's corporation data)
+    const existing = (vendorInvoicesStore.vendorInvoices || []).filter((inv: any) => inv.corporation_uuid === corporationId);
+    let maxNum = 0;
+    for (const inv of existing) {
+      const num = parseInt(String(inv.number || '').replace(/^INV-/i, ''), 10);
+      if (!isNaN(num)) maxNum = Math.max(maxNum, num);
+    }
+    const next = maxNum + 1;
+    handleFormUpdate('number', `INV-${next}`);
   }
-  const next = maxNum + 1;
-  handleFormUpdate('number', `INV-${next}`);
 }
 
 // Date formatter
@@ -1474,12 +1492,15 @@ const handleCorporationChange = async (corporationUuid?: string | null) => {
   // Fetch data for the selected corporation
   // NOTE: We do NOT update corpStore.selectedCorporation here to avoid affecting other components
   // The form operates independently with its own corporation selection
+  // All data fetching is scoped to the form's corporation, not TopBar's corporation
   if (normalizedCorporationUuid) {
     await Promise.allSettled([
       vendorStore.fetchVendors(normalizedCorporationUuid),
       projectsStore.fetchProjectsMetadata(normalizedCorporationUuid),
-      vendorInvoicesStore.fetchVendorInvoices(normalizedCorporationUuid),
-      costCodeConfigurationsStore.fetchConfigurations(normalizedCorporationUuid),
+      // Note: vendorInvoicesStore.fetchVendorInvoices is scoped to TopBar's corporation
+      // We don't fetch it here to avoid polluting the global store
+      // The form will fetch vendor invoices directly from API when needed
+      costCodeConfigurationsStore.fetchConfigurations(normalizedCorporationUuid, false, false),
       // Fetch PO/CO data for the form's corporation so POCOSelect can use it
       // This ensures POCOSelect shows data for the form's corporation, not TopBar's
       purchaseOrdersStore.fetchPurchaseOrders(normalizedCorporationUuid, true), // forceRefresh = true
@@ -1487,6 +1508,7 @@ const handleCorporationChange = async (corporationUuid?: string | null) => {
     ]);
     
     // If project is already selected, ensure project resources are loaded
+    // This uses purchaseOrderResourcesStore which is scoped to the form's corporation
     if (props.form.project_uuid) {
       await purchaseOrderResourcesStore.ensureProjectResources({
         corporationUuid: normalizedCorporationUuid,
@@ -1497,7 +1519,7 @@ const handleCorporationChange = async (corporationUuid?: string | null) => {
   
   // Auto-generate Invoice Number on corporation selection if not set
   if (normalizedCorporationUuid) {
-    generateInvoiceNumber();
+    await generateInvoiceNumber();
   }
   
   // Clear project if corporation changes (project must belong to the selected corporation)
@@ -4095,15 +4117,16 @@ watch(
   () => props.form.corporation_uuid,
   async (newCorpUuid) => {
     if (newCorpUuid) {
-      // Fetch vendor invoices and cost code configurations for the new corporation
+      // Fetch cost code configurations for the new corporation (scoped to form)
+      // Note: We don't fetch vendorInvoicesStore here to avoid polluting the global store
+      // The form operates independently with its own corporation selection
       await Promise.allSettled([
-        vendorInvoicesStore.fetchVendorInvoices(newCorpUuid),
-        costCodeConfigurationsStore.fetchConfigurations(newCorpUuid),
+        costCodeConfigurationsStore.fetchConfigurations(newCorpUuid, false, false),
       ]);
       
       // Regenerate invoice number if creating new invoice and number is empty
       if (!props.form.uuid && (!props.form.number || String(props.form.number).trim() === '')) {
-        generateInvoiceNumber();
+        await generateInvoiceNumber();
       }
     }
   }
@@ -4114,21 +4137,25 @@ onMounted(async () => {
   // Initialize corporation_uuid from form or fallback to selected corporation
   // For new invoices, use the selected corporation from TopBar as default
   // For existing invoices, use the form's corporation_uuid
+  // NOTE: The form's corporation selection is isolated from TopBar's selection
   if (!props.form.corporation_uuid && !props.form.uuid) {
-    // New invoice: initialize with selected corporation from TopBar
+    // New invoice: initialize with selected corporation from TopBar as default
     const selectedCorpUuid = corpStore.selectedCorporation?.uuid;
     if (selectedCorpUuid) {
       handleFormUpdate('corporation_uuid', selectedCorpUuid);
     }
   }
   
+  // Use form's corporation_uuid, fallback to TopBar's only for initial load
   const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
   if (corpUuid) {
     await Promise.allSettled([
       vendorStore.fetchVendors(corpUuid),
       projectsStore.fetchProjectsMetadata(corpUuid),
-      vendorInvoicesStore.fetchVendorInvoices(corpUuid),
-      costCodeConfigurationsStore.fetchConfigurations(corpUuid),
+      // Note: vendorInvoicesStore.fetchVendorInvoices is scoped to TopBar's corporation
+      // We don't fetch it here to avoid polluting the global store
+      // The form will fetch vendor invoices directly from API when needed
+      costCodeConfigurationsStore.fetchConfigurations(corpUuid, false, false),
       // Fetch PO/CO data for the form's corporation so POCOSelect can use it
       // This ensures POCOSelect shows data for the form's corporation, not TopBar's
       purchaseOrdersStore.fetchPurchaseOrders(corpUuid, false), // Don't force refresh on mount
@@ -4136,6 +4163,7 @@ onMounted(async () => {
     ]);
     
     // If project is already selected, ensure project resources are loaded
+    // This uses purchaseOrderResourcesStore which is scoped to the form's corporation
     // This ensures POItemsTableWithEstimates has cost codes, item types, and preferred items
     if (props.form.project_uuid) {
       await purchaseOrderResourcesStore.ensureProjectResources({
@@ -4175,7 +4203,7 @@ onMounted(async () => {
   
   // If creating and number empty, generate initial number (after amount is set)
   if (!props.form.uuid && (!props.form.number || String(props.form.number).trim() === '')) {
-    generateInvoiceNumber();
+    await generateInvoiceNumber();
   }
   
   // If loading an existing invoice with Against PO type and PO selected, fetch PO items
