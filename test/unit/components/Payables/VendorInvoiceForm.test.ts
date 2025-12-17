@@ -392,12 +392,28 @@ describe("VendorInvoiceForm.vue", () => {
     });
 
     it("auto-generates invoice number when creating new invoice", async () => {
-      // Set up mock vendor invoices store with existing invoices
+      // Set up mock vendor invoices store with existing invoices (for fallback)
       mockVendorInvoicesStore.vendorInvoices = [
         { uuid: "inv-1", corporation_uuid: "corp-1", number: "INV-1" },
         { uuid: "inv-2", corporation_uuid: "corp-1", number: "INV-2" },
         { uuid: "inv-3", corporation_uuid: "corp-1", number: "INV-5" }, // Gap in sequence
       ];
+
+      // Mock $fetch to return invoices from API (primary method used by generateInvoiceNumber)
+      const mockInvoices = [
+        { uuid: "inv-1", corporation_uuid: "corp-1", number: "INV-1" },
+        { uuid: "inv-2", corporation_uuid: "corp-1", number: "INV-2" },
+        { uuid: "inv-3", corporation_uuid: "corp-1", number: "INV-5" }, // Gap in sequence
+      ];
+      
+      const mockFetch = vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/api/vendor-invoices?corporation_uuid=corp-1')) {
+          return Promise.resolve({ data: mockInvoices });
+        }
+        return Promise.resolve({ data: [] });
+      });
+      
+      vi.stubGlobal("$fetch", mockFetch);
 
       const formWithoutNumber = { ...baseForm };
       delete (formWithoutNumber as any).uuid; // Ensure no UUID (new invoice)
@@ -475,7 +491,18 @@ describe("VendorInvoiceForm.vue", () => {
     });
 
     it("generates INV-1 when no existing invoices", async () => {
+      // Clear vendor invoices store (for fallback)
       mockVendorInvoicesStore.vendorInvoices = [];
+
+      // Mock $fetch to return empty invoices array from API (primary method)
+      const mockFetch = vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/api/vendor-invoices?corporation_uuid=corp-1')) {
+          return Promise.resolve({ data: [] });
+        }
+        return Promise.resolve({ data: [] });
+      });
+      
+      vi.stubGlobal("$fetch", mockFetch);
 
       const formWithoutNumber = { ...baseForm };
       delete (formWithoutNumber as any).uuid; // Ensure no UUID (new invoice)
