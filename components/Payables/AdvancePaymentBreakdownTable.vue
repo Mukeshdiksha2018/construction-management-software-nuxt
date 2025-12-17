@@ -102,9 +102,6 @@
               <div class="text-sm font-semibold text-red-600 dark:text-red-400">
                 {{ formatCurrency(-getAmountWithoutTaxes(payment)) }}
               </div>
-              <div v-if="taxChargesSummaries.get(payment.uuid)" class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                {{ taxChargesSummaries.get(payment.uuid) }}
-              </div>
             </td>
           </tr>
         </tbody>
@@ -147,9 +144,6 @@ const advancePayments = ref<any[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
 
-// Cache for tax/charges summaries to avoid recalculating
-const taxChargesSummaries = ref<Map<string, string | null>>(new Map())
-
 // Fetch advance payment invoices for the purchase order or change order
 const fetchAdvancePayments = async () => {
   if (!props.purchaseOrderUuid && !props.changeOrderUuid) {
@@ -184,15 +178,6 @@ const fetchAdvancePayments = async () => {
 
     const payments = Array.isArray(response?.data) ? response.data : []
     advancePayments.value = payments
-    
-    // Calculate and cache summaries for each payment
-    taxChargesSummaries.value.clear()
-    payments.forEach((payment: any) => {
-      const summary = getTaxChargesSummary(payment)
-      if (payment.uuid) {
-        taxChargesSummaries.value.set(payment.uuid, summary)
-      }
-    })
   } catch (err: any) {
     console.error('Error fetching advance payments:', err)
     error.value = err.message || 'Failed to load advance payments'
@@ -255,71 +240,6 @@ const totalAdvancePaidWithoutTaxes = computed(() => {
 // Get status color for badge based on is_active
 const getStatusColor = (isActive: boolean | undefined): "error" | "warning" | "info" | "success" | "primary" | "secondary" | "neutral" => {
   return isActive ? 'success' : 'neutral'
-}
-
-// Get short summary of tax and charges breakdown
-const getTaxChargesSummary = (payment: any): string | null => {
-  if (!payment.financial_breakdown) {
-    return null
-  }
-
-  try {
-    let breakdown = payment.financial_breakdown
-    
-    // Parse if it's a string
-    if (typeof breakdown === 'string') {
-      try {
-        breakdown = JSON.parse(breakdown)
-      } catch (parseError) {
-        console.error('Error parsing financial_breakdown string:', parseError)
-        return null
-      }
-    }
-
-    // Handle both nested structure and flattened structure
-    const totals = breakdown?.totals || breakdown || {}
-    
-    // Calculate total tax from sales taxes if available
-    let calculatedTaxTotal = 0
-    if (breakdown?.sales_taxes) {
-      const salesTaxes = breakdown.sales_taxes
-      const tax1 = parseFloat(salesTaxes.sales_tax_1?.amount || salesTaxes.salesTax1?.amount || '0') || 0
-      const tax2 = parseFloat(salesTaxes.sales_tax_2?.amount || salesTaxes.salesTax2?.amount || '0') || 0
-      calculatedTaxTotal = tax1 + tax2
-    } else {
-      // Fallback to totals.tax_total
-      calculatedTaxTotal = parseFloat(totals.tax_total || totals.taxTotal || '0') || 0
-    }
-    
-    // Calculate total charges if available
-    let calculatedChargesTotal = 0
-    if (breakdown?.charges) {
-      const charges = breakdown.charges
-      const freight = parseFloat(charges.freight?.amount || '0') || 0
-      const packing = parseFloat(charges.packing?.amount || '0') || 0
-      const custom = parseFloat(charges.custom_duties?.amount || charges.custom?.amount || '0') || 0
-      const other = parseFloat(charges.other?.amount || '0') || 0
-      calculatedChargesTotal = freight + packing + custom + other
-    } else {
-      // Fallback to totals.charges_total
-      calculatedChargesTotal = parseFloat(totals.charges_total || totals.chargesTotal || '0') || 0
-    }
-
-    const parts: string[] = []
-    
-    if (calculatedTaxTotal > 0) {
-      parts.push(`Includes tax of ${formatCurrency(calculatedTaxTotal)}`)
-    }
-    
-    if (calculatedChargesTotal > 0) {
-      parts.push(`Charges: ${formatCurrency(calculatedChargesTotal)}`)
-    }
-
-    return parts.length > 0 ? parts.join(', ') : null
-  } catch (error) {
-    console.error('Error parsing financial breakdown:', error)
-    return null
-  }
 }
 
 // Watch for purchase order changes
