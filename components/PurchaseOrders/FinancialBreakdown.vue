@@ -403,6 +403,12 @@ const recalculateAndEmit = () => {
     const states = chargeStates.value
     const taxStates = salesTaxStates.value
 
+    // Get holdback amount from prop or formData
+    const holdbackAmount = props.holdbackDeduction || 
+                          parseNumericInput(props.formData.holdback_amount) || 
+                          parseNumericInput(props.formData.holdback) || 
+                          0
+
     // If allowEditTotal is true, preserve manually edited total, otherwise use calculated total
     // For Against PO/CO invoices, use total_invoice_amount (partial payment amount) from DB
     let totalValue = finalTotal.value
@@ -494,6 +500,7 @@ const recalculateAndEmit = () => {
         item_total: roundCurrencyValue(props.itemTotal),
         charges_total: props.hideCharges ? 0 : chargesTotal.value,
         tax_total: taxTotal.value,
+        holdback_amount: roundCurrencyValue(holdbackAmount),
         [props.totalFieldName]: roundCurrencyValue(totalValue),
       },
     }

@@ -91,9 +91,95 @@ const showModal = computed({
 const searchFilter = ref('')
 const vendorInvoices = ref<any[]>([])
 const loading = ref(false)
+const invoiceOptionsWithHoldback = ref<any[]>([])
 
-// Helper function to calculate holdback amount from invoice
-const calculateHoldbackAmount = (invoice: any): number => {
+// Helper function to get holdback amount from related PO/CO financial_breakdown
+// Priority: PO/CO financial_breakdown.totals.holdback_amount > invoice financial_breakdown > calculated from percentage
+const calculateHoldbackAmount = async (invoice: any): Promise<number> => {
+  // First, try to get holdback_amount from related Purchase Order or Change Order's financial_breakdown
+  if (invoice.invoice_type === 'AGAINST_PO' && invoice.purchase_order_uuid) {
+    try {
+      const poResponse = await $fetch<{ data: any }>(`/api/purchase-order-forms/${invoice.purchase_order_uuid}`)
+      const po = poResponse?.data
+      if (po?.financial_breakdown) {
+        let poFinancialBreakdown = po.financial_breakdown
+        if (typeof poFinancialBreakdown === 'string') {
+          try {
+            poFinancialBreakdown = JSON.parse(poFinancialBreakdown)
+          } catch (e) {
+            // Failed to parse, continue with fallback
+          }
+        }
+        
+        if (poFinancialBreakdown && typeof poFinancialBreakdown === 'object' && poFinancialBreakdown.totals) {
+          const holdbackFromPO = poFinancialBreakdown.totals.holdback_amount
+          if (holdbackFromPO !== null && holdbackFromPO !== undefined && holdbackFromPO !== '') {
+            const parsed = typeof holdbackFromPO === 'number' 
+              ? holdbackFromPO 
+              : (parseFloat(String(holdbackFromPO)) || 0)
+            if (parsed >= 0) {
+              return parsed
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[HoldbackInvoiceSelect] Error fetching PO financial_breakdown:', error)
+    }
+  } else if (invoice.invoice_type === 'AGAINST_CO' && invoice.change_order_uuid) {
+    try {
+      const coResponse = await $fetch<{ data: any }>(`/api/change-orders/${invoice.change_order_uuid}`)
+      const co = coResponse?.data
+      if (co?.financial_breakdown) {
+        let coFinancialBreakdown = co.financial_breakdown
+        if (typeof coFinancialBreakdown === 'string') {
+          try {
+            coFinancialBreakdown = JSON.parse(coFinancialBreakdown)
+          } catch (e) {
+            // Failed to parse, continue with fallback
+          }
+        }
+        
+        if (coFinancialBreakdown && typeof coFinancialBreakdown === 'object' && coFinancialBreakdown.totals) {
+          const holdbackFromCO = coFinancialBreakdown.totals.holdback_amount
+          if (holdbackFromCO !== null && holdbackFromCO !== undefined && holdbackFromCO !== '') {
+            const parsed = typeof holdbackFromCO === 'number' 
+              ? holdbackFromCO 
+              : (parseFloat(String(holdbackFromCO)) || 0)
+            if (parsed >= 0) {
+              return parsed
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[HoldbackInvoiceSelect] Error fetching CO financial_breakdown:', error)
+    }
+  }
+  
+  // Fallback: try invoice's own financial_breakdown
+  let financialBreakdown = invoice.financial_breakdown
+  if (typeof financialBreakdown === 'string') {
+    try {
+      financialBreakdown = JSON.parse(financialBreakdown)
+    } catch (e) {
+      // Failed to parse, continue with fallback
+    }
+  }
+  
+  if (financialBreakdown && typeof financialBreakdown === 'object' && financialBreakdown.totals) {
+    const holdbackFromBreakdown = financialBreakdown.totals.holdback_amount
+    if (holdbackFromBreakdown !== null && holdbackFromBreakdown !== undefined && holdbackFromBreakdown !== '') {
+      const parsed = typeof holdbackFromBreakdown === 'number' 
+        ? holdbackFromBreakdown 
+        : (parseFloat(String(holdbackFromBreakdown)) || 0)
+      if (parsed >= 0) {
+        return parsed
+      }
+    }
+  }
+  
+  // Final fallback: calculate from invoice amount and holdback percentage
   const invoiceAmount = typeof invoice.amount === 'number' ? invoice.amount : (parseFloat(String(invoice.amount || '0')) || 0)
   const holdbackPercentage = typeof invoice.holdback === 'number' ? invoice.holdback : (parseFloat(String(invoice.holdback || '0')) || 0)
   if (holdbackPercentage > 0 && invoiceAmount > 0) {
@@ -102,30 +188,11 @@ const calculateHoldbackAmount = (invoice: any): number => {
   return 0
 }
 
-// Fetch vendor invoices directly from API (scoped to form's corporation)
-const fetchVendorInvoices = async (corporationUuid: string) => {
-  if (!corporationUuid) {
-    vendorInvoices.value = []
-    return
-  }
-  
-  loading.value = true
-  try {
-    const response = await $fetch<{ data: any[] }>(`/api/vendor-invoices?corporation_uuid=${corporationUuid}`)
-    const invoices = Array.isArray(response?.data) ? response.data : []
-    vendorInvoices.value = invoices
-  } catch (error) {
-    console.error('[HoldbackInvoiceSelect] Error fetching vendor invoices:', error)
-    vendorInvoices.value = []
-  } finally {
-    loading.value = false
-  }
-}
-
-// Vendor invoices options computed property
-const invoiceOptions = computed(() => {
+// Process invoices and fetch holdback amounts from PO/CO financial_breakdown
+const processInvoiceOptions = async () => {
   if (!props.projectUuid || !props.corporationUuid || !props.vendorUuid) {
-    return [];
+    invoiceOptionsWithHoldback.value = []
+    return
   }
   
   // Filter vendor invoices: AGAINST_PO or AGAINST_CO, matching corporation, project, and vendor
@@ -139,11 +206,12 @@ const invoiceOptions = computed(() => {
     return matchesCorporation && matchesProject && matchesVendor && isAgainstPOOrCO && isActive
   })
   
-  return filteredInvoices.map(invoice => {
+  // Process invoices and fetch holdback amounts
+  const processed = await Promise.all(filteredInvoices.map(async (invoice) => {
     const invoiceNumber = invoice.number || 'Unnamed Invoice'
     const invoiceAmount = typeof invoice.amount === 'number' ? invoice.amount : (parseFloat(String(invoice.amount || '0')) || 0)
     const holdbackPercentage = typeof invoice.holdback === 'number' ? invoice.holdback : (parseFloat(String(invoice.holdback || '0')) || 0)
-    const holdbackAmount = calculateHoldbackAmount(invoice)
+    const holdbackAmount = await calculateHoldbackAmount(invoice)
     
     // Get PO/CO number based on invoice type
     const poCoNumber = invoice.invoice_type === 'AGAINST_PO' 
@@ -171,12 +239,43 @@ const invoiceOptions = computed(() => {
       type_color: invoice.invoice_type === 'AGAINST_PO' ? 'primary' : 'secondary',
       searchText: `${invoiceNumber} ${poCoNumber} ${invoice.uuid || ''}`.toLowerCase()
     }
-  }).sort((a, b) => {
-    // Sort by invoice number
+  }))
+  
+  // Sort by invoice number
+  invoiceOptionsWithHoldback.value = processed.sort((a, b) => {
     const aNum = a.invoiceNumber || ''
     const bNum = b.invoiceNumber || ''
     return aNum.localeCompare(bNum)
   })
+}
+
+// Fetch vendor invoices directly from API (scoped to form's corporation)
+const fetchVendorInvoices = async (corporationUuid: string) => {
+  if (!corporationUuid) {
+    vendorInvoices.value = []
+    invoiceOptionsWithHoldback.value = []
+    return
+  }
+  
+  loading.value = true
+  try {
+    const response = await $fetch<{ data: any[] }>(`/api/vendor-invoices?corporation_uuid=${corporationUuid}`)
+    const invoices = Array.isArray(response?.data) ? response.data : []
+    vendorInvoices.value = invoices
+    // Process invoices to fetch holdback amounts from PO/CO financial_breakdown
+    await processInvoiceOptions()
+  } catch (error) {
+    console.error('[HoldbackInvoiceSelect] Error fetching vendor invoices:', error)
+    vendorInvoices.value = []
+    invoiceOptionsWithHoldback.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+// Vendor invoices options computed property
+const invoiceOptions = computed(() => {
+  return invoiceOptionsWithHoldback.value
 })
 
 // Filtered options based on search
