@@ -433,6 +433,7 @@ import { usePurchaseOrderResourcesStore } from "@/stores/purchaseOrderResources"
 import { useChangeOrdersStore } from "@/stores/changeOrders";
 import { useProjectsStore } from "@/stores/projects";
 import { useVendorStore } from "@/stores/vendors";
+import { useUserProfilesStore } from "@/stores/userProfiles";
 import { usePermissions } from "@/composables/usePermissions";
 import { useDateFormat } from "@/composables/useDateFormat";
 import { useCurrencyFormat } from "@/composables/useCurrencyFormat";
@@ -443,6 +444,7 @@ import type { TableColumn } from "@nuxt/ui";
 const UButton = resolveComponent("UButton");
 const UTooltip = resolveComponent("UTooltip");
 const UBadge = resolveComponent("UBadge");
+const UAvatar = resolveComponent("UAvatar");
 
 const corporationStore = useCorporationStore();
 
@@ -463,6 +465,7 @@ const purchaseOrderResourcesStore = usePurchaseOrderResourcesStore();
 const changeOrdersStore = useChangeOrdersStore();
 const projectsStore = useProjectsStore();
 const vendorStore = useVendorStore();
+const userProfilesStore = useUserProfilesStore();
 const { hasPermission, isReady } = usePermissions();
 const { formatDate } = useDateFormat();
 const { formatCurrency, formatCurrencyAbbreviated } = useCurrencyFormat();
@@ -687,6 +690,23 @@ const vendorLookup = computed(() => {
   return map;
 });
 
+const userLookup = computed(() => {
+  const map = new Map<string, { name: string; imageUrl?: string }>();
+  const list = userProfilesStore.users ?? [];
+  list.forEach((user: any) => {
+    if (user?.id) {
+      const firstName = user.firstName || "";
+      const lastName = user.lastName || "";
+      const fullName = `${firstName} ${lastName}`.trim() || user.email?.split("@")[0] || "Unknown User";
+      map.set(user.id, {
+        name: fullName,
+        imageUrl: user.imageUrl || undefined,
+      });
+    }
+  });
+  return map;
+});
+
 const allStats = computed(() => ({
   count: receiptNotes.value.length,
   totalValue: receiptNotes.value.reduce(
@@ -825,8 +845,42 @@ const columns: TableColumn<any>[] = [
     header: "Received by",
     enableSorting: false,
     meta: { class: { th: 'text-left', td: 'text-left' } },
-    cell: ({ row }) =>
-      h("div", row.original.received_by || "N/A"),
+    cell: ({ row }) => {
+      const userId = row.original.received_by;
+      if (!userId) {
+        return h("div", { class: "text-muted" }, "N/A");
+      }
+      
+      const user = userLookup.value.get(userId);
+      if (!user) {
+        return h("div", { class: "text-muted" }, "Unknown");
+      }
+      
+      return h("div", { class: "flex items-center gap-2" }, [
+        h("div", { class: "w-6 h-6 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center overflow-hidden" },
+          user.imageUrl && user.imageUrl.trim() !== ""
+            ? h(UAvatar, {
+                src: user.imageUrl,
+                alt: user.name,
+                size: "xs"
+              })
+            : h("svg", {
+                class: "w-3 h-3 text-primary-600 dark:text-primary-400",
+                fill: "none",
+                viewBox: "0 0 24 24",
+                stroke: "currentColor"
+              }, [
+                h("path", {
+                  "stroke-linecap": "round",
+                  "stroke-linejoin": "round",
+                  "stroke-width": "2",
+                  d: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                })
+              ])
+        ),
+        h("div", { class: "text-sm text-default" }, user.name)
+      ]);
+    },
   },
   {
     accessorKey: "total_received_amount",
@@ -977,6 +1031,7 @@ const ensureSupportingData = async (corporationUuid: string) => {
     changeOrdersStore.fetchChangeOrders(corporationUuid),
     projectsStore.fetchProjectsMetadata(corporationUuid).catch(() => {}),
     vendorStore.fetchVendors(corporationUuid).catch(() => {}),
+    userProfilesStore.fetchUsers(false).catch(() => {}),
   ]);
 };
 
@@ -1915,10 +1970,11 @@ const resetTablePage = () => {
 };
 
 // Receipt notes are automatically fetched by TopBar.vue when corporation changes
-// Fetch vendors when corporation changes to ensure they're available for the table
+// Fetch vendors and users when corporation changes to ensure they're available for the table
 watch(selectedCorporationId, (newCorpUuid) => {
   if (newCorpUuid) {
     vendorStore.fetchVendors(newCorpUuid).catch(() => {});
+    userProfilesStore.fetchUsers(false).catch(() => {});
   }
 }, { immediate: true });
 
