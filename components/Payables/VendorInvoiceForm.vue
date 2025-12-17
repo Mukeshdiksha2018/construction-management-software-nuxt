@@ -2817,25 +2817,32 @@ const updateFinancialBreakdownForAdvancePayment = (amount: number, skipGuard = f
   const currentTaxTotal = updatedForm.financial_breakdown.totals.tax_total || 0;
   const currentTotal = updatedForm.financial_breakdown.totals.total_invoice_amount || 0;
   
+  // For advance payment invoices, charges and taxes are always 0
+  // Ensure charges_total and tax_total are set to 0 (not null)
+  updatedForm.financial_breakdown.totals.charges_total = 0;
+  updatedForm.financial_breakdown.totals.tax_total = 0;
+  
   // Only update if item_total changed - this will trigger FinancialBreakdown to recalculate
   if (Math.abs(amount - currentItemTotal) > 0.01) {
     // Update item_total to match the advance payment total
-    // The FinancialBreakdown component will recalculate tax_total and total_invoice_amount
     updatedForm.financial_breakdown.totals.item_total = amount || 0;
     
-    // For advance payment invoices, charges are always 0 (hideCharges=true)
-    updatedForm.financial_breakdown.totals.charges_total = 0;
-    
-    // Preserve existing tax_total temporarily - FinancialBreakdown will recalculate it
-    // based on sales tax percentages and the new item_total
-    // We keep the existing value so the component can use it as a starting point
-    // The component will recalculate when it detects the item_total change
-    
     // Calculate total_invoice_amount = item_total + tax_total
-    // FinancialBreakdown will update this when it recalculates, but we'll set a reasonable initial value
-    updatedForm.financial_breakdown.totals.total_invoice_amount = amount + currentTaxTotal;
+    // For advance payments, this equals item_total since tax_total is 0
+    updatedForm.financial_breakdown.totals.total_invoice_amount = amount;
     
     emit('update:form', updatedForm);
+  } else {
+    // Even if item_total hasn't changed, ensure totals are correct
+    // Update total_invoice_amount to match item_total (since tax_total is 0)
+    const currentItemTotalValue = updatedForm.financial_breakdown.totals.item_total || 0;
+    if (Math.abs(updatedForm.financial_breakdown.totals.total_invoice_amount - currentItemTotalValue) > 0.01) {
+      updatedForm.financial_breakdown.totals.total_invoice_amount = currentItemTotalValue;
+      emit('update:form', updatedForm);
+    } else if (updatedForm.financial_breakdown.totals.tax_total === null || updatedForm.financial_breakdown.totals.charges_total === null) {
+      // Ensure null values are set to 0
+      emit('update:form', updatedForm);
+    }
   }
 };
 
@@ -3620,9 +3627,26 @@ const isInitialLoad = ref(true);
 // Reset initial load flag when switching between invoices
 watch(
   () => props.form.uuid,
-  () => {
-    isInitialLoad.value = true;
-  }
+  (newUuid, oldUuid) => {
+    // Reset initial load flag when UUID changes (including when reopening after closing)
+    // This ensures proper initialization when reopening the same or different invoice
+    // Also reset when UUID becomes undefined (form is closed/reset)
+    if (newUuid !== oldUuid) {
+      // Always reset initial load flag when UUID changes
+      isInitialLoad.value = true;
+      // Reset the updating flag when form is closed/reset
+      if (!newUuid) {
+        isUpdatingAdvancePaymentAmount.value = false;
+      } else {
+        // When opening a new invoice, ensure updating flag is reset
+        // Use nextTick to ensure this happens after other watchers
+        nextTick(() => {
+          isUpdatingAdvancePaymentAmount.value = false;
+        });
+      }
+    }
+  },
+  { immediate: false }
 );
 
 watch(
@@ -3638,25 +3662,49 @@ watch(
       return;
     }
     
+    // Skip if form is being closed/reset (no UUID and no cost codes)
+    if (!props.form.uuid && (!newCostCodes || !Array.isArray(newCostCodes) || newCostCodes.length === 0)) {
+      return;
+    }
+    
     // For existing invoices, we still need to update the financial breakdown
     // to ensure item_total and total_invoice_amount match the current advance payment total
-    // But we'll preserve taxes if they exist
     const isExistingInvoice = props.form.uuid && props.editingInvoice;
     
-    // Mark initial load as complete after first run
-    if (isInitialLoad.value) {
-      isInitialLoad.value = false;
-    }
+    // Check if cost codes just became available (were empty/undefined, now have data)
+    // This handles the case when reopening an invoice and cost codes are loaded asynchronously
+    const wasEmpty = !oldCostCodes || !Array.isArray(oldCostCodes) || oldCostCodes.length === 0;
+    const isNowAvailable = Array.isArray(newCostCodes) && newCostCodes.length > 0;
+    const costCodesBecameAvailable = wasEmpty && isNowAvailable;
+    
+    // Check if this is initial load BEFORE setting it to false
+    const isInitialLoadOfExisting = isInitialLoad.value && isExistingInvoice;
     
     const newTotal = advancePaymentTotal.value;
     const currentAmount = props.form.amount || 0;
     
     // For existing invoices on initial load, always update to ensure financial breakdown is correct
     // For subsequent changes, only update if the total actually changed
-    const isInitialLoadOfExisting = isInitialLoad.value && isExistingInvoice;
-    const shouldUpdate = isInitialLoadOfExisting || Math.abs(newTotal - currentAmount) > 0.01;
+    // Also update if financial breakdown is missing or incomplete
+    // Also update if cost codes just became available (reopening case)
+    const hasFinancialBreakdown = props.form.financial_breakdown && 
+      typeof props.form.financial_breakdown === 'object' &&
+      props.form.financial_breakdown.totals &&
+      props.form.financial_breakdown.totals.item_total !== null &&
+      props.form.financial_breakdown.totals.item_total !== undefined &&
+      props.form.financial_breakdown.totals.tax_total !== null &&
+      props.form.financial_breakdown.totals.tax_total !== undefined;
     
-    if (shouldUpdate) {
+    const currentItemTotal = props.form.financial_breakdown?.totals?.item_total || 0;
+    const totalsMatch = Math.abs(currentItemTotal - newTotal) < 0.01;
+    
+    const shouldUpdate = isInitialLoadOfExisting || 
+      costCodesBecameAvailable ||
+      !hasFinancialBreakdown ||
+      !totalsMatch ||
+      Math.abs(newTotal - currentAmount) > 0.01;
+    
+    if (shouldUpdate && newTotal > 0) {
       isUpdatingAdvancePaymentAmount.value = true;
       try {
         handleFormUpdate('amount', newTotal);
@@ -3667,14 +3715,136 @@ watch(
           // FinancialBreakdown component should now recalculate with the updated item_total
         });
       } finally {
+        // Mark initial load as complete AFTER update (but only if we have cost codes)
+        if (isInitialLoad.value && isNowAvailable) {
+          isInitialLoad.value = false;
+        }
         // Reset flag after a short delay to allow the update to complete
         nextTick(() => {
           isUpdatingAdvancePaymentAmount.value = false;
         });
       }
+    } else if (isInitialLoad.value && isNowAvailable && hasFinancialBreakdown && totalsMatch) {
+      // Even if we don't update, mark initial load as complete if everything is already correct
+      isInitialLoad.value = false;
     }
   },
   { immediate: true, deep: true } // Immediate and deep watch to catch initial values and nested property changes
+);
+
+// Watch for form UUID and invoice type changes to ensure financial breakdown is initialized
+// This handles the case when reopening an existing advance payment invoice
+watch(
+  [() => props.form.uuid, () => props.form.invoice_type, () => props.editingInvoice],
+  ([newUuid, newInvoiceType, newEditingInvoice], [oldUuid, oldInvoiceType, oldEditingInvoice]) => {
+    // Skip if form is being closed/reset (UUID becomes undefined)
+    if (!newUuid) {
+      return;
+    }
+    
+    // Only handle advance payment invoices
+    if (String(newInvoiceType || '').toUpperCase() !== 'AGAINST_ADVANCE_PAYMENT') {
+      return;
+    }
+    
+    // Only handle existing invoices that are being edited
+    const isExistingInvoice = newUuid && newEditingInvoice;
+    if (!isExistingInvoice) {
+      return;
+    }
+    
+    // Check if UUID changed (reopening an invoice) or invoice type changed to advance payment
+    // UUID changed when: going from undefined/null to a UUID (opening), or from one UUID to another (switching)
+    const uuidChanged = newUuid !== oldUuid && newUuid;
+    const invoiceTypeChanged = newInvoiceType !== oldInvoiceType && 
+      String(newInvoiceType || '').toUpperCase() === 'AGAINST_ADVANCE_PAYMENT';
+    
+    if (uuidChanged || invoiceTypeChanged) {
+      // Reset initial load flag when UUID changes (this should already be set by UUID watcher, but ensure it)
+      isInitialLoad.value = true;
+      
+      // Wait for data to be loaded - use multiple ticks to ensure advance_payment_cost_codes are available
+      nextTick(() => {
+        nextTick(() => {
+          // Check if advance payment cost codes are available
+          const costCodes = Array.isArray(props.form.advance_payment_cost_codes) 
+            ? props.form.advance_payment_cost_codes 
+            : [];
+          
+          if (costCodes.length > 0) {
+            const advanceTotal = advancePaymentTotal.value;
+            
+            // Check if financial breakdown needs initialization
+            const hasFinancialBreakdown = props.form.financial_breakdown && 
+              typeof props.form.financial_breakdown === 'object' &&
+              props.form.financial_breakdown.totals &&
+              props.form.financial_breakdown.totals.item_total !== null &&
+              props.form.financial_breakdown.totals.item_total !== undefined &&
+              props.form.financial_breakdown.totals.tax_total !== null &&
+              props.form.financial_breakdown.totals.tax_total !== undefined;
+            
+            const currentItemTotal = props.form.financial_breakdown?.totals?.item_total || 0;
+            
+            // Initialize if financial breakdown is missing, incomplete, or if totals don't match
+            if (!hasFinancialBreakdown || Math.abs(currentItemTotal - advanceTotal) > 0.01) {
+              if (advanceTotal > 0 && !isUpdatingAdvancePaymentAmount.value) {
+                isUpdatingAdvancePaymentAmount.value = true;
+                try {
+                  handleFormUpdate('amount', advanceTotal);
+                  updateFinancialBreakdownForAdvancePayment(advanceTotal, true);
+                } finally {
+                  nextTick(() => {
+                    isUpdatingAdvancePaymentAmount.value = false;
+                  });
+                }
+              }
+            }
+          }
+        });
+      });
+    }
+  },
+  { immediate: false } // Don't run immediately - let the advance_payment_cost_codes watcher handle initial load
+);
+
+// Watch for when advance_payment_cost_codes becomes available (for existing invoices)
+// This handles the case when reopening an invoice and the cost codes are loaded asynchronously
+watch(
+  () => props.form.advance_payment_cost_codes,
+  (newCostCodes, oldCostCodes) => {
+    // Only handle advance payment invoices
+    if (!isAgainstAdvancePayment.value) {
+      return;
+    }
+    
+    // Only handle existing invoices
+    const isExistingInvoice = props.form.uuid && props.editingInvoice;
+    if (!isExistingInvoice) {
+      return;
+    }
+    
+    // Check if cost codes just became available (were empty/undefined, now have data)
+    const wasEmpty = !oldCostCodes || !Array.isArray(oldCostCodes) || oldCostCodes.length === 0;
+    const isNowAvailable = Array.isArray(newCostCodes) && newCostCodes.length > 0;
+    
+    if (wasEmpty && isNowAvailable && isInitialLoad.value) {
+      // Cost codes just became available - ensure financial breakdown is initialized
+      const advanceTotal = advancePaymentTotal.value;
+      if (advanceTotal > 0 && !isUpdatingAdvancePaymentAmount.value) {
+        isUpdatingAdvancePaymentAmount.value = true;
+        try {
+          handleFormUpdate('amount', advanceTotal);
+          updateFinancialBreakdownForAdvancePayment(advanceTotal, true);
+        } finally {
+          nextTick(() => {
+            isUpdatingAdvancePaymentAmount.value = false;
+            isInitialLoad.value = false;
+          });
+        }
+      }
+    }
+  },
+  { immediate: false, deep: true }
 );
 
 // Calculate holdback amount from percentage for PO invoices
@@ -4226,17 +4396,26 @@ onMounted(async () => {
   // Skip this for existing invoices with populated financial_breakdown to preserve existing data
   if (isAgainstAdvancePayment.value) {
     const isExistingInvoice = props.form.uuid && props.editingInvoice;
-    // Check if financial_breakdown exists and has a structure (even if charges/taxes are 0)
-    // This ensures we preserve the breakdown structure for existing invoices
+    const total = advancePaymentTotal.value;
+    
+    // Check if financial_breakdown exists and has correct values
     const hasExistingFinancialBreakdown = props.form.financial_breakdown && 
       typeof props.form.financial_breakdown === 'object' &&
       props.form.financial_breakdown.totals &&
-      props.form.financial_breakdown.totals.total_invoice_amount !== null &&
-      props.form.financial_breakdown.totals.total_invoice_amount !== undefined;
+      props.form.financial_breakdown.totals.item_total !== null &&
+      props.form.financial_breakdown.totals.item_total !== undefined &&
+      props.form.financial_breakdown.totals.tax_total !== null &&
+      props.form.financial_breakdown.totals.tax_total !== undefined;
     
-    // Only update on mount for new invoices or existing invoices without financial breakdown
-    if (!isExistingInvoice || !hasExistingFinancialBreakdown) {
-      const total = advancePaymentTotal.value;
+    // Check if totals match
+    const currentItemTotal = props.form.financial_breakdown?.totals?.item_total || 0;
+    const totalsMatch = Math.abs(currentItemTotal - total) < 0.01;
+    
+    // Update on mount if:
+    // 1. New invoice (always initialize)
+    // 2. Existing invoice without financial breakdown
+    // 3. Existing invoice where totals don't match
+    if (!isExistingInvoice || !hasExistingFinancialBreakdown || !totalsMatch) {
       // Always update on mount if there's a total, regardless of current amount
       // The watcher will handle subsequent changes
       if (total > 0) {
@@ -4244,6 +4423,19 @@ onMounted(async () => {
         try {
           handleFormUpdate('amount', total);
           updateFinancialBreakdownForAdvancePayment(total, true); // Pass skipGuard=true since we already have guard
+        } finally {
+          nextTick(() => {
+            isUpdatingAdvancePaymentAmount.value = false;
+          });
+        }
+      }
+    } else if (isExistingInvoice && hasExistingFinancialBreakdown) {
+      // Even if totals match, ensure tax_total is 0 (not null) for advance payments
+      const taxTotal = props.form.financial_breakdown.totals.tax_total;
+      if (taxTotal === null || taxTotal === undefined) {
+        isUpdatingAdvancePaymentAmount.value = true;
+        try {
+          updateFinancialBreakdownForAdvancePayment(total, true);
         } finally {
           nextTick(() => {
             isUpdatingAdvancePaymentAmount.value = false;
