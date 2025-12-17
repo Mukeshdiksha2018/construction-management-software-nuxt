@@ -517,6 +517,8 @@ export default defineEventHandler(async (event: H3Event) => {
         receipt_type: receiptType,
         location_uuid: body.location_uuid || null,
         entry_date: normalizeTimestamp(body.entry_date),
+        received_date: normalizeTimestamp(body.received_date),
+        shipment_date: normalizeTimestamp(body.shipment_date),
         grn_number: grnNumber,
         reference_number: body.reference_number || null,
         received_by: body.received_by || null,
@@ -828,6 +830,14 @@ export default defineEventHandler(async (event: H3Event) => {
       maybeSet(
         "entry_date",
         normalizeTimestamp(body.entry_date ?? existing?.entry_date)
+      );
+      maybeSet(
+        "received_date",
+        normalizeTimestamp(body.received_date ?? existing?.received_date)
+      );
+      maybeSet(
+        "shipment_date",
+        normalizeTimestamp(body.shipment_date ?? existing?.shipment_date)
       );
       maybeSet("grn_number", grnNumber);
       maybeSet("reference_number", body.reference_number ?? null);

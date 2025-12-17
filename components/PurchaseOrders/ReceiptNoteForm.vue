@@ -70,6 +70,48 @@
 
           <div>
             <label class="block text-xs font-medium text-default mb-1">
+              Shipment Date
+            </label>
+            <UPopover v-model:open="shipmentDatePopoverOpen" :disabled="props.readonly">
+              <UButton
+                color="neutral"
+                variant="outline"
+                icon="i-heroicons-calendar-days"
+                class="w-full justify-start"
+                size="sm"
+                :disabled="props.readonly"
+              >
+                {{ shipmentDateDisplayText }}
+              </UButton>
+              <template #content>
+                <UCalendar v-model="shipmentDateValue" class="p-2" :disabled="props.readonly" @update:model-value="shipmentDatePopoverOpen = false" />
+              </template>
+            </UPopover>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-default mb-1">
+              Received Date
+            </label>
+            <UPopover v-model:open="receivedDatePopoverOpen" :disabled="props.readonly">
+              <UButton
+                color="neutral"
+                variant="outline"
+                icon="i-heroicons-calendar-days"
+                class="w-full justify-start"
+                size="sm"
+                :disabled="props.readonly"
+              >
+                {{ receivedDateDisplayText }}
+              </UButton>
+              <template #content>
+                <UCalendar v-model="receivedDateValue" class="p-2" :disabled="props.readonly" @update:model-value="receivedDatePopoverOpen = false" />
+              </template>
+            </UPopover>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-default mb-1">
               Project Name <span class="text-red-500">*</span>
             </label>
             <ProjectSelect
@@ -480,6 +522,8 @@ const { formatCurrency } = useCurrencyFormat();
 const poItems = ref<any[]>([]);
 const poItemsLoading = ref(false);
 const entryDatePopoverOpen = ref(false);
+const shipmentDatePopoverOpen = ref(false);
+const receivedDatePopoverOpen = ref(false);
 const poItemsError = ref<string | null>(null);
 const receiptItems = ref<any[]>([]);
 
@@ -1052,6 +1096,74 @@ const entryDateValue = computed<CalendarDate | null>({
 const entryDateDisplayText = computed(() => {
   if (!entryDateValue.value) return "Select entry date";
   return df.format(entryDateValue.value.toDate(getLocalTimeZone()));
+});
+
+const shipmentDateValue = computed<CalendarDate | null>({
+  get: () => {
+    if (!props.form.shipment_date) return null;
+    const src = String(props.form.shipment_date);
+    const localYmd = src.includes("T") ? fromUTCString(src) : src;
+    const parts = localYmd.split("-");
+    if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10);
+      const day = parseInt(parts[2], 10);
+      if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
+        return new CalendarDate(year, month, day);
+      }
+    }
+    return null;
+  },
+  set: (value) => {
+    if (value) {
+      const dateString = `${value.year}-${String(value.month).padStart(
+        2,
+        "0"
+      )}-${String(value.day).padStart(2, "0")}`;
+      updateFormField("shipment_date", toUTCString(dateString));
+    } else {
+      updateFormField("shipment_date", null);
+    }
+  },
+});
+
+const shipmentDateDisplayText = computed(() => {
+  if (!shipmentDateValue.value) return "Select shipment date";
+  return df.format(shipmentDateValue.value.toDate(getLocalTimeZone()));
+});
+
+const receivedDateValue = computed<CalendarDate | null>({
+  get: () => {
+    if (!props.form.received_date) return null;
+    const src = String(props.form.received_date);
+    const localYmd = src.includes("T") ? fromUTCString(src) : src;
+    const parts = localYmd.split("-");
+    if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10);
+      const day = parseInt(parts[2], 10);
+      if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
+        return new CalendarDate(year, month, day);
+      }
+    }
+    return null;
+  },
+  set: (value) => {
+    if (value) {
+      const dateString = `${value.year}-${String(value.month).padStart(
+        2,
+        "0"
+      )}-${String(value.day).padStart(2, "0")}`;
+      updateFormField("received_date", toUTCString(dateString));
+    } else {
+      updateFormField("received_date", null);
+    }
+  },
+});
+
+const receivedDateDisplayText = computed(() => {
+  if (!receivedDateValue.value) return "Select received date";
+  return df.format(receivedDateValue.value.toDate(getLocalTimeZone()));
 });
 
 const updateAttachments = (attachments: any[]) => {

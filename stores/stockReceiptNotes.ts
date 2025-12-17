@@ -10,6 +10,8 @@ export interface StockReceiptNote {
   purchase_order_uuid?: string | null;
   receipt_type?: 'purchase_order' | 'change_order';
   entry_date: string | null;
+  received_date?: string | null;
+  shipment_date?: string | null;
   grn_number: string;
   reference_number?: string | null;
   received_by?: string | null;
