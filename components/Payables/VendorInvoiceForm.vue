@@ -2794,77 +2794,66 @@ const handleHoldbackChange = (value: string | null) => {
 };
 
 // Handle holdback invoice selection
-const handleHoldbackSelection = async (option: any) => {
-  if (!option || typeof option !== 'object') {
+const handleHoldbackSelection = async (invoice: any) => {
+  if (!invoice || typeof invoice !== 'object' || !invoice.uuid) {
     return;
   }
   
-  const optionValue = option.value; // This should be "PO:uuid" or "CO:uuid"
-  const optionOrder = option.order; // The full PO or CO object
+  const updatedForm = { ...props.form };
   
-  if (optionValue && typeof optionValue === 'string') {
-    if (optionValue.startsWith('PO:')) {
-      const extractedUuid = optionValue.replace(/^PO:/, '').trim();
-      if (extractedUuid && extractedUuid.length > 0) {
-        const updatedForm = { ...props.form };
-        updatedForm.purchase_order_uuid = extractedUuid;
-        updatedForm.po_co_uuid = optionValue;
-        updatedForm.change_order_uuid = null;
-        
-        if (optionOrder) {
-          updatedForm.po_number = optionOrder.po_number || '';
-        }
-        updatedForm.co_number = '';
-        
-        // Set holdback percentage from the option
-        if (option.holdbackPercentage && option.holdbackPercentage > 0) {
-          updatedForm.holdback = option.holdbackPercentage;
-        }
-        
-        // Set amount to holdback amount
-        if (option.holdbackAmount && option.holdbackAmount > 0) {
-          updatedForm.amount = option.holdbackAmount;
-        }
-        
-        emit('update:form', updatedForm);
-        
-        // Fetch PO items if needed
-        if (isAgainstHoldback.value) {
-          await fetchPOItems(extractedUuid);
-        }
-      }
-    } else if (optionValue.startsWith('CO:')) {
-      const extractedUuid = optionValue.replace(/^CO:/, '').trim();
-      if (extractedUuid && extractedUuid.length > 0) {
-        const updatedForm = { ...props.form };
-        updatedForm.change_order_uuid = extractedUuid;
-        updatedForm.po_co_uuid = optionValue;
-        updatedForm.purchase_order_uuid = null;
-        
-        if (optionOrder) {
-          updatedForm.co_number = optionOrder.co_number || '';
-        }
-        updatedForm.po_number = '';
-        
-        // Set holdback percentage from the option
-        if (option.holdbackPercentage && option.holdbackPercentage > 0) {
-          updatedForm.holdback = option.holdbackPercentage;
-        }
-        
-        // Set amount to holdback amount
-        if (option.holdbackAmount && option.holdbackAmount > 0) {
-          updatedForm.amount = option.holdbackAmount;
-        }
-        
-        emit('update:form', updatedForm);
-        
-        // Fetch CO items if needed
-        if (isAgainstHoldback.value) {
-          await fetchCOItems(extractedUuid);
-        }
-      }
+  // Determine if this is against PO or CO based on invoice type
+  if (invoice.invoice_type === 'AGAINST_PO' && invoice.purchase_order_uuid) {
+    const poUuid = invoice.purchase_order_uuid;
+    updatedForm.purchase_order_uuid = poUuid;
+    updatedForm.po_co_uuid = `PO:${poUuid}`;
+    updatedForm.change_order_uuid = null;
+    updatedForm.po_number = invoice.po_number || '';
+    updatedForm.co_number = '';
+    
+    // Fetch PO items if needed
+    if (isAgainstHoldback.value) {
+      await fetchPOItems(poUuid);
     }
+  } else if (invoice.invoice_type === 'AGAINST_CO' && invoice.change_order_uuid) {
+    const coUuid = invoice.change_order_uuid;
+    updatedForm.change_order_uuid = coUuid;
+    updatedForm.po_co_uuid = `CO:${coUuid}`;
+    updatedForm.purchase_order_uuid = null;
+    updatedForm.co_number = invoice.co_number || '';
+    updatedForm.po_number = '';
+    
+    // Fetch CO items if needed
+    if (isAgainstHoldback.value) {
+      await fetchCOItems(coUuid);
+    }
+  } else {
+    console.warn('[VendorInvoiceForm] Invalid invoice type for holdback selection:', invoice.invoice_type);
+    return;
   }
+  
+  // Set holdback percentage from the invoice
+  const holdbackPercentage = typeof invoice.holdback === 'number' 
+    ? invoice.holdback 
+    : (parseFloat(String(invoice.holdback || '0')) || 0);
+  
+  if (holdbackPercentage > 0) {
+    updatedForm.holdback = holdbackPercentage;
+  }
+  
+  // Calculate and set holdback amount from the invoice
+  const invoiceAmount = typeof invoice.amount === 'number' 
+    ? invoice.amount 
+    : (parseFloat(String(invoice.amount || '0')) || 0);
+  
+  const holdbackAmount = holdbackPercentage > 0 && invoiceAmount > 0
+    ? (invoiceAmount * holdbackPercentage) / 100
+    : 0;
+  
+  if (holdbackAmount > 0) {
+    updatedForm.amount = holdbackAmount;
+  }
+  
+  emit('update:form', updatedForm);
 };
 
 // Handle advance payment cost codes update
