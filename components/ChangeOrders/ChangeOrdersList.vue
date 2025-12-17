@@ -793,17 +793,6 @@ const renderShippingAddressPopover = (addressUuid: string, projectUuid?: string)
 
 const columns = computed<TableColumn<any>[]>(() => [
   {
-    accessorKey: 'corporation_uuid',
-    header: 'Corporation',
-    enableSorting: false,
-    meta: { class: { th: 'text-left', td: 'text-left' } },
-    cell: ({ row }: { row: { original: any } }) => {
-      const uuid = row.original.corporation_uuid
-      const label = uuid ? (corporationNameByUuid.value[uuid] || uuid) : 'N/A'
-      return h('div', label)
-    }
-  },
-  {
     accessorKey: 'created_date',
     header: 'Created Date',
     enableSorting: false,
@@ -840,7 +829,7 @@ const columns = computed<TableColumn<any>[]>(() => [
   },
   {
     accessorKey: 'po_number',
-    header: 'PO Number',
+    header: 'Original Order',
     enableSorting: false,
     meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: { original: any } }) => h('div', row.original.po_number || 'N/A')
