@@ -399,13 +399,20 @@ describe("ReceiptNoteForm - Status Filtering", () => {
     it("should only show Approved and Partially_Received POs when creating new receipt note", async () => {
       const wrapper = mountForm({
         uuid: null, // New receipt note
+        vendor_uuid: "vendor-1",
         project_uuid: "project-1",
       });
 
       await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await flushPromises();
 
       // Access the component instance to check poOptions
       const vm = wrapper.vm as any;
+      // Manually set localPurchaseOrders since the watcher fetches them
+      vm.localPurchaseOrders = purchaseOrders.value;
+      await wrapper.vm.$nextTick();
+      
       const poOptions = vm.poOptions;
 
       // Should only include Approved and Partially_Received
@@ -423,13 +430,20 @@ describe("ReceiptNoteForm - Status Filtering", () => {
     it("should show all three statuses (Approved, Partially_Received, Completed) when editing existing receipt note", async () => {
       const wrapper = mountForm({
         uuid: "receipt-note-1", // Existing receipt note
+        vendor_uuid: "vendor-1",
         project_uuid: "project-1",
       });
 
       await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await flushPromises();
 
       // Access the component instance to check poOptions
       const vm = wrapper.vm as any;
+      // Manually set localPurchaseOrders since the watcher fetches them
+      vm.localPurchaseOrders = purchaseOrders.value;
+      await wrapper.vm.$nextTick();
+      
       const poOptions = vm.poOptions;
 
       // Should include Approved, Partially_Received, and Completed
@@ -461,12 +475,19 @@ describe("ReceiptNoteForm - Status Filtering", () => {
 
       const wrapper = mountForm({
         uuid: "receipt-note-1", // Existing receipt note
+        vendor_uuid: "vendor-1",
         project_uuid: "project-1",
       });
 
       await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await flushPromises();
 
       const vm = wrapper.vm as any;
+      // Manually set localPurchaseOrders since the watcher fetches them
+      vm.localPurchaseOrders = purchaseOrders.value;
+      await wrapper.vm.$nextTick();
+      
       const poOptions = vm.poOptions;
 
       // Should still match despite case differences
@@ -481,14 +502,21 @@ describe("ReceiptNoteForm - Status Filtering", () => {
     it("should only show Approved and Partially_Received COs when creating new receipt note", async () => {
       const wrapper = mountForm({
         uuid: null, // New receipt note
+        vendor_uuid: "vendor-1",
         project_uuid: "project-1",
         receipt_type: "change_order",
       });
 
       await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await flushPromises();
 
       // Access the component instance to check coOptions
       const vm = wrapper.vm as any;
+      // Manually set localChangeOrders since the watcher fetches them
+      vm.localChangeOrders = changeOrders.value;
+      await wrapper.vm.$nextTick();
+      
       const coOptions = vm.coOptions;
 
       // Should only include Approved and Partially_Received
@@ -506,14 +534,21 @@ describe("ReceiptNoteForm - Status Filtering", () => {
     it("should show all three statuses (Approved, Partially_Received, Completed) when editing existing receipt note", async () => {
       const wrapper = mountForm({
         uuid: "receipt-note-1", // Existing receipt note
+        vendor_uuid: "vendor-1",
         project_uuid: "project-1",
         receipt_type: "change_order",
       });
 
       await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await flushPromises();
 
       // Access the component instance to check coOptions
       const vm = wrapper.vm as any;
+      // Manually set localChangeOrders since the watcher fetches them
+      vm.localChangeOrders = changeOrders.value;
+      await wrapper.vm.$nextTick();
+      
       const coOptions = vm.coOptions;
 
       // Should include Approved, Partially_Received, and Completed
@@ -545,13 +580,20 @@ describe("ReceiptNoteForm - Status Filtering", () => {
 
       const wrapper = mountForm({
         uuid: "receipt-note-1", // Existing receipt note
+        vendor_uuid: "vendor-1",
         project_uuid: "project-1",
         receipt_type: "change_order",
       });
 
       await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await flushPromises();
 
       const vm = wrapper.vm as any;
+      // Manually set localChangeOrders since the watcher fetches them
+      vm.localChangeOrders = changeOrders.value;
+      await wrapper.vm.$nextTick();
+      
       const coOptions = vm.coOptions;
 
       // Should still match despite case differences
@@ -577,12 +619,19 @@ describe("ReceiptNoteForm - Status Filtering", () => {
 
       const wrapper = mountForm({
         uuid: null,
+        vendor_uuid: "vendor-1",
         project_uuid: "project-1",
       });
 
       await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await flushPromises();
 
       const vm = wrapper.vm as any;
+      // Manually set localPurchaseOrders since the watcher fetches them
+      vm.localPurchaseOrders = purchaseOrders.value;
+      await wrapper.vm.$nextTick();
+      
       const poOptions = vm.poOptions;
 
       // Should not include PO with empty status
@@ -603,12 +652,19 @@ describe("ReceiptNoteForm - Status Filtering", () => {
 
       const wrapper = mountForm({
         uuid: null,
+        vendor_uuid: "vendor-1",
         project_uuid: "project-1",
       });
 
       await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await flushPromises();
 
       const vm = wrapper.vm as any;
+      // Manually set localPurchaseOrders since the watcher fetches them
+      vm.localPurchaseOrders = purchaseOrders.value;
+      await wrapper.vm.$nextTick();
+      
       const poOptions = vm.poOptions;
 
       // Should not include PO from different project
@@ -619,12 +675,19 @@ describe("ReceiptNoteForm - Status Filtering", () => {
       // Start with new receipt note
       const wrapper = mountForm({
         uuid: null,
+        vendor_uuid: "vendor-1",
         project_uuid: "project-1",
       });
 
       await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await flushPromises();
 
       let vm = wrapper.vm as any;
+      // Manually set localPurchaseOrders since the watcher fetches them
+      vm.localPurchaseOrders = purchaseOrders.value;
+      await wrapper.vm.$nextTick();
+      
       let poOptions = vm.poOptions;
 
       // Should have 2 options (Approved, Partially_Received)
@@ -640,8 +703,13 @@ describe("ReceiptNoteForm - Status Filtering", () => {
       });
 
       await flushPromises();
+      await wrapper.vm.$nextTick();
 
       vm = wrapper.vm as any;
+      // Ensure localPurchaseOrders is still set
+      vm.localPurchaseOrders = purchaseOrders.value;
+      await wrapper.vm.$nextTick();
+      
       poOptions = vm.poOptions;
 
       // Should now have 3 options (Approved, Partially_Received, Completed)

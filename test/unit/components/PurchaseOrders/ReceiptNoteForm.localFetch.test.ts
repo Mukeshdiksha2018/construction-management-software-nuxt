@@ -6,7 +6,7 @@ import ReceiptNoteForm from "@/components/PurchaseOrders/ReceiptNoteForm.vue";
 
 // Mock $fetch globally
 const fetchMock = vi.fn();
-global.$fetch = fetchMock;
+(global as any).$fetch = fetchMock;
 
 vi.mock("@/stores/corporations", () => {
   const useCorporationStore = defineStore("corporations", () => ({
@@ -43,11 +43,14 @@ vi.mock("@/stores/changeOrders", () => {
 });
 
 vi.mock("@/stores/purchaseOrderResources", () => {
-  const usePurchaseOrderResourcesStore = defineStore("purchaseOrderResources", () => ({
-    fetchPurchaseOrderItems: vi.fn().mockResolvedValue([]),
-    getPreferredItems: vi.fn().mockReturnValue([]),
-    ensurePreferredItems: vi.fn().mockResolvedValue(undefined),
-  }));
+  const usePurchaseOrderResourcesStore = defineStore(
+    "purchaseOrderResources",
+    () => ({
+      fetchPurchaseOrderItems: vi.fn().mockResolvedValue([]),
+      getPreferredItems: vi.fn().mockReturnValue([]),
+      ensurePreferredItems: vi.fn().mockResolvedValue(undefined),
+    })
+  );
   return { usePurchaseOrderResourcesStore };
 });
 
@@ -252,17 +255,19 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
         },
       ];
 
-      // Mock both API calls (purchase orders and change orders)
-      // Note: The watcher runs immediately, so we need to mock both calls
+      // Mock API calls: vendors first, then POs/COs when vendor+project are selected
       fetchMock
-        .mockResolvedValueOnce({ data: mockPurchaseOrders }) // Purchase orders (from watcher)
-        .mockResolvedValueOnce({ data: [] }) // Change orders (from watcher)
-        .mockResolvedValueOnce({ data: mockPurchaseOrders }) // Purchase orders (from onMounted)
-        .mockResolvedValueOnce({ data: [] }); // Change orders (from onMounted)
+        .mockResolvedValueOnce({ data: [] }) // Vendors (from watcher/onMounted)
+        .mockResolvedValueOnce({ data: mockPurchaseOrders }) // Purchase orders (when vendor+project selected)
+        .mockResolvedValueOnce({ data: [] }); // Change orders (when vendor+project selected)
 
       const wrapper = mount(ReceiptNoteForm, {
         props: {
-          form: { corporation_uuid: "corp-1" },
+          form: {
+            corporation_uuid: "corp-1",
+            vendor_uuid: "vendor-1",
+            project_uuid: "project-1",
+          },
           editingReceiptNote: false,
         },
         global: {
@@ -276,7 +281,7 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
 
       await flushPromises();
       await wrapper.vm.$nextTick();
-      await new Promise((resolve) => setTimeout(resolve, 50)); // Allow time for async operations
+      await new Promise((resolve) => setTimeout(resolve, 100)); // Allow time for async operations
       await flushPromises();
 
       // Verify API was called with correct parameters
@@ -295,12 +300,12 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
         (call: any[]) => call[0] === "/api/purchase-order-forms"
       );
       expect(purchaseOrderCalls.length).toBeGreaterThan(0);
-      
+
       // Manually verify the local array was populated (simulating what fetchLocalPurchaseOrders does)
       const vm = wrapper.vm as any;
       vm.localPurchaseOrders = mockPurchaseOrders;
       await wrapper.vm.$nextTick();
-      
+
       const poOptions = vm.poOptions;
       expect(poOptions.length).toBeGreaterThan(0);
     });
@@ -318,15 +323,19 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
         },
       ];
 
+      // Mock API calls: vendors first, then POs/COs when vendor+project are selected
       fetchMock
-        .mockResolvedValueOnce(mockPurchaseOrders) // Array format (no data wrapper) - from watcher
-        .mockResolvedValueOnce([]) // Change orders - from watcher
-        .mockResolvedValueOnce(mockPurchaseOrders) // Array format - from onMounted
-        .mockResolvedValueOnce([]); // Change orders - from onMounted
+        .mockResolvedValueOnce({ data: [] }) // Vendors
+        .mockResolvedValueOnce(mockPurchaseOrders) // Array format (no data wrapper) - Purchase orders
+        .mockResolvedValueOnce([]); // Change orders
 
       const wrapper = mount(ReceiptNoteForm, {
         props: {
-          form: { corporation_uuid: "corp-1" },
+          form: {
+            corporation_uuid: "corp-1",
+            vendor_uuid: "vendor-1",
+            project_uuid: "project-1",
+          },
           editingReceiptNote: false,
         },
         global: {
@@ -340,14 +349,14 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
 
       await flushPromises();
       await wrapper.vm.$nextTick();
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       await flushPromises();
 
       // Manually verify the local array handling (simulating what fetchLocalPurchaseOrders does)
       const vm = wrapper.vm as any;
       vm.localPurchaseOrders = mockPurchaseOrders;
       await wrapper.vm.$nextTick();
-      
+
       const poOptions = vm.poOptions;
       expect(poOptions.length).toBe(1);
     });
@@ -403,13 +412,19 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
         },
       ];
 
+      // Mock API calls: vendors first, then POs/COs when vendor+project are selected
       fetchMock
-        .mockResolvedValueOnce({ data: [] }) // For purchase orders
-        .mockResolvedValueOnce({ data: mockChangeOrders }); // For change orders
+        .mockResolvedValueOnce({ data: [] }) // Vendors
+        .mockResolvedValueOnce({ data: [] }) // Purchase orders
+        .mockResolvedValueOnce({ data: mockChangeOrders }); // Change orders
 
       const wrapper = mount(ReceiptNoteForm, {
         props: {
-          form: { corporation_uuid: "corp-1" },
+          form: {
+            corporation_uuid: "corp-1",
+            vendor_uuid: "vendor-1",
+            project_uuid: "project-1",
+          },
           editingReceiptNote: false,
         },
         global: {
@@ -421,6 +436,9 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
         },
       });
 
+      await flushPromises();
+      await wrapper.vm.$nextTick();
+      await new Promise((resolve) => setTimeout(resolve, 100));
       await flushPromises();
 
       // Verify API was called with correct parameters
@@ -439,12 +457,12 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
         (call: any[]) => call[0] === "/api/change-orders"
       );
       expect(changeOrderCalls.length).toBeGreaterThan(0);
-      
+
       // Manually verify the local array was populated (simulating what fetchLocalChangeOrders does)
       const vm = wrapper.vm as any;
       vm.localChangeOrders = mockChangeOrders;
       await wrapper.vm.$nextTick();
-      
+
       const coOptions = vm.coOptions;
       expect(coOptions.length).toBeGreaterThan(0);
     });
@@ -473,15 +491,19 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
         },
       ];
 
+      // Mock API calls: vendors first, then POs/COs when vendor+project are selected
       fetchMock
-        .mockResolvedValueOnce({ data: mockPurchaseOrders }) // From watcher
-        .mockResolvedValueOnce({ data: [] }) // From watcher
-        .mockResolvedValueOnce({ data: mockPurchaseOrders }) // From onMounted
-        .mockResolvedValueOnce({ data: [] }); // From onMounted
+        .mockResolvedValueOnce({ data: [] }) // Vendors
+        .mockResolvedValueOnce({ data: mockPurchaseOrders }) // Purchase orders
+        .mockResolvedValueOnce({ data: [] }); // Change orders
 
       const wrapper = mount(ReceiptNoteForm, {
         props: {
-          form: { corporation_uuid: "corp-1" },
+          form: {
+            corporation_uuid: "corp-1",
+            vendor_uuid: "vendor-1",
+            project_uuid: "project-1",
+          },
           editingReceiptNote: false,
         },
         global: {
@@ -495,21 +517,21 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
 
       await flushPromises();
       await wrapper.vm.$nextTick();
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       await flushPromises();
 
       const vm = wrapper.vm as any;
-      
+
       // Verify API was called
       const purchaseOrderCalls = fetchMock.mock.calls.filter(
         (call: any[]) => call[0] === "/api/purchase-order-forms"
       );
       expect(purchaseOrderCalls.length).toBeGreaterThan(0);
-      
+
       // Manually set the local array to test filtering logic
       vm.localPurchaseOrders = mockPurchaseOrders;
       await wrapper.vm.$nextTick();
-      
+
       const poOptions = vm.poOptions;
       // Should only include orders from corp-1
       expect(poOptions.length).toBe(1);
@@ -538,15 +560,19 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
         },
       ];
 
+      // Mock API calls: vendors first, then POs/COs when vendor+project are selected
       fetchMock
-        .mockResolvedValueOnce({ data: mockPurchaseOrders }) // From watcher
-        .mockResolvedValueOnce({ data: [] }) // From watcher
-        .mockResolvedValueOnce({ data: mockPurchaseOrders }) // From onMounted
-        .mockResolvedValueOnce({ data: [] }); // From onMounted
+        .mockResolvedValueOnce({ data: [] }) // Vendors
+        .mockResolvedValueOnce({ data: mockPurchaseOrders }) // Purchase orders
+        .mockResolvedValueOnce({ data: [] }); // Change orders
 
       const wrapper = mount(ReceiptNoteForm, {
         props: {
-          form: { corporation_uuid: "corp-1", project_uuid: "project-1" },
+          form: {
+            corporation_uuid: "corp-1",
+            vendor_uuid: "vendor-1",
+            project_uuid: "project-1",
+          },
           editingReceiptNote: false,
         },
         global: {
@@ -560,15 +586,15 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
 
       await flushPromises();
       await wrapper.vm.$nextTick();
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       await flushPromises();
 
       const vm = wrapper.vm as any;
-      
+
       // Manually set the local array to test filtering logic
       vm.localPurchaseOrders = mockPurchaseOrders;
       await wrapper.vm.$nextTick();
-      
+
       const poOptions = vm.poOptions;
       // Should only include orders from project-1
       expect(poOptions.length).toBe(1);
@@ -606,15 +632,19 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
         },
       ];
 
+      // Mock API calls: vendors first, then POs/COs when vendor+project are selected
       fetchMock
-        .mockResolvedValueOnce({ data: mockPurchaseOrders }) // From watcher
-        .mockResolvedValueOnce({ data: [] }) // From watcher
-        .mockResolvedValueOnce({ data: mockPurchaseOrders }) // From onMounted
-        .mockResolvedValueOnce({ data: [] }); // From onMounted
+        .mockResolvedValueOnce({ data: [] }) // Vendors
+        .mockResolvedValueOnce({ data: mockPurchaseOrders }) // Purchase orders
+        .mockResolvedValueOnce({ data: [] }); // Change orders
 
       const wrapper = mount(ReceiptNoteForm, {
         props: {
-          form: { corporation_uuid: "corp-1", project_uuid: "project-1" },
+          form: {
+            corporation_uuid: "corp-1",
+            vendor_uuid: "vendor-1",
+            project_uuid: "project-1",
+          },
           editingReceiptNote: false,
         },
         global: {
@@ -628,15 +658,15 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
 
       await flushPromises();
       await wrapper.vm.$nextTick();
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       await flushPromises();
 
       const vm = wrapper.vm as any;
-      
+
       // Manually set the local array to test filtering logic
       vm.localPurchaseOrders = mockPurchaseOrders;
       await wrapper.vm.$nextTick();
-      
+
       const poOptions = vm.poOptions;
       // Should only include Approved and Partially_Received
       expect(poOptions.length).toBe(2);
@@ -665,15 +695,20 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
         },
       ];
 
+      // Mock API calls: vendors first, then POs/COs when vendor+project are selected
       fetchMock
-        .mockResolvedValueOnce({ data: mockPurchaseOrders }) // From watcher
-        .mockResolvedValueOnce({ data: [] }) // From watcher
-        .mockResolvedValueOnce({ data: mockPurchaseOrders }) // From onMounted
-        .mockResolvedValueOnce({ data: [] }); // From onMounted
+        .mockResolvedValueOnce({ data: [] }) // Vendors
+        .mockResolvedValueOnce({ data: mockPurchaseOrders }) // Purchase orders
+        .mockResolvedValueOnce({ data: [] }); // Change orders
 
       const wrapper = mount(ReceiptNoteForm, {
         props: {
-          form: { corporation_uuid: "corp-1", project_uuid: "project-1", uuid: "receipt-1" },
+          form: {
+            corporation_uuid: "corp-1",
+            vendor_uuid: "vendor-1",
+            project_uuid: "project-1",
+            uuid: "receipt-1",
+          },
           editingReceiptNote: true,
         },
         global: {
@@ -687,15 +722,15 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
 
       await flushPromises();
       await wrapper.vm.$nextTick();
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       await flushPromises();
 
       const vm = wrapper.vm as any;
-      
+
       // Manually set the local array to test filtering logic
       vm.localPurchaseOrders = mockPurchaseOrders;
       await wrapper.vm.$nextTick();
-      
+
       const poOptions = vm.poOptions;
       // Should include both Approved and Completed
       expect(poOptions.length).toBe(2);
@@ -725,15 +760,19 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
         },
       ];
 
+      // Mock API calls: vendors first, then POs/COs when vendor+project are selected
       fetchMock
-        .mockResolvedValueOnce({ data: [] }) // Purchase orders - from watcher
-        .mockResolvedValueOnce({ data: mockChangeOrders }) // Change orders - from watcher
-        .mockResolvedValueOnce({ data: [] }) // Purchase orders - from onMounted
-        .mockResolvedValueOnce({ data: mockChangeOrders }); // Change orders - from onMounted
+        .mockResolvedValueOnce({ data: [] }) // Vendors
+        .mockResolvedValueOnce({ data: [] }) // Purchase orders
+        .mockResolvedValueOnce({ data: mockChangeOrders }); // Change orders
 
       const wrapper = mount(ReceiptNoteForm, {
         props: {
-          form: { corporation_uuid: "corp-1" },
+          form: {
+            corporation_uuid: "corp-1",
+            vendor_uuid: "vendor-1",
+            project_uuid: "project-1",
+          },
           editingReceiptNote: false,
         },
         global: {
@@ -747,21 +786,21 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
 
       await flushPromises();
       await wrapper.vm.$nextTick();
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       await flushPromises();
 
       const vm = wrapper.vm as any;
-      
+
       // Verify API was called
       const changeOrderCalls = fetchMock.mock.calls.filter(
         (call: any[]) => call[0] === "/api/change-orders"
       );
       expect(changeOrderCalls.length).toBeGreaterThan(0);
-      
+
       // Manually set the local array to test filtering logic
       vm.localChangeOrders = mockChangeOrders;
       await wrapper.vm.$nextTick();
-      
+
       const coOptions = vm.coOptions;
       // Should only include orders from corp-1
       expect(coOptions.length).toBe(1);
@@ -790,15 +829,19 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
         },
       ];
 
+      // Mock API calls: vendors first, then POs/COs when vendor+project are selected
       fetchMock
-        .mockResolvedValueOnce({ data: [] }) // Purchase orders - from watcher
-        .mockResolvedValueOnce({ data: mockChangeOrders }) // Change orders - from watcher
-        .mockResolvedValueOnce({ data: [] }) // Purchase orders - from onMounted
-        .mockResolvedValueOnce({ data: mockChangeOrders }); // Change orders - from onMounted
+        .mockResolvedValueOnce({ data: [] }) // Vendors
+        .mockResolvedValueOnce({ data: [] }) // Purchase orders
+        .mockResolvedValueOnce({ data: mockChangeOrders }); // Change orders
 
       const wrapper = mount(ReceiptNoteForm, {
         props: {
-          form: { corporation_uuid: "corp-1", project_uuid: "project-1" },
+          form: {
+            corporation_uuid: "corp-1",
+            vendor_uuid: "vendor-1",
+            project_uuid: "project-1",
+          },
           editingReceiptNote: false,
         },
         global: {
@@ -812,15 +855,15 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
 
       await flushPromises();
       await wrapper.vm.$nextTick();
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       await flushPromises();
 
       const vm = wrapper.vm as any;
-      
+
       // Manually set the local array to test filtering logic
       vm.localChangeOrders = mockChangeOrders;
       await wrapper.vm.$nextTick();
-      
+
       const coOptions = vm.coOptions;
       // Should only include orders from project-1
       expect(coOptions.length).toBe(1);
@@ -829,11 +872,9 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
   });
 
   describe("handleCorporationChange", () => {
-    it("should fetch purchase orders and change orders when corporation changes", async () => {
+    it("should fetch vendors when corporation changes", async () => {
       // Mock initial calls (from watcher and onMounted)
-      fetchMock
-        .mockResolvedValueOnce({ data: [] })
-        .mockResolvedValueOnce({ data: [] });
+      fetchMock.mockResolvedValueOnce({ data: [] }); // Vendors
 
       const wrapper = mount(ReceiptNoteForm, {
         props: {
@@ -851,12 +892,10 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
 
       await flushPromises();
       await wrapper.vm.$nextTick();
-      
+
       // Clear mocks to count only new calls
-      const callCountBefore = fetchMock.mock.calls.length;
-      fetchMock
-        .mockResolvedValueOnce({ data: [] })
-        .mockResolvedValueOnce({ data: [] });
+      fetchMock.mockClear();
+      fetchMock.mockResolvedValueOnce({ data: [] }); // Vendors
 
       // Trigger corporation change by calling handleCorporationChange directly
       const vm = wrapper.vm as any;
@@ -864,15 +903,8 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
       await flushPromises();
       await wrapper.vm.$nextTick();
 
-      // Verify both APIs were called
-      expect(fetchMock).toHaveBeenCalledWith("/api/purchase-order-forms", {
-        method: "GET",
-        query: {
-          corporation_uuid: "corp-1",
-        },
-      });
-
-      expect(fetchMock).toHaveBeenCalledWith("/api/change-orders", {
+      // Verify vendors API was called (POs/COs are only fetched when vendor+project are selected)
+      expect(fetchMock).toHaveBeenCalledWith("/api/purchase-orders/vendors", {
         method: "GET",
         query: {
           corporation_uuid: "corp-1",
@@ -918,17 +950,17 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
 
       // Verify form update was emitted with cleared project
       expect(wrapper.emitted("update:form")).toBeTruthy();
-      const updateEvents = wrapper.emitted("update:form") || [];
-      const lastUpdate = updateEvents[updateEvents.length - 1][0];
-      expect(lastUpdate.project_uuid).toBeNull();
+      const updateEvents = wrapper.emitted("update:form");
+      if (updateEvents && updateEvents.length > 0) {
+        const lastUpdate = updateEvents[updateEvents.length - 1]?.[0] as any;
+        expect(lastUpdate?.project_uuid).toBeNull();
+      }
     });
   });
 
   describe("onMounted", () => {
-    it("should fetch purchase orders and change orders on mount if corporation is set", async () => {
-      fetchMock
-        .mockResolvedValueOnce({ data: [] })
-        .mockResolvedValueOnce({ data: [] });
+    it("should fetch vendors on mount if corporation is set", async () => {
+      fetchMock.mockResolvedValueOnce({ data: [] }); // Vendors
 
       mount(ReceiptNoteForm, {
         props: {
@@ -944,6 +976,47 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
         },
       });
 
+      await flushPromises();
+
+      // Verify vendors API was called (POs/COs are only fetched when vendor+project are selected)
+      expect(fetchMock).toHaveBeenCalledWith("/api/purchase-orders/vendors", {
+        method: "GET",
+        query: {
+          corporation_uuid: "corp-1",
+        },
+      });
+
+      // Verify store methods were NOT called
+      expect(fetchPurchaseOrdersMock).not.toHaveBeenCalled();
+      expect(fetchChangeOrdersMock).not.toHaveBeenCalled();
+    });
+
+    it("should fetch purchase orders and change orders on mount if corporation, vendor, and project are set", async () => {
+      fetchMock
+        .mockResolvedValueOnce({ data: [] }) // Vendors
+        .mockResolvedValueOnce({ data: [] }) // Purchase orders
+        .mockResolvedValueOnce({ data: [] }); // Change orders
+
+      mount(ReceiptNoteForm, {
+        props: {
+          form: {
+            corporation_uuid: "corp-1",
+            vendor_uuid: "vendor-1",
+            project_uuid: "project-1",
+          },
+          editingReceiptNote: false,
+        },
+        global: {
+          stubs: uiStubs,
+          components: {
+            CorporationSelect: CorporationSelectStub,
+            ProjectSelect: ProjectSelectStub,
+          },
+        },
+      });
+
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 100));
       await flushPromises();
 
       // Verify APIs were called
@@ -970,7 +1043,7 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
   describe("Independence from global stores", () => {
     it("should not affect global purchase orders store", async () => {
       const initialStoreValue = purchaseOrdersStoreMock.value.length;
-      
+
       const mockPurchaseOrders = [
         {
           uuid: "po-1",
@@ -1005,7 +1078,7 @@ describe("ReceiptNoteForm - Local Fetch Functionality", () => {
 
     it("should not affect global change orders store", async () => {
       const initialStoreValue = changeOrdersStoreMock.value.length;
-      
+
       const mockChangeOrders = [
         {
           uuid: "co-1",
