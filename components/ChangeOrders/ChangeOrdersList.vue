@@ -801,7 +801,7 @@ const columns = computed<TableColumn<any>[]>(() => [
     id: 'actions',
     header: 'Actions',
     enableSorting: false,
-    meta: { class: { th: 'text-right sticky right-0 bg-transparent z-10', td: 'text-right sticky right-0 bg-transparent' } },
+    meta: { class: { th: 'text-right sticky right-0 z-10', td: 'text-right sticky right-0' } },
     cell: ({ row }: { row: { original: any } }) => {
       const isRowLoading = loadingRowUuid.value === row.original.uuid
       const buttons: any[] = []

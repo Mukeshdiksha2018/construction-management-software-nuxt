@@ -130,6 +130,7 @@
         ref="table"
         sticky
         v-model:pagination="pagination"
+        v-model:column-pinning="columnPinning"
         :pagination-options="paginationOptions"
         :data="filteredDivisions" 
         :columns="columns" 
@@ -489,6 +490,12 @@ const {
 // Table ref for pagination
 const table = useTemplateRef<any>('table');
 
+// Column pinning for sticky actions column
+const columnPinning = ref({
+  left: [],
+  right: ['actions']
+});
+
 // State
 const showModal = ref(false);
 const editingItem = ref<null | string>(null);
@@ -599,7 +606,7 @@ const columns: TableColumn<any>[] = [
     accessorKey: 'actions',
     header: 'Actions',
     enableSorting: false,
-    meta: { class: { th: 'text-right sticky right-0 bg-transparent z-10', td: 'text-right sticky right-0 bg-transparent' } },
+    meta: { class: { th: 'text-right sticky right-0 z-10', td: 'text-right sticky right-0' } },
     cell: ({ row }) => {
       const buttons = [];
       
