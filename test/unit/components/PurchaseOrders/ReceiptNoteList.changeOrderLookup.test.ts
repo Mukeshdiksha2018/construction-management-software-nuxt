@@ -78,6 +78,26 @@ vi.mock("@/stores/projects", () => {
   };
 });
 
+vi.mock("@/stores/vendors", () => {
+  const fetchVendorsMock = vi.fn().mockResolvedValue(undefined);
+  return {
+    useVendorStore: defineStore("vendors", () => ({
+      vendors: ref([]),
+      fetchVendors: fetchVendorsMock,
+    })),
+  };
+});
+
+vi.mock("@/stores/userProfiles", () => {
+  const fetchUsersMock = vi.fn().mockResolvedValue(undefined);
+  return {
+    useUserProfilesStore: defineStore("userProfiles", () => ({
+      users: ref([]),
+      fetchUsers: fetchUsersMock,
+    })),
+  };
+});
+
 vi.mock("@/composables/usePermissions", () => {
   return {
     usePermissions: () => ({

@@ -91,6 +91,50 @@ vi.mock("@/stores/projects", () => {
   };
 });
 
+vi.mock("@/stores/vendors", () => {
+  const fetchVendorsMock = vi.fn().mockResolvedValue(undefined);
+  return {
+    useVendorStore: defineStore("vendors", () => ({
+      vendors: ref([
+        {
+          uuid: "vendor-1",
+          vendor_name: "Test Vendor",
+        },
+        {
+          uuid: "vendor-2",
+          vendor_name: "Another Vendor",
+        },
+      ]),
+      fetchVendors: fetchVendorsMock,
+    })),
+  };
+});
+
+vi.mock("@/stores/userProfiles", () => {
+  const fetchUsersMock = vi.fn().mockResolvedValue(undefined);
+  return {
+    useUserProfilesStore: defineStore("userProfiles", () => ({
+      users: ref([
+        {
+          id: "user-1",
+          email: "user1@example.com",
+          firstName: "John",
+          lastName: "Doe",
+          imageUrl: "",
+        },
+        {
+          id: "user-2",
+          email: "user2@example.com",
+          firstName: "Jane",
+          lastName: "Smith",
+          imageUrl: "https://example.com/avatar.jpg",
+        },
+      ]),
+      fetchUsers: fetchUsersMock,
+    })),
+  };
+});
+
 vi.mock("@/composables/usePermissions", () => {
   const hasPermission = vi.fn((permission: string) => {
     const permissions: Record<string, boolean> = {

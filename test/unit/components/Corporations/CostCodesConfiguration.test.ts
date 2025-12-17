@@ -333,15 +333,16 @@ describe("CostCodesConfiguration Component", () => {
       wrapper = createWrapper();
 
       const columns = wrapper.vm.columns;
-      expect(columns).toHaveLength(8);
-      expect(columns[0].accessorKey).toBe("cost_code_number");
-      expect(columns[1].accessorKey).toBe("cost_code_name");
-      expect(columns[2].accessorKey).toBe("parent_cost_code_uuid");
-      expect(columns[3].accessorKey).toBe("preferred_items");
-      expect(columns[4].accessorKey).toBe("description");
-      expect(columns[5].accessorKey).toBe("gl_account_uuid");
-      expect(columns[6].accessorKey).toBe("is_active");
-      expect(columns[7].accessorKey).toBe("actions");
+      expect(columns).toHaveLength(9);
+      expect(columns[0].accessorKey).toBe("corporation_uuid");
+      expect(columns[1].accessorKey).toBe("cost_code_number");
+      expect(columns[2].accessorKey).toBe("cost_code_name");
+      expect(columns[3].accessorKey).toBe("parent_cost_code_uuid");
+      expect(columns[4].accessorKey).toBe("preferred_items");
+      expect(columns[5].accessorKey).toBe("description");
+      expect(columns[6].accessorKey).toBe("gl_account_uuid");
+      expect(columns[7].accessorKey).toBe("is_active");
+      expect(columns[8].accessorKey).toBe("actions");
     });
   });
 
