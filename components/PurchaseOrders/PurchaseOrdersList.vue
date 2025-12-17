@@ -1490,14 +1490,13 @@ const handlePrintPurchaseOrder = () => {
 // Check for items exceeding estimate quantities
 const checkForExceededQuantities = (): { hasExceeded: boolean; items: any[] } => {
   const includeItems = String(poForm.value?.include_items || '').toUpperCase()
-  const raiseAgainst = String(poForm.value?.raise_against || '').toUpperCase()
   const poType = String(poForm.value?.po_type || '').toUpperCase()
   const isLaborPO = poType === 'LABOR'
   
   // Check material POs when importing from estimate
   const checkMaterialPOs = includeItems === 'IMPORT_ITEMS_FROM_ESTIMATE'
-  // Check labor POs when raise against is estimate
-  const checkLaborPOs = isLaborPO && raiseAgainst === 'AGAINST_ESTIMATE'
+  // Check labor POs - labor POs always use estimate (no raise_against field needed)
+  const checkLaborPOs = isLaborPO
   
   // Only check if creating against estimate
   if (!checkMaterialPOs && !checkLaborPOs) {
@@ -1526,7 +1525,7 @@ const checkForExceededQuantities = (): { hasExceeded: boolean; items: any[] } =>
     })
   }
   
-  // Check labor items
+  // Check labor items - labor POs always use estimate
   if (checkLaborPOs) {
     const laborItems = Array.isArray(poForm.value?.labor_po_items) ? poForm.value.labor_po_items : []
     
