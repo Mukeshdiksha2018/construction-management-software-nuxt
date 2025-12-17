@@ -331,6 +331,8 @@
         :error="poItemsError"
         :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
         :project-uuid="form.project_uuid"
+        :scoped-cost-code-configurations="scopedCostCodeConfigurations"
+        :scoped-item-types="scopedItemTypes"
         :show-estimate-values="false"
         :show-invoice-values="true"
         :readonly="props.readonly"
@@ -973,6 +975,7 @@ import { useVendorInvoicesStore } from "@/stores/vendorInvoices";
 import { useCostCodeConfigurationsStore } from "@/stores/costCodeConfigurations";
 import { usePurchaseOrdersStore } from "@/stores/purchaseOrders";
 import { useChangeOrdersStore } from "@/stores/changeOrders";
+import { usePurchaseOrderResourcesStore } from "@/stores/purchaseOrderResources";
 import { useUTCDateFormat } from '@/composables/useUTCDateFormat';
 import CorporationSelect from '@/components/Shared/CorporationSelect.vue';
 import ProjectSelect from '@/components/Shared/ProjectSelect.vue';
@@ -1018,6 +1021,9 @@ const costCodeConfigurationsStore = useCostCodeConfigurationsStore();
 // NOTE: We fetch data for the form's corporation, not TopBar's corporation
 const purchaseOrdersStore = usePurchaseOrdersStore();
 const changeOrdersStore = useChangeOrdersStore();
+// Use purchaseOrderResourcesStore for cost codes, item types, and preferred items
+// This ensures we fetch data for the form's corporation, not TopBar's corporation
+const purchaseOrderResourcesStore = usePurchaseOrderResourcesStore();
 const { toUTCString, fromUTCString } = useUTCDateFormat();
 
 // Helper functions for numeric parsing and rounding (same as PurchaseOrderForm)
@@ -1117,6 +1123,60 @@ const poCoType = computed<'PO' | 'CO' | null>(() => {
     return 'CO'
   }
   return null
+});
+
+// Scoped cost code configurations for passing to child components (avoids polluting global store)
+const scopedCostCodeConfigurations = computed(() => {
+  const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
+  if (!corpUuid) {
+    return [];
+  }
+  const configs = purchaseOrderResourcesStore.getCostCodeConfigurations(
+    corpUuid,
+    props.form.project_uuid
+  );
+  return configs;
+});
+
+// Scoped item types for passing to child components (avoids polluting global store)
+const scopedItemTypes = computed(() => {
+  const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
+  if (!corpUuid) return [];
+  return purchaseOrderResourcesStore.getItemTypes(
+    corpUuid,
+    props.form.project_uuid
+  );
+});
+
+// Preferred items for populating options in PO items
+const preferredItemOptions = computed(() => {
+  const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
+  if (!corpUuid) return [];
+  const projectUuid = props.form.project_uuid ?? undefined;
+  const source = purchaseOrderResourcesStore.getPreferredItems(corpUuid, projectUuid) || [];
+  return source
+    .map((item: any) => {
+      const value =
+        item.item_uuid ||
+        item.uuid ||
+        item.id ||
+        (typeof item.value === "string" ? item.value : "");
+      const label =
+        item.item_name ||
+        item.name ||
+        item.label ||
+        item.description ||
+        String(value);
+      const itemSequence = item.item_sequence || item.sequence || '';
+      return {
+        label,
+        value: String(value || ""),
+        item_sequence: itemSequence,
+        sequence: itemSequence,
+        raw: item,
+      };
+    })
+    .filter((opt: any) => Boolean(opt.value));
 });
 
 // Advance payment cost codes
@@ -1425,6 +1485,14 @@ const handleCorporationChange = async (corporationUuid?: string | null) => {
       purchaseOrdersStore.fetchPurchaseOrders(normalizedCorporationUuid, true), // forceRefresh = true
       changeOrdersStore.fetchChangeOrders(normalizedCorporationUuid, true), // forceRefresh = true
     ]);
+    
+    // If project is already selected, ensure project resources are loaded
+    if (props.form.project_uuid) {
+      await purchaseOrderResourcesStore.ensureProjectResources({
+        corporationUuid: normalizedCorporationUuid,
+        projectUuid: props.form.project_uuid,
+      });
+    }
   }
   
   // Auto-generate Invoice Number on corporation selection if not set
@@ -1446,6 +1514,16 @@ const handleCorporationChange = async (corporationUuid?: string | null) => {
 const handleProjectChange = async (projectUuid?: string | null) => {
   const normalizedProjectUuid = projectUuid || '';
   handleFormUpdate('project_uuid', normalizedProjectUuid);
+  
+  // Ensure project resources (cost codes, item types, preferred items) are loaded
+  // This ensures POItemsTableWithEstimates has the data it needs
+  const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
+  if (normalizedProjectUuid && corpUuid) {
+    await purchaseOrderResourcesStore.ensureProjectResources({
+      corporationUuid: corpUuid,
+      projectUuid: normalizedProjectUuid,
+    });
+  }
 };
 
 const handleVendorChange = (value: any) => {
@@ -1507,6 +1585,15 @@ const fetchPOItems = async (poUuid: string) => {
   poItemsError.value = null;
   
   try {
+    // Ensure project resources (cost codes, item types, preferred items) are loaded
+    // This ensures POItemsTableWithEstimates has the data it needs for cost code, item type, sequence, and item selects
+    const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
+    if (corpUuid && props.form.project_uuid) {
+      await purchaseOrderResourcesStore.ensureProjectResources({
+        corporationUuid: corpUuid,
+        projectUuid: props.form.project_uuid,
+      });
+    }
     // Fetch both PO items and PO details (for financial breakdown)
     // Try purchase-order-forms first, then fallback to purchase-orders
     let poResponse: { data: any } | null = null;
@@ -1539,6 +1626,13 @@ const fetchPOItems = async (poUuid: string) => {
       }
     });
     
+    // Get preferred items for populating options (sequence and item selects)
+    const preferredItems = preferredItemOptions.value;
+    const preferredItemOptionMap = new Map<string, any>();
+    preferredItems.forEach((opt) => {
+      preferredItemOptionMap.set(String(opt.value), opt);
+    });
+    
     // Map items to the format expected by POItemsTableWithEstimates
     const mappedItems = items.map((item: any, index: number) => {
       const poItemUuid = item.uuid;
@@ -1549,6 +1643,27 @@ const fetchPOItems = async (poUuid: string) => {
           'savedInvoiceItem exists:', !!savedInvoiceItem,
           'saved invoice_unit_price:', savedInvoiceItem?.invoice_unit_price,
           'saved invoice_quantity:', savedInvoiceItem?.invoice_quantity);
+      }
+      
+      // Build options array from preferred items
+      // Include the current item if it's not in preferred items (for saved items)
+      const options: any[] = [...preferredItems];
+      if (item.item_uuid && !preferredItemOptionMap.has(String(item.item_uuid))) {
+        // Add the current item to options if it's not in the preferred items list
+        // This ensures the select components can display the saved item
+        const resolvedItemName = item.description || item.item_name || item.name || String(item.item_uuid);
+        const resolvedSequence = item.sequence || item.item_sequence || '';
+        options.push({
+          label: resolvedItemName,
+          value: String(item.item_uuid),
+          uuid: String(item.item_uuid),
+          item_uuid: String(item.item_uuid),
+          item_name: resolvedItemName,
+          name: resolvedItemName,
+          item_sequence: resolvedSequence,
+          sequence: resolvedSequence,
+          raw: item,
+        });
       }
       
       return {
@@ -1599,7 +1714,7 @@ const fetchPOItems = async (poUuid: string) => {
       approval_checks: props.form.uuid && savedInvoiceItem
         ? (savedInvoiceItem.approval_checks || [])
         : (item.approval_checks || item.approval_checks_uuids || []),
-      options: item.options || []
+      options: options // Populate from preferred items
       };
     });
     
@@ -3986,6 +4101,15 @@ onMounted(async () => {
       purchaseOrdersStore.fetchPurchaseOrders(corpUuid, false), // Don't force refresh on mount
       changeOrdersStore.fetchChangeOrders(corpUuid, false), // Don't force refresh on mount
     ]);
+    
+    // If project is already selected, ensure project resources are loaded
+    // This ensures POItemsTableWithEstimates has cost codes, item types, and preferred items
+    if (props.form.project_uuid) {
+      await purchaseOrderResourcesStore.ensureProjectResources({
+        corporationUuid: corpUuid,
+        projectUuid: props.form.project_uuid,
+      });
+    }
   }
   
   // Wait for all async operations and computed values to be ready
