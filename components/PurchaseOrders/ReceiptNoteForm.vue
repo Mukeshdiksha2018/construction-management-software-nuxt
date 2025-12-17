@@ -921,6 +921,14 @@ const coOptions = computed(() => {
   const list = localChangeOrders.value ?? [];
   if (!Array.isArray(list)) return [];
 
+  const corporationUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
+  const projectUuid = props.form.project_uuid
+    ? String(props.form.project_uuid)
+    : null;
+  const vendorUuid = props.form.vendor_uuid
+    ? String(props.form.vendor_uuid)
+    : null;
+
   // Determine allowed statuses based on whether we're editing an existing receipt note
   const isEditing = props.editingReceiptNote || !!props.form.uuid;
   const allowedStatuses = isEditing
@@ -929,21 +937,31 @@ const coOptions = computed(() => {
 
   // Get current CO UUID if editing (for fallback when vendor/project is not set)
   const currentCoUuid = props.form.change_order_uuid || null;
-  const vendorUuid = props.form.vendor_uuid;
-  const projectUuid = props.form.project_uuid;
   
   return list
     .filter((co) => {
       if (!co?.uuid) return false;
       
-      // If vendor and project are selected, list is already filtered by fetchLocalChangeOrders
-      // But we still need to handle the case when editing and vendor/project might not be set
-      if (!vendorUuid || !projectUuid) {
-        // If vendor/project not selected but editing, show only current CO
+      // Filter by corporation UUID (form's corporation takes priority)
+      if (corporationUuid && co.corporation_uuid !== corporationUuid) return false;
+      
+      // Filter by project UUID if provided
+      if (projectUuid && co.project_uuid !== projectUuid) return false;
+      
+      // Vendor filtering logic:
+      // 1. If vendor is selected: Only show COs matching that vendor
+      // 2. If vendor is NOT selected AND editing: Show only the current CO (if it exists)
+      // 3. If vendor is NOT selected AND creating new: Show nothing (require vendor selection)
+      if (vendorUuid) {
+        // Vendor is selected - filter by vendor
+        if (co.vendor_uuid !== vendorUuid) return false;
+      } else {
+        // Vendor is NOT selected
         if (isEditing && currentCoUuid) {
+          // Editing existing receipt note - only show the current CO
           if (co.uuid !== currentCoUuid) return false;
         } else {
-          // Creating new receipt note - require vendor and project selection
+          // Creating new receipt note - require vendor selection (show nothing)
           return false;
         }
       }
@@ -1463,7 +1481,17 @@ const handleCorporationChange = async (corporationUuid?: string | null) => {
 const handleProjectChange = async (projectUuid?: string | null) => {
   console.log("[ReceiptNoteForm] handleProjectChange called:", { projectUuid });
   
+  // Check if project actually changed - if it's the same value, still update form but skip validation
+  const currentProjectUuid = props.form.project_uuid ? String(props.form.project_uuid) : null;
+  const newProjectUuid = projectUuid ? String(projectUuid) : null;
+  const projectChanged = currentProjectUuid !== newProjectUuid;
+  
   const nextForm = updateFormField("project_uuid", projectUuid || null);
+  
+  if (!projectChanged) {
+    console.log("[ReceiptNoteForm] Project value unchanged, skipping PO/CO validation");
+    return;
+  }
 
   const currentPurchaseOrderUuid = nextForm.purchase_order_uuid;
   const currentChangeOrderUuid = nextForm.change_order_uuid;
@@ -1489,20 +1517,42 @@ const handleProjectChange = async (projectUuid?: string | null) => {
       coCount: localChangeOrders.value.length,
     });
     
-    // Check if current PO/CO still matches the new project
+    // Check if current PO/CO still matches the new project by checking if it's in the filtered options
+    // This ensures we use the same filtering logic as the dropdown options
+    // Only clear if options list has items (meaning data has been fetched) and PO/CO is not in it
     if (currentPurchaseOrderUuid) {
-      const po = localPurchaseOrders.value.find((p: any) => p.uuid === currentPurchaseOrderUuid);
-      if (!po || po.project_uuid !== projectUuid) {
-        console.log("[ReceiptNoteForm] Clearing PO - doesn't match project");
-        updateFormField("purchase_order_uuid", null, nextForm);
+      if (poOptions.value.length > 0) {
+        // Data has been fetched - check if PO is in filtered options
+        const poOption = poOptions.value.find((opt) => opt.value === currentPurchaseOrderUuid);
+        if (!poOption) {
+          console.log("[ReceiptNoteForm] Clearing PO - not found in filtered options");
+          updateFormField("purchase_order_uuid", null, nextForm);
+        }
+      } else {
+        // Data hasn't been fetched yet - check raw data as fallback
+        const po = localPurchaseOrders.value.find((p: any) => p.uuid === currentPurchaseOrderUuid);
+        if (po && po.project_uuid !== projectUuid) {
+          console.log("[ReceiptNoteForm] Clearing PO - doesn't match project in raw data");
+          updateFormField("purchase_order_uuid", null, nextForm);
+        }
       }
     }
 
     if (currentChangeOrderUuid) {
-      const co = localChangeOrders.value.find((c: any) => c.uuid === currentChangeOrderUuid);
-      if (!co || co.project_uuid !== projectUuid) {
-        console.log("[ReceiptNoteForm] Clearing CO - doesn't match project");
-        updateFormField("change_order_uuid", null, nextForm);
+      if (coOptions.value.length > 0) {
+        // Data has been fetched - check if CO is in filtered options
+        const coOption = coOptions.value.find((opt) => opt.value === currentChangeOrderUuid);
+        if (!coOption) {
+          console.log("[ReceiptNoteForm] Clearing CO - not found in filtered options");
+          updateFormField("change_order_uuid", null, nextForm);
+        }
+      } else {
+        // Data hasn't been fetched yet - check raw data as fallback
+        const co = localChangeOrders.value.find((c: any) => c.uuid === currentChangeOrderUuid);
+        if (co && co.project_uuid !== projectUuid) {
+          console.log("[ReceiptNoteForm] Clearing CO - doesn't match project in raw data");
+          updateFormField("change_order_uuid", null, nextForm);
+        }
       }
     }
   } else {
@@ -1533,7 +1583,17 @@ const handleVendorChange = async (vendorUuid?: string | null) => {
     return;
   }
   
+  // Check if vendor actually changed - if it's the same value, still update form but skip validation
+  const currentVendorUuid = props.form.vendor_uuid ? String(props.form.vendor_uuid) : null;
+  const newVendorUuid = vendorUuid ? String(vendorUuid) : null;
+  const vendorChanged = currentVendorUuid !== newVendorUuid;
+  
   const nextForm = updateFormField("vendor_uuid", vendorUuid || null);
+  
+  if (!vendorChanged) {
+    console.log("[ReceiptNoteForm] Vendor value unchanged, skipping PO/CO validation");
+    return;
+  }
 
   const currentPurchaseOrderUuid = nextForm.purchase_order_uuid;
   const currentChangeOrderUuid = nextForm.change_order_uuid;
@@ -1559,20 +1619,42 @@ const handleVendorChange = async (vendorUuid?: string | null) => {
       coCount: localChangeOrders.value.length,
     });
     
-    // Check if current PO/CO still matches the new vendor
+    // Check if current PO/CO still matches the new vendor by checking if it's in the filtered options
+    // This ensures we use the same filtering logic as the dropdown options
+    // Only clear if options list has items (meaning data has been fetched) and PO/CO is not in it
     if (currentPurchaseOrderUuid) {
-      const po = localPurchaseOrders.value.find((p: any) => p.uuid === currentPurchaseOrderUuid);
-      if (!po || po.vendor_uuid !== vendorUuid) {
-        console.log("[ReceiptNoteForm] Clearing PO - doesn't match vendor");
-        updateFormField("purchase_order_uuid", null, nextForm);
+      if (poOptions.value.length > 0) {
+        // Data has been fetched - check if PO is in filtered options
+        const poOption = poOptions.value.find((opt) => opt.value === currentPurchaseOrderUuid);
+        if (!poOption) {
+          console.log("[ReceiptNoteForm] Clearing PO - not found in filtered options");
+          updateFormField("purchase_order_uuid", null, nextForm);
+        }
+      } else {
+        // Data hasn't been fetched yet - check raw data as fallback
+        const po = localPurchaseOrders.value.find((p: any) => p.uuid === currentPurchaseOrderUuid);
+        if (po && po.vendor_uuid !== vendorUuid) {
+          console.log("[ReceiptNoteForm] Clearing PO - doesn't match vendor in raw data");
+          updateFormField("purchase_order_uuid", null, nextForm);
+        }
       }
     }
 
     if (currentChangeOrderUuid) {
-      const co = localChangeOrders.value.find((c: any) => c.uuid === currentChangeOrderUuid);
-      if (!co || co.vendor_uuid !== vendorUuid) {
-        console.log("[ReceiptNoteForm] Clearing CO - doesn't match vendor");
-        updateFormField("change_order_uuid", null, nextForm);
+      if (coOptions.value.length > 0) {
+        // Data has been fetched - check if CO is in filtered options
+        const coOption = coOptions.value.find((opt) => opt.value === currentChangeOrderUuid);
+        if (!coOption) {
+          console.log("[ReceiptNoteForm] Clearing CO - not found in filtered options");
+          updateFormField("change_order_uuid", null, nextForm);
+        }
+      } else {
+        // Data hasn't been fetched yet - check raw data as fallback
+        const co = localChangeOrders.value.find((c: any) => c.uuid === currentChangeOrderUuid);
+        if (co && co.vendor_uuid !== vendorUuid) {
+          console.log("[ReceiptNoteForm] Clearing CO - doesn't match vendor in raw data");
+          updateFormField("change_order_uuid", null, nextForm);
+        }
       }
     }
   } else {
