@@ -191,7 +191,7 @@
       <div class="relative overflow-auto rounded-2xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         <!-- Loading skeleton -->
         <div class="bg-gray-50 dark:bg-gray-700">
-          <div class="grid grid-cols-9 gap-4 px-2 py-2 text-sm font-bold text-gray-800 dark:text-gray-200 tracking-wider border-b border-gray-200 dark:border-gray-600">
+          <div class="grid gap-4 px-2 py-2 text-sm font-bold text-gray-800 dark:text-gray-200 tracking-wider border-b border-gray-200 dark:border-gray-600" style="grid-template-columns: repeat(13, minmax(0, 1fr));">
             <div class="flex items-center gap-2">
               <USkeleton class="h-4 w-4 rounded" />
               <USkeleton class="h-4 w-8" />
@@ -216,9 +216,24 @@
               <USkeleton class="h-4 w-4 rounded" />
               <USkeleton class="h-4 w-16" />
             </div>
+            <div class="flex items-center justify-center">
+              <USkeleton class="h-4 w-4 rounded" />
+            </div>
             <div class="flex items-center gap-2">
               <USkeleton class="h-4 w-4 rounded" />
               <USkeleton class="h-4 w-24" />
+            </div>
+            <div class="flex items-center gap-2">
+              <USkeleton class="h-4 w-4 rounded" />
+              <USkeleton class="h-4 w-20" />
+            </div>
+            <div class="flex items-center gap-2">
+              <USkeleton class="h-4 w-4 rounded" />
+              <USkeleton class="h-4 w-20" />
+            </div>
+            <div class="flex items-center gap-2">
+              <USkeleton class="h-4 w-4 rounded" />
+              <USkeleton class="h-4 w-20" />
             </div>
             <div class="flex items-center gap-2">
               <USkeleton class="h-4 w-4 rounded" />
@@ -233,7 +248,7 @@
         <!-- Table Body -->
         <div class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
           <div v-for="i in 8" :key="i" class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150">
-            <div class="grid grid-cols-9 gap-4 px-2 py-1 text-xs text-gray-900 dark:text-gray-100 border-gray-100 dark:border-gray-700">
+            <div class="grid gap-4 px-2 py-1 text-xs text-gray-900 dark:text-gray-100 border-gray-100 dark:border-gray-700" style="grid-template-columns: repeat(13, minmax(0, 1fr));">
               <div class="flex items-center">
                 <USkeleton class="h-4 w-20" />
               </div>
@@ -252,8 +267,20 @@
               <div class="flex items-center">
                 <USkeleton class="h-4 w-20" />
               </div>
+              <div class="flex items-center justify-center">
+                <USkeleton class="h-4 w-4 rounded" />
+              </div>
               <div class="flex items-center">
                 <USkeleton class="h-4 w-24" />
+              </div>
+              <div class="flex items-center">
+                <USkeleton class="h-4 w-20" />
+              </div>
+              <div class="flex items-center">
+                <USkeleton class="h-4 w-20" />
+              </div>
+              <div class="flex items-center">
+                <USkeleton class="h-4 w-20" />
               </div>
               <div class="flex items-center">
                 <USkeleton class="h-4 w-20" />
@@ -500,6 +527,8 @@ import AuditLogSlideover from '@/components/AuditLogs/AuditLogSlideover.vue'
 // Resolve components for table columns
 const UButton = resolveComponent('UButton')
 const UTooltip = resolveComponent('UTooltip')
+const UPopover = resolveComponent('UPopover')
+const UIcon = resolveComponent('UIcon')
 
 // Router
 const router = useRouter()
@@ -512,6 +541,9 @@ const projectTypesStore = useProjectTypesStore()
 const serviceTypesStore = useServiceTypesStore()
 const estimatesStore = useEstimatesStore()
 const dateRangeStore = useDateRangeStore()
+
+// Address popover state - track which project's popover is open
+const addressPopoverOpen = ref<Record<string, boolean>>({})
 const { formatDate } = useDateFormat()
 const { formatCurrency } = useCurrencyFormat()
 
@@ -775,6 +807,38 @@ const columns: TableColumn<any>[] = [
       const uuid = row.original.service_type_uuid
       const label = uuid ? (serviceTypeNameByUuid.value[uuid] || uuid) : 'N/A'
       return h('div', label)
+    }
+  },
+  {
+    accessorKey: 'addresses',
+    header: 'Address',
+    enableSorting: false,
+    meta: { class: { th: 'text-center', td: 'text-center' } },
+    cell: ({ row }: { row: { original: any } }) => {
+      const projectUuid = row.original.uuid
+      const isOpen = addressPopoverOpen.value[projectUuid] || false
+      
+      return h('div', { class: 'flex justify-center' }, [
+        h(UPopover, {
+          open: isOpen,
+          'onUpdate:open': (value: boolean) => {
+            addressPopoverOpen.value[projectUuid] = value
+            if (value) {
+              // Lazy load addresses when popover opens
+              loadAddressesForProject(projectUuid)
+            }
+          }
+        }, {
+          default: () => h(UButton, {
+            icon: 'i-heroicons-map-pin',
+            size: 'xs',
+            variant: 'ghost',
+            color: 'neutral',
+            class: 'hover:scale-105 transition-transform'
+          }),
+          content: () => renderAddressPopover(projectUuid)
+        })
+      ])
     }
   },
   // Date columns grouped together right after Service Type
@@ -1218,6 +1282,97 @@ const editProjectFromPreview = () => {
     showPreviewModal.value = false;
     editProject(previewProject.value);
   }
+}
+
+// Address methods
+const loadAddressesForProject = async (projectUuid: string) => {
+  // Check if addresses are already loaded
+  const existingAddresses = projectAddressesStore.getAddresses(projectUuid)
+  if (existingAddresses.length > 0) {
+    return // Already loaded
+  }
+  
+  // Fetch addresses (will be cached in store)
+  try {
+    await projectAddressesStore.fetchAddresses(projectUuid)
+  } catch (error) {
+    console.error('Error fetching addresses:', error)
+  }
+}
+
+const getPrimaryAddressesByType = (projectUuid: string) => {
+  const addresses = projectAddressesStore.getAddresses(projectUuid)
+  const activeAddresses = addresses.filter(addr => addr.is_active)
+  
+  // Group by address type and get primary for each type
+  const primaryByType: Record<string, any> = {}
+  const addressTypes = ['shipment', 'bill', 'final-destination', 'other']
+  
+  addressTypes.forEach(type => {
+    const typeAddresses = activeAddresses.filter(addr => addr.address_type === type)
+    const primary = typeAddresses.find(addr => addr.is_primary) || typeAddresses[0] // Fallback to first if no primary
+    if (primary) {
+      primaryByType[type] = primary
+    }
+  })
+  
+  return primaryByType
+}
+
+const formatAddress = (address: any) => {
+  const parts = []
+  if (address.address_line_1) parts.push(address.address_line_1)
+  if (address.address_line_2) parts.push(address.address_line_2)
+  const cityStateZip = [address.city, address.state, address.zip_code].filter(Boolean).join(', ')
+  if (cityStateZip) parts.push(cityStateZip)
+  if (address.country) parts.push(address.country)
+  return parts.join('\n') || 'No address'
+}
+
+const getAddressTypeLabel = (type: string) => {
+  const labels: Record<string, string> = {
+    'shipment': 'Shipment Address',
+    'bill': 'Billing Address',
+    'final-destination': 'Final Destination',
+    'other': 'Other Address'
+  }
+  return labels[type] || type
+}
+
+const renderAddressPopover = (projectUuid: string) => {
+  const primaryAddresses = getPrimaryAddressesByType(projectUuid)
+  const addressTypes = ['shipment', 'bill', 'final-destination', 'other']
+  
+  if (Object.keys(primaryAddresses).length === 0) {
+    return h('div', { class: 'p-4 w-80' }, [
+      h('div', { class: 'text-sm text-gray-500 dark:text-gray-400' }, 'No addresses found')
+    ])
+  }
+  
+  return h('div', { class: 'p-4 w-80 max-h-96 overflow-y-auto' }, [
+    h('div', { class: 'text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3' }, 'Project Addresses'),
+    ...addressTypes.map(type => {
+      const address = primaryAddresses[type]
+      if (!address) return null
+      
+      return h('div', { 
+        key: type,
+        class: 'mb-4 pb-4 border-b border-gray-200 dark:border-gray-700 last:border-0 last:pb-0 last:mb-0'
+      }, [
+        h('div', { class: 'text-xs font-medium text-gray-700 dark:text-gray-300 mb-1' }, getAddressTypeLabel(type)),
+        h('div', { class: 'text-sm text-gray-600 dark:text-gray-400 whitespace-pre-line' }, formatAddress(address)),
+        ...(address.contact_person ? [
+          h('div', { class: 'text-xs text-gray-500 dark:text-gray-500 mt-1' }, `Contact: ${address.contact_person}`)
+        ] : []),
+        ...(address.phone ? [
+          h('div', { class: 'text-xs text-gray-500 dark:text-gray-500' }, `Phone: ${address.phone}`)
+        ] : []),
+        ...(address.email ? [
+          h('div', { class: 'text-xs text-gray-500 dark:text-gray-500' }, `Email: ${address.email}`)
+        ] : [])
+      ])
+    }).filter(Boolean)
+  ])
 }
 
 // Audit log methods
