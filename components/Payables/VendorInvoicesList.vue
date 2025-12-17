@@ -717,7 +717,11 @@ const columns: TableColumn<any>[] = [
     header: 'Status',
     enableSorting: false,
     cell: ({ row }: { row: { original: any } }) => {
-      const rawStatus = row.original.status || 'Draft';
+      let rawStatus = row.original.status || 'Draft';
+      // Show Draft status as Pending in the table
+      if (rawStatus === 'Draft') {
+        rawStatus = 'Pending';
+      }
       const statusMap: Record<string, { label: string; class: string }> = {
         Draft: {
           label: 'Draft',
