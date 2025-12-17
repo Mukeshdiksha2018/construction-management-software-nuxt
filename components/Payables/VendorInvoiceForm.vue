@@ -1645,6 +1645,30 @@ const fetchPOItems = async (poUuid: string) => {
           'saved invoice_quantity:', savedInvoiceItem?.invoice_quantity);
       }
       
+      // Extract sequence from multiple sources (similar to PurchaseOrderForm)
+      // Check both metadata (JSONB from DB) and display_metadata (computed/display)
+      const display = item?.display_metadata || item?.metadata || {};
+      
+      // Extract sequence - check multiple sources
+      let sequenceValue = 
+        display.sequence || 
+        item.sequence || 
+        item.item_sequence || 
+        item.sequence_uuid || 
+        '';
+      
+      // If no sequence found and we have item_uuid, lookup from preferred items
+      if (!sequenceValue && item.item_uuid) {
+        const matchedItem = preferredItemOptionMap.get(String(item.item_uuid));
+        if (matchedItem?.item_sequence) {
+          sequenceValue = matchedItem.item_sequence;
+        } else if (matchedItem?.sequence) {
+          sequenceValue = matchedItem.sequence;
+        } else if (matchedItem?.raw?.item_sequence) {
+          sequenceValue = matchedItem.raw.item_sequence;
+        }
+      }
+      
       // Build options array from preferred items
       // Include the current item if it's not in preferred items (for saved items)
       const options: any[] = [...preferredItems];
@@ -1652,7 +1676,7 @@ const fetchPOItems = async (poUuid: string) => {
         // Add the current item to options if it's not in the preferred items list
         // This ensures the select components can display the saved item
         const resolvedItemName = item.description || item.item_name || item.name || String(item.item_uuid);
-        const resolvedSequence = item.sequence || item.item_sequence || '';
+        const resolvedSequence = sequenceValue || item.sequence || item.item_sequence || '';
         options.push({
           label: resolvedItemName,
           value: String(item.item_uuid),
@@ -1678,6 +1702,8 @@ const fetchPOItems = async (poUuid: string) => {
       cost_code_name: item.cost_code_name || '',
       item_type_uuid: item.item_type_uuid || null,
       item_type_label: item.item_type_label || '',
+      sequence: sequenceValue, // Include sequence for SequenceSelect
+      item_sequence: sequenceValue, // Also include as item_sequence for compatibility
       item_uuid: item.item_uuid || null,
       description: item.description || '',
       model_number: item.model_number || '',
