@@ -971,6 +971,8 @@ import { useVendorStore } from "@/stores/vendors";
 import { useProjectsStore } from "@/stores/projects";
 import { useVendorInvoicesStore } from "@/stores/vendorInvoices";
 import { useCostCodeConfigurationsStore } from "@/stores/costCodeConfigurations";
+import { usePurchaseOrdersStore } from "@/stores/purchaseOrders";
+import { useChangeOrdersStore } from "@/stores/changeOrders";
 import { useUTCDateFormat } from '@/composables/useUTCDateFormat';
 import CorporationSelect from '@/components/Shared/CorporationSelect.vue';
 import ProjectSelect from '@/components/Shared/ProjectSelect.vue';
@@ -1012,6 +1014,10 @@ const vendorStore = useVendorStore();
 const projectsStore = useProjectsStore();
 const vendorInvoicesStore = useVendorInvoicesStore();
 const costCodeConfigurationsStore = useCostCodeConfigurationsStore();
+// Import stores for PO/CO data fetching (used by POCOSelect)
+// NOTE: We fetch data for the form's corporation, not TopBar's corporation
+const purchaseOrdersStore = usePurchaseOrdersStore();
+const changeOrdersStore = useChangeOrdersStore();
 const { toUTCString, fromUTCString } = useUTCDateFormat();
 
 // Helper functions for numeric parsing and rounding (same as PurchaseOrderForm)
@@ -1414,6 +1420,10 @@ const handleCorporationChange = async (corporationUuid?: string | null) => {
       projectsStore.fetchProjectsMetadata(normalizedCorporationUuid),
       vendorInvoicesStore.fetchVendorInvoices(normalizedCorporationUuid),
       costCodeConfigurationsStore.fetchConfigurations(normalizedCorporationUuid),
+      // Fetch PO/CO data for the form's corporation so POCOSelect can use it
+      // This ensures POCOSelect shows data for the form's corporation, not TopBar's
+      purchaseOrdersStore.fetchPurchaseOrders(normalizedCorporationUuid, true), // forceRefresh = true
+      changeOrdersStore.fetchChangeOrders(normalizedCorporationUuid, true), // forceRefresh = true
     ]);
   }
   
@@ -3304,6 +3314,34 @@ watch(
   }
 );
 
+// Watch for corporation/project/vendor changes to ensure PO/CO data is fetched for POCOSelect
+// This ensures POCOSelect has data for the form's corporation, not TopBar's corporation
+watch(
+  [() => props.form.corporation_uuid, () => props.form.project_uuid, () => props.form.vendor_uuid],
+  async ([newCorpUuid, newProjectUuid, newVendorUuid], [oldCorpUuid, oldProjectUuid, oldVendorUuid]) => {
+    // Only fetch if we have all required fields and something changed
+    if (newCorpUuid && newProjectUuid && newVendorUuid) {
+      const corpChanged = newCorpUuid !== oldCorpUuid;
+      const projectChanged = newProjectUuid !== oldProjectUuid;
+      const vendorChanged = newVendorUuid !== oldVendorUuid;
+      
+      // Fetch PO/CO data when corporation changes (force refresh to ensure fresh data)
+      // Also fetch when project or vendor changes if corporation is set (to ensure data is available)
+      if (corpChanged || (projectChanged && newCorpUuid) || (vendorChanged && newCorpUuid)) {
+        try {
+          await Promise.allSettled([
+            purchaseOrdersStore.fetchPurchaseOrders(newCorpUuid, corpChanged), // forceRefresh only if corp changed
+            changeOrdersStore.fetchChangeOrders(newCorpUuid, corpChanged), // forceRefresh only if corp changed
+          ]);
+        } catch (error) {
+          console.error('[VendorInvoiceForm] Error fetching PO/CO data:', error);
+        }
+      }
+    }
+  },
+  { immediate: false } // Don't run immediately - let handleCorporationChange handle initial fetch
+);
+
 // Watch for purchase_order_uuid changes to fetch PO items (for Against PO invoices)
 watch(
   () => props.form.purchase_order_uuid,
@@ -3943,6 +3981,10 @@ onMounted(async () => {
       projectsStore.fetchProjectsMetadata(corpUuid),
       vendorInvoicesStore.fetchVendorInvoices(corpUuid),
       costCodeConfigurationsStore.fetchConfigurations(corpUuid),
+      // Fetch PO/CO data for the form's corporation so POCOSelect can use it
+      // This ensures POCOSelect shows data for the form's corporation, not TopBar's
+      purchaseOrdersStore.fetchPurchaseOrders(corpUuid, false), // Don't force refresh on mount
+      changeOrdersStore.fetchChangeOrders(corpUuid, false), // Don't force refresh on mount
     ]);
   }
   
