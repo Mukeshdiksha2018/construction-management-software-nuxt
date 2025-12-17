@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, readonly } from 'vue'
+import { useCorporationStore } from '@/stores/corporations'
 
 export interface VendorInvoice {
   id?: number;
@@ -252,7 +253,16 @@ export const useVendorInvoicesStore = defineStore("vendorInvoices", () => {
           newInvoice.attachments = uploadedAttachments;
         }
 
-        vendorInvoices.value.unshift(newInvoice);
+        // Only add to local store if it matches the currently selected corporation
+        // This prevents showing vendor invoices from other corporations in the list
+        // Similar to how PurchaseOrders store handles this
+        const corpStore = useCorporationStore();
+        if (newInvoice.corporation_uuid === corpStore.selectedCorporationId) {
+          vendorInvoices.value.unshift(newInvoice);
+        }
+
+        // Always update currentVendorInvoice (regardless of selected corporation)
+        // This ensures the form shows the created data
         currentVendorInvoice.value = newInvoice;
       }
       return newInvoice || null;
@@ -296,24 +306,37 @@ export const useVendorInvoicesStore = defineStore("vendorInvoices", () => {
           updatedInvoice.attachments = uploadedAttachments;
         }
 
-        const index = vendorInvoices.value.findIndex(
-          (i) => i.uuid === updatedInvoice.uuid
-        );
-        if (index !== -1) {
-          // Merge updated invoice with existing one to preserve display fields (vendor_name, project_name, etc.)
-          // that come from JOINs in the list endpoint but not in the update response
-          const existingInvoice = vendorInvoices.value[index];
-          vendorInvoices.value[index] = {
-            ...existingInvoice,
-            ...updatedInvoice,
-            // Preserve display fields from existing invoice if not in updated response
-            vendor_name: updatedInvoice.vendor_name ?? existingInvoice.vendor_name,
-            project_name: updatedInvoice.project_name ?? existingInvoice.project_name,
-            project_id: updatedInvoice.project_id ?? existingInvoice.project_id,
-            po_number: updatedInvoice.po_number ?? existingInvoice.po_number,
-            co_number: updatedInvoice.co_number ?? existingInvoice.co_number,
-          };
+        // Only update in local store if it matches the currently selected corporation
+        // This prevents showing vendor invoices from other corporations in the list
+        // Similar to how PurchaseOrders store handles this
+        const corpStore = useCorporationStore();
+        if (updatedInvoice.corporation_uuid === corpStore.selectedCorporationId) {
+          const index = vendorInvoices.value.findIndex(
+            (i) => i.uuid === updatedInvoice.uuid
+          );
+          if (index !== -1) {
+            // Merge updated invoice with existing one to preserve display fields (vendor_name, project_name, etc.)
+            // that come from JOINs in the list endpoint but not in the update response
+            const existingInvoice = vendorInvoices.value[index];
+            vendorInvoices.value[index] = {
+              ...existingInvoice,
+              ...updatedInvoice,
+              // Preserve display fields from existing invoice if not in updated response
+              vendor_name: updatedInvoice.vendor_name ?? existingInvoice.vendor_name,
+              project_name: updatedInvoice.project_name ?? existingInvoice.project_name,
+              project_id: updatedInvoice.project_id ?? existingInvoice.project_id,
+              po_number: updatedInvoice.po_number ?? existingInvoice.po_number,
+              co_number: updatedInvoice.co_number ?? existingInvoice.co_number,
+            };
+          } else {
+            // If invoice doesn't exist in store but corporation matches, add it
+            // This handles the case where invoice was created/updated for the selected corporation
+            vendorInvoices.value.push(updatedInvoice);
+          }
         }
+
+        // Always update currentVendorInvoice if it matches (regardless of selected corporation)
+        // This ensures the form shows the updated data
         if (currentVendorInvoice.value?.uuid === updatedInvoice.uuid) {
           currentVendorInvoice.value = updatedInvoice;
         }
@@ -343,11 +366,18 @@ export const useVendorInvoicesStore = defineStore("vendorInvoices", () => {
       );
       if (response?.error) throw new Error(response.error);
 
+      // Only remove from local store if it matches the currently selected corporation
+      // This prevents affecting vendor invoices from other corporations in the list
+      const corpStore = useCorporationStore();
       const index = vendorInvoices.value.findIndex((i) => i.uuid === uuid);
       if (index !== -1) {
         const invoice = vendorInvoices.value[index];
         if (invoice) {
-          vendorInvoices.value.splice(index, 1);
+          // Only remove from store if corporation matches
+          if (invoice.corporation_uuid === corpStore.selectedCorporationId) {
+            vendorInvoices.value.splice(index, 1);
+          }
+          // Always clear currentVendorInvoice if it matches (regardless of selected corporation)
           if (currentVendorInvoice.value?.uuid === uuid) {
             currentVendorInvoice.value = null;
           }

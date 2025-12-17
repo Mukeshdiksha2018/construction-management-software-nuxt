@@ -262,13 +262,13 @@
                   data-testid="btn-reject-draft"
                   color="error"
                   variant="soft"
-                  icon="i-heroicons-arrow-uturn-left"
+                  icon="i-heroicons-x-circle"
                   size="sm"
                   :disabled="savingInvoice"
                   :loading="savingInvoice"
                   @click="handleRejectToDraft"
                 >
-                  Reject &amp; Save as Draft
+                  Reject
                 </UButton>
                 <UButton
                   data-testid="btn-approve"
@@ -351,13 +351,13 @@
                   data-testid="btn-pending"
                   color="primary"
                   variant="solid"
-                  icon="i-heroicons-bolt"
+                  icon="i-heroicons-paper-airplane"
                   size="sm"
                   :disabled="savingInvoice"
                   :loading="savingInvoice"
                   @click="handleMarkPending"
                 >
-                  Mark Pending
+                  Send for Approval
                 </UButton>
               </template>
               </template>
@@ -542,7 +542,7 @@ const saveDraftButtonLabel = computed(() => {
   if (invoiceForm.value?.uuid && invoiceStatus === 'approved') {
     return 'Unapprove & Save as Draft'
   }
-  return 'Save as Draft'
+  return 'Save'
 })
 
 const saveDraftButtonIcon = computed(() => {
@@ -553,7 +553,7 @@ const saveDraftButtonIcon = computed(() => {
   if (invoiceForm.value?.uuid && invoiceStatus === 'approved') {
     return 'i-heroicons-arrow-uturn-left'
   }
-  return 'i-heroicons-document'
+  return 'i-heroicons-check'
 })
 
 const saveDraftButtonColor = computed(() => {
@@ -564,7 +564,7 @@ const saveDraftButtonColor = computed(() => {
   if (invoiceForm.value?.uuid && invoiceStatus === 'approved') {
     return 'warning'
   }
-  return 'neutral'
+  return 'primary'
 })
 
 const saveDraftButtonVariant = computed(() => {
@@ -572,7 +572,10 @@ const saveDraftButtonVariant = computed(() => {
   if (status === 'paid') {
     return 'soft'
   }
-  return 'outline'
+  if (invoiceForm.value?.uuid && status === 'approved') {
+    return 'outline'
+  }
+  return 'solid'
 })
 
 const isSaveDraftButtonDisabled = computed(() => {
@@ -714,7 +717,11 @@ const columns: TableColumn<any>[] = [
     header: 'Status',
     enableSorting: false,
     cell: ({ row }: { row: { original: any } }) => {
-      const rawStatus = row.original.status || 'Draft';
+      let rawStatus = row.original.status || 'Draft';
+      // Show Draft status as Pending in the table
+      if (rawStatus === 'Draft') {
+        rawStatus = 'Pending';
+      }
       const statusMap: Record<string, { label: string; class: string }> = {
         Draft: {
           label: 'Draft',
@@ -899,12 +906,20 @@ const submitWithStatus = async (status: 'Draft' | 'Pending' | 'Approved' | 'Paid
   await saveInvoice()
 }
 
-const handleSaveAsDraft = () => submitWithStatus('Draft')
+const handleSaveAsDraft = () => {
+  // For approved invoices, unapprove and save as draft
+  const invoiceStatus = String(invoiceForm.value?.status || '').toLowerCase()
+  if (invoiceForm.value?.uuid && invoiceStatus === 'approved') {
+    return submitWithStatus('Draft')
+  }
+  // For new invoices or draft invoices, save as pending
+  return submitWithStatus('Pending')
+}
 const handleMarkPending = () => submitWithStatus('Pending')
 const handleApprove = async () => {
   await submitWithStatus('Approved')
 }
-const handleRejectToDraft = () => submitWithStatus('Draft')
+const handleRejectToDraft = () => submitWithStatus('Pending')
 const handlePay = async () => {
   await submitWithStatus('Paid')
 }

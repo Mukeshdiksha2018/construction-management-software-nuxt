@@ -66,12 +66,13 @@
               <label class="block text-xs font-medium text-default mb-1">
                 Corporation <span class="text-red-500">*</span>
               </label>
-              <UInput
-                :model-value="getCorporationName"
-                disabled
+              <CorporationSelect
+                :model-value="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
+                :disabled="props.readonly"
+                placeholder="Select corporation"
                 size="sm"
                 class="w-full"
-                icon="i-heroicons-building-office-2-solid"
+                @update:model-value="handleCorporationChange"
               />
             </div>
 
@@ -82,8 +83,8 @@
               </label>
               <ProjectSelect
                 :model-value="form.project_uuid"
-                :corporation-uuid="corpStore.selectedCorporation?.uuid"
-                :disabled="!corpStore.selectedCorporation || props.readonly"
+                :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
+                :disabled="!form.corporation_uuid && !corpStore.selectedCorporation || props.readonly"
                 placeholder="Select project"
                 size="sm"
                 class="w-full"
@@ -151,8 +152,8 @@
               </label>
               <VendorSelect
                 :model-value="form.vendor_uuid"
-                :corporation-uuid="corpStore.selectedCorporation?.uuid"
-                :disabled="!corpStore.selectedCorporation || areSubsequentFieldsDisabled"
+                :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
+                :disabled="!form.corporation_uuid && !corpStore.selectedCorporation || areSubsequentFieldsDisabled"
                 placeholder="Select vendor"
                 size="sm"
                 class="w-full"
@@ -207,7 +208,7 @@
               <POCOSelect
                 :model-value="form.po_co_uuid || (form.purchase_order_uuid ? `PO:${form.purchase_order_uuid}` : undefined)"
                 :project-uuid="form.project_uuid"
-                :corporation-uuid="corpStore.selectedCorporation?.uuid"
+                :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
                 :vendor-uuid="form.vendor_uuid"
                 :show-invoice-summary="true"
                 :showOnlyPOs="true"
@@ -228,7 +229,7 @@
               <POCOSelect
                 :model-value="form.po_co_uuid || (form.change_order_uuid ? `CO:${form.change_order_uuid}` : undefined)"
                 :project-uuid="form.project_uuid"
-                :corporation-uuid="corpStore.selectedCorporation?.uuid"
+                :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
                 :vendor-uuid="form.vendor_uuid"
                 :show-invoice-summary="true"
                 :showOnlyCOs="true"
@@ -249,7 +250,7 @@
               <POCOSelect
                 :model-value="form.po_co_uuid"
                 :project-uuid="form.project_uuid"
-                :corporation-uuid="corpStore.selectedCorporation?.uuid"
+                :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
                 :vendor-uuid="form.vendor_uuid"
                 :disabled="areSubsequentFieldsDisabled"
                 placeholder="Select PO or CO"
@@ -311,7 +312,7 @@
       v-if="isAgainstAdvancePayment"
       :po-co-uuid="form.po_co_uuid"
       :po-co-type="poCoType"
-      :corporation-uuid="corpStore.selectedCorporation?.uuid"
+      :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
       :readonly="props.readonly"
       :model-value="advancePaymentCostCodes"
       :removed-cost-codes="removedAdvancePaymentCostCodes"
@@ -328,8 +329,10 @@
         :items="poItems"
         :loading="poItemsLoading"
         :error="poItemsError"
-        :corporation-uuid="corpStore.selectedCorporation?.uuid"
+        :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
         :project-uuid="form.project_uuid"
+        :scoped-cost-code-configurations="scopedCostCodeConfigurations"
+        :scoped-item-types="scopedItemTypes"
         :show-estimate-values="false"
         :show-invoice-values="true"
         :readonly="props.readonly"
@@ -377,7 +380,7 @@
     <div v-if="isDirectInvoice" class="mt-6">
       <DirectVendorInvoiceLineItemsTable
         :items="lineItems"
-        :corporation-uuid="corpStore.selectedCorporation?.uuid"
+        :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
         :readonly="props.readonly"
         @add-row="handleAddLineItem"
         @remove-row="handleRemoveLineItem"
@@ -970,7 +973,11 @@ import { useVendorStore } from "@/stores/vendors";
 import { useProjectsStore } from "@/stores/projects";
 import { useVendorInvoicesStore } from "@/stores/vendorInvoices";
 import { useCostCodeConfigurationsStore } from "@/stores/costCodeConfigurations";
+import { usePurchaseOrdersStore } from "@/stores/purchaseOrders";
+import { useChangeOrdersStore } from "@/stores/changeOrders";
+import { usePurchaseOrderResourcesStore } from "@/stores/purchaseOrderResources";
 import { useUTCDateFormat } from '@/composables/useUTCDateFormat';
+import CorporationSelect from '@/components/Shared/CorporationSelect.vue';
 import ProjectSelect from '@/components/Shared/ProjectSelect.vue';
 import VendorSelect from '@/components/Shared/VendorSelect.vue';
 import PurchaseOrderSelect from '@/components/Shared/PurchaseOrderSelect.vue';
@@ -1010,6 +1017,13 @@ const vendorStore = useVendorStore();
 const projectsStore = useProjectsStore();
 const vendorInvoicesStore = useVendorInvoicesStore();
 const costCodeConfigurationsStore = useCostCodeConfigurationsStore();
+// Import stores for PO/CO data fetching (used by POCOSelect)
+// NOTE: We fetch data for the form's corporation, not TopBar's corporation
+const purchaseOrdersStore = usePurchaseOrdersStore();
+const changeOrdersStore = useChangeOrdersStore();
+// Use purchaseOrderResourcesStore for cost codes, item types, and preferred items
+// This ensures we fetch data for the form's corporation, not TopBar's corporation
+const purchaseOrderResourcesStore = usePurchaseOrderResourcesStore();
 const { toUTCString, fromUTCString } = useUTCDateFormat();
 
 // Helper functions for numeric parsing and rounding (same as PurchaseOrderForm)
@@ -1033,7 +1047,7 @@ const roundCurrencyValue = (value: number): number => {
 function generateInvoiceNumber() {
   // Do not override if already set (e.g., editing)
   if (props.form.number && String(props.form.number).trim() !== '') return;
-  const corporationId = corpStore.selectedCorporation?.uuid || corpStore.selectedCorporationId;
+  const corporationId = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid || corpStore.selectedCorporationId;
   if (!corporationId) return;
 
   // Ensure vendor invoices are available in store
@@ -1069,11 +1083,6 @@ const creditDaysOptions = [
   { label: 'Net 45', value: 'NET_45' },
   { label: 'Net 60', value: 'NET_60' },
 ];
-
-// Computed properties
-const getCorporationName = computed(() => {
-  return corpStore.selectedCorporation?.corporation_name || 'Select Corporation';
-});
 
 // Check if invoice type is selected
 const isInvoiceTypeSelected = computed(() => {
@@ -1114,6 +1123,60 @@ const poCoType = computed<'PO' | 'CO' | null>(() => {
     return 'CO'
   }
   return null
+});
+
+// Scoped cost code configurations for passing to child components (avoids polluting global store)
+const scopedCostCodeConfigurations = computed(() => {
+  const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
+  if (!corpUuid) {
+    return [];
+  }
+  const configs = purchaseOrderResourcesStore.getCostCodeConfigurations(
+    corpUuid,
+    props.form.project_uuid
+  );
+  return configs;
+});
+
+// Scoped item types for passing to child components (avoids polluting global store)
+const scopedItemTypes = computed(() => {
+  const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
+  if (!corpUuid) return [];
+  return purchaseOrderResourcesStore.getItemTypes(
+    corpUuid,
+    props.form.project_uuid
+  );
+});
+
+// Preferred items for populating options in PO items
+const preferredItemOptions = computed(() => {
+  const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
+  if (!corpUuid) return [];
+  const projectUuid = props.form.project_uuid ?? undefined;
+  const source = purchaseOrderResourcesStore.getPreferredItems(corpUuid, projectUuid) || [];
+  return source
+    .map((item: any) => {
+      const value =
+        item.item_uuid ||
+        item.uuid ||
+        item.id ||
+        (typeof item.value === "string" ? item.value : "");
+      const label =
+        item.item_name ||
+        item.name ||
+        item.label ||
+        item.description ||
+        String(value);
+      const itemSequence = item.item_sequence || item.sequence || '';
+      return {
+        label,
+        value: String(value || ""),
+        item_sequence: itemSequence,
+        sequence: itemSequence,
+        raw: item,
+      };
+    })
+    .filter((opt: any) => Boolean(opt.value));
 });
 
 // Advance payment cost codes
@@ -1404,9 +1467,63 @@ const handleFormUpdate = (field: string, value: any) => {
   emit('update:form', updatedForm);
 };
 
+const handleCorporationChange = async (corporationUuid?: string | null) => {
+  const normalizedCorporationUuid = corporationUuid || '';
+  handleFormUpdate('corporation_uuid', normalizedCorporationUuid);
+  
+  // Fetch data for the selected corporation
+  // NOTE: We do NOT update corpStore.selectedCorporation here to avoid affecting other components
+  // The form operates independently with its own corporation selection
+  if (normalizedCorporationUuid) {
+    await Promise.allSettled([
+      vendorStore.fetchVendors(normalizedCorporationUuid),
+      projectsStore.fetchProjectsMetadata(normalizedCorporationUuid),
+      vendorInvoicesStore.fetchVendorInvoices(normalizedCorporationUuid),
+      costCodeConfigurationsStore.fetchConfigurations(normalizedCorporationUuid),
+      // Fetch PO/CO data for the form's corporation so POCOSelect can use it
+      // This ensures POCOSelect shows data for the form's corporation, not TopBar's
+      purchaseOrdersStore.fetchPurchaseOrders(normalizedCorporationUuid, true), // forceRefresh = true
+      changeOrdersStore.fetchChangeOrders(normalizedCorporationUuid, true), // forceRefresh = true
+    ]);
+    
+    // If project is already selected, ensure project resources are loaded
+    if (props.form.project_uuid) {
+      await purchaseOrderResourcesStore.ensureProjectResources({
+        corporationUuid: normalizedCorporationUuid,
+        projectUuid: props.form.project_uuid,
+      });
+    }
+  }
+  
+  // Auto-generate Invoice Number on corporation selection if not set
+  if (normalizedCorporationUuid) {
+    generateInvoiceNumber();
+  }
+  
+  // Clear project if corporation changes (project must belong to the selected corporation)
+  if (normalizedCorporationUuid && props.form.project_uuid) {
+    // Check if the current project belongs to the new corporation
+    const projects = projectsStore.getProjectsMetadata(normalizedCorporationUuid);
+    const currentProject = projects?.find((p: any) => p.uuid === props.form.project_uuid);
+    if (!currentProject) {
+      handleFormUpdate('project_uuid', null);
+    }
+  }
+};
+
 const handleProjectChange = async (projectUuid?: string | null) => {
   const normalizedProjectUuid = projectUuid || '';
   handleFormUpdate('project_uuid', normalizedProjectUuid);
+  
+  // Ensure project resources (cost codes, item types, preferred items) are loaded
+  // This ensures POItemsTableWithEstimates has the data it needs
+  const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
+  if (normalizedProjectUuid && corpUuid) {
+    await purchaseOrderResourcesStore.ensureProjectResources({
+      corporationUuid: corpUuid,
+      projectUuid: normalizedProjectUuid,
+    });
+  }
 };
 
 const handleVendorChange = (value: any) => {
@@ -1468,6 +1585,15 @@ const fetchPOItems = async (poUuid: string) => {
   poItemsError.value = null;
   
   try {
+    // Ensure project resources (cost codes, item types, preferred items) are loaded
+    // This ensures POItemsTableWithEstimates has the data it needs for cost code, item type, sequence, and item selects
+    const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
+    if (corpUuid && props.form.project_uuid) {
+      await purchaseOrderResourcesStore.ensureProjectResources({
+        corporationUuid: corpUuid,
+        projectUuid: props.form.project_uuid,
+      });
+    }
     // Fetch both PO items and PO details (for financial breakdown)
     // Try purchase-order-forms first, then fallback to purchase-orders
     let poResponse: { data: any } | null = null;
@@ -1500,6 +1626,13 @@ const fetchPOItems = async (poUuid: string) => {
       }
     });
     
+    // Get preferred items for populating options (sequence and item selects)
+    const preferredItems = preferredItemOptions.value;
+    const preferredItemOptionMap = new Map<string, any>();
+    preferredItems.forEach((opt) => {
+      preferredItemOptionMap.set(String(opt.value), opt);
+    });
+    
     // Map items to the format expected by POItemsTableWithEstimates
     const mappedItems = items.map((item: any, index: number) => {
       const poItemUuid = item.uuid;
@@ -1510,6 +1643,58 @@ const fetchPOItems = async (poUuid: string) => {
           'savedInvoiceItem exists:', !!savedInvoiceItem,
           'saved invoice_unit_price:', savedInvoiceItem?.invoice_unit_price,
           'saved invoice_quantity:', savedInvoiceItem?.invoice_quantity);
+      }
+      
+      // Extract sequence from multiple sources (similar to PurchaseOrderForm)
+      // Check both metadata (JSONB from DB) and display_metadata (computed/display)
+      const display = item?.display_metadata || item?.metadata || {};
+      
+      // Extract sequence - check multiple sources
+      let sequenceValue = 
+        display.sequence || 
+        item.sequence || 
+        item.item_sequence || 
+        item.sequence_uuid || 
+        '';
+      
+      // If no sequence found and we have item_uuid, lookup from preferred items
+      if (!sequenceValue && item.item_uuid) {
+        const matchedItem = preferredItemOptionMap.get(String(item.item_uuid));
+        if (matchedItem?.item_sequence) {
+          sequenceValue = matchedItem.item_sequence;
+        } else if (matchedItem?.sequence) {
+          sequenceValue = matchedItem.sequence;
+        } else if (matchedItem?.raw?.item_sequence) {
+          sequenceValue = matchedItem.raw.item_sequence;
+        }
+      }
+      
+      // Build options array - use item.options from API if available, otherwise build from preferred items
+      // Include the current item if it's not in preferred items (for saved items)
+      let options: any[] = [];
+      if (item.options && Array.isArray(item.options) && item.options.length > 0) {
+        // Use options from API response if available
+        options = item.options;
+      } else {
+        // Fall back to building from preferred items
+        options = [...preferredItems];
+        if (item.item_uuid && !preferredItemOptionMap.has(String(item.item_uuid))) {
+          // Add the current item to options if it's not in the preferred items list
+          // This ensures the select components can display the saved item
+          const resolvedItemName = item.description || item.item_name || item.name || String(item.item_uuid);
+          const resolvedSequence = sequenceValue || item.sequence || item.item_sequence || '';
+          options.push({
+            label: resolvedItemName,
+            value: String(item.item_uuid),
+            uuid: String(item.item_uuid),
+            item_uuid: String(item.item_uuid),
+            item_name: resolvedItemName,
+            name: resolvedItemName,
+            item_sequence: resolvedSequence,
+            sequence: resolvedSequence,
+            raw: item,
+          });
+        }
       }
       
       return {
@@ -1524,6 +1709,8 @@ const fetchPOItems = async (poUuid: string) => {
       cost_code_name: item.cost_code_name || '',
       item_type_uuid: item.item_type_uuid || null,
       item_type_label: item.item_type_label || '',
+      sequence: sequenceValue, // Include sequence for SequenceSelect
+      item_sequence: sequenceValue, // Also include as item_sequence for compatibility
       item_uuid: item.item_uuid || null,
       description: item.description || '',
       model_number: item.model_number || '',
@@ -1560,7 +1747,7 @@ const fetchPOItems = async (poUuid: string) => {
       approval_checks: props.form.uuid && savedInvoiceItem
         ? (savedInvoiceItem.approval_checks || [])
         : (item.approval_checks || item.approval_checks_uuids || []),
-      options: item.options || []
+      options: options // Use options from API if available, otherwise from preferred items
       };
     });
     
@@ -3275,6 +3462,34 @@ watch(
   }
 );
 
+// Watch for corporation/project/vendor changes to ensure PO/CO data is fetched for POCOSelect
+// This ensures POCOSelect has data for the form's corporation, not TopBar's corporation
+watch(
+  [() => props.form.corporation_uuid, () => props.form.project_uuid, () => props.form.vendor_uuid],
+  async ([newCorpUuid, newProjectUuid, newVendorUuid], [oldCorpUuid, oldProjectUuid, oldVendorUuid]) => {
+    // Only fetch if we have all required fields and something changed
+    if (newCorpUuid && newProjectUuid && newVendorUuid) {
+      const corpChanged = newCorpUuid !== oldCorpUuid;
+      const projectChanged = newProjectUuid !== oldProjectUuid;
+      const vendorChanged = newVendorUuid !== oldVendorUuid;
+      
+      // Fetch PO/CO data when corporation changes (force refresh to ensure fresh data)
+      // Also fetch when project or vendor changes if corporation is set (to ensure data is available)
+      if (corpChanged || (projectChanged && newCorpUuid) || (vendorChanged && newCorpUuid)) {
+        try {
+          await Promise.allSettled([
+            purchaseOrdersStore.fetchPurchaseOrders(newCorpUuid, corpChanged), // forceRefresh only if corp changed
+            changeOrdersStore.fetchChangeOrders(newCorpUuid, corpChanged), // forceRefresh only if corp changed
+          ]);
+        } catch (error) {
+          console.error('[VendorInvoiceForm] Error fetching PO/CO data:', error);
+        }
+      }
+    }
+  },
+  { immediate: false } // Don't run immediately - let handleCorporationChange handle initial fetch
+);
+
 // Watch for purchase_order_uuid changes to fetch PO items (for Against PO invoices)
 watch(
   () => props.form.purchase_order_uuid,
@@ -3875,9 +4090,9 @@ watch(() => uploadedFiles.value, async () => {
   }
 }, { deep: true });
 
-// Watch for corporation changes to regenerate invoice number if needed
+// Watch for form corporation_uuid changes to regenerate invoice number if needed
 watch(
-  () => corpStore.selectedCorporation?.uuid,
+  () => props.form.corporation_uuid,
   async (newCorpUuid) => {
     if (newCorpUuid) {
       // Fetch vendor invoices and cost code configurations for the new corporation
@@ -3896,14 +4111,38 @@ watch(
 
 // Initialize
 onMounted(async () => {
-  const corpUuid = corpStore.selectedCorporation?.uuid;
+  // Initialize corporation_uuid from form or fallback to selected corporation
+  // For new invoices, use the selected corporation from TopBar as default
+  // For existing invoices, use the form's corporation_uuid
+  if (!props.form.corporation_uuid && !props.form.uuid) {
+    // New invoice: initialize with selected corporation from TopBar
+    const selectedCorpUuid = corpStore.selectedCorporation?.uuid;
+    if (selectedCorpUuid) {
+      handleFormUpdate('corporation_uuid', selectedCorpUuid);
+    }
+  }
+  
+  const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
   if (corpUuid) {
     await Promise.allSettled([
       vendorStore.fetchVendors(corpUuid),
       projectsStore.fetchProjectsMetadata(corpUuid),
       vendorInvoicesStore.fetchVendorInvoices(corpUuid),
       costCodeConfigurationsStore.fetchConfigurations(corpUuid),
+      // Fetch PO/CO data for the form's corporation so POCOSelect can use it
+      // This ensures POCOSelect shows data for the form's corporation, not TopBar's
+      purchaseOrdersStore.fetchPurchaseOrders(corpUuid, false), // Don't force refresh on mount
+      changeOrdersStore.fetchChangeOrders(corpUuid, false), // Don't force refresh on mount
     ]);
+    
+    // If project is already selected, ensure project resources are loaded
+    // This ensures POItemsTableWithEstimates has cost codes, item types, and preferred items
+    if (props.form.project_uuid) {
+      await purchaseOrderResourcesStore.ensureProjectResources({
+        corporationUuid: corpUuid,
+        projectUuid: props.form.project_uuid,
+      });
+    }
   }
   
   // Wait for all async operations and computed values to be ready
