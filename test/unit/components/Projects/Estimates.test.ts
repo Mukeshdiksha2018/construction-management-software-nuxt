@@ -260,6 +260,7 @@ describe("Estimates", () => {
     vi.mocked(useCorporationStore).mockReturnValue({
       selectedCorporation: mockCorporation,
       selectedCorporationId: "corp-1",
+      corporations: [mockCorporation],
     } as any);
 
     vi.mocked(useEstimatesStore).mockReturnValue({
@@ -459,9 +460,10 @@ describe("Estimates", () => {
       wrapper = createWrapper();
 
       const columns = wrapper.vm.columns;
-      expect(columns).toHaveLength(8);
+      expect(columns).toHaveLength(9);
 
       const columnKeys = columns.map((col) => col.accessorKey);
+      expect(columnKeys).toContain("corporation_uuid");
       expect(columnKeys).toContain("estimate_date");
       expect(columnKeys).toContain("estimate_number");
       expect(columnKeys).toContain("project_name");
