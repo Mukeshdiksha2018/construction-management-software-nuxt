@@ -945,7 +945,6 @@
                             <SequenceSelect
                               v-model="item.item_uuid"
                               :corporation-uuid="props.editingEstimate ? corpStore.selectedCorporation?.uuid : estimateCreationStore.selectedCorporationUuid"
-                              :cost-code-uuid="selectedCostCode?.uuid"
                               :use-estimate-creation-store="!props.editingEstimate"
                               :items="getMaterialItemOptionsForSequence(item)"
                               size="xs"
@@ -959,7 +958,6 @@
                             <ItemSelect
                               v-model="item.item_uuid"
                               :corporation-uuid="props.editingEstimate ? corpStore.selectedCorporation?.uuid : estimateCreationStore.selectedCorporationUuid"
-                              :cost-code-uuid="selectedCostCode?.uuid"
                               :use-estimate-creation-store="!props.editingEstimate"
                               :items="getMaterialItemOptionsForItem(item)"
                               size="xs"
