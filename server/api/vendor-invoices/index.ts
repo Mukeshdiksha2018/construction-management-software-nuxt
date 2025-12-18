@@ -333,6 +333,93 @@ const persistChangeOrderInvoiceItems = async (options: {
   }
 };
 
+const persistAdjustedAdvancePaymentCostCodes = async (options: {
+  vendorInvoiceUuid: string;
+  advancePaymentUuid: string;
+  corporationUuid: string | null;
+  projectUuid: string | null;
+  purchaseOrderUuid: string | null;
+  changeOrderUuid: string | null;
+  adjustedAmounts: Record<string, number>; // Map of costCodeUuid -> adjustedAmount
+  advancePaymentCostCodes: any[]; // Original advance payment cost codes for reference
+}) => {
+  const {
+    vendorInvoiceUuid,
+    advancePaymentUuid,
+    corporationUuid,
+    projectUuid,
+    purchaseOrderUuid,
+    changeOrderUuid,
+    adjustedAmounts = {},
+    advancePaymentCostCodes = [],
+  } = options;
+
+  if (!vendorInvoiceUuid || !advancePaymentUuid) return;
+
+  // Delete existing adjusted advance payment cost codes for this invoice
+  const { error: deleteError } = await supabaseServer
+    .from("adjusted_advance_payment_cost_codes")
+    .delete()
+    .eq("vendor_invoice_uuid", vendorInvoiceUuid);
+
+  if (deleteError) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: deleteError.message,
+    });
+  }
+
+  // Prepare items for insertion
+  const prepared: any[] = [];
+  
+  Object.entries(adjustedAmounts).forEach(([costCodeUuid, adjustedAmount]) => {
+    if (!costCodeUuid || adjustedAmount <= 0) return;
+    
+    // Find the original cost code to get metadata
+    const originalCostCode = advancePaymentCostCodes.find(
+      (cc) => (cc.uuid || cc.cost_code_uuid) === costCodeUuid
+    );
+    
+    if (!originalCostCode) {
+      console.warn(`Original cost code not found for UUID: ${costCodeUuid}`);
+      return;
+    }
+    
+    prepared.push({
+      vendor_invoice_uuid: vendorInvoiceUuid,
+      advance_payment_uuid: advancePaymentUuid,
+      corporation_uuid: corporationUuid,
+      project_uuid: projectUuid,
+      purchase_order_uuid: purchaseOrderUuid,
+      change_order_uuid: changeOrderUuid,
+      cost_code_uuid: costCodeUuid,
+      cost_code_label: originalCostCode.cost_code_label || 
+        (originalCostCode.cost_code_number && originalCostCode.cost_code_name
+          ? `${originalCostCode.cost_code_number} ${originalCostCode.cost_code_name}`.trim()
+          : null),
+      cost_code_number: originalCostCode.cost_code_number || null,
+      cost_code_name: originalCostCode.cost_code_name || null,
+      adjusted_amount: parseFloat(String(adjustedAmount)) || 0,
+      is_active: true,
+    });
+  });
+
+  if (prepared.length === 0) {
+    return;
+  }
+
+  const { error: insertError } = await supabaseServer
+    .from("adjusted_advance_payment_cost_codes")
+    .insert(prepared);
+
+  if (insertError) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: insertError.message,
+    });
+  }
+};
+
 export default defineEventHandler(async (event) => {
   const method = event.node.req.method;
   const query = getQuery(event);
@@ -882,6 +969,7 @@ export default defineEventHandler(async (event) => {
         "status",
         "financial_breakdown",
         "is_active",
+        "adjusted_advance_payment_uuid",
       ];
 
       for (const f of fields) {
@@ -1114,6 +1202,41 @@ export default defineEventHandler(async (event) => {
             .eq("vendor_invoice_uuid", data.uuid);
         }
 
+        // Handle adjusted advance payment cost codes for AGAINST_PO invoices
+        if (updated.adjusted_advance_payment_amounts !== undefined && updated.adjusted_advance_payment_uuid) {
+          const adjustedAmounts = updated.adjusted_advance_payment_amounts;
+          const advancePaymentUuid = updated.adjusted_advance_payment_uuid;
+          
+          // Fetch the advance payment cost codes to get full details
+          const { data: advancePaymentCostCodes } = await supabaseServer
+            .from("advance_payment_cost_codes")
+            .select("*")
+            .eq("vendor_invoice_uuid", advancePaymentUuid)
+            .eq("is_active", true);
+          
+          // Extract adjusted amounts for this specific advance payment
+          const adjustedAmountsForPayment = adjustedAmounts[advancePaymentUuid] || {};
+          
+          if (Object.keys(adjustedAmountsForPayment).length > 0) {
+            await persistAdjustedAdvancePaymentCostCodes({
+              vendorInvoiceUuid: data.uuid,
+              advancePaymentUuid: advancePaymentUuid,
+              corporationUuid: data.corporation_uuid ?? null,
+              projectUuid: data.project_uuid ?? null,
+              purchaseOrderUuid: data.purchase_order_uuid ?? null,
+              changeOrderUuid: null,
+              adjustedAmounts: adjustedAmountsForPayment,
+              advancePaymentCostCodes: advancePaymentCostCodes || [],
+            });
+          }
+        } else if (updated.adjusted_advance_payment_uuid === null || updated.adjusted_advance_payment_uuid === undefined) {
+          // Clear adjusted advance payment cost codes if no advance payment is being adjusted
+          await supabaseServer
+            .from("adjusted_advance_payment_cost_codes")
+            .delete()
+            .eq("vendor_invoice_uuid", data.uuid);
+        }
+
         // Mark advance payment invoices as adjusted if there's a deduction
         if (data.purchase_order_uuid) {
           // Calculate deduction amount - prefer explicit value from frontend, otherwise calculate from financial breakdown
@@ -1171,6 +1294,41 @@ export default defineEventHandler(async (event) => {
           console.log('[API] Switching to AGAINST_CO, clearing existing items');
           await supabaseServer
             .from("change_order_invoice_items_list")
+            .delete()
+            .eq("vendor_invoice_uuid", data.uuid);
+        }
+
+        // Handle adjusted advance payment cost codes for AGAINST_CO invoices
+        if (updated.adjusted_advance_payment_amounts !== undefined && updated.adjusted_advance_payment_uuid) {
+          const adjustedAmounts = updated.adjusted_advance_payment_amounts;
+          const advancePaymentUuid = updated.adjusted_advance_payment_uuid;
+          
+          // Fetch the advance payment cost codes to get full details
+          const { data: advancePaymentCostCodes } = await supabaseServer
+            .from("advance_payment_cost_codes")
+            .select("*")
+            .eq("vendor_invoice_uuid", advancePaymentUuid)
+            .eq("is_active", true);
+          
+          // Extract adjusted amounts for this specific advance payment
+          const adjustedAmountsForPayment = adjustedAmounts[advancePaymentUuid] || {};
+          
+          if (Object.keys(adjustedAmountsForPayment).length > 0) {
+            await persistAdjustedAdvancePaymentCostCodes({
+              vendorInvoiceUuid: data.uuid,
+              advancePaymentUuid: advancePaymentUuid,
+              corporationUuid: data.corporation_uuid ?? null,
+              projectUuid: data.project_uuid ?? null,
+              purchaseOrderUuid: null,
+              changeOrderUuid: data.change_order_uuid ?? null,
+              adjustedAmounts: adjustedAmountsForPayment,
+              advancePaymentCostCodes: advancePaymentCostCodes || [],
+            });
+          }
+        } else if (updated.adjusted_advance_payment_uuid === null || updated.adjusted_advance_payment_uuid === undefined) {
+          // Clear adjusted advance payment cost codes if no advance payment is being adjusted
+          await supabaseServer
+            .from("adjusted_advance_payment_cost_codes")
             .delete()
             .eq("vendor_invoice_uuid", data.uuid);
         }

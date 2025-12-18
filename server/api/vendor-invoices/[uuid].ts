@@ -96,11 +96,41 @@ export default defineEventHandler(async (event) => {
         }
       }
 
+      // Fetch adjusted advance payment cost codes if this is an AGAINST_PO or AGAINST_CO invoice
+      let adjustedAdvancePaymentAmounts: Record<string, Record<string, number>> = {};
+      if ((data.invoice_type === "AGAINST_PO" || data.invoice_type === "AGAINST_CO") && data.adjusted_advance_payment_uuid) {
+        const { data: adjustedData, error: adjustedError } = await supabaseServer
+          .from("adjusted_advance_payment_cost_codes")
+          .select("*")
+          .eq("vendor_invoice_uuid", data.uuid)
+          .eq("is_active", true);
+
+        if (adjustedError) {
+          console.error("Error fetching adjusted advance payment cost codes:", adjustedError);
+        } else if (adjustedData && adjustedData.length > 0) {
+          // Group by advance_payment_uuid -> cost_code_uuid -> adjusted_amount
+          adjustedData.forEach((item: any) => {
+            const advancePaymentUuid = item.advance_payment_uuid;
+            const costCodeUuid = item.cost_code_uuid;
+            const adjustedAmount = parseFloat(item.adjusted_amount || "0") || 0;
+            
+            if (!adjustedAdvancePaymentAmounts[advancePaymentUuid]) {
+              adjustedAdvancePaymentAmounts[advancePaymentUuid] = {};
+            }
+            
+            if (costCodeUuid && adjustedAmount > 0) {
+              adjustedAdvancePaymentAmounts[advancePaymentUuid][costCodeUuid] = adjustedAmount;
+            }
+          });
+        }
+      }
+
       const decorated = decorateVendorInvoiceRecord({ ...data });
       (decorated as any).line_items = lineItems;
       (decorated as any).advance_payment_cost_codes = advancePaymentCostCodes;
       (decorated as any).po_invoice_items = poInvoiceItems;
       (decorated as any).co_invoice_items = coInvoiceItems;
+      (decorated as any).adjusted_advance_payment_amounts = adjustedAdvancePaymentAmounts;
       // Include removed_advance_payment_cost_codes if it exists
       if ((data as any).removed_advance_payment_cost_codes !== undefined) {
         (decorated as any).removed_advance_payment_cost_codes = (data as any).removed_advance_payment_cost_codes;

@@ -371,6 +371,11 @@
       <AdvancePaymentBreakdownTable
         :purchase-order-uuid="form.purchase_order_uuid"
         :current-invoice-uuid="form.uuid"
+        :show-adjustment-inputs="true"
+        :readonly="props.readonly"
+        :adjusted-amounts="adjustedAdvancePaymentAmounts"
+        @adjusted-amount-change="handleAdjustedAmountChange"
+        @adjusted-amounts-update="handleAdjustedAmountsUpdate"
       />
     </div>
 
@@ -395,6 +400,11 @@
       <AdvancePaymentBreakdownTable
         :change-order-uuid="form.change_order_uuid"
         :current-invoice-uuid="form.uuid"
+        :show-adjustment-inputs="true"
+        :readonly="props.readonly"
+        :adjusted-amounts="adjustedAdvancePaymentAmounts"
+        @adjusted-amount-change="handleAdjustedAmountChange"
+        @adjusted-amounts-update="handleAdjustedAmountsUpdate"
       />
     </div>
 
@@ -822,7 +832,7 @@
             total-amount-label="Total Amount"
             :allow-edit-total="false"
             :total-invoice-amount-error="props.totalInvoiceAmountError"
-            :advance-payment-deduction="poAdvancePaid"
+            :advance-payment-deduction="totalAdjustedAdvancePayment > 0 ? totalAdjustedAdvancePayment : poAdvancePaid"
             :holdback-deduction="poHoldbackAmount"
             @update="handleFinancialBreakdownUpdate"
           />
@@ -962,7 +972,7 @@
             total-amount-label="Total Amount"
             :allow-edit-total="false"
             :total-invoice-amount-error="props.totalInvoiceAmountError"
-            :advance-payment-deduction="coAdvancePaid"
+            :advance-payment-deduction="totalAdjustedAdvancePayment > 0 ? totalAdjustedAdvancePayment : coAdvancePaid"
             :holdback-deduction="coHoldbackAmount"
             @update="handleFinancialBreakdownUpdate"
           />
@@ -1470,6 +1480,22 @@ const coItemsError = ref<string | null>(null);
 const coItemsKey = ref(0); // Key to force re-render of COItemsTableFromOriginal
 const isUpdatingCOInvoiceItems = ref(false); // Guard flag to prevent infinite loops when syncing CO invoice items
 const coAdvancePaid = ref<number>(0); // Total advance payments made for the selected CO
+
+// Adjusted advance payment amounts (keyed by advancePaymentUuid -> costCodeUuid -> adjustedAmount)
+const adjustedAdvancePaymentAmounts = ref<Record<string, Record<string, number>>>({});
+
+// Watch for form changes to load adjusted amounts when editing
+watch(
+  () => props.form.adjusted_advance_payment_amounts,
+  (newAmounts) => {
+    if (newAmounts && typeof newAmounts === 'object' && Object.keys(newAmounts).length > 0) {
+      adjustedAdvancePaymentAmounts.value = { ...newAmounts };
+    } else if (!newAmounts) {
+      adjustedAdvancePaymentAmounts.value = {};
+    }
+  },
+  { immediate: true, deep: true }
+);
 
 // Computed property for file upload error message
 const fileUploadErrorMessage = computed(() => {
@@ -3922,6 +3948,53 @@ watch(
   },
   { immediate: true, deep: true } // Immediate and deep watch to catch initial values and nested property changes
 );
+
+// Handle adjusted amount change from AdvancePaymentBreakdownTable
+const handleAdjustedAmountChange = (advancePaymentUuid: string, costCode: any, amount: number | null) => {
+  // This is handled by handleAdjustedAmountsUpdate, but we keep it for individual change tracking if needed
+  // The parent component will receive the full update via adjusted-amounts-update event
+};
+
+// Calculate total adjusted amount from adjusted advance payment amounts
+const totalAdjustedAdvancePayment = computed(() => {
+  let total = 0;
+  Object.values(adjustedAdvancePaymentAmounts.value).forEach((costCodeAmounts) => {
+    Object.values(costCodeAmounts).forEach((amount) => {
+      total += amount || 0;
+    });
+  });
+  return total;
+});
+
+// Handle adjusted amounts update from AdvancePaymentBreakdownTable
+const handleAdjustedAmountsUpdate = (adjustedAmounts: Record<string, Record<string, number>>) => {
+  adjustedAdvancePaymentAmounts.value = adjustedAmounts;
+  
+  // Calculate total adjusted amount
+  let totalAdjusted = 0;
+  Object.values(adjustedAmounts).forEach((costCodeAmounts) => {
+    Object.values(costCodeAmounts).forEach((amount) => {
+      totalAdjusted += amount || 0;
+    });
+  });
+  
+  // Update the form with adjusted advance payment amounts
+  // This will be saved to adjusted_advance_payment_cost_codes table
+  handleFormUpdate('adjusted_advance_payment_amounts', adjustedAmounts);
+  
+  // If there are adjusted amounts, we should also track which advance payment is being adjusted
+  // Find the first advance payment UUID that has adjustments
+  const firstAdjustedPaymentUuid = Object.keys(adjustedAmounts).find(uuid => 
+    Object.keys(adjustedAmounts[uuid] || {}).length > 0
+  );
+  
+  if (firstAdjustedPaymentUuid && totalAdjusted > 0) {
+    handleFormUpdate('adjusted_advance_payment_uuid', firstAdjustedPaymentUuid);
+  } else if (totalAdjusted === 0) {
+    // Clear the adjusted advance payment UUID if no amounts are adjusted
+    handleFormUpdate('adjusted_advance_payment_uuid', null);
+  }
+};
 
 // Watch for form UUID and invoice type changes to ensure financial breakdown is initialized
 // This handles the case when reopening an existing advance payment invoice

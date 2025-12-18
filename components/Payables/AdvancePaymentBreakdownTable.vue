@@ -5,6 +5,9 @@
       <p class="text-sm text-gray-500 dark:text-gray-400">
         {{ purchaseOrderUuid ? 'Advance payments made for this purchase order' : changeOrderUuid ? 'Advance payments made for this change order' : 'Select a purchase order or change order to view advance payments' }}
       </p>
+      <p v-if="showAdjustmentInputs" class="text-sm text-primary-600 dark:text-primary-400 mt-1">
+        Enter the amount to adjust from each cost code below
+      </p>
     </div>
 
     <!-- Loading State -->
@@ -42,6 +45,9 @@
             </th>
             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700">
               Cost Code Breakdown
+            </th>
+            <th v-if="showAdjustmentInputs" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700">
+              Adjust Amount
             </th>
             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700">
               Total Amount
@@ -97,6 +103,34 @@
               <span v-else class="text-xs text-gray-400">No cost codes</span>
             </td>
 
+            <!-- Adjust Amount Column (only shown when showAdjustmentInputs is true) -->
+            <td v-if="showAdjustmentInputs" class="px-4 py-3">
+              <div v-if="payment.costCodes && payment.costCodes.length > 0" class="space-y-2">
+                <div
+                  v-for="(costCode, ccIndex) in payment.costCodes"
+                  :key="costCode.uuid || ccIndex"
+                  class="flex items-center gap-2"
+                >
+                  <UInput
+                    :model-value="getAdjustedAmount(payment.uuid, costCode.uuid)"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    :max="costCode.advance_amount || costCode.advanceAmount || 0"
+                    placeholder="0.00"
+                    size="xs"
+                    class="w-24"
+                    :disabled="readonly"
+                    @update:model-value="handleAdjustedAmountChange(payment.uuid, costCode, $event)"
+                  />
+                  <span class="text-xs text-gray-500 dark:text-gray-400">
+                    / {{ formatCurrency(costCode.advance_amount || costCode.advanceAmount || 0) }}
+                  </span>
+                </div>
+              </div>
+              <span v-else class="text-xs text-gray-400">No cost codes</span>
+            </td>
+
             <!-- Total Amount -->
             <td class="px-4 py-3 text-right">
               <div class="text-sm font-semibold text-red-600 dark:text-red-400">
@@ -107,11 +141,19 @@
         </tbody>
         <tfoot v-if="advancePayments.length > 0" class="bg-gray-50 dark:bg-gray-800">
           <tr>
-            <td colspan="3" class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100 text-right">
+            <td :colspan="showAdjustmentInputs ? 4 : 3" class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100 text-right">
               Total Advance Paid:
             </td>
-            <td colspan="2" class="px-4 py-3 text-sm font-bold text-red-600 dark:text-red-400 text-right">
+            <td class="px-4 py-3 text-sm font-bold text-red-600 dark:text-red-400 text-right">
               {{ formatCurrency(-totalAdvancePaidWithoutTaxes) }}
+            </td>
+          </tr>
+          <tr v-if="showAdjustmentInputs">
+            <td :colspan="showAdjustmentInputs ? 4 : 3" class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100 text-right">
+              Total Adjusted:
+            </td>
+            <td class="px-4 py-3 text-sm font-bold text-primary-600 dark:text-primary-400 text-right">
+              {{ formatCurrency(totalAdjustedAmount) }}
             </td>
           </tr>
         </tfoot>
@@ -129,13 +171,24 @@ interface Props {
   purchaseOrderUuid?: string | null
   changeOrderUuid?: string | null
   currentInvoiceUuid?: string | null
+  showAdjustmentInputs?: boolean
+  readonly?: boolean
+  adjustedAmounts?: Record<string, Record<string, number>> // Map of advancePaymentUuid -> costCodeUuid -> adjustedAmount
 }
 
 const props = withDefaults(defineProps<Props>(), {
   purchaseOrderUuid: null,
   changeOrderUuid: null,
-  currentInvoiceUuid: null
+  currentInvoiceUuid: null,
+  showAdjustmentInputs: false,
+  readonly: false,
+  adjustedAmounts: () => ({})
 })
+
+const emit = defineEmits<{
+  'adjusted-amount-change': [advancePaymentUuid: string, costCode: any, amount: number | null]
+  'adjusted-amounts-update': [adjustedAmounts: Record<string, Record<string, number>>]
+}>()
 
 const { formatDate } = useDateFormat()
 const { formatCurrency } = useCurrencyFormat()
@@ -143,6 +196,20 @@ const { formatCurrency } = useCurrencyFormat()
 const advancePayments = ref<any[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
+
+// Local state for adjusted amounts (keyed by advancePaymentUuid -> costCodeUuid)
+const localAdjustedAmounts = ref<Record<string, Record<string, number>>>({})
+
+// Initialize local adjusted amounts from props
+watch(
+  () => props.adjustedAmounts,
+  (newAmounts) => {
+    if (newAmounts && Object.keys(newAmounts).length > 0) {
+      localAdjustedAmounts.value = { ...newAmounts }
+    }
+  },
+  { immediate: true, deep: true }
+)
 
 // Fetch advance payment invoices for the purchase order or change order
 const fetchAdvancePayments = async () => {
@@ -241,6 +308,59 @@ const totalAdvancePaidWithoutTaxes = computed(() => {
 const getStatusColor = (isActive: boolean | undefined): "error" | "warning" | "info" | "success" | "primary" | "secondary" | "neutral" => {
   return isActive ? 'success' : 'neutral'
 }
+
+// Get adjusted amount for a specific advance payment and cost code
+const getAdjustedAmount = (advancePaymentUuid: string, costCodeUuid: string): string => {
+  const amount = localAdjustedAmounts.value[advancePaymentUuid]?.[costCodeUuid]
+  if (amount === null || amount === undefined) return ''
+  return String(amount)
+}
+
+// Handle adjusted amount change
+const handleAdjustedAmountChange = (advancePaymentUuid: string, costCode: any, value: string | null) => {
+  const costCodeUuid = costCode.uuid || costCode.cost_code_uuid
+  if (!costCodeUuid) return
+
+  // Parse the value
+  let numericValue: number | null = null
+  if (value !== null && value !== undefined && value !== '') {
+    const parsed = parseFloat(value)
+    if (!isNaN(parsed) && parsed >= 0) {
+      // Ensure it doesn't exceed the available amount
+      const maxAmount = parseFloat(costCode.advance_amount || costCode.advanceAmount || '0') || 0
+      numericValue = Math.min(parsed, maxAmount)
+    }
+  }
+
+  // Update local state
+  if (!localAdjustedAmounts.value[advancePaymentUuid]) {
+    localAdjustedAmounts.value[advancePaymentUuid] = {}
+  }
+  
+  if (numericValue !== null && numericValue > 0) {
+    localAdjustedAmounts.value[advancePaymentUuid][costCodeUuid] = numericValue
+  } else {
+    delete localAdjustedAmounts.value[advancePaymentUuid][costCodeUuid]
+    if (Object.keys(localAdjustedAmounts.value[advancePaymentUuid]).length === 0) {
+      delete localAdjustedAmounts.value[advancePaymentUuid]
+    }
+  }
+
+  // Emit events
+  emit('adjusted-amount-change', advancePaymentUuid, costCode, numericValue)
+  emit('adjusted-amounts-update', { ...localAdjustedAmounts.value })
+}
+
+// Calculate total adjusted amount across all advance payments
+const totalAdjustedAmount = computed(() => {
+  let total = 0
+  Object.values(localAdjustedAmounts.value).forEach((costCodeAmounts) => {
+    Object.values(costCodeAmounts).forEach((amount) => {
+      total += amount || 0
+    })
+  })
+  return total
+})
 
 // Watch for purchase order changes
 // Watch for changes to purchaseOrderUuid or changeOrderUuid
