@@ -1535,16 +1535,35 @@ export default defineEventHandler(async (event) => {
         .eq("uuid", uuid as string)
         .maybeSingle();
 
-      if (invoiceToDelete && invoiceToDelete.invoice_type === "AGAINST_PO") {
-        // Unmark advance payment invoices that were adjusted against this invoice
-        const { error: unmarkError } = await supabaseServer
-          .from("vendor_invoices")
-          .update({ adjusted_against_vendor_invoice_uuid: null })
-          .eq("adjusted_against_vendor_invoice_uuid", invoiceToDelete.uuid);
+      if (invoiceToDelete) {
+        const invoiceType = String(invoiceToDelete.invoice_type || '').toUpperCase();
+        
+        // For AGAINST_PO and AGAINST_CO invoices, unmark advance payment invoices and deactivate adjusted cost codes
+        if (invoiceType === "AGAINST_PO" || invoiceType === "AGAINST_CO") {
+          // Unmark advance payment invoices that were adjusted against this invoice
+          const { error: unmarkError } = await supabaseServer
+            .from("vendor_invoices")
+            .update({ adjusted_against_vendor_invoice_uuid: null })
+            .eq("adjusted_against_vendor_invoice_uuid", invoiceToDelete.uuid);
 
-        if (unmarkError) {
-          console.error("Error unmarking advance payment invoices:", unmarkError);
-          // Continue with deletion even if unmarking fails
+          if (unmarkError) {
+            console.error("Error unmarking advance payment invoices:", unmarkError);
+            // Continue with deletion even if unmarking fails
+          }
+
+          // Deactivate adjusted_advance_payment_cost_codes records for this invoice
+          // This ensures the advance payment amounts become available again for future invoices
+          const { error: deactivateCostCodesError } = await supabaseServer
+            .from("adjusted_advance_payment_cost_codes")
+            .update({ is_active: false })
+            .eq("vendor_invoice_uuid", invoiceToDelete.uuid);
+
+          if (deactivateCostCodesError) {
+            console.error("Error deactivating adjusted_advance_payment_cost_codes:", deactivateCostCodesError);
+            // Continue with deletion even if deactivation fails
+          } else {
+            console.log('[DELETE] Deactivated adjusted_advance_payment_cost_codes for vendor_invoice_uuid:', invoiceToDelete.uuid);
+          }
         }
       }
 

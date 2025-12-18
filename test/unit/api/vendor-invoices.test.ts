@@ -1373,6 +1373,26 @@ describe("server/api/vendor-invoices", () => {
         ),
       }));
 
+      // Default mock for all other tables
+      const defaultTableMock = () => ({
+        delete: vi.fn(() => ({
+          eq: vi.fn(() => Promise.resolve({ error: null })),
+        })),
+        insert: vi.fn(() => Promise.resolve({ error: null })),
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              order: vi.fn(() => Promise.resolve({ data: [], error: null })),
+            })),
+            maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),
+          })),
+        })),
+        update: vi.fn(() => ({
+          eq: vi.fn(() => Promise.resolve({ error: null })),
+          in: vi.fn(() => Promise.resolve({ error: null })),
+        })),
+      });
+
       const supabaseMock = {
         from: vi.fn((table: string) => {
           if (table === "vendor_invoices") {
@@ -1388,7 +1408,8 @@ describe("server/api/vendor-invoices", () => {
               }),
             };
           }
-          return {};
+          // Return default mock for all other tables (including adjusted_advance_payment_cost_codes)
+          return defaultTableMock();
         }),
       };
 
@@ -1404,7 +1425,8 @@ describe("server/api/vendor-invoices", () => {
       expect(result.data).toBeDefined();
       expect(result.data.is_active).toBe(false);
       expect(updateSpy).toHaveBeenCalled();
-      // The DELETE handler calls update twice: first to unmark advance payments, then to set is_active
+      // The DELETE handler calls update on vendor_invoices: first to unmark advance payments, then to set is_active
+      // Also calls update on adjusted_advance_payment_cost_codes to deactivate them
       // Check the last update call which should have is_active: false
       const updateCalls = updateSpy.mock.calls;
       const lastUpdateCall = updateCalls[updateCalls.length - 1][0];
