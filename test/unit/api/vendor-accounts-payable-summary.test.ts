@@ -961,6 +961,8 @@ describe("server/api/reports/vendor-accounts-payable-summary", () => {
       },
     ]
 
+    // Reset the mock before setting implementation to ensure clean state
+    supabaseMock.from.mockReset()
     supabaseMock.from.mockImplementation((table: string) => {
       if (table === "projects") {
         return {
@@ -1093,6 +1095,8 @@ describe("server/api/reports/vendor-accounts-payable-summary", () => {
     const changeOrders: any[] = []
     const invoices: any[] = []
 
+    // Reset the mock before setting implementation to ensure clean state
+    supabaseMock.from.mockReset()
     supabaseMock.from.mockImplementation((table: string) => {
       if (table === "projects") {
         return {

@@ -55,55 +55,57 @@ describe("server/api/purchase-orders/[uuid]/advance-payments", () => {
       const globals = stubGlobals();
       globals.mockGetRouterParam.mockReturnValue("po-uuid-1");
 
-      // Mock invoices fetch - chain includes .or() or .is() for adjusted_against_vendor_invoice_uuid
+      // Mock invoices fetch - chain includes .eq() x3 then .or() or .is() for adjusted_against_vendor_invoice_uuid
       const invoicesSelectMock = vi.fn(() => ({
         eq: vi.fn(() => ({
           eq: vi.fn(() => ({
-            or: vi.fn(() => ({
-              order: vi.fn(() =>
-                Promise.resolve({
-                  data: [
-                    {
-                      uuid: "inv-1",
-                      number: "INV-001",
-                      bill_date: "2024-01-15",
-                      amount: "240.00",
-                      is_active: true,
-                    },
-                    {
-                      uuid: "inv-2",
-                      number: "INV-002",
-                      bill_date: "2024-01-20",
-                      amount: "100.00",
-                      is_active: true,
-                    },
-                  ],
-                  error: null,
-                })
-              ),
-            })),
-            is: vi.fn(() => ({
-              order: vi.fn(() =>
-                Promise.resolve({
-                  data: [
-                    {
-                      uuid: "inv-1",
-                      number: "INV-001",
-                      bill_date: "2024-01-15",
-                      amount: "240.00",
-                      is_active: true,
-                    },
-                    {
-                      uuid: "inv-2",
-                      number: "INV-002",
-                      bill_date: "2024-01-20",
-                      amount: "100.00",
-                      is_active: true,
-                    },
-                  ],
-                  error: null,
-                })
-              ),
+            eq: vi.fn(() => ({
+              or: vi.fn(() => ({
+                order: vi.fn(() =>
+                  Promise.resolve({
+                    data: [
+                      {
+                        uuid: "inv-1",
+                        number: "INV-001",
+                        bill_date: "2024-01-15",
+                        amount: "240.00",
+                        is_active: true,
+                      },
+                      {
+                        uuid: "inv-2",
+                        number: "INV-002",
+                        bill_date: "2024-01-20",
+                        amount: "100.00",
+                        is_active: true,
+                      },
+                    ],
+                    error: null,
+                  })
+                ),
+              })),
+              is: vi.fn(() => ({
+                order: vi.fn(() =>
+                  Promise.resolve({
+                    data: [
+                      {
+                        uuid: "inv-1",
+                        number: "INV-001",
+                        bill_date: "2024-01-15",
+                        amount: "240.00",
+                        is_active: true,
+                      },
+                      {
+                        uuid: "inv-2",
+                        number: "INV-002",
+                        bill_date: "2024-01-20",
+                        amount: "100.00",
+                        is_active: true,
+                      },
+                    ],
+                    error: null,
+                  })
+                ),
+              })),
             })),
           })),
         })),
@@ -195,21 +197,23 @@ describe("server/api/purchase-orders/[uuid]/advance-payments", () => {
       const invoicesSelectMock = vi.fn(() => ({
         eq: vi.fn(() => ({
           eq: vi.fn(() => ({
-            or: vi.fn(() => ({
-              order: vi.fn(() =>
-                Promise.resolve({
-                  data: [],
-                  error: null,
-                })
-              ),
-            })),
-            is: vi.fn(() => ({
-              order: vi.fn(() =>
-                Promise.resolve({
-                  data: [],
-                  error: null,
-                })
-              ),
+            eq: vi.fn(() => ({
+              or: vi.fn(() => ({
+                order: vi.fn(() =>
+                  Promise.resolve({
+                    data: [],
+                    error: null,
+                  })
+                ),
+              })),
+              is: vi.fn(() => ({
+                order: vi.fn(() =>
+                  Promise.resolve({
+                    data: [],
+                    error: null,
+                  })
+                ),
+              })),
             })),
           })),
         })),
@@ -254,21 +258,23 @@ describe("server/api/purchase-orders/[uuid]/advance-payments", () => {
       const invoicesSelectMock = vi.fn(() => ({
         eq: vi.fn(() => ({
           eq: vi.fn(() => ({
-            or: vi.fn(() => ({
-              order: vi.fn(() =>
-                Promise.resolve({
-                  data: null,
-                  error: { message: "Database connection failed" },
-                })
-              ),
-            })),
-            is: vi.fn(() => ({
-              order: vi.fn(() =>
-                Promise.resolve({
-                  data: null,
-                  error: { message: "Database connection failed" },
-                })
-              ),
+            eq: vi.fn(() => ({
+              or: vi.fn(() => ({
+                order: vi.fn(() =>
+                  Promise.resolve({
+                    data: null,
+                    error: { message: "Database connection failed" },
+                  })
+                ),
+              })),
+              is: vi.fn(() => ({
+                order: vi.fn(() =>
+                  Promise.resolve({
+                    data: null,
+                    error: { message: "Database connection failed" },
+                  })
+                ),
+              })),
             })),
           })),
         })),
@@ -295,37 +301,39 @@ describe("server/api/purchase-orders/[uuid]/advance-payments", () => {
       const invoicesSelectMock = vi.fn(() => ({
         eq: vi.fn(() => ({
           eq: vi.fn(() => ({
-            or: vi.fn(() => ({
-              order: vi.fn(() =>
-                Promise.resolve({
-                  data: [
-                    {
-                      uuid: "inv-1",
-                      number: "INV-001",
-                      bill_date: "2024-01-15",
-                      amount: "240.00",
-                      is_active: true,
-                    },
-                  ],
-                  error: null,
-                })
-              ),
-            })),
-            is: vi.fn(() => ({
-              order: vi.fn(() =>
-                Promise.resolve({
-                  data: [
-                    {
-                      uuid: "inv-1",
-                      number: "INV-001",
-                      bill_date: "2024-01-15",
-                      amount: "240.00",
-                      is_active: true,
-                    },
-                  ],
-                  error: null,
-                })
-              ),
+            eq: vi.fn(() => ({
+              or: vi.fn(() => ({
+                order: vi.fn(() =>
+                  Promise.resolve({
+                    data: [
+                      {
+                        uuid: "inv-1",
+                        number: "INV-001",
+                        bill_date: "2024-01-15",
+                        amount: "240.00",
+                        is_active: true,
+                      },
+                    ],
+                    error: null,
+                  })
+                ),
+              })),
+              is: vi.fn(() => ({
+                order: vi.fn(() =>
+                  Promise.resolve({
+                    data: [
+                      {
+                        uuid: "inv-1",
+                        number: "INV-001",
+                        bill_date: "2024-01-15",
+                        amount: "240.00",
+                        is_active: true,
+                      },
+                    ],
+                    error: null,
+                  })
+                ),
+              })),
             })),
           })),
         })),
@@ -392,37 +400,39 @@ describe("server/api/purchase-orders/[uuid]/advance-payments", () => {
       const invoicesSelectMock = vi.fn(() => ({
         eq: vi.fn(() => ({
           eq: vi.fn(() => ({
-            or: vi.fn(() => ({
-              order: vi.fn(() =>
-                Promise.resolve({
-                  data: [
-                    {
-                      uuid: "inv-1",
-                      number: "INV-001",
-                      bill_date: "2024-01-15",
-                      amount: "240.00",
-                      is_active: true,
-                    },
-                  ],
-                  error: null,
-                })
-              ),
-            })),
-            is: vi.fn(() => ({
-              order: vi.fn(() =>
-                Promise.resolve({
-                  data: [
-                    {
-                      uuid: "inv-1",
-                      number: "INV-001",
-                      bill_date: "2024-01-15",
-                      amount: "240.00",
-                      is_active: true,
-                    },
-                  ],
-                  error: null,
-                })
-              ),
+            eq: vi.fn(() => ({
+              or: vi.fn(() => ({
+                order: vi.fn(() =>
+                  Promise.resolve({
+                    data: [
+                      {
+                        uuid: "inv-1",
+                        number: "INV-001",
+                        bill_date: "2024-01-15",
+                        amount: "240.00",
+                        is_active: true,
+                      },
+                    ],
+                    error: null,
+                  })
+                ),
+              })),
+              is: vi.fn(() => ({
+                order: vi.fn(() =>
+                  Promise.resolve({
+                    data: [
+                      {
+                        uuid: "inv-1",
+                        number: "INV-001",
+                        bill_date: "2024-01-15",
+                        amount: "240.00",
+                        is_active: true,
+                      },
+                    ],
+                    error: null,
+                  })
+                ),
+              })),
             })),
           })),
         })),
@@ -492,11 +502,13 @@ describe("server/api/purchase-orders/[uuid]/advance-payments", () => {
       const invoicesSelectMock = vi.fn(() => ({
         eq: vi.fn(() => ({
           eq: vi.fn(() => ({
-            or: vi.fn(() => ({
-              order: orderMock,
-            })),
-            is: vi.fn(() => ({
-              order: orderMock,
+            eq: vi.fn(() => ({
+              or: vi.fn(() => ({
+                order: orderMock,
+              })),
+              is: vi.fn(() => ({
+                order: orderMock,
+              })),
             })),
           })),
         })),
@@ -534,37 +546,39 @@ describe("server/api/purchase-orders/[uuid]/advance-payments", () => {
       const invoicesSelectMock = vi.fn(() => ({
         eq: vi.fn(() => ({
           eq: vi.fn(() => ({
-            or: vi.fn(() => ({
-              order: vi.fn(() =>
-                Promise.resolve({
-                  data: [
-                    {
-                      uuid: "inv-1",
-                      number: "INV-001",
-                      bill_date: "2024-01-15",
-                      amount: "240.00",
-                      is_active: true,
-                    },
-                  ],
-                  error: null,
-                })
-              ),
-            })),
-            is: vi.fn(() => ({
-              order: vi.fn(() =>
-                Promise.resolve({
-                  data: [
-                    {
-                      uuid: "inv-1",
-                      number: "INV-001",
-                      bill_date: "2024-01-15",
-                      amount: "240.00",
-                      is_active: true,
-                    },
-                  ],
-                  error: null,
-                })
-              ),
+            eq: vi.fn(() => ({
+              or: vi.fn(() => ({
+                order: vi.fn(() =>
+                  Promise.resolve({
+                    data: [
+                      {
+                        uuid: "inv-1",
+                        number: "INV-001",
+                        bill_date: "2024-01-15",
+                        amount: "240.00",
+                        is_active: true,
+                      },
+                    ],
+                    error: null,
+                  })
+                ),
+              })),
+              is: vi.fn(() => ({
+                order: vi.fn(() =>
+                  Promise.resolve({
+                    data: [
+                      {
+                        uuid: "inv-1",
+                        number: "INV-001",
+                        bill_date: "2024-01-15",
+                        amount: "240.00",
+                        is_active: true,
+                      },
+                    ],
+                    error: null,
+                  })
+                ),
+              })),
             })),
           })),
         })),
@@ -611,30 +625,32 @@ describe("server/api/purchase-orders/[uuid]/advance-payments", () => {
       const invoicesSelectMock = vi.fn(() => ({
         eq: vi.fn(() => ({
           eq: vi.fn(() => ({
-            or: vi.fn(() => ({
-              order: vi.fn(() =>
-                Promise.resolve({
-                  data: [
-                    {
-                      uuid: "inv-1",
-                      number: "INV-001",
-                      bill_date: "2024-01-15",
-                      amount: "240.00",
-                      is_active: true,
-                      adjusted_against_vendor_invoice_uuid: "invoice-uuid-1",
-                    },
-                    {
-                      uuid: "inv-2",
-                      number: "INV-002",
-                      bill_date: "2024-01-20",
-                      amount: "100.00",
-                      is_active: true,
-                      adjusted_against_vendor_invoice_uuid: null,
-                    },
-                  ],
-                  error: null,
-                })
-              ),
+            eq: vi.fn(() => ({
+              or: vi.fn(() => ({
+                order: vi.fn(() =>
+                  Promise.resolve({
+                    data: [
+                      {
+                        uuid: "inv-1",
+                        number: "INV-001",
+                        bill_date: "2024-01-15",
+                        amount: "240.00",
+                        is_active: true,
+                        adjusted_against_vendor_invoice_uuid: "invoice-uuid-1",
+                      },
+                      {
+                        uuid: "inv-2",
+                        number: "INV-002",
+                        bill_date: "2024-01-20",
+                        amount: "100.00",
+                        is_active: true,
+                        adjusted_against_vendor_invoice_uuid: null,
+                      },
+                    ],
+                    error: null,
+                  })
+                ),
+              })),
             })),
           })),
         })),
@@ -688,22 +704,24 @@ describe("server/api/purchase-orders/[uuid]/advance-payments", () => {
       const invoicesSelectMock = vi.fn(() => ({
         eq: vi.fn(() => ({
           eq: vi.fn(() => ({
-            is: vi.fn(() => ({
-              order: vi.fn(() =>
-                Promise.resolve({
-                  data: [
-                    {
-                      uuid: "inv-2",
-                      number: "INV-002",
-                      bill_date: "2024-01-20",
-                      amount: "100.00",
-                      is_active: true,
-                      adjusted_against_vendor_invoice_uuid: null,
-                    },
-                  ],
-                  error: null,
-                })
-              ),
+            eq: vi.fn(() => ({
+              is: vi.fn(() => ({
+                order: vi.fn(() =>
+                  Promise.resolve({
+                    data: [
+                      {
+                        uuid: "inv-2",
+                        number: "INV-002",
+                        bill_date: "2024-01-20",
+                        amount: "100.00",
+                        is_active: true,
+                        adjusted_against_vendor_invoice_uuid: null,
+                      },
+                    ],
+                    error: null,
+                  })
+                ),
+              })),
             })),
           })),
         })),

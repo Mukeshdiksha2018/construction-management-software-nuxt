@@ -829,6 +829,26 @@ describe("server/api/vendor-invoices", () => {
         })),
       }));
 
+      // Default mock for all other tables
+      const defaultTableMock = () => ({
+        delete: vi.fn(() => ({
+          eq: vi.fn(() => Promise.resolve({ error: null })),
+        })),
+        insert: vi.fn(() => Promise.resolve({ error: null })),
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              order: vi.fn(() => Promise.resolve({ data: [], error: null })),
+            })),
+            maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),
+          })),
+        })),
+        update: vi.fn(() => ({
+          eq: vi.fn(() => Promise.resolve({ error: null })),
+          in: vi.fn(() => Promise.resolve({ error: null })),
+        })),
+      });
+
       const supabaseMock = {
         from: vi.fn((table: string) => {
           if (table === "vendor_invoices") {
@@ -842,6 +862,9 @@ describe("server/api/vendor-invoices", () => {
                 // Otherwise return metadata spy (for queries with *, or JOINs, etc.)
                 return selectWithMetadataSpy();
               }),
+              delete: vi.fn(() => ({
+                eq: vi.fn(() => Promise.resolve({ error: null })),
+              })),
             };
           }
           if (table === "purchase_order_invoice_items_list") {
@@ -853,7 +876,8 @@ describe("server/api/vendor-invoices", () => {
               select: selectPoItemsSpy,
             };
           }
-          return {};
+          // Return default mock for all other tables
+          return defaultTableMock();
         }),
       };
 
@@ -1080,6 +1104,26 @@ describe("server/api/vendor-invoices", () => {
         })),
       }));
 
+      // Default mock for all other tables
+      const defaultTableMock = () => ({
+        delete: vi.fn(() => ({
+          eq: vi.fn(() => Promise.resolve({ error: null })),
+        })),
+        insert: vi.fn(() => Promise.resolve({ error: null })),
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              order: vi.fn(() => Promise.resolve({ data: [], error: null })),
+            })),
+            maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),
+          })),
+        })),
+        update: vi.fn(() => ({
+          eq: vi.fn(() => Promise.resolve({ error: null })),
+          in: vi.fn(() => Promise.resolve({ error: null })),
+        })),
+      });
+
       const supabaseMock = {
         from: vi.fn((table: string) => {
           if (table === "vendor_invoices") {
@@ -1093,11 +1137,22 @@ describe("server/api/vendor-invoices", () => {
                 // Otherwise return metadata spy (for queries with *, or JOINs, etc.)
                 return selectWithMetadataSpy();
               }),
+              delete: vi.fn(() => ({
+                eq: vi.fn(() => Promise.resolve({ error: null })),
+              })),
             };
           }
           if (table === "direct_vendor_invoice_line_items") {
             return {
               delete: deleteLineItemsSpy,
+              insert: vi.fn(() => Promise.resolve({ error: null })),
+              select: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                  eq: vi.fn(() => ({
+                    order: vi.fn(() => Promise.resolve({ data: [], error: null })),
+                  })),
+                })),
+              })),
             };
           }
           if (table === "purchase_order_invoice_items_list") {
@@ -1120,7 +1175,8 @@ describe("server/api/vendor-invoices", () => {
               })),
             };
           }
-          return {};
+          // Return default mock for all other tables
+          return defaultTableMock();
         }),
       };
 
@@ -2035,6 +2091,26 @@ describe("server/api/vendor-invoices", () => {
         })),
       }));
 
+      // Default mock for all other tables
+      const defaultTableMock = () => ({
+        delete: vi.fn(() => ({
+          eq: vi.fn(() => Promise.resolve({ error: null })),
+        })),
+        insert: vi.fn(() => Promise.resolve({ error: null })),
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              order: vi.fn(() => Promise.resolve({ data: [], error: null })),
+            })),
+            maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),
+          })),
+        })),
+        update: vi.fn(() => ({
+          eq: vi.fn(() => Promise.resolve({ error: null })),
+          in: vi.fn(() => Promise.resolve({ error: null })),
+        })),
+      });
+
       const supabaseMock = {
         from: vi.fn((table: string) => {
           if (table === "vendor_invoices") {
@@ -2048,7 +2124,9 @@ describe("server/api/vendor-invoices", () => {
                 // Otherwise return metadata spy (for queries with *, or JOINs, etc.)
                 return selectWithMetadataSpy();
               }),
-              delete: vi.fn(() => Promise.resolve({ error: null })),
+              delete: vi.fn(() => ({
+                eq: vi.fn(() => Promise.resolve({ error: null })),
+              })),
             };
           }
           if (table === "purchase_order_invoice_items_list") {
@@ -2060,16 +2138,8 @@ describe("server/api/vendor-invoices", () => {
               select: selectPoItemsSpy,
             };
           }
-          return {
-            select: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                eq: vi.fn(() => Promise.resolve({ data: [], error: null })),
-                order: vi.fn(() => Promise.resolve({ data: [], error: null })),
-              })),
-            })),
-            delete: vi.fn(() => Promise.resolve({ error: null })),
-            insert: vi.fn(() => Promise.resolve({ error: null })),
-          };
+          // Return default mock for all other tables
+          return defaultTableMock();
         }),
       };
 
@@ -2584,6 +2654,26 @@ describe("server/api/vendor-invoices", () => {
         })),
       }));
 
+      // Default mock for all other tables
+      const defaultTableMock = () => ({
+        delete: vi.fn(() => ({
+          eq: vi.fn(() => Promise.resolve({ error: null })),
+        })),
+        insert: vi.fn(() => Promise.resolve({ error: null })),
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              order: vi.fn(() => Promise.resolve({ data: [], error: null })),
+            })),
+            maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),
+          })),
+        })),
+        update: vi.fn(() => ({
+          eq: vi.fn(() => Promise.resolve({ error: null })),
+          in: vi.fn(() => Promise.resolve({ error: null })),
+        })),
+      });
+
       const supabaseMock = {
         from: vi.fn((table: string) => {
         if (table === "vendor_invoices") {
@@ -2597,6 +2687,9 @@ describe("server/api/vendor-invoices", () => {
               return selectWithMetadataSpy();
             }),
             update: updateSpy,
+            delete: vi.fn(() => ({
+              eq: vi.fn(() => Promise.resolve({ error: null })),
+            })),
           };
         }
         if (table === "purchase_order_invoice_items_list") {
@@ -2606,7 +2699,8 @@ describe("server/api/vendor-invoices", () => {
               select: selectPoItemsSpy,
             };
           }
-          return {};
+          // Return default mock for all other tables
+          return defaultTableMock();
         }),
       };
 
@@ -3060,6 +3154,26 @@ describe("server/api/vendor-invoices", () => {
         })),
       }));
 
+      // Default mock for all other tables
+      const defaultTableMock = () => ({
+        delete: vi.fn(() => ({
+          eq: vi.fn(() => Promise.resolve({ error: null })),
+        })),
+        insert: vi.fn(() => Promise.resolve({ error: null })),
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              order: vi.fn(() => Promise.resolve({ data: [], error: null })),
+            })),
+            maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),
+          })),
+        })),
+        update: vi.fn(() => ({
+          eq: vi.fn(() => Promise.resolve({ error: null })),
+          in: vi.fn(() => Promise.resolve({ error: null })),
+        })),
+      });
+
       const supabaseMock = {
         from: vi.fn((table: string) => {
           if (table === "vendor_invoices") {
@@ -3073,6 +3187,9 @@ describe("server/api/vendor-invoices", () => {
                 return selectWithMetadataSpy();
               }),
               update: updateSpy,
+              delete: vi.fn(() => ({
+                eq: vi.fn(() => Promise.resolve({ error: null })),
+              })),
             };
           }
           if (table === "change_order_invoice_items_list") {
@@ -3082,7 +3199,8 @@ describe("server/api/vendor-invoices", () => {
               select: selectCoItemsSpy,
             };
           }
-          return {};
+          // Return default mock for all other tables
+          return defaultTableMock();
         }),
       };
 
