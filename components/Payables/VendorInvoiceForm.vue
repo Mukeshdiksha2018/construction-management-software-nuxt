@@ -821,10 +821,6 @@
       <!-- Financial Breakdown (Right) -->
       <div class="w-full lg:flex-1 flex justify-start lg:justify-end">
         <div class="w-full lg:w-auto lg:min-w-[520px]">
-          <!-- DEBUG: Remove after fixing -->
-          <div class="text-xs text-red-500 mb-2 p-2 bg-red-50 rounded">
-            DEBUG: totalAdjustedAdvancePayment = {{ totalAdjustedAdvancePayment }}
-          </div>
           <FinancialBreakdown
             :item-total="poItemsTotal"
             :form-data="form"
@@ -1419,7 +1415,6 @@ watch(
       wasUndefined &&
       isNowDefined
     ) {
-      console.log('[VIF] po_invoice_items became available, re-mapping PO items with saved invoice values');
       // Re-fetch PO items to re-map with saved invoice values
       await fetchPOItems(props.form.purchase_order_uuid);
     }
@@ -1449,7 +1444,6 @@ watch(
       wasUndefined &&
       isNowDefined
     ) {
-      console.log('[VIF] co_invoice_items became available, re-mapping CO items with saved invoice values');
       // Re-fetch CO items to re-map with saved invoice values
       await fetchCOItems(props.form.change_order_uuid);
     }
@@ -1497,11 +1491,8 @@ watch(
   (newAmounts) => {
     // Skip if we're currently updating from user input (to prevent overwriting)
     if (isUpdatingAdjustedAmounts.value) {
-      console.log('[VIF] Watcher skipped - isUpdatingAdjustedAmounts is true');
       return;
     }
-    
-    console.log('[VIF] Watcher fired with newAmounts:', newAmounts);
     
     if (newAmounts && typeof newAmounts === 'object' && Object.keys(newAmounts).length > 0) {
       // Deep copy to ensure Vue reactivity works properly with nested objects
@@ -1745,13 +1736,6 @@ const fetchPOItems = async (poUuid: string) => {
     const mappedItems = items.map((item: any, index: number) => {
       const poItemUuid = item.uuid;
       const savedInvoiceItem = invoiceItemsMap.get(poItemUuid);
-      
-      if (props.form.uuid && poItemUuid) {
-        console.log('[VIF] Mapping item:', poItemUuid, 
-          'savedInvoiceItem exists:', !!savedInvoiceItem,
-          'saved invoice_unit_price:', savedInvoiceItem?.invoice_unit_price,
-          'saved invoice_quantity:', savedInvoiceItem?.invoice_quantity);
-      }
       
       // Extract sequence from multiple sources (similar to PurchaseOrderForm)
       // Check both metadata (JSONB from DB) and display_metadata (computed/display)
@@ -3987,8 +3971,6 @@ const totalAdjustedAdvancePayment = computed(() => {
 
 // Handle adjusted amounts update from AdvancePaymentBreakdownTable
 const handleAdjustedAmountsUpdate = (adjustedAmounts: Record<string, Record<string, number>>) => {
-  console.log('[VIF] handleAdjustedAmountsUpdate called with:', adjustedAmounts);
-  
   // Set guard to prevent watcher from overwriting this update
   isUpdatingAdjustedAmounts.value = true;
   
@@ -4007,17 +3989,11 @@ const handleAdjustedAmountsUpdate = (adjustedAmounts: Record<string, Record<stri
     });
   });
   
-  console.log('[VIF] Total adjusted calculated:', totalAdjusted);
-  console.log('[VIF] adjustedAdvancePaymentAmounts.value:', adjustedAdvancePaymentAmounts.value);
-  console.log('[VIF] totalAdjustedAdvancePayment computed:', totalAdjustedAdvancePayment.value);
-  
   // If there are adjusted amounts, we should also track which advance payment is being adjusted
   // Find the first advance payment UUID that has adjustments
   const firstAdjustedPaymentUuid = Object.keys(deepCopiedAmounts).find(uuid => 
     Object.keys(deepCopiedAmounts[uuid] || {}).length > 0
   );
-  
-  console.log('[VIF] firstAdjustedPaymentUuid:', firstAdjustedPaymentUuid);
   
   // IMPORTANT: Emit both fields in a SINGLE update to avoid race condition
   // When calling handleFormUpdate twice in sequence, the second call may use stale props.form
@@ -4029,25 +4005,15 @@ const handleAdjustedAmountsUpdate = (adjustedAmounts: Record<string, Record<stri
       : null
   };
   
-  console.log('[VIF] Emitting single update with both fields:', updatedFields);
-  
   // Emit a single update with both fields
   emit('update:form', { 
     ...props.form, 
     ...updatedFields 
   });
   
-  // Log the current form state after updates
-  console.log('[VIF] After updates - props.form.adjusted_advance_payment_amounts:', props.form.adjusted_advance_payment_amounts);
-  console.log('[VIF] After updates - props.form.adjusted_advance_payment_uuid:', props.form.adjusted_advance_payment_uuid);
-  
   // Reset guard after a short delay to allow the form update to complete
   nextTick(() => {
     isUpdatingAdjustedAmounts.value = false;
-    console.log('[VIF] Guard reset - form state:', {
-      adjusted_advance_payment_amounts: props.form.adjusted_advance_payment_amounts,
-      adjusted_advance_payment_uuid: props.form.adjusted_advance_payment_uuid
-    });
   });
 };
 

@@ -147,10 +147,6 @@ const markAdvancePaymentsAsAdjusted = async (options: {
 
       if (updateError) {
         console.error("Error marking advance payment invoices as adjusted:", updateError);
-      } else {
-        const orderType = purchaseOrderUuid ? "PO" : "CO";
-        const orderUuid = purchaseOrderUuid || changeOrderUuid;
-        console.log(`Marked ${invoicesToMark.length} advance payment invoice(s) as adjusted against invoice ${invoiceUuid} for ${orderType} ${orderUuid}`);
       }
     }
   } catch (error) {
@@ -354,16 +350,7 @@ const persistAdjustedAdvancePaymentCostCodes = async (options: {
     advancePaymentCostCodes = [],
   } = options;
 
-  console.log('[API persistAdjustedAdvancePaymentCostCodes] Called with:', {
-    vendorInvoiceUuid,
-    advancePaymentUuid,
-    adjustedAmountsCount: Object.keys(adjustedAmounts).length,
-    advancePaymentCostCodesCount: advancePaymentCostCodes.length,
-  });
-  console.log('[API persistAdjustedAdvancePaymentCostCodes] adjustedAmounts:', JSON.stringify(adjustedAmounts, null, 2));
-
   if (!vendorInvoiceUuid || !advancePaymentUuid) {
-    console.log('[API persistAdjustedAdvancePaymentCostCodes] Missing vendorInvoiceUuid or advancePaymentUuid, returning');
     return;
   }
 
@@ -380,16 +367,12 @@ const persistAdjustedAdvancePaymentCostCodes = async (options: {
       statusMessage: deleteError.message,
     });
   }
-  console.log('[API persistAdjustedAdvancePaymentCostCodes] Deleted existing records');
 
   // Prepare items for insertion
   const prepared: any[] = [];
   
   Object.entries(adjustedAmounts).forEach(([costCodeUuid, adjustedAmount]) => {
-    console.log('[API persistAdjustedAdvancePaymentCostCodes] Processing entry:', { costCodeUuid, adjustedAmount });
-    
     if (!costCodeUuid || adjustedAmount <= 0) {
-      console.log('[API persistAdjustedAdvancePaymentCostCodes] Skipping entry - invalid costCodeUuid or amount');
       return;
     }
     
@@ -399,13 +382,7 @@ const persistAdjustedAdvancePaymentCostCodes = async (options: {
       (cc) => cc.uuid === costCodeUuid || cc.cost_code_uuid === costCodeUuid
     );
     
-    console.log('[API persistAdjustedAdvancePaymentCostCodes] Looking for cost code:', costCodeUuid);
-    console.log('[API persistAdjustedAdvancePaymentCostCodes] Available cost codes UUIDs:', 
-      advancePaymentCostCodes.map(cc => ({ uuid: cc.uuid, cost_code_uuid: cc.cost_code_uuid }))
-    );
-    
     if (!originalCostCode) {
-      console.warn(`[API persistAdjustedAdvancePaymentCostCodes] Original cost code not found for UUID: ${costCodeUuid}`);
       // Still insert but without the cost code metadata
       prepared.push({
         vendor_invoice_uuid: vendorInvoiceUuid,
@@ -423,8 +400,6 @@ const persistAdjustedAdvancePaymentCostCodes = async (options: {
       });
       return;
     }
-    
-    console.log('[API persistAdjustedAdvancePaymentCostCodes] Found original cost code:', originalCostCode);
     
     prepared.push({
       vendor_invoice_uuid: vendorInvoiceUuid,
@@ -445,14 +420,9 @@ const persistAdjustedAdvancePaymentCostCodes = async (options: {
     });
   });
 
-  console.log('[API persistAdjustedAdvancePaymentCostCodes] Prepared records:', prepared.length);
-
   if (prepared.length === 0) {
-    console.log('[API persistAdjustedAdvancePaymentCostCodes] No records to insert');
     return;
   }
-
-  console.log('[API persistAdjustedAdvancePaymentCostCodes] Inserting records:', JSON.stringify(prepared, null, 2));
 
   const { error: insertError } = await supabaseServer
     .from("adjusted_advance_payment_cost_codes")
@@ -465,8 +435,6 @@ const persistAdjustedAdvancePaymentCostCodes = async (options: {
       statusMessage: insertError.message,
     });
   }
-  
-  console.log('[API persistAdjustedAdvancePaymentCostCodes] Successfully inserted', prepared.length, 'records');
 };
 
 export default defineEventHandler(async (event) => {
@@ -799,9 +767,7 @@ export default defineEventHandler(async (event) => {
 
       // Save PO invoice items if this is an AGAINST_PO invoice
       if (normalizedInvoiceType === "AGAINST_PO") {
-        console.log('[API] Processing AGAINST_PO invoice, po_invoice_items:', body.po_invoice_items);
         if (Array.isArray(body.po_invoice_items)) {
-          console.log('[API] Saving', body.po_invoice_items.length, 'PO invoice items');
           await persistPurchaseOrderInvoiceItems({
             vendorInvoiceUuid: data.uuid,
             corporationUuid: data.corporation_uuid ?? null,
@@ -809,21 +775,12 @@ export default defineEventHandler(async (event) => {
             purchaseOrderUuid: data.purchase_order_uuid ?? null,
             items: body.po_invoice_items,
           });
-          console.log('[API] Successfully saved PO invoice items');
-        } else {
-          console.warn('[API] po_invoice_items is not an array:', typeof body.po_invoice_items, body.po_invoice_items);
         }
 
         // Handle adjusted advance payment cost codes for AGAINST_PO invoices (POST)
-        console.log('[API POST] AGAINST_PO: Checking adjusted advance payment data');
-        console.log('[API POST] adjusted_advance_payment_amounts:', body.adjusted_advance_payment_amounts);
-        console.log('[API POST] adjusted_advance_payment_uuid:', body.adjusted_advance_payment_uuid);
-        
         if (body.adjusted_advance_payment_amounts !== undefined && body.adjusted_advance_payment_uuid) {
           const adjustedAmounts = body.adjusted_advance_payment_amounts;
           const advancePaymentUuid = body.adjusted_advance_payment_uuid;
-          
-          console.log('[API POST] Processing adjusted amounts for advance payment:', advancePaymentUuid);
           
           // Fetch the advance payment cost codes to get full details
           const { data: advancePaymentCostCodesData } = await supabaseServer
@@ -832,15 +789,10 @@ export default defineEventHandler(async (event) => {
             .eq("vendor_invoice_uuid", advancePaymentUuid)
             .eq("is_active", true);
           
-          console.log('[API POST] Fetched advance payment cost codes:', advancePaymentCostCodesData?.length || 0, 'records');
-          
           // Extract adjusted amounts for this specific advance payment
           const adjustedAmountsForPayment = adjustedAmounts[advancePaymentUuid] || {};
           
-          console.log('[API POST] Adjusted amounts for this payment:', adjustedAmountsForPayment);
-          
           if (Object.keys(adjustedAmountsForPayment).length > 0) {
-            console.log('[API POST] Calling persistAdjustedAdvancePaymentCostCodes');
             await persistAdjustedAdvancePaymentCostCodes({
               vendorInvoiceUuid: data.uuid,
               advancePaymentUuid: advancePaymentUuid,
@@ -851,12 +803,7 @@ export default defineEventHandler(async (event) => {
               adjustedAmounts: adjustedAmountsForPayment,
               advancePaymentCostCodes: advancePaymentCostCodesData || [],
             });
-            console.log('[API POST] persistAdjustedAdvancePaymentCostCodes completed');
-          } else {
-            console.log('[API POST] No adjusted amounts to save (adjustedAmountsForPayment is empty)');
           }
-        } else {
-          console.log('[API POST] No adjusted advance payment data to process');
         }
 
         // Mark advance payment invoices as adjusted if there's a deduction
@@ -891,9 +838,7 @@ export default defineEventHandler(async (event) => {
 
       // Save CO invoice items if this is an AGAINST_CO invoice
       if (normalizedInvoiceType === "AGAINST_CO") {
-        console.log('[API] Processing AGAINST_CO invoice, co_invoice_items:', body.co_invoice_items);
         if (Array.isArray(body.co_invoice_items)) {
-          console.log('[API] Saving', body.co_invoice_items.length, 'CO invoice items');
           await persistChangeOrderInvoiceItems({
             vendorInvoiceUuid: data.uuid,
             corporationUuid: data.corporation_uuid ?? null,
@@ -901,21 +846,12 @@ export default defineEventHandler(async (event) => {
             changeOrderUuid: data.change_order_uuid ?? null,
             items: body.co_invoice_items,
           });
-          console.log('[API] Successfully saved CO invoice items');
-        } else {
-          console.warn('[API] co_invoice_items is not an array:', typeof body.co_invoice_items, body.co_invoice_items);
         }
 
         // Handle adjusted advance payment cost codes for AGAINST_CO invoices (POST)
-        console.log('[API POST] AGAINST_CO: Checking adjusted advance payment data');
-        console.log('[API POST] CO adjusted_advance_payment_amounts:', body.adjusted_advance_payment_amounts);
-        console.log('[API POST] CO adjusted_advance_payment_uuid:', body.adjusted_advance_payment_uuid);
-        
         if (body.adjusted_advance_payment_amounts !== undefined && body.adjusted_advance_payment_uuid) {
           const adjustedAmounts = body.adjusted_advance_payment_amounts;
           const advancePaymentUuid = body.adjusted_advance_payment_uuid;
-          
-          console.log('[API POST] Processing CO adjusted amounts for advance payment:', advancePaymentUuid);
           
           // Fetch the advance payment cost codes to get full details
           const { data: advancePaymentCostCodesData } = await supabaseServer
@@ -924,15 +860,10 @@ export default defineEventHandler(async (event) => {
             .eq("vendor_invoice_uuid", advancePaymentUuid)
             .eq("is_active", true);
           
-          console.log('[API POST] Fetched CO advance payment cost codes:', advancePaymentCostCodesData?.length || 0, 'records');
-          
           // Extract adjusted amounts for this specific advance payment
           const adjustedAmountsForPayment = adjustedAmounts[advancePaymentUuid] || {};
           
-          console.log('[API POST] CO Adjusted amounts for this payment:', adjustedAmountsForPayment);
-          
           if (Object.keys(adjustedAmountsForPayment).length > 0) {
-            console.log('[API POST] Calling persistAdjustedAdvancePaymentCostCodes for CO');
             await persistAdjustedAdvancePaymentCostCodes({
               vendorInvoiceUuid: data.uuid,
               advancePaymentUuid: advancePaymentUuid,
@@ -943,12 +874,7 @@ export default defineEventHandler(async (event) => {
               adjustedAmounts: adjustedAmountsForPayment,
               advancePaymentCostCodes: advancePaymentCostCodesData || [],
             });
-            console.log('[API POST] persistAdjustedAdvancePaymentCostCodes for CO completed');
-          } else {
-            console.log('[API POST] No CO adjusted amounts to save (adjustedAmountsForPayment is empty)');
           }
-        } else {
-          console.log('[API POST] No CO adjusted advance payment data to process');
         }
 
         // Mark advance payment invoices as adjusted if there's a deduction
@@ -1085,14 +1011,6 @@ export default defineEventHandler(async (event) => {
         });
       const { uuid, ...updated } = body;
       
-      // Debug: Log the raw request body to verify adjusted amounts are being received
-      console.log('[API PUT] Raw body received:', JSON.stringify({
-        uuid,
-        invoice_type: updated.invoice_type,
-        adjusted_advance_payment_amounts: updated.adjusted_advance_payment_amounts,
-        adjusted_advance_payment_uuid: updated.adjusted_advance_payment_uuid,
-      }, null, 2));
-      
       if (!uuid)
         throw createError({
           statusCode: 400,
@@ -1209,8 +1127,6 @@ export default defineEventHandler(async (event) => {
 
         if (unmarkError) {
           console.error("Error unmarking advance payment invoices for old PO:", unmarkError);
-        } else {
-          console.log(`Unmarked advance payment invoices for old PO ${currentPurchaseOrderUuid}`);
         }
       }
 
@@ -1328,11 +1244,9 @@ export default defineEventHandler(async (event) => {
 
       // Handle PO invoice items for AGAINST_PO invoices
       if (newInvoiceType === "AGAINST_PO") {
-        console.log('[API] Processing AGAINST_PO invoice update, po_invoice_items:', updated.po_invoice_items);
         if (updated.po_invoice_items !== undefined) {
           // Save PO invoice items if provided
           const itemsToSave = Array.isArray(updated.po_invoice_items) ? updated.po_invoice_items : [];
-          console.log('[API] Saving', itemsToSave.length, 'PO invoice items');
           await persistPurchaseOrderInvoiceItems({
             vendorInvoiceUuid: data.uuid,
             corporationUuid: data.corporation_uuid ?? null,
@@ -1340,10 +1254,8 @@ export default defineEventHandler(async (event) => {
             purchaseOrderUuid: data.purchase_order_uuid ?? null,
             items: itemsToSave,
           });
-          console.log('[API] Successfully saved PO invoice items');
         } else if (currentInvoiceType !== "AGAINST_PO") {
           // If switching from non-PO to PO, clear any existing PO invoice items
-          console.log('[API] Switching to AGAINST_PO, clearing existing items');
           await supabaseServer
             .from("purchase_order_invoice_items_list")
             .delete()
@@ -1351,15 +1263,9 @@ export default defineEventHandler(async (event) => {
         }
 
         // Handle adjusted advance payment cost codes for AGAINST_PO invoices
-        console.log('[API] AGAINST_PO: Checking adjusted advance payment data');
-        console.log('[API] adjusted_advance_payment_amounts:', updated.adjusted_advance_payment_amounts);
-        console.log('[API] adjusted_advance_payment_uuid:', updated.adjusted_advance_payment_uuid);
-        
         if (updated.adjusted_advance_payment_amounts !== undefined && updated.adjusted_advance_payment_uuid) {
           const adjustedAmounts = updated.adjusted_advance_payment_amounts;
           const advancePaymentUuid = updated.adjusted_advance_payment_uuid;
-          
-          console.log('[API] Processing adjusted amounts for advance payment:', advancePaymentUuid);
           
           // Fetch the advance payment cost codes to get full details
           const { data: advancePaymentCostCodes } = await supabaseServer
@@ -1368,17 +1274,10 @@ export default defineEventHandler(async (event) => {
             .eq("vendor_invoice_uuid", advancePaymentUuid)
             .eq("is_active", true);
           
-          console.log('[API] Fetched advance payment cost codes:', advancePaymentCostCodes?.length || 0, 'records');
-          console.log('[API] Advance payment cost codes:', JSON.stringify(advancePaymentCostCodes, null, 2));
-          
           // Extract adjusted amounts for this specific advance payment
           const adjustedAmountsForPayment = adjustedAmounts[advancePaymentUuid] || {};
           
-          console.log('[API] Adjusted amounts for this payment:', adjustedAmountsForPayment);
-          console.log('[API] Keys in adjustedAmountsForPayment:', Object.keys(adjustedAmountsForPayment));
-          
           if (Object.keys(adjustedAmountsForPayment).length > 0) {
-            console.log('[API] Calling persistAdjustedAdvancePaymentCostCodes');
             await persistAdjustedAdvancePaymentCostCodes({
               vendorInvoiceUuid: data.uuid,
               advancePaymentUuid: advancePaymentUuid,
@@ -1389,9 +1288,6 @@ export default defineEventHandler(async (event) => {
               adjustedAmounts: adjustedAmountsForPayment,
               advancePaymentCostCodes: advancePaymentCostCodes || [],
             });
-            console.log('[API] persistAdjustedAdvancePaymentCostCodes completed');
-          } else {
-            console.log('[API] No adjusted amounts to save (adjustedAmountsForPayment is empty)');
           }
         } else if (updated.adjusted_advance_payment_uuid === null || updated.adjusted_advance_payment_uuid === undefined) {
           // Clear adjusted advance payment cost codes if no advance payment is being adjusted
@@ -1431,7 +1327,6 @@ export default defineEventHandler(async (event) => {
         }
       } else if (currentInvoiceType === "AGAINST_PO" && newInvoiceType !== "AGAINST_PO") {
         // If switching from PO to non-PO, delete PO invoice items
-        console.log('[API] Switching away from AGAINST_PO, deleting PO invoice items');
         await supabaseServer
           .from("purchase_order_invoice_items_list")
           .delete()
@@ -1440,11 +1335,9 @@ export default defineEventHandler(async (event) => {
 
       // Handle CO invoice items for AGAINST_CO invoices
       if (newInvoiceType === "AGAINST_CO") {
-        console.log('[API] Processing AGAINST_CO invoice update, co_invoice_items:', updated.co_invoice_items);
         if (updated.co_invoice_items !== undefined) {
           // Save CO invoice items if provided
           const itemsToSave = Array.isArray(updated.co_invoice_items) ? updated.co_invoice_items : [];
-          console.log('[API] Saving', itemsToSave.length, 'CO invoice items');
           await persistChangeOrderInvoiceItems({
             vendorInvoiceUuid: data.uuid,
             corporationUuid: data.corporation_uuid ?? null,
@@ -1452,10 +1345,8 @@ export default defineEventHandler(async (event) => {
             changeOrderUuid: data.change_order_uuid ?? null,
             items: itemsToSave,
           });
-          console.log('[API] Successfully saved CO invoice items');
         } else if (currentInvoiceType !== "AGAINST_CO") {
           // If switching from non-CO to CO, clear any existing CO invoice items
-          console.log('[API] Switching to AGAINST_CO, clearing existing items');
           await supabaseServer
             .from("change_order_invoice_items_list")
             .delete()
@@ -1463,15 +1354,9 @@ export default defineEventHandler(async (event) => {
         }
 
         // Handle adjusted advance payment cost codes for AGAINST_CO invoices
-        console.log('[API] AGAINST_CO: Checking adjusted advance payment data');
-        console.log('[API] adjusted_advance_payment_amounts:', updated.adjusted_advance_payment_amounts);
-        console.log('[API] adjusted_advance_payment_uuid:', updated.adjusted_advance_payment_uuid);
-        
         if (updated.adjusted_advance_payment_amounts !== undefined && updated.adjusted_advance_payment_uuid) {
           const adjustedAmounts = updated.adjusted_advance_payment_amounts;
           const advancePaymentUuid = updated.adjusted_advance_payment_uuid;
-          
-          console.log('[API] Processing adjusted amounts for CO advance payment:', advancePaymentUuid);
           
           // Fetch the advance payment cost codes to get full details
           const { data: advancePaymentCostCodes } = await supabaseServer
@@ -1480,15 +1365,10 @@ export default defineEventHandler(async (event) => {
             .eq("vendor_invoice_uuid", advancePaymentUuid)
             .eq("is_active", true);
           
-          console.log('[API] Fetched CO advance payment cost codes:', advancePaymentCostCodes?.length || 0, 'records');
-          
           // Extract adjusted amounts for this specific advance payment
           const adjustedAmountsForPayment = adjustedAmounts[advancePaymentUuid] || {};
           
-          console.log('[API] Adjusted amounts for CO payment:', adjustedAmountsForPayment);
-          
           if (Object.keys(adjustedAmountsForPayment).length > 0) {
-            console.log('[API] Calling persistAdjustedAdvancePaymentCostCodes for CO');
             await persistAdjustedAdvancePaymentCostCodes({
               vendorInvoiceUuid: data.uuid,
               advancePaymentUuid: advancePaymentUuid,
@@ -1538,7 +1418,6 @@ export default defineEventHandler(async (event) => {
         }
       } else if (currentInvoiceType === "AGAINST_CO" && newInvoiceType !== "AGAINST_CO") {
         // If switching from CO to non-CO, delete CO invoice items
-        console.log('[API] Switching away from AGAINST_CO, deleting CO invoice items');
         await supabaseServer
           .from("change_order_invoice_items_list")
           .delete()
@@ -1666,8 +1545,6 @@ export default defineEventHandler(async (event) => {
         if (unmarkError) {
           console.error("Error unmarking advance payment invoices:", unmarkError);
           // Continue with deletion even if unmarking fails
-        } else {
-          console.log(`Unmarked advance payment invoices adjusted against invoice ${invoiceToDelete.uuid}`);
         }
       }
 
