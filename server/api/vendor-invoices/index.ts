@@ -661,6 +661,8 @@ export default defineEventHandler(async (event) => {
         holdback: body.holdback ? parseFloat(body.holdback) : null,
         status: body.status || 'Draft',
         is_active: true,
+        // Save adjusted_advance_payment_uuid for AGAINST_PO/AGAINST_CO invoices
+        adjusted_advance_payment_uuid: body.adjusted_advance_payment_uuid || null,
       };
 
       insertData.financial_breakdown = buildFinancialBreakdown(body);

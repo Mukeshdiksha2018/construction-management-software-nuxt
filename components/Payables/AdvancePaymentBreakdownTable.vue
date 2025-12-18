@@ -143,7 +143,7 @@
                   class="flex items-center gap-2"
                 >
                   <UInput
-                    :model-value="getAdjustedAmount(payment.uuid, costCode.uuid)"
+                    :model-value="getAdjustedAmount(payment.uuid, costCode.cost_code_uuid || costCode.uuid)"
                     type="number"
                     step="0.01"
                     min="0"
@@ -298,8 +298,11 @@ const footerColspan = computed(() => {
 watch(
   () => props.adjustedAmounts,
   (newAmounts) => {
+    console.log('[APBT] adjustedAmounts prop changed:', newAmounts)
     if (newAmounts && Object.keys(newAmounts).length > 0) {
-      localAdjustedAmounts.value = { ...newAmounts }
+      // Deep copy to ensure Vue reactivity works properly with nested objects
+      localAdjustedAmounts.value = JSON.parse(JSON.stringify(newAmounts))
+      console.log('[APBT] Updated localAdjustedAmounts:', localAdjustedAmounts.value)
     }
   },
   { immediate: true, deep: true }
@@ -413,7 +416,10 @@ const getAdjustedAmount = (advancePaymentUuid: string, costCodeUuid: string): st
 // Handle adjusted amount change
 const handleAdjustedAmountChange = (advancePaymentUuid: string, costCode: any, value: string | null) => {
   console.log('[APBT] handleAdjustedAmountChange called:', { advancePaymentUuid, costCode, value })
-  const costCodeUuid = costCode.uuid || costCode.cost_code_uuid
+  // IMPORTANT: Prioritize cost_code_uuid over uuid to match the database storage
+  // cost_code_uuid is the foreign key to cost_code_configurations
+  // uuid is the row ID of advance_payment_cost_codes table
+  const costCodeUuid = costCode.cost_code_uuid || costCode.uuid
   console.log('[APBT] costCodeUuid:', costCodeUuid)
   if (!costCodeUuid) {
     console.warn('[APBT] costCodeUuid is falsy, returning early!')

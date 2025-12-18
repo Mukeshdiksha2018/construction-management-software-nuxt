@@ -97,8 +97,10 @@ export default defineEventHandler(async (event) => {
       }
 
       // Fetch adjusted advance payment cost codes if this is an AGAINST_PO or AGAINST_CO invoice
+      // Query based on vendor_invoice_uuid directly (not adjusted_advance_payment_uuid) to handle
+      // both old invoices (created before adjusted_advance_payment_uuid was saved) and new ones
       let adjustedAdvancePaymentAmounts: Record<string, Record<string, number>> = {};
-      if ((data.invoice_type === "AGAINST_PO" || data.invoice_type === "AGAINST_CO") && data.adjusted_advance_payment_uuid) {
+      if (data.invoice_type === "AGAINST_PO" || data.invoice_type === "AGAINST_CO") {
         const { data: adjustedData, error: adjustedError } = await supabaseServer
           .from("adjusted_advance_payment_cost_codes")
           .select("*")

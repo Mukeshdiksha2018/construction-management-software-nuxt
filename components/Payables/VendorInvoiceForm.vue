@@ -1544,18 +1544,24 @@ const fetchPreviouslyAdjustedCostCodes = async (vendorInvoiceUuid: string, poOrC
 watch(
   () => props.form.adjusted_advance_payment_amounts,
   (newAmounts) => {
+    console.log('[VendorInvoiceForm] adjusted_advance_payment_amounts prop changed:', newAmounts);
+    
     // Skip if we're currently updating from user input (to prevent overwriting)
     if (isUpdatingAdjustedAmounts.value) {
+      console.log('[VendorInvoiceForm] Skipping - currently updating from user input');
       return;
     }
     
     if (newAmounts && typeof newAmounts === 'object' && Object.keys(newAmounts).length > 0) {
       // Deep copy to ensure Vue reactivity works properly with nested objects
-      adjustedAdvancePaymentAmounts.value = JSON.parse(JSON.stringify(newAmounts));
+      const deepCopy = JSON.parse(JSON.stringify(newAmounts));
+      adjustedAdvancePaymentAmounts.value = deepCopy;
+      console.log('[VendorInvoiceForm] Updated adjustedAdvancePaymentAmounts:', adjustedAdvancePaymentAmounts.value);
     } else if (!newAmounts) {
       // Only reset if we don't have local values (preserve user input)
       if (Object.keys(adjustedAdvancePaymentAmounts.value).length === 0) {
         adjustedAdvancePaymentAmounts.value = {};
+        console.log('[VendorInvoiceForm] Reset adjustedAdvancePaymentAmounts to empty');
       }
     }
   },
