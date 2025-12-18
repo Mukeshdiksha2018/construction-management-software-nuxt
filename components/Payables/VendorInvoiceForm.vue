@@ -832,7 +832,7 @@
             total-amount-label="Total Amount"
             :allow-edit-total="false"
             :total-invoice-amount-error="props.totalInvoiceAmountError"
-            :advance-payment-deduction="totalAdjustedAdvancePayment > 0 ? totalAdjustedAdvancePayment : poAdvancePaid"
+            :advance-payment-deduction="totalAdjustedAdvancePayment"
             :holdback-deduction="poHoldbackAmount"
             @update="handleFinancialBreakdownUpdate"
           />
@@ -972,7 +972,7 @@
             total-amount-label="Total Amount"
             :allow-edit-total="false"
             :total-invoice-amount-error="props.totalInvoiceAmountError"
-            :advance-payment-deduction="totalAdjustedAdvancePayment > 0 ? totalAdjustedAdvancePayment : coAdvancePaid"
+            :advance-payment-deduction="totalAdjustedAdvancePayment"
             :holdback-deduction="coHoldbackAmount"
             @update="handleFinancialBreakdownUpdate"
           />

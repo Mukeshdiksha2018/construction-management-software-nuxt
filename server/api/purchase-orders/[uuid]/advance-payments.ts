@@ -29,7 +29,9 @@ export default defineEventHandler(async (event) => {
       .from("vendor_invoices")
       .select("uuid, number, bill_date, amount, is_active, financial_breakdown, adjusted_against_vendor_invoice_uuid")
       .eq("purchase_order_uuid", uuid)
-      .eq("invoice_type", "AGAINST_ADVANCE_PAYMENT");
+      .eq("invoice_type", "AGAINST_ADVANCE_PAYMENT")
+      // Only include active advance payment invoices
+      .eq("is_active", true);
 
     // If viewing an existing invoice, include advance payments adjusted against it
     // Otherwise, only show unadjusted advance payments
