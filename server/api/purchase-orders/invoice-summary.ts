@@ -59,25 +59,15 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    // Calculate advance payment made (sum of invoice amounts where invoice_type is AGAINST_ADVANCE_PAYMENT)
-    // If currentInvoiceUuid is provided, include advance payments adjusted against that invoice
-    // Otherwise, exclude advance payments that have already been adjusted against another invoice
-    // Include all advance payment invoices regardless of is_active status to show all advances paid
-    let advanceQueryBuilder = supabaseServer
+    // Calculate advance payment made (sum of invoice amounts where invoice_type is AGAINST_ADVANCE_PAYMENT and status is Paid)
+    // Only count advance payments that are in "Paid" status
+    const { data: advanceInvoices, error: advanceInvoicesError } = await supabaseServer
       .from("vendor_invoices")
       .select("amount")
       .eq("purchase_order_uuid", purchase_order_uuid as string)
-      .eq("invoice_type", "AGAINST_ADVANCE_PAYMENT");
-
-    // If viewing an existing invoice, include advance payments adjusted against it
-    // Otherwise, only show unadjusted advance payments
-    if (currentInvoiceUuid) {
-      advanceQueryBuilder = advanceQueryBuilder.or(`adjusted_against_vendor_invoice_uuid.is.null,adjusted_against_vendor_invoice_uuid.eq.${currentInvoiceUuid}`);
-    } else {
-      advanceQueryBuilder = advanceQueryBuilder.is("adjusted_against_vendor_invoice_uuid", null);
-    }
-
-    const { data: advanceInvoices, error: advanceInvoicesError } = await advanceQueryBuilder;
+      .eq("invoice_type", "AGAINST_ADVANCE_PAYMENT")
+      .eq("status", "Paid")
+      .eq("is_active", true);
 
     if (advanceInvoicesError) {
       console.error("Error fetching advance payment invoices:", advanceInvoicesError);
@@ -89,12 +79,13 @@ export default defineEventHandler(async (event) => {
         0
       ) || 0;
 
-    // Calculate invoiced value (sum of vendor_invoices where purchase_order_uuid matches and invoice_type is AGAINST_PO)
+    // Calculate invoiced value (sum of vendor_invoices where purchase_order_uuid matches, invoice_type is AGAINST_PO, and status is Paid)
     const { data: invoices, error: invoicesError } = await supabaseServer
       .from("vendor_invoices")
       .select("amount")
       .eq("purchase_order_uuid", purchase_order_uuid as string)
       .eq("invoice_type", "AGAINST_PO")
+      .eq("status", "Paid")
       .eq("is_active", true);
 
     if (invoicesError) {
@@ -107,8 +98,26 @@ export default defineEventHandler(async (event) => {
         0
       ) || 0;
 
-    // Calculate balance to be invoiced
-    const balanceToBeInvoiced = Math.max(0, totalPOValue - advancePaid - invoicedValue);
+    // Calculate total adjusted advance payments from adjusted_advance_payment_cost_codes
+    const { data: adjustedCostCodes, error: adjustedError } = await supabaseServer
+      .from("adjusted_advance_payment_cost_codes")
+      .select("adjusted_amount")
+      .eq("purchase_order_uuid", purchase_order_uuid as string)
+      .eq("is_active", true);
+
+    if (adjustedError) {
+      console.error("Error fetching adjusted advance payment cost codes:", adjustedError);
+    }
+
+    const totalAdjusted =
+      adjustedCostCodes?.reduce(
+        (sum, item) => sum + (parseFloat(item.adjusted_amount || "0") || 0),
+        0
+      ) || 0;
+
+    // Calculate balance to be invoiced (advance paid minus total adjusted)
+    // This shows how much of the advance payment is still available to be applied to future invoices
+    const balanceToBeInvoiced = Math.max(0, advancePaid - totalAdjusted);
 
     return {
       data: {
@@ -116,6 +125,7 @@ export default defineEventHandler(async (event) => {
         total_po_value: totalPOValue,
         advance_paid: advancePaid,
         invoiced_value: invoicedValue,
+        total_adjusted: totalAdjusted,
         balance_to_be_invoiced: balanceToBeInvoiced,
       },
     };

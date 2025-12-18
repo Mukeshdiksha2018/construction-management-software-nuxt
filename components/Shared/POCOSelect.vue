@@ -184,7 +184,7 @@ const tableColumns = computed<TableColumn<any>[]>(() => {
     }
   ]
 
-  // Add invoice summary columns if showInvoiceSummary is true (only for POs)
+  // Add invoice summary columns if showInvoiceSummary is true (for both POs and COs)
   if (props.showInvoiceSummary) {
     baseColumns.push(
       {
@@ -193,8 +193,8 @@ const tableColumns = computed<TableColumn<any>[]>(() => {
         enableSorting: false,
         cell: ({ row }: any) => {
           const option = row.original
-          // Only show for POs
-          if (option.type === 'PO' && option.invoiceSummary) {
+          // Show for both POs and COs
+          if (option.invoiceSummary) {
             return h('div', { class: 'text-sm font-medium' }, formatCurrency(option.invoiceSummary.advancePaid))
           }
           return h('div', { class: 'text-sm' }, '-')
@@ -206,8 +206,8 @@ const tableColumns = computed<TableColumn<any>[]>(() => {
         enableSorting: false,
         cell: ({ row }: any) => {
           const option = row.original
-          // Only show for POs
-          if (option.type === 'PO' && option.invoiceSummary) {
+          // Show for both POs and COs
+          if (option.invoiceSummary) {
             return h('div', { class: 'text-sm font-medium' }, formatCurrency(option.invoiceSummary.invoicedValue))
           }
           return h('div', { class: 'text-sm' }, '-')
@@ -219,8 +219,8 @@ const tableColumns = computed<TableColumn<any>[]>(() => {
         enableSorting: false,
         cell: ({ row }: any) => {
           const option = row.original
-          // Only show for POs
-          if (option.type === 'PO' && option.invoiceSummary) {
+          // Show for both POs and COs
+          if (option.invoiceSummary) {
             return h('div', { class: 'text-sm font-semibold text-primary-600 dark:text-primary-400' }, formatCurrency(option.invoiceSummary.balanceToBeInvoiced))
           }
           return h('div', { class: 'text-sm' }, '-')
@@ -358,6 +358,46 @@ const fetchPOInvoiceSummary = async (poUuid: string, forceRefresh: boolean = fal
     return null
   } catch (error) {
     console.error(`[POCOSelect] Error fetching PO invoice summary for ${poUuid}:`, error)
+    return null
+  } finally {
+    loadingInvoiceSummaries.value.delete(cacheKey)
+  }
+}
+
+// Helper function to fetch CO invoice summary
+const fetchCOInvoiceSummary = async (coUuid: string, forceRefresh: boolean = false): Promise<{ advancePaid: number, invoicedValue: number, balanceToBeInvoiced: number } | null> => {
+  const cacheKey = `CO_SUMMARY:${coUuid}`
+  
+  // Check cache first (unless forcing refresh)
+  if (!forceRefresh && invoiceSummaryCache.value.has(cacheKey)) {
+    return invoiceSummaryCache.value.get(cacheKey)!
+  }
+  
+  // Check if already loading
+  if (loadingInvoiceSummaries.value.has(cacheKey)) {
+    return null
+  }
+  
+  loadingInvoiceSummaries.value.add(cacheKey)
+  
+  try {
+    const response = await $fetch<{ data: any }>(`/api/change-orders/invoice-summary?change_order_uuid=${coUuid}`)
+    const summary = response?.data
+    
+    if (summary) {
+      const result = {
+        advancePaid: summary.advance_paid || 0,
+        invoicedValue: summary.invoiced_value || 0,
+        balanceToBeInvoiced: summary.balance_to_be_invoiced || 0
+      }
+      invoiceSummaryCache.value.set(cacheKey, result)
+      cacheUpdateTrigger.value++ // Trigger reactivity
+      return result
+    }
+    
+    return null
+  } catch (error) {
+    console.error(`[POCOSelect] Error fetching CO invoice summary for ${coUuid}:`, error)
     return null
   } finally {
     loadingInvoiceSummaries.value.delete(cacheKey)
@@ -547,6 +587,16 @@ const poCoOptions = computed(() => {
     const coDate = co.created_date || '';
     const formattedDate = formatDate(coDate);
     
+    // Get invoice summary if showInvoiceSummary is enabled
+    // Only use cached data - fetching happens in openModal to avoid infinite loops
+    let invoiceSummary = null
+    if (props.showInvoiceSummary) {
+      const summaryCacheKey = `CO_SUMMARY:${co.uuid}`
+      if (invoiceSummaryCache.value.has(summaryCacheKey)) {
+        invoiceSummary = invoiceSummaryCache.value.get(summaryCacheKey)!
+      }
+    }
+    
     options.push({
       label: coNumber,
       value: `CO:${co.uuid}`, // Prefix with CO: to distinguish from PO
@@ -563,6 +613,7 @@ const poCoOptions = computed(() => {
       type: 'CO',
       type_label: 'CO',
       type_color: 'secondary',
+      invoiceSummary: invoiceSummary, // Add invoice summary data
       searchText: `${co.co_number || ''} ${co.vendor_name || ''} ${co.uuid || ''}`.toLowerCase()
     });
     });
@@ -636,7 +687,7 @@ const openModal = async () => {
     })
   }
   
-  // Fetch CO items (only if showOnlyPOs is false or showOnlyCOs is true)
+  // Fetch CO items and summaries (only if showOnlyPOs is false or showOnlyCOs is true)
   if (!props.showOnlyPOs || props.showOnlyCOs) {
     const filteredCOs = changeOrdersStore.changeOrders.filter(co => 
       co.corporation_uuid === props.corporationUuid &&
@@ -648,6 +699,10 @@ const openModal = async () => {
     filteredCOs.forEach(co => {
       if (co.uuid && (!Array.isArray(co.co_items) || co.co_items.length === 0)) {
         fetchPromises.push(fetchCOItems(co.uuid))
+      }
+      // Fetch invoice summary if enabled (always refresh to get latest data including draft invoices)
+      if (props.showInvoiceSummary && co.uuid) {
+        fetchPromises.push(fetchCOInvoiceSummary(co.uuid, true))
       }
     })
   }
