@@ -1616,9 +1616,11 @@ const coDisplayItems = computed(() => {
   })
   
   // Check if co_items is pre-populated (e.g., from exceeded quantities)
-  // If so, only show items that are in co_items
+  // Only filter by co_items when editing an existing change order (has uuid)
+  // For new change orders, always show all items regardless of co_items
   const coItemsList = Array.isArray(props.form?.co_items) ? props.form.co_items : []
-  const hasPrePopulatedCoItems = coItemsList.length > 0
+  const isEditingExistingCO = !!props.form?.uuid
+  const hasPrePopulatedCoItems = isEditingExistingCO && coItemsList.length > 0
   
   // Build set of co_items keys for filtering
   const coItemsKeys = new Set<string>()
@@ -1632,7 +1634,8 @@ const coDisplayItems = computed(() => {
     const rowKey = buildCoMatchKey(row)
     // Exclude removed items
     if (removedKeys.has(rowKey)) return false
-    // If co_items is pre-populated, only include items that are in co_items
+    // If editing existing CO and co_items is pre-populated, only include items that are in co_items
+    // For new COs, always show all items
     if (hasPrePopulatedCoItems && !coItemsKeys.has(rowKey)) return false
     return true
   })
