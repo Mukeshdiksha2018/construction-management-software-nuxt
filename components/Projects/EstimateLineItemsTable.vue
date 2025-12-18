@@ -931,7 +931,6 @@
                             <ItemTypeSelect
                               v-model="item.item_type"
                               :corporation-uuid="props.editingEstimate ? corpStore.selectedCorporation?.uuid : estimateCreationStore.selectedCorporationUuid"
-                              :project-uuid="props.projectUuid"
                               placeholder="Select type"
                               size="xs"
                               class="w-32"
