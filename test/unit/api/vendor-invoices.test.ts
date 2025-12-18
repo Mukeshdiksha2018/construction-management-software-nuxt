@@ -3331,5 +3331,921 @@ describe("server/api/vendor-invoices", () => {
       expect(result.data.co_invoice_items).toBeUndefined();
     });
   });
+
+  describe("Adjusted Advance Payment Cost Codes", () => {
+    describe("POST - Create invoice with adjusted advance payments", () => {
+      it("creates AGAINST_PO invoice and persists adjusted advance payment cost codes", async () => {
+        const globals = stubGlobals();
+        const invoiceData = {
+          uuid: "invoice-1",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          purchase_order_uuid: "po-1",
+          invoice_type: "AGAINST_PO",
+          bill_date: "2024-01-15T00:00:00.000Z",
+          amount: 1000,
+          adjusted_advance_payment_uuid: "ap-1",
+        };
+
+        globals.mockReadBody.mockResolvedValue({
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          purchase_order_uuid: "po-1",
+          invoice_type: "AGAINST_PO",
+          bill_date: "2024-01-15",
+          amount: 1000,
+          adjusted_advance_payment_uuid: "ap-1",
+          adjusted_advance_payment_amounts: {
+            "ap-1": {
+              "cc-1": 500,
+              "cc-2": 300,
+            },
+          },
+          po_invoice_items: [],
+        });
+
+        const insertInvoiceSpy = vi.fn(() => ({
+          select: vi.fn(() => ({
+            single: vi.fn(() =>
+              Promise.resolve({
+                data: invoiceData,
+                error: null,
+              })
+            ),
+          })),
+        }));
+
+        const insertAdjustedCostCodesSpy = vi.fn(() =>
+          Promise.resolve({ error: null })
+        );
+
+        const selectAdvancePaymentCostCodesSpy = vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() =>
+              Promise.resolve({
+                data: [
+                  { uuid: "apcc-1", cost_code_uuid: "cc-1", cost_code_number: "01010", cost_code_name: "General" },
+                  { uuid: "apcc-2", cost_code_uuid: "cc-2", cost_code_number: "02020", cost_code_name: "Site Work" },
+                ],
+                error: null,
+              })
+            ),
+          })),
+        }));
+
+        // Comprehensive mock that returns proper chains for all methods
+        const createTableMock = (customData: any = {}) => ({
+          select: vi.fn((columns?: string) => {
+            // Handle JOINs in select (e.g., "*,project:projects!project_uuid(uuid,project_name)")
+            const eqMock: any = vi.fn(() => ({
+              single: vi.fn(() => Promise.resolve({ data: customData.single || invoiceData, error: null })),
+              maybeSingle: vi.fn(() => Promise.resolve({ data: customData.maybeSingle || invoiceData, error: null })),
+              eq: vi.fn(() => ({
+                order: vi.fn(() => Promise.resolve({ data: customData.order || [], error: null })),
+                single: vi.fn(() => Promise.resolve({ data: customData.single || invoiceData, error: null })),
+              })),
+              order: vi.fn(() => ({
+                range: vi.fn(() => Promise.resolve({ data: customData.range || [], error: null })),
+              })),
+            }));
+            return { eq: eqMock };
+          }),
+          insert: vi.fn((data?: any) => ({
+            select: vi.fn(() => ({
+              single: vi.fn(() => Promise.resolve({ data: customData.insert || invoiceData, error: null })),
+            })),
+          })),
+          update: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              select: vi.fn(() => ({
+                single: vi.fn(() => Promise.resolve({ data: customData.update || invoiceData, error: null })),
+              })),
+            })),
+            in: vi.fn(() => Promise.resolve({ error: null })),
+          })),
+          delete: vi.fn(() => ({
+            eq: vi.fn(() => Promise.resolve({ error: null })),
+          })),
+        });
+
+        const supabaseMock = {
+          from: vi.fn((table: string) => {
+            if (table === "vendor_invoices") {
+              const mock = createTableMock({ insert: invoiceData, single: invoiceData });
+              mock.insert = insertInvoiceSpy;
+              return mock;
+            }
+            if (table === "advance_payment_cost_codes") {
+              return { select: selectAdvancePaymentCostCodesSpy };
+            }
+            if (table === "adjusted_advance_payment_cost_codes") {
+              return {
+                insert: insertAdjustedCostCodesSpy,
+                delete: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ error: null })) })),
+              };
+            }
+            return createTableMock();
+          }),
+        };
+
+        vi.doMock("@/utils/supabaseServer", () => ({
+          supabaseServer: supabaseMock,
+        }));
+
+        const handler = await import("@/server/api/vendor-invoices/index");
+        const event = makeEvent("POST");
+
+        const result = await handler.default(event);
+
+        expect(result.data).toBeDefined();
+        expect(result.data.uuid).toBe("invoice-1");
+        
+        // Verify adjusted_advance_payment_cost_codes table was called
+        expect(supabaseMock.from).toHaveBeenCalledWith("adjusted_advance_payment_cost_codes");
+        expect(insertAdjustedCostCodesSpy).toHaveBeenCalled();
+      });
+
+      it("creates AGAINST_CO invoice and persists adjusted advance payment cost codes", async () => {
+        const globals = stubGlobals();
+        const invoiceData = {
+          uuid: "invoice-2",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          change_order_uuid: "co-1",
+          invoice_type: "AGAINST_CO",
+          bill_date: "2024-01-15T00:00:00.000Z",
+          amount: 800,
+          adjusted_advance_payment_uuid: "ap-2",
+        };
+
+        globals.mockReadBody.mockResolvedValue({
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          change_order_uuid: "co-1",
+          invoice_type: "AGAINST_CO",
+          bill_date: "2024-01-15",
+          amount: 800,
+          adjusted_advance_payment_uuid: "ap-2",
+          adjusted_advance_payment_amounts: {
+            "ap-2": {
+              "cc-3": 400,
+            },
+          },
+          co_invoice_items: [],
+        });
+
+        const insertInvoiceSpy = vi.fn(() => ({
+          select: vi.fn(() => ({
+            single: vi.fn(() =>
+              Promise.resolve({
+                data: invoiceData,
+                error: null,
+              })
+            ),
+          })),
+        }));
+
+        const insertAdjustedCostCodesSpy = vi.fn(() =>
+          Promise.resolve({ error: null })
+        );
+
+        const selectAdvancePaymentCostCodesSpy = vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() =>
+              Promise.resolve({
+                data: [
+                  { uuid: "apcc-3", cost_code_uuid: "cc-3", cost_code_number: "03030", cost_code_name: "Concrete" },
+                ],
+                error: null,
+              })
+            ),
+          })),
+        }));
+
+        // Comprehensive mock that returns proper chains for all methods
+        const createTableMock = (customData: any = {}) => ({
+          select: vi.fn((columns?: string) => {
+            const eqMock: any = vi.fn(() => ({
+              single: vi.fn(() => Promise.resolve({ data: customData.single || invoiceData, error: null })),
+              maybeSingle: vi.fn(() => Promise.resolve({ data: customData.maybeSingle || invoiceData, error: null })),
+              eq: vi.fn(() => ({
+                order: vi.fn(() => Promise.resolve({ data: customData.order || [], error: null })),
+                single: vi.fn(() => Promise.resolve({ data: customData.single || invoiceData, error: null })),
+              })),
+              order: vi.fn(() => ({
+                range: vi.fn(() => Promise.resolve({ data: customData.range || [], error: null })),
+              })),
+            }));
+            return { eq: eqMock };
+          }),
+          insert: vi.fn((data?: any) => ({
+            select: vi.fn(() => ({
+              single: vi.fn(() => Promise.resolve({ data: customData.insert || invoiceData, error: null })),
+            })),
+          })),
+          update: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              select: vi.fn(() => ({
+                single: vi.fn(() => Promise.resolve({ data: customData.update || invoiceData, error: null })),
+              })),
+            })),
+            in: vi.fn(() => Promise.resolve({ error: null })),
+          })),
+          delete: vi.fn(() => ({
+            eq: vi.fn(() => Promise.resolve({ error: null })),
+          })),
+        });
+
+        const supabaseMock = {
+          from: vi.fn((table: string) => {
+            if (table === "vendor_invoices") {
+              const mock = createTableMock({ insert: invoiceData, single: invoiceData });
+              mock.insert = insertInvoiceSpy;
+              return mock;
+            }
+            if (table === "advance_payment_cost_codes") {
+              return { select: selectAdvancePaymentCostCodesSpy };
+            }
+            if (table === "adjusted_advance_payment_cost_codes") {
+              return {
+                insert: insertAdjustedCostCodesSpy,
+                delete: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ error: null })) })),
+              };
+            }
+            return createTableMock();
+          }),
+        };
+
+        vi.doMock("@/utils/supabaseServer", () => ({
+          supabaseServer: supabaseMock,
+        }));
+
+        const handler = await import("@/server/api/vendor-invoices/index");
+        const event = makeEvent("POST");
+
+        const result = await handler.default(event);
+
+        expect(result.data).toBeDefined();
+        expect(result.data.uuid).toBe("invoice-2");
+        
+        // Verify adjusted_advance_payment_cost_codes table was called for CO invoice
+        expect(supabaseMock.from).toHaveBeenCalledWith("adjusted_advance_payment_cost_codes");
+        expect(insertAdjustedCostCodesSpy).toHaveBeenCalled();
+      });
+    });
+
+    describe("DELETE - Deactivate adjusted advance payment cost codes", () => {
+      it("deactivates adjusted advance payment cost codes when vendor invoice is deleted", async () => {
+        const globals = stubGlobals();
+        globals.mockGetQuery.mockReturnValue({ uuid: "invoice-1" });
+
+        const invoiceData = {
+          uuid: "invoice-1",
+          corporation_uuid: "corp-1",
+          invoice_type: "AGAINST_PO",
+          purchase_order_uuid: "po-1",
+          amount: 1000,
+          is_active: false,
+        };
+
+        const deactivateAdjustedCostCodesSpy = vi.fn(() => ({
+          eq: vi.fn(() => Promise.resolve({ error: null })),
+        }));
+
+        const updateInvoiceSpy = vi.fn(() => ({
+          eq: vi.fn(() => ({
+            select: vi.fn(() => ({
+              single: vi.fn(() => Promise.resolve({ data: invoiceData, error: null })),
+            })),
+          })),
+        }));
+
+        const supabaseMock = {
+          from: vi.fn((table: string) => {
+            if (table === "vendor_invoices") {
+              return {
+                update: updateInvoiceSpy,
+                select: vi.fn(() => ({
+                  eq: vi.fn(() => ({
+                    maybeSingle: vi.fn(() => Promise.resolve({ data: invoiceData, error: null })),
+                  })),
+                })),
+              };
+            }
+            if (table === "adjusted_advance_payment_cost_codes") {
+              return {
+                update: deactivateAdjustedCostCodesSpy,
+              };
+            }
+            return {
+              update: vi.fn(() => ({
+                in: vi.fn(() => Promise.resolve({ error: null })),
+                eq: vi.fn(() => Promise.resolve({ error: null })),
+              })),
+            };
+          }),
+        };
+
+        vi.doMock("@/utils/supabaseServer", () => ({
+          supabaseServer: supabaseMock,
+        }));
+
+        const handler = await import("@/server/api/vendor-invoices/index");
+        const event = makeEvent("DELETE", { query: { uuid: "invoice-1" } });
+
+        const result = await handler.default(event);
+
+        expect(result.data).toBeDefined();
+        expect(result.data.is_active).toBe(false);
+        
+        // Verify adjusted_advance_payment_cost_codes were deactivated
+        expect(supabaseMock.from).toHaveBeenCalledWith("adjusted_advance_payment_cost_codes");
+        expect(deactivateAdjustedCostCodesSpy).toHaveBeenCalled();
+      });
+    });
+
+    describe("GET - Fetch invoice with adjusted advance payment amounts", () => {
+      it("fetches AGAINST_PO invoice with adjusted_advance_payment_amounts", async () => {
+        const globals = stubGlobals();
+        globals.mockGetQuery.mockReturnValue({ uuid: "invoice-1" });
+
+        const invoiceData = {
+          uuid: "invoice-1",
+          corporation_uuid: "corp-1",
+          invoice_type: "AGAINST_PO",
+          purchase_order_uuid: "po-1",
+          adjusted_advance_payment_uuid: "ap-1",
+          amount: 1000,
+          bill_date: "2024-01-15T00:00:00.000Z",
+        };
+
+        const adjustedCostCodesData = [
+          {
+            uuid: "acc-1",
+            vendor_invoice_uuid: "invoice-1",
+            advance_payment_uuid: "ap-1",
+            cost_code_uuid: "cc-1",
+            adjusted_amount: "500",
+            is_active: true,
+          },
+          {
+            uuid: "acc-2",
+            vendor_invoice_uuid: "invoice-1",
+            advance_payment_uuid: "ap-1",
+            cost_code_uuid: "cc-2",
+            adjusted_amount: "300",
+            is_active: true,
+          },
+        ];
+
+        const poInvoiceItemsData: any[] = [];
+
+        const selectInvoiceSpy = vi.fn(() => ({
+          eq: vi.fn(() => ({
+            maybeSingle: vi.fn(() =>
+              Promise.resolve({
+                data: invoiceData,
+                error: null,
+              })
+            ),
+          })),
+        }));
+
+        const selectAdjustedCostCodesSpy = vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() =>
+              Promise.resolve({
+                data: adjustedCostCodesData,
+                error: null,
+              })
+            ),
+          })),
+        }));
+
+        const selectPoInvoiceItemsSpy = vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              order: vi.fn(() =>
+                Promise.resolve({
+                  data: poInvoiceItemsData,
+                  error: null,
+                })
+              ),
+            })),
+          })),
+        }));
+
+        const supabaseMock = {
+          from: vi.fn((table: string) => {
+            if (table === "vendor_invoices") {
+              return {
+                select: selectInvoiceSpy,
+              };
+            }
+            if (table === "adjusted_advance_payment_cost_codes") {
+              return {
+                select: selectAdjustedCostCodesSpy,
+              };
+            }
+            if (table === "purchase_order_invoice_items_list") {
+              return {
+                select: selectPoInvoiceItemsSpy,
+              };
+            }
+            return {
+              select: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                  eq: vi.fn(() => ({
+                    order: vi.fn(() => Promise.resolve({ data: [], error: null })),
+                  })),
+                })),
+              })),
+            };
+          }),
+        };
+
+        vi.doMock("@/utils/supabaseServer", () => ({
+          supabaseServer: supabaseMock,
+        }));
+
+        const handler = await import("@/server/api/vendor-invoices/[uuid]");
+        const event = {
+          node: { req: { method: "GET" } },
+        };
+        vi.stubGlobal("getRouterParam", vi.fn(() => "invoice-1"));
+
+        const result = await handler.default(event as any);
+
+        expect(result.data).toBeDefined();
+        expect(result.data.adjusted_advance_payment_amounts).toBeDefined();
+        expect(result.data.adjusted_advance_payment_amounts["ap-1"]).toBeDefined();
+        expect(result.data.adjusted_advance_payment_amounts["ap-1"]["cc-1"]).toBe(500);
+        expect(result.data.adjusted_advance_payment_amounts["ap-1"]["cc-2"]).toBe(300);
+      });
+
+      it("fetches AGAINST_CO invoice with adjusted_advance_payment_amounts", async () => {
+        const globals = stubGlobals();
+        globals.mockGetQuery.mockReturnValue({ uuid: "invoice-2" });
+
+        const invoiceData = {
+          uuid: "invoice-2",
+          corporation_uuid: "corp-1",
+          invoice_type: "AGAINST_CO",
+          change_order_uuid: "co-1",
+          adjusted_advance_payment_uuid: "ap-2",
+          amount: 800,
+          bill_date: "2024-01-15T00:00:00.000Z",
+        };
+
+        const adjustedCostCodesData = [
+          {
+            uuid: "acc-3",
+            vendor_invoice_uuid: "invoice-2",
+            advance_payment_uuid: "ap-2",
+            cost_code_uuid: "cc-3",
+            adjusted_amount: "400",
+            is_active: true,
+          },
+        ];
+
+        const coInvoiceItemsData: any[] = [];
+
+        const selectInvoiceSpy = vi.fn(() => ({
+          eq: vi.fn(() => ({
+            maybeSingle: vi.fn(() =>
+              Promise.resolve({
+                data: invoiceData,
+                error: null,
+              })
+            ),
+          })),
+        }));
+
+        const selectAdjustedCostCodesSpy = vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() =>
+              Promise.resolve({
+                data: adjustedCostCodesData,
+                error: null,
+              })
+            ),
+          })),
+        }));
+
+        const selectCoInvoiceItemsSpy = vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              order: vi.fn(() =>
+                Promise.resolve({
+                  data: coInvoiceItemsData,
+                  error: null,
+                })
+              ),
+            })),
+          })),
+        }));
+
+        const supabaseMock = {
+          from: vi.fn((table: string) => {
+            if (table === "vendor_invoices") {
+              return {
+                select: selectInvoiceSpy,
+              };
+            }
+            if (table === "adjusted_advance_payment_cost_codes") {
+              return {
+                select: selectAdjustedCostCodesSpy,
+              };
+            }
+            if (table === "change_order_invoice_items_list") {
+              return {
+                select: selectCoInvoiceItemsSpy,
+              };
+            }
+            return {
+              select: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                  eq: vi.fn(() => ({
+                    order: vi.fn(() => Promise.resolve({ data: [], error: null })),
+                  })),
+                })),
+              })),
+            };
+          }),
+        };
+
+        vi.doMock("@/utils/supabaseServer", () => ({
+          supabaseServer: supabaseMock,
+        }));
+
+        const handler = await import("@/server/api/vendor-invoices/[uuid]");
+        const event = {
+          node: { req: { method: "GET" } },
+        };
+        vi.stubGlobal("getRouterParam", vi.fn(() => "invoice-2"));
+
+        const result = await handler.default(event as any);
+
+        expect(result.data).toBeDefined();
+        expect(result.data.adjusted_advance_payment_amounts).toBeDefined();
+        expect(result.data.adjusted_advance_payment_amounts["ap-2"]).toBeDefined();
+        expect(result.data.adjusted_advance_payment_amounts["ap-2"]["cc-3"]).toBe(400);
+      });
+
+      it("returns empty adjusted_advance_payment_amounts for invoices without adjustments", async () => {
+        const globals = stubGlobals();
+        globals.mockGetQuery.mockReturnValue({ uuid: "invoice-3" });
+
+        const invoiceData = {
+          uuid: "invoice-3",
+          corporation_uuid: "corp-1",
+          invoice_type: "AGAINST_PO",
+          purchase_order_uuid: "po-1",
+          adjusted_advance_payment_uuid: null, // No advance payment adjusted
+          amount: 500,
+          bill_date: "2024-01-15T00:00:00.000Z",
+        };
+
+        const selectInvoiceSpy = vi.fn(() => ({
+          eq: vi.fn(() => ({
+            maybeSingle: vi.fn(() =>
+              Promise.resolve({
+                data: invoiceData,
+                error: null,
+              })
+            ),
+          })),
+        }));
+
+        const selectPoInvoiceItemsSpy = vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              order: vi.fn(() =>
+                Promise.resolve({
+                  data: [],
+                  error: null,
+                })
+              ),
+            })),
+          })),
+        }));
+
+        const selectAdjustedSpy = vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() =>
+              Promise.resolve({
+                data: [],
+                error: null,
+              })
+            ),
+          })),
+        }));
+
+        const supabaseMock = {
+          from: vi.fn((table: string) => {
+            if (table === "vendor_invoices") {
+              return {
+                select: selectInvoiceSpy,
+              };
+            }
+            if (table === "purchase_order_invoice_items_list") {
+              return {
+                select: selectPoInvoiceItemsSpy,
+              };
+            }
+            if (table === "adjusted_advance_payment_cost_codes") {
+              return {
+                select: selectAdjustedSpy,
+              };
+            }
+            return {
+              select: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                  eq: vi.fn(() => ({
+                    order: vi.fn(() => Promise.resolve({ data: [], error: null })),
+                  })),
+                })),
+              })),
+            };
+          }),
+        };
+
+        vi.doMock("@/utils/supabaseServer", () => ({
+          supabaseServer: supabaseMock,
+        }));
+
+        const handler = await import("@/server/api/vendor-invoices/[uuid]");
+        const event = {
+          node: { req: { method: "GET" } },
+        };
+        vi.stubGlobal("getRouterParam", vi.fn(() => "invoice-3"));
+
+        const result = await handler.default(event as any);
+
+        expect(result.data).toBeDefined();
+        expect(result.data.adjusted_advance_payment_amounts).toBeDefined();
+        expect(Object.keys(result.data.adjusted_advance_payment_amounts).length).toBe(0);
+      });
+    });
+
+    describe("PUT - Update invoice with adjusted advance payments", () => {
+      it("updates AGAINST_PO invoice and updates adjusted advance payment cost codes", async () => {
+        const globals = stubGlobals();
+        globals.mockGetQuery.mockReturnValue({ uuid: "invoice-1" });
+        
+        const invoiceData = {
+          uuid: "invoice-1",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          purchase_order_uuid: "po-1",
+          invoice_type: "AGAINST_PO",
+          bill_date: "2024-01-15T00:00:00.000Z",
+          amount: 1200,
+          adjusted_advance_payment_uuid: "ap-1",
+        };
+
+        globals.mockReadBody.mockResolvedValue({
+          uuid: "invoice-1",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          purchase_order_uuid: "po-1",
+          invoice_type: "AGAINST_PO",
+          bill_date: "2024-01-15",
+          amount: 1200,
+          adjusted_advance_payment_uuid: "ap-1",
+          adjusted_advance_payment_amounts: {
+            "ap-1": {
+              "cc-1": 600, // Updated amount
+              "cc-2": 400, // Updated amount
+            },
+          },
+          po_invoice_items: [],
+        });
+
+        const deleteAdjustedCostCodesSpy = vi.fn(() => ({
+          eq: vi.fn(() => Promise.resolve({ error: null })),
+        }));
+
+        const insertAdjustedCostCodesSpy = vi.fn(() =>
+          Promise.resolve({ error: null })
+        );
+
+        const selectAdvancePaymentCostCodesSpy = vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() =>
+              Promise.resolve({
+                data: [
+                  { uuid: "apcc-1", cost_code_uuid: "cc-1", cost_code_number: "01010", cost_code_name: "General" },
+                  { uuid: "apcc-2", cost_code_uuid: "cc-2", cost_code_number: "02020", cost_code_name: "Site Work" },
+                ],
+                error: null,
+              })
+            ),
+          })),
+        }));
+
+        const updateInvoiceSpy = vi.fn(() => ({
+          eq: vi.fn(() => ({
+            select: vi.fn(() => ({
+              single: vi.fn(() => Promise.resolve({ data: invoiceData, error: null })),
+            })),
+          })),
+        }));
+
+        const selectPoInvoiceItemsSpy = vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              order: vi.fn(() => Promise.resolve({ data: [], error: null })),
+            })),
+          })),
+        }));
+
+        const defaultTableMock = () => ({
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                order: vi.fn(() => Promise.resolve({ data: [], error: null })),
+              })),
+            })),
+          })),
+          insert: vi.fn(() => Promise.resolve({ error: null })),
+          update: vi.fn(() => ({
+            eq: vi.fn(() => Promise.resolve({ error: null })),
+            in: vi.fn(() => Promise.resolve({ error: null })),
+          })),
+          delete: vi.fn(() => ({
+            eq: vi.fn(() => Promise.resolve({ error: null })),
+          })),
+        });
+
+        const supabaseMock = {
+          from: vi.fn((table: string) => {
+            if (table === "vendor_invoices") {
+              return {
+                update: updateInvoiceSpy,
+                select: vi.fn(() => ({
+                  eq: vi.fn(() => ({
+                    maybeSingle: vi.fn(() => Promise.resolve({ data: invoiceData, error: null })),
+                    single: vi.fn(() => Promise.resolve({ data: invoiceData, error: null })),
+                  })),
+                })),
+              };
+            }
+            if (table === "advance_payment_cost_codes") {
+              return {
+                select: selectAdvancePaymentCostCodesSpy,
+              };
+            }
+            if (table === "adjusted_advance_payment_cost_codes") {
+              return {
+                delete: deleteAdjustedCostCodesSpy,
+                insert: insertAdjustedCostCodesSpy,
+              };
+            }
+            if (table === "purchase_order_invoice_items_list") {
+              return {
+                select: selectPoInvoiceItemsSpy,
+                delete: vi.fn(() => ({
+                  eq: vi.fn(() => Promise.resolve({ error: null })),
+                })),
+                insert: vi.fn(() => Promise.resolve({ error: null })),
+              };
+            }
+            return defaultTableMock();
+          }),
+        };
+
+        vi.doMock("@/utils/supabaseServer", () => ({
+          supabaseServer: supabaseMock,
+        }));
+
+        const handler = await import("@/server/api/vendor-invoices/index");
+        const event = makeEvent("PUT", { query: { uuid: "invoice-1" } });
+
+        const result = await handler.default(event);
+
+        expect(result.data).toBeDefined();
+        expect(result.data.uuid).toBe("invoice-1");
+        
+        // Verify adjusted cost codes were deleted and re-inserted
+        expect(supabaseMock.from).toHaveBeenCalledWith("adjusted_advance_payment_cost_codes");
+        expect(deleteAdjustedCostCodesSpy).toHaveBeenCalled();
+        expect(insertAdjustedCostCodesSpy).toHaveBeenCalled();
+      });
+
+      it("clears adjusted advance payment cost codes when adjusted_advance_payment_uuid is removed", async () => {
+        const globals = stubGlobals();
+        globals.mockGetQuery.mockReturnValue({ uuid: "invoice-1" });
+        
+        const invoiceData = {
+          uuid: "invoice-1",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          purchase_order_uuid: "po-1",
+          invoice_type: "AGAINST_PO",
+          bill_date: "2024-01-15T00:00:00.000Z",
+          amount: 1200,
+          adjusted_advance_payment_uuid: null, // Removed
+        };
+
+        globals.mockReadBody.mockResolvedValue({
+          uuid: "invoice-1",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          purchase_order_uuid: "po-1",
+          invoice_type: "AGAINST_PO",
+          bill_date: "2024-01-15",
+          amount: 1200,
+          adjusted_advance_payment_uuid: null, // No longer adjusting an advance payment
+          adjusted_advance_payment_amounts: {},
+          po_invoice_items: [],
+        });
+
+        const deleteAdjustedCostCodesSpy = vi.fn(() => ({
+          eq: vi.fn(() => Promise.resolve({ error: null })),
+        }));
+
+        const updateInvoiceSpy = vi.fn(() => ({
+          eq: vi.fn(() => ({
+            select: vi.fn(() => ({
+              single: vi.fn(() => Promise.resolve({ data: invoiceData, error: null })),
+            })),
+          })),
+        }));
+
+        const selectPoInvoiceItemsSpy = vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              order: vi.fn(() => Promise.resolve({ data: [], error: null })),
+            })),
+          })),
+        }));
+
+        const defaultTableMock = () => ({
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                order: vi.fn(() => Promise.resolve({ data: [], error: null })),
+              })),
+            })),
+          })),
+          insert: vi.fn(() => Promise.resolve({ error: null })),
+          update: vi.fn(() => ({
+            eq: vi.fn(() => Promise.resolve({ error: null })),
+            in: vi.fn(() => Promise.resolve({ error: null })),
+          })),
+          delete: vi.fn(() => ({
+            eq: vi.fn(() => Promise.resolve({ error: null })),
+          })),
+        });
+
+        const supabaseMock = {
+          from: vi.fn((table: string) => {
+            if (table === "vendor_invoices") {
+              return {
+                update: updateInvoiceSpy,
+                select: vi.fn(() => ({
+                  eq: vi.fn(() => ({
+                    maybeSingle: vi.fn(() => Promise.resolve({ data: invoiceData, error: null })),
+                    single: vi.fn(() => Promise.resolve({ data: invoiceData, error: null })),
+                  })),
+                })),
+              };
+            }
+            if (table === "adjusted_advance_payment_cost_codes") {
+              return {
+                delete: deleteAdjustedCostCodesSpy,
+              };
+            }
+            if (table === "purchase_order_invoice_items_list") {
+              return {
+                select: selectPoInvoiceItemsSpy,
+                delete: vi.fn(() => ({
+                  eq: vi.fn(() => Promise.resolve({ error: null })),
+                })),
+                insert: vi.fn(() => Promise.resolve({ error: null })),
+              };
+            }
+            return defaultTableMock();
+          }),
+        };
+
+        vi.doMock("@/utils/supabaseServer", () => ({
+          supabaseServer: supabaseMock,
+        }));
+
+        const handler = await import("@/server/api/vendor-invoices/index");
+        const event = makeEvent("PUT", { query: { uuid: "invoice-1" } });
+
+        const result = await handler.default(event);
+
+        expect(result.data).toBeDefined();
+        
+        // Verify adjusted cost codes were deleted when adjusted_advance_payment_uuid is removed
+        expect(supabaseMock.from).toHaveBeenCalledWith("adjusted_advance_payment_cost_codes");
+        expect(deleteAdjustedCostCodesSpy).toHaveBeenCalled();
+      });
+    });
+  });
 });
 
