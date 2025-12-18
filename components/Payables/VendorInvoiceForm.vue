@@ -821,6 +821,10 @@
       <!-- Financial Breakdown (Right) -->
       <div class="w-full lg:flex-1 flex justify-start lg:justify-end">
         <div class="w-full lg:w-auto lg:min-w-[520px]">
+          <!-- DEBUG: Remove after fixing -->
+          <div class="text-xs text-red-500 mb-2 p-2 bg-red-50 rounded">
+            DEBUG: totalAdjustedAdvancePayment = {{ totalAdjustedAdvancePayment }}
+          </div>
           <FinancialBreakdown
             :item-total="poItemsTotal"
             :form-data="form"
@@ -1007,7 +1011,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from "vue";
+import { ref, computed, watch, onMounted, nextTick, triggerRef } from "vue";
 import { CalendarDate, DateFormatter, getLocalTimeZone } from "@internationalized/date";
 import { useCorporationStore } from "@/stores/corporations";
 import { useVendorStore } from "@/stores/vendors";
@@ -1484,14 +1488,29 @@ const coAdvancePaid = ref<number>(0); // Total advance payments made for the sel
 // Adjusted advance payment amounts (keyed by advancePaymentUuid -> costCodeUuid -> adjustedAmount)
 const adjustedAdvancePaymentAmounts = ref<Record<string, Record<string, number>>>({});
 
+// Guard to prevent watcher from overwriting user input
+const isUpdatingAdjustedAmounts = ref(false);
+
 // Watch for form changes to load adjusted amounts when editing
 watch(
   () => props.form.adjusted_advance_payment_amounts,
   (newAmounts) => {
+    // Skip if we're currently updating from user input (to prevent overwriting)
+    if (isUpdatingAdjustedAmounts.value) {
+      console.log('[VIF] Watcher skipped - isUpdatingAdjustedAmounts is true');
+      return;
+    }
+    
+    console.log('[VIF] Watcher fired with newAmounts:', newAmounts);
+    
     if (newAmounts && typeof newAmounts === 'object' && Object.keys(newAmounts).length > 0) {
-      adjustedAdvancePaymentAmounts.value = { ...newAmounts };
+      // Deep copy to ensure Vue reactivity works properly with nested objects
+      adjustedAdvancePaymentAmounts.value = JSON.parse(JSON.stringify(newAmounts));
     } else if (!newAmounts) {
-      adjustedAdvancePaymentAmounts.value = {};
+      // Only reset if we don't have local values (preserve user input)
+      if (Object.keys(adjustedAdvancePaymentAmounts.value).length === 0) {
+        adjustedAdvancePaymentAmounts.value = {};
+      }
     }
   },
   { immediate: true, deep: true }
@@ -3968,24 +3987,38 @@ const totalAdjustedAdvancePayment = computed(() => {
 
 // Handle adjusted amounts update from AdvancePaymentBreakdownTable
 const handleAdjustedAmountsUpdate = (adjustedAmounts: Record<string, Record<string, number>>) => {
-  adjustedAdvancePaymentAmounts.value = adjustedAmounts;
+  console.log('[VIF] handleAdjustedAmountsUpdate called with:', adjustedAmounts);
+  
+  // Set guard to prevent watcher from overwriting this update
+  isUpdatingAdjustedAmounts.value = true;
+  
+  // Deep copy to ensure Vue reactivity works properly with nested objects
+  const deepCopiedAmounts: Record<string, Record<string, number>> = JSON.parse(JSON.stringify(adjustedAmounts));
+  adjustedAdvancePaymentAmounts.value = deepCopiedAmounts;
+  
+  // Force trigger reactivity to ensure computed properties update
+  triggerRef(adjustedAdvancePaymentAmounts);
   
   // Calculate total adjusted amount
   let totalAdjusted = 0;
-  Object.values(adjustedAmounts).forEach((costCodeAmounts) => {
+  Object.values(deepCopiedAmounts).forEach((costCodeAmounts) => {
     Object.values(costCodeAmounts).forEach((amount) => {
       totalAdjusted += amount || 0;
     });
   });
   
+  console.log('[VIF] Total adjusted calculated:', totalAdjusted);
+  console.log('[VIF] adjustedAdvancePaymentAmounts.value:', adjustedAdvancePaymentAmounts.value);
+  console.log('[VIF] totalAdjustedAdvancePayment computed:', totalAdjustedAdvancePayment.value);
+  
   // Update the form with adjusted advance payment amounts
   // This will be saved to adjusted_advance_payment_cost_codes table
-  handleFormUpdate('adjusted_advance_payment_amounts', adjustedAmounts);
+  handleFormUpdate('adjusted_advance_payment_amounts', deepCopiedAmounts);
   
   // If there are adjusted amounts, we should also track which advance payment is being adjusted
   // Find the first advance payment UUID that has adjustments
-  const firstAdjustedPaymentUuid = Object.keys(adjustedAmounts).find(uuid => 
-    Object.keys(adjustedAmounts[uuid] || {}).length > 0
+  const firstAdjustedPaymentUuid = Object.keys(deepCopiedAmounts).find(uuid => 
+    Object.keys(deepCopiedAmounts[uuid] || {}).length > 0
   );
   
   if (firstAdjustedPaymentUuid && totalAdjusted > 0) {
@@ -3994,6 +4027,11 @@ const handleAdjustedAmountsUpdate = (adjustedAmounts: Record<string, Record<stri
     // Clear the adjusted advance payment UUID if no amounts are adjusted
     handleFormUpdate('adjusted_advance_payment_uuid', null);
   }
+  
+  // Reset guard after a short delay to allow the form update to complete
+  nextTick(() => {
+    isUpdatingAdjustedAmounts.value = false;
+  });
 };
 
 // Watch for form UUID and invoice type changes to ensure financial breakdown is initialized

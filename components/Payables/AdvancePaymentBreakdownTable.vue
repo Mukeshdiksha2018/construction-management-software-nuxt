@@ -318,8 +318,13 @@ const getAdjustedAmount = (advancePaymentUuid: string, costCodeUuid: string): st
 
 // Handle adjusted amount change
 const handleAdjustedAmountChange = (advancePaymentUuid: string, costCode: any, value: string | null) => {
+  console.log('[APBT] handleAdjustedAmountChange called:', { advancePaymentUuid, costCode, value })
   const costCodeUuid = costCode.uuid || costCode.cost_code_uuid
-  if (!costCodeUuid) return
+  console.log('[APBT] costCodeUuid:', costCodeUuid)
+  if (!costCodeUuid) {
+    console.warn('[APBT] costCodeUuid is falsy, returning early!')
+    return
+  }
 
   // Parse the value
   let numericValue: number | null = null
@@ -348,7 +353,10 @@ const handleAdjustedAmountChange = (advancePaymentUuid: string, costCode: any, v
 
   // Emit events
   emit('adjusted-amount-change', advancePaymentUuid, costCode, numericValue)
-  emit('adjusted-amounts-update', { ...localAdjustedAmounts.value })
+  // Deep copy to ensure Vue reactivity is triggered in parent component
+  const deepCopy = JSON.parse(JSON.stringify(localAdjustedAmounts.value))
+  console.log('[APBT] Emitting adjusted-amounts-update:', deepCopy)
+  emit('adjusted-amounts-update', deepCopy)
 }
 
 // Calculate total adjusted amount across all advance payments
