@@ -98,26 +98,9 @@ export default defineEventHandler(async (event) => {
         0
       ) || 0;
 
-    // Calculate total adjusted advance payments from adjusted_advance_payment_cost_codes
-    const { data: adjustedCostCodes, error: adjustedError } = await supabaseServer
-      .from("adjusted_advance_payment_cost_codes")
-      .select("adjusted_amount")
-      .eq("change_order_uuid", change_order_uuid as string)
-      .eq("is_active", true);
-
-    if (adjustedError) {
-      console.error("Error fetching adjusted advance payment cost codes:", adjustedError);
-    }
-
-    const totalAdjusted =
-      adjustedCostCodes?.reduce(
-        (sum, item) => sum + (parseFloat(item.adjusted_amount || "0") || 0),
-        0
-      ) || 0;
-
-    // Calculate balance to be invoiced (advance paid minus total adjusted)
-    // This shows how much of the advance payment is still available to be applied to future invoices
-    const balanceToBeInvoiced = Math.max(0, advancePaid - totalAdjusted);
+    // Calculate balance to be invoiced (Total CO Value - Advance Paid - Invoiced Value)
+    // This shows how much of the CO value is still left to be invoiced
+    const balanceToBeInvoiced = Math.max(0, totalCOValue - advancePaid - invoicedValue);
 
     return {
       data: {
@@ -125,7 +108,6 @@ export default defineEventHandler(async (event) => {
         total_co_value: totalCOValue,
         advance_paid: advancePaid,
         invoiced_value: invoicedValue,
-        total_adjusted: totalAdjusted,
         balance_to_be_invoiced: balanceToBeInvoiced,
       },
     };
