@@ -384,6 +384,7 @@
       </template>
       <template #body>
         <VendorInvoiceForm
+          :key="formKey"
           v-model:form="invoiceForm"
           :editing-invoice="!!invoiceForm.uuid"
           :loading="loadingEditInvoice"
@@ -490,6 +491,7 @@ const showDeleteModal = ref(false)
 const invoiceToDelete = ref<any>(null)
 const showFormModal = ref(false)
 const isViewMode = ref(false)
+const formKey = ref(0) // Key to force VendorInvoiceForm remount
 const invoiceForm = ref<any>({
   attachments: []
 })
@@ -838,6 +840,9 @@ const columns: TableColumn<any>[] = [
 
 // Methods
 const openCreateModal = () => {
+  // Increment form key to force VendorInvoiceForm remount with fresh state
+  formKey.value++
+  
   invoiceForm.value = {
     corporation_uuid: corporationStore.selectedCorporation?.uuid || corporationStore.selectedCorporationId,
     bill_date: toUTCString(getCurrentLocal()),
@@ -869,6 +874,9 @@ const loadInvoiceForModal = async (invoice: any, viewMode: boolean = false) => {
     return
   }
 
+  // Increment form key to force VendorInvoiceForm remount with fresh state
+  formKey.value++
+  
   // Reset form first
   invoiceForm.value = { attachments: [] }
   isViewMode.value = viewMode
