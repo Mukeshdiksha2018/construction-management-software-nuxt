@@ -46,6 +46,9 @@
             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700">
               Cost Code Breakdown
             </th>
+            <th v-if="hasPreviouslyAdjustedCostCodes" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-green-700 dark:text-green-400 border-b border-gray-200 dark:border-gray-700">
+              Previously Adjusted
+            </th>
             <th v-if="showAdjustmentInputs" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700">
               Adjust Amount
             </th>
@@ -103,6 +106,34 @@
               <span v-else class="text-xs text-gray-400">No cost codes</span>
             </td>
 
+            <!-- Previously Adjusted Column (only shown when hasPreviouslyAdjustedCostCodes is true) -->
+            <td v-if="hasPreviouslyAdjustedCostCodes" class="px-4 py-3">
+              <div v-if="payment.costCodes && payment.costCodes.length > 0" class="space-y-1">
+                <div
+                  v-for="(costCode, ccIndex) in payment.costCodes"
+                  :key="'prev-' + (costCode.uuid || ccIndex)"
+                  class="text-xs"
+                >
+                  <span 
+                    v-if="getPreviouslyAdjustedAmount(payment.uuid, costCode.uuid || costCode.cost_code_uuid) > 0"
+                    class="font-medium text-green-600 dark:text-green-400"
+                  >
+                    {{ formatCurrency(getPreviouslyAdjustedAmount(payment.uuid, costCode.uuid || costCode.cost_code_uuid)) }}
+                  </span>
+                  <span v-else class="text-gray-400">-</span>
+                </div>
+              </div>
+              <div v-else class="text-right">
+                <span 
+                  v-if="getTotalPreviouslyAdjustedForPayment(payment.uuid) > 0"
+                  class="text-xs font-medium text-green-600 dark:text-green-400"
+                >
+                  {{ formatCurrency(getTotalPreviouslyAdjustedForPayment(payment.uuid)) }}
+                </span>
+                <span v-else class="text-xs text-gray-400">-</span>
+              </div>
+            </td>
+
             <!-- Adjust Amount Column (only shown when showAdjustmentInputs is true) -->
             <td v-if="showAdjustmentInputs" class="px-4 py-3">
               <div v-if="payment.costCodes && payment.costCodes.length > 0" class="space-y-2">
@@ -141,15 +172,23 @@
         </tbody>
         <tfoot v-if="advancePayments.length > 0" class="bg-gray-50 dark:bg-gray-800">
           <tr>
-            <td :colspan="showAdjustmentInputs ? 4 : 3" class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100 text-right">
+            <td :colspan="footerColspan" class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100 text-right">
               Total Advance Paid:
             </td>
             <td class="px-4 py-3 text-sm font-bold text-red-600 dark:text-red-400 text-right">
               {{ formatCurrency(-totalAdvancePaidWithoutTaxes) }}
             </td>
           </tr>
+          <tr v-if="hasPreviouslyAdjustedCostCodes && totalPreviouslyAdjusted > 0">
+            <td :colspan="footerColspan" class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100 text-right">
+              Total Previously Adjusted:
+            </td>
+            <td class="px-4 py-3 text-sm font-bold text-green-600 dark:text-green-400 text-right">
+              {{ formatCurrency(totalPreviouslyAdjusted) }}
+            </td>
+          </tr>
           <tr v-if="showAdjustmentInputs">
-            <td :colspan="showAdjustmentInputs ? 4 : 3" class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100 text-right">
+            <td :colspan="footerColspan" class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100 text-right">
               Total Adjusted:
             </td>
             <td class="px-4 py-3 text-sm font-bold text-primary-600 dark:text-primary-400 text-right">
@@ -167,6 +206,15 @@ import { ref, computed, watch } from 'vue'
 import { useDateFormat } from '@/composables/useDateFormat'
 import { useCurrencyFormat } from '@/composables/useCurrencyFormat'
 
+interface PreviouslyAdjustedCostCode {
+  cost_code_uuid: string
+  cost_code_label?: string
+  cost_code_number?: string
+  cost_code_name?: string
+  adjusted_amount: number
+  advance_payment_uuid: string
+}
+
 interface Props {
   purchaseOrderUuid?: string | null
   changeOrderUuid?: string | null
@@ -174,6 +222,7 @@ interface Props {
   showAdjustmentInputs?: boolean
   readonly?: boolean
   adjustedAmounts?: Record<string, Record<string, number>> // Map of advancePaymentUuid -> costCodeUuid -> adjustedAmount
+  previouslyAdjustedCostCodes?: PreviouslyAdjustedCostCode[] // Cost codes that were previously adjusted for this invoice
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -182,7 +231,8 @@ const props = withDefaults(defineProps<Props>(), {
   currentInvoiceUuid: null,
   showAdjustmentInputs: false,
   readonly: false,
-  adjustedAmounts: () => ({})
+  adjustedAmounts: () => ({}),
+  previouslyAdjustedCostCodes: () => []
 })
 
 const emit = defineEmits<{
@@ -199,6 +249,50 @@ const error = ref<string | null>(null)
 
 // Local state for adjusted amounts (keyed by advancePaymentUuid -> costCodeUuid)
 const localAdjustedAmounts = ref<Record<string, Record<string, number>>>({})
+
+// Check if we have previously adjusted cost codes to display
+const hasPreviouslyAdjustedCostCodes = computed(() => {
+  return props.previouslyAdjustedCostCodes && props.previouslyAdjustedCostCodes.length > 0
+})
+
+// Get previously adjusted amount for a specific advance payment and cost code
+const getPreviouslyAdjustedAmount = (advancePaymentUuid: string, costCodeUuid: string): number => {
+  if (!props.previouslyAdjustedCostCodes || props.previouslyAdjustedCostCodes.length === 0) {
+    return 0
+  }
+  const match = props.previouslyAdjustedCostCodes.find(
+    cc => cc.advance_payment_uuid === advancePaymentUuid && cc.cost_code_uuid === costCodeUuid
+  )
+  return match ? (parseFloat(String(match.adjusted_amount)) || 0) : 0
+}
+
+// Get total previously adjusted amount for a specific advance payment
+const getTotalPreviouslyAdjustedForPayment = (advancePaymentUuid: string): number => {
+  if (!props.previouslyAdjustedCostCodes || props.previouslyAdjustedCostCodes.length === 0) {
+    return 0
+  }
+  return props.previouslyAdjustedCostCodes
+    .filter(cc => cc.advance_payment_uuid === advancePaymentUuid)
+    .reduce((sum, cc) => sum + (parseFloat(String(cc.adjusted_amount)) || 0), 0)
+}
+
+// Get total previously adjusted amount across all payments
+const totalPreviouslyAdjusted = computed(() => {
+  if (!props.previouslyAdjustedCostCodes || props.previouslyAdjustedCostCodes.length === 0) {
+    return 0
+  }
+  return props.previouslyAdjustedCostCodes.reduce(
+    (sum, cc) => sum + (parseFloat(String(cc.adjusted_amount)) || 0), 0
+  )
+})
+
+// Calculate footer colspan based on visible columns
+const footerColspan = computed(() => {
+  let cols = 4 // Invoice Number, Invoice Date, Status, Cost Code Breakdown
+  if (hasPreviouslyAdjustedCostCodes.value) cols++
+  if (props.showAdjustmentInputs) cols++
+  return cols
+})
 
 // Initialize local adjusted amounts from props
 watch(

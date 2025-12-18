@@ -374,6 +374,7 @@
         :show-adjustment-inputs="true"
         :readonly="props.readonly"
         :adjusted-amounts="adjustedAdvancePaymentAmounts"
+        :previously-adjusted-cost-codes="previouslyAdjustedCostCodes"
         @adjusted-amount-change="handleAdjustedAmountChange"
         @adjusted-amounts-update="handleAdjustedAmountsUpdate"
       />
@@ -403,6 +404,7 @@
         :show-adjustment-inputs="true"
         :readonly="props.readonly"
         :adjusted-amounts="adjustedAdvancePaymentAmounts"
+        :previously-adjusted-cost-codes="previouslyAdjustedCostCodes"
         @adjusted-amount-change="handleAdjustedAmountChange"
         @adjusted-amounts-update="handleAdjustedAmountsUpdate"
       />
@@ -1482,8 +1484,61 @@ const coAdvancePaid = ref<number>(0); // Total advance payments made for the sel
 // Adjusted advance payment amounts (keyed by advancePaymentUuid -> costCodeUuid -> adjustedAmount)
 const adjustedAdvancePaymentAmounts = ref<Record<string, Record<string, number>>>({});
 
+// Previously adjusted cost codes from the database (for display in the table)
+interface PreviouslyAdjustedCostCode {
+  cost_code_uuid: string;
+  cost_code_label?: string;
+  cost_code_number?: string;
+  cost_code_name?: string;
+  adjusted_amount: number;
+  advance_payment_uuid: string;
+}
+const previouslyAdjustedCostCodes = ref<PreviouslyAdjustedCostCode[]>([]);
+
 // Guard to prevent watcher from overwriting user input
 const isUpdatingAdjustedAmounts = ref(false);
+
+// Fetch previously adjusted cost codes for an existing invoice
+const fetchPreviouslyAdjustedCostCodes = async (vendorInvoiceUuid: string, poOrCoUuid?: string, isCO = false) => {
+  if (!vendorInvoiceUuid) {
+    previouslyAdjustedCostCodes.value = [];
+    return;
+  }
+
+  try {
+    // Build query to fetch adjusted_advance_payment_cost_codes for this invoice
+    const queryParams: Record<string, string> = {
+      vendor_invoice_uuid: vendorInvoiceUuid,
+    };
+    
+    if (poOrCoUuid) {
+      if (isCO) {
+        queryParams.change_order_uuid = poOrCoUuid;
+      } else {
+        queryParams.purchase_order_uuid = poOrCoUuid;
+      }
+    }
+
+    const response = await $fetch<{ data: any[] }>('/api/adjusted-advance-payment-cost-codes', {
+      query: queryParams,
+    });
+
+    const costCodes = Array.isArray(response?.data) ? response.data : [];
+    previouslyAdjustedCostCodes.value = costCodes.map((cc: any) => ({
+      cost_code_uuid: cc.cost_code_uuid,
+      cost_code_label: cc.cost_code_label,
+      cost_code_number: cc.cost_code_number,
+      cost_code_name: cc.cost_code_name,
+      adjusted_amount: parseFloat(String(cc.adjusted_amount)) || 0,
+      advance_payment_uuid: cc.advance_payment_uuid,
+    }));
+
+    console.log('[VendorInvoiceForm] Fetched previously adjusted cost codes:', previouslyAdjustedCostCodes.value);
+  } catch (err: any) {
+    console.error('[VendorInvoiceForm] Error fetching previously adjusted cost codes:', err);
+    previouslyAdjustedCostCodes.value = [];
+  }
+};
 
 // Watch for form changes to load adjusted amounts when editing
 watch(
@@ -1505,6 +1560,36 @@ watch(
     }
   },
   { immediate: true, deep: true }
+);
+
+// Watch for form UUID and PO/CO changes to fetch previously adjusted cost codes
+// This is needed to display what amounts were previously adjusted for this invoice
+watch(
+  [() => props.form.uuid, () => props.form.purchase_order_uuid, () => props.form.change_order_uuid, () => props.form.invoice_type, () => props.editingInvoice],
+  async ([newUuid, newPoUuid, newCoUuid, newInvoiceType, newEditingInvoice], [oldUuid]) => {
+    // Only fetch for existing invoices being edited
+    if (!newUuid || !newEditingInvoice) {
+      previouslyAdjustedCostCodes.value = [];
+      return;
+    }
+
+    // Only fetch for AGAINST_PO or AGAINST_CO invoices
+    const invoiceType = String(newInvoiceType || '').toUpperCase();
+    if (invoiceType !== 'AGAINST_PO' && invoiceType !== 'AGAINST_CO') {
+      previouslyAdjustedCostCodes.value = [];
+      return;
+    }
+
+    // Determine if this is a PO or CO invoice
+    const isCO = invoiceType === 'AGAINST_CO';
+    const poOrCoUuid = isCO ? newCoUuid : newPoUuid;
+
+    // Fetch if UUID changed or on initial load
+    if (newUuid !== oldUuid || previouslyAdjustedCostCodes.value.length === 0) {
+      await fetchPreviouslyAdjustedCostCodes(newUuid, poOrCoUuid, isCO);
+    }
+  },
+  { immediate: true }
 );
 
 // Computed property for file upload error message
