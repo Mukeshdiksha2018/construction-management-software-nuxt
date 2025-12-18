@@ -11,21 +11,9 @@
     :disabled="disabled"
     :loading="loading"
     value-key="value"
+    label-key="label"
     @update:model-value="handleSelection"
-  >
-    <template #item-label="{ item }">
-      <div class="flex items-center justify-between w-full">
-        <div class="flex items-center gap-2 min-w-0 flex-1">
-          <span class="truncate font-medium">{{ item.label }}</span>
-        </div>
-        <div v-if="item.description" class="flex-shrink-0 ml-2">
-          <span class="text-xs text-muted truncate max-w-32">
-            {{ item.description }}
-          </span>
-        </div>
-      </div>
-    </template>
-  </USelectMenu>
+  />
 </template>
 
 <script setup lang="ts">
