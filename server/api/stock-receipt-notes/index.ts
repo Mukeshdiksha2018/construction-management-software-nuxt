@@ -515,7 +515,6 @@ export default defineEventHandler(async (event: H3Event) => {
         purchase_order_uuid: purchaseOrderUuid,
         change_order_uuid: changeOrderUuid,
         receipt_type: receiptType,
-        vendor_uuid: body.vendor_uuid || null,
         location_uuid: body.location_uuid || null,
         entry_date: normalizeTimestamp(body.entry_date),
         received_date: normalizeTimestamp(body.received_date),
@@ -539,11 +538,30 @@ export default defineEventHandler(async (event: H3Event) => {
         is_active: typeof body.is_active === "boolean" ? body.is_active : true,
       };
 
-      const { data, error } = await supabaseServer
+      // Conditionally include vendor_uuid only if provided and column exists
+      // If vendor_uuid column doesn't exist in schema, we'll handle it gracefully
+      if (body.vendor_uuid !== undefined && body.vendor_uuid !== null && body.vendor_uuid !== "") {
+        insertData.vendor_uuid = body.vendor_uuid;
+      }
+
+      let { data, error } = await supabaseServer
         .from("stock_receipt_notes")
         .insert([insertData])
         .select()
         .single();
+
+      // If error is about vendor_uuid column not existing, retry without it
+      if (error && error.message && error.message.includes("vendor_uuid") && error.message.includes("schema cache")) {
+        console.warn("[StockReceiptNotes] vendor_uuid column not found in schema, retrying without it");
+        delete insertData.vendor_uuid;
+        const retryResult = await supabaseServer
+          .from("stock_receipt_notes")
+          .insert([insertData])
+          .select()
+          .single();
+        data = retryResult.data;
+        error = retryResult.error;
+      }
 
       if (error) {
         console.error("[StockReceiptNotes] POST error:", error);
@@ -824,10 +842,11 @@ export default defineEventHandler(async (event: H3Event) => {
         "project_uuid",
         body.project_uuid ?? existing?.project_uuid ?? null
       );
-      maybeSet(
-        "vendor_uuid",
-        body.vendor_uuid ?? existing?.vendor_uuid ?? null
-      );
+      // Conditionally include vendor_uuid only if provided and column exists
+      const vendorUuidValue = body.vendor_uuid ?? existing?.vendor_uuid ?? null;
+      if (vendorUuidValue !== undefined && vendorUuidValue !== null && vendorUuidValue !== "") {
+        maybeSet("vendor_uuid", vendorUuidValue);
+      }
       maybeSet(
         "location_uuid",
         body.location_uuid ?? existing?.location_uuid ?? null
@@ -872,12 +891,26 @@ export default defineEventHandler(async (event: H3Event) => {
         updatePayload.is_active = Boolean(body.is_active);
       }
 
-      const { data, error } = await supabaseServer
+      let { data, error } = await supabaseServer
         .from("stock_receipt_notes")
         .update(updatePayload)
         .eq("uuid", uuid)
         .select()
         .single();
+
+      // If error is about vendor_uuid column not existing, retry without it
+      if (error && error.message && error.message.includes("vendor_uuid") && error.message.includes("schema cache")) {
+        console.warn("[StockReceiptNotes] vendor_uuid column not found in schema, retrying update without it");
+        delete updatePayload.vendor_uuid;
+        const retryResult = await supabaseServer
+          .from("stock_receipt_notes")
+          .update(updatePayload)
+          .eq("uuid", uuid)
+          .select()
+          .single();
+        data = retryResult.data;
+        error = retryResult.error;
+      }
 
       if (error) {
         console.error("[StockReceiptNotes] PUT error:", error);
