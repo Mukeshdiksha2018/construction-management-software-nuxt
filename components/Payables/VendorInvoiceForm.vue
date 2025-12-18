@@ -4011,26 +4011,43 @@ const handleAdjustedAmountsUpdate = (adjustedAmounts: Record<string, Record<stri
   console.log('[VIF] adjustedAdvancePaymentAmounts.value:', adjustedAdvancePaymentAmounts.value);
   console.log('[VIF] totalAdjustedAdvancePayment computed:', totalAdjustedAdvancePayment.value);
   
-  // Update the form with adjusted advance payment amounts
-  // This will be saved to adjusted_advance_payment_cost_codes table
-  handleFormUpdate('adjusted_advance_payment_amounts', deepCopiedAmounts);
-  
   // If there are adjusted amounts, we should also track which advance payment is being adjusted
   // Find the first advance payment UUID that has adjustments
   const firstAdjustedPaymentUuid = Object.keys(deepCopiedAmounts).find(uuid => 
     Object.keys(deepCopiedAmounts[uuid] || {}).length > 0
   );
   
-  if (firstAdjustedPaymentUuid && totalAdjusted > 0) {
-    handleFormUpdate('adjusted_advance_payment_uuid', firstAdjustedPaymentUuid);
-  } else if (totalAdjusted === 0) {
-    // Clear the adjusted advance payment UUID if no amounts are adjusted
-    handleFormUpdate('adjusted_advance_payment_uuid', null);
-  }
+  console.log('[VIF] firstAdjustedPaymentUuid:', firstAdjustedPaymentUuid);
+  
+  // IMPORTANT: Emit both fields in a SINGLE update to avoid race condition
+  // When calling handleFormUpdate twice in sequence, the second call may use stale props.form
+  // because Vue reactivity hasn't propagated the first update yet
+  const updatedFields: Record<string, any> = {
+    adjusted_advance_payment_amounts: deepCopiedAmounts,
+    adjusted_advance_payment_uuid: (firstAdjustedPaymentUuid && totalAdjusted > 0) 
+      ? firstAdjustedPaymentUuid 
+      : null
+  };
+  
+  console.log('[VIF] Emitting single update with both fields:', updatedFields);
+  
+  // Emit a single update with both fields
+  emit('update:form', { 
+    ...props.form, 
+    ...updatedFields 
+  });
+  
+  // Log the current form state after updates
+  console.log('[VIF] After updates - props.form.adjusted_advance_payment_amounts:', props.form.adjusted_advance_payment_amounts);
+  console.log('[VIF] After updates - props.form.adjusted_advance_payment_uuid:', props.form.adjusted_advance_payment_uuid);
   
   // Reset guard after a short delay to allow the form update to complete
   nextTick(() => {
     isUpdatingAdjustedAmounts.value = false;
+    console.log('[VIF] Guard reset - form state:', {
+      adjusted_advance_payment_amounts: props.form.adjusted_advance_payment_amounts,
+      adjusted_advance_payment_uuid: props.form.adjusted_advance_payment_uuid
+    });
   });
 };
 

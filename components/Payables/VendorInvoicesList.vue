@@ -1130,6 +1130,14 @@ const saveInvoice = async () => {
           console.log('[VIL] Advance payment deduction:', deductionAmount, 'calculated from totals:', { itemTotal, chargesTotal, taxTotal, totalBeforeDeduction, finalAmount });
         }
       }
+
+      // Log adjusted advance payment amounts for debugging
+      console.log('[VIL] AGAINST_PO adjusted_advance_payment_amounts:', formData.adjusted_advance_payment_amounts);
+      console.log('[VIL] AGAINST_PO adjusted_advance_payment_uuid:', formData.adjusted_advance_payment_uuid);
+      console.log('[VIL] Full formData being sent:', JSON.stringify({
+        adjusted_advance_payment_amounts: formData.adjusted_advance_payment_amounts,
+        adjusted_advance_payment_uuid: formData.adjusted_advance_payment_uuid,
+      }, null, 2));
     }
     
     // If this is an AGAINST_CO invoice, ensure co_invoice_items is populated
@@ -1142,6 +1150,10 @@ const saveInvoice = async () => {
       } else {
         console.log('[VIL] co_invoice_items found:', formData.co_invoice_items.length, 'items');
       }
+      
+      // Log adjusted advance payment amounts for debugging
+      console.log('[VIL] AGAINST_CO adjusted_advance_payment_amounts:', formData.adjusted_advance_payment_amounts);
+      console.log('[VIL] AGAINST_CO adjusted_advance_payment_uuid:', formData.adjusted_advance_payment_uuid);
     }
     
     // If this is an AGAINST_ADVANCE_PAYMENT invoice, ensure advance_payment_cost_codes and removed_advance_payment_cost_codes are populated
