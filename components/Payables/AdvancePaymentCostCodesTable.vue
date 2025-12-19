@@ -207,7 +207,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick, triggerRef } from 'vue'
 import { useCurrencyFormat } from '@/composables/useCurrencyFormat'
-import { useCostCodeConfigurationsStore } from '@/stores/costCodeConfigurations'
 import CostCodeSelect from '@/components/Shared/CostCodeSelect.vue'
 import ChartOfAccountsSelect from '@/components/Shared/ChartOfAccountsSelect.vue'
 
@@ -232,7 +231,6 @@ const emit = defineEmits<{
 }>()
 
 const { formatCurrency } = useCurrencyFormat()
-const costCodeConfigurationsStore = useCostCodeConfigurationsStore()
 
 // Local state
 const loading = ref(false)
@@ -241,6 +239,7 @@ const costCodeConfigMap = ref<Map<string, any>>(new Map())
 // Local chart of accounts for the form's corporation (not TopBar's)
 // This ensures we don't pollute the global store
 const localChartOfAccounts = ref<any[]>([])
+const cachedCostCodeConfigs = ref<Map<string, any[]>>(new Map()) // Cache cost code configurations by corporation UUID
 // Track cost codes that have been explicitly removed by the user
 // Store full cost code data for restoration
 // Use a reactive array instead of Map for better Vue reactivity
@@ -326,27 +325,47 @@ const fetchCOItems = async (coUuid: string) => {
   }
 }
 
-// Fetch cost code configurations
+// Fetch cost code configurations (with caching)
 const fetchCostCodeConfigurations = async (corporationUuid: string) => {
   if (!corporationUuid) return
   
-  try {
-    // Fetch configurations for the specific corporation
-    await costCodeConfigurationsStore.fetchConfigurations(corporationUuid, false, false)
-    
-    // Get configurations filtered by corporation (using the store's getter method)
-    // This ensures we only get configurations for the specified corporation
-    const configs = costCodeConfigurationsStore.getActiveConfigurations(corporationUuid)
-    
-    // Clear the map and rebuild it with configurations for this corporation only
+  // Return cached data if available
+  if (cachedCostCodeConfigs.value.has(corporationUuid)) {
+    const configs = cachedCostCodeConfigs.value.get(corporationUuid) || []
     costCodeConfigMap.value.clear()
-    configs.forEach((config: any) => {
-      if (config?.uuid) {
-        costCodeConfigMap.value.set(config.uuid, config)
-      }
+    configs
+      .filter((config: any) => config?.is_active !== false && config?.uuid) // Only active configurations
+      .forEach((config: any) => {
+        if (config?.uuid) {
+          costCodeConfigMap.value.set(config.uuid, config)
+        }
+      })
+    return
+  }
+
+  try {
+    const response = await $fetch<{ data: any[] }>(`/api/cost-code-configurations`, {
+      query: { corporation_uuid: corporationUuid },
     })
+    
+    const configs = Array.isArray(response?.data) ? response.data : []
+    
+    // Cache the result
+    cachedCostCodeConfigs.value.set(corporationUuid, configs)
+    
+    // Update the map
+    costCodeConfigMap.value.clear()
+    configs
+      .filter((config: any) => config?.is_active !== false && config?.uuid) // Only active configurations
+      .forEach((config: any) => {
+        if (config?.uuid) {
+          costCodeConfigMap.value.set(config.uuid, config)
+        }
+      })
   } catch (error) {
     console.error('[AdvancePaymentCostCodesTable] Error fetching cost code configurations:', error)
+    // Don't throw - just log the error and continue
+    cachedCostCodeConfigs.value.set(corporationUuid, []) // Cache empty array to prevent repeated failed fetches
   }
 }
 
@@ -589,25 +608,31 @@ const processItems = async () => {
 }
 
 // Handlers
-const handleCostCodeChange = async (index: number, value: string | null, option?: any) => {
+const handleCostCodeChange = (index: number, value: string | null, option?: any) => {
   if (index < 0 || index >= costCodeRows.value.length) return
 
   const row = { ...costCodeRows.value[index] }
   row.cost_code_uuid = value || null
 
+  // Fetch cost code configurations and chart of accounts in background if needed (non-blocking)
+  if (value && props.corporationUuid) {
+    if (costCodeConfigMap.value.size === 0) {
+      // Don't await - fetch in background and update later if needed
+      fetchCostCodeConfigurations(props.corporationUuid).catch((error) => {
+        console.warn('[AdvancePaymentCostCodesTable] Failed to fetch cost code configurations:', error)
+      })
+    }
+    // Ensure chart of accounts are loaded so ChartOfAccountsSelect can display the selected value
+    if (localChartOfAccounts.value.length === 0) {
+      // Don't await - fetch in background
+      fetchChartOfAccounts(props.corporationUuid).catch((error) => {
+        console.warn('[AdvancePaymentCostCodesTable] Failed to fetch chart of accounts:', error)
+      })
+    }
+  }
+  
   // Update GL account and cost code info
   if (value) {
-    // Ensure we have cost code configurations and chart of accounts loaded
-    if (props.corporationUuid) {
-      if (costCodeConfigMap.value.size === 0) {
-        await fetchCostCodeConfigurations(props.corporationUuid)
-      }
-      // Ensure chart of accounts are loaded so ChartOfAccountsSelect can display the selected value
-      if (localChartOfAccounts.value.length === 0) {
-        await fetchChartOfAccounts(props.corporationUuid)
-      }
-    }
-    
     const config = costCodeConfigMap.value.get(value)
     
     // Set GL account from cost code configuration if not already set
@@ -641,16 +666,19 @@ const handleCostCodeChange = async (index: number, value: string | null, option?
 
   costCodeRows.value[index] = row
   
-  // If GL account was set, ensure accounts are loaded and wait for next tick
+  // If GL account was set, ensure accounts are loaded (non-blocking)
   // This ensures ChartOfAccountsSelect can display the selected value
   if (row.gl_account_uuid && localChartOfAccounts.value.length === 0 && props.corporationUuid) {
-    await fetchChartOfAccounts(props.corporationUuid)
+    // Don't await - fetch in background
+    fetchChartOfAccounts(props.corporationUuid).catch((error) => {
+      console.warn('[AdvancePaymentCostCodesTable] Failed to fetch chart of accounts:', error)
+    })
   }
   
-  // Wait for next tick to ensure ChartOfAccountsSelect has received the accounts
-  await nextTick()
-  
-  emit('update:modelValue', costCodeRows.value)
+  // Use nextTick without await to avoid blocking
+  nextTick(() => {
+    emit('update:modelValue', costCodeRows.value)
+  })
 }
 
 const handleAdvanceAmountChange = (index: number, value: string | null) => {
