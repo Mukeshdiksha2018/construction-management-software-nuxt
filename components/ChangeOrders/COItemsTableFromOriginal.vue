@@ -84,7 +84,7 @@
               <th class="w-1/12 px-4 py-2 text-right">Orig Qty</th>
               <th class="w-1/12 px-4 py-2 text-right">Orig Total</th>
               <th class="w-1/12 px-4 py-2 text-right">CO Unit</th>
-              <th v-if="showInvoiceValues" class="w-1/12 px-4 py-2 text-right">To Be Invoiced</th>
+              <th v-if="showInvoiceValues" class="w-1/12 px-4 py-2 text-center">To Be Invoiced</th>
               <th class="w-1/12 px-4 py-2 text-right">CO Qty</th>
               <th class="w-1/12 px-4 py-2 text-right">CO Total</th>
               <th class="w-1/12 px-4 py-2 text-right">Actions</th>
@@ -177,8 +177,8 @@
                   </div>
                 </div>
               </td>
-              <td v-if="showInvoiceValues" class="px-2 py-2 text-right">
-                <div class="flex items-center justify-end">
+              <td v-if="showInvoiceValues" class="px-2 py-2 text-center">
+                <div class="flex items-center justify-center">
                   <span class="font-mono text-sm text-default">{{ formatQuantity(row.to_be_invoiced ?? 0) }}</span>
                 </div>
               </td>

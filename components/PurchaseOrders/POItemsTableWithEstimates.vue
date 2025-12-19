@@ -49,7 +49,7 @@
               <th v-if="!hideLocation" class="w-1/12 px-4 py-2 text-left">Location</th>
               <th class="w-1/12 px-4 py-2 text-right">Unit Price</th>
               <th class="w-1/12 px-4 py-2 text-right">UOM</th>
-              <th v-if="showInvoiceValues" class="w-1/12 px-4 py-2 text-right">To Be Invoiced</th>
+              <th v-if="showInvoiceValues" class="w-1/12 px-4 py-2 text-center">To Be Invoiced</th>
               <th class="w-1/12 px-4 py-2 text-right">Qty</th>
               <th class="w-2/12 px-4 py-2 text-right">Total</th>
               <th class="w-1/12 px-4 py-2 text-right">Actions</th>
@@ -242,8 +242,8 @@
                   @change="(opt) => emitUomChange(index, opt?.value ?? null, opt)"
                 />
               </td>
-              <td v-if="showInvoiceValues" class="px-2 py-2 text-right align-middle">
-                <div class="flex items-center justify-end">
+              <td v-if="showInvoiceValues" class="px-2 py-2 text-center align-middle">
+                <div class="flex items-center justify-center">
                   <span class="font-mono text-sm text-default">{{ formatQuantity(item.to_be_invoiced ?? 0) }}</span>
                 </div>
               </td>
