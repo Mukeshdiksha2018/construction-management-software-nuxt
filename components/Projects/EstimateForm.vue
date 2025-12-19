@@ -37,11 +37,6 @@
                       <USkeleton class="h-3 w-28 mb-1" />
                       <USkeleton class="h-9 w-full" />
                     </div>
-                    <!-- Valid Until -->
-                    <div class="min-w-0">
-                      <USkeleton class="h-3 w-24 mb-1" />
-                      <USkeleton class="h-9 w-full" />
-                    </div>
                     <!-- Total Amount -->
                     <div v-if="false">
                       <USkeleton class="h-3 w-28 mb-1" />
@@ -150,27 +145,6 @@
                     </UPopover>
                   </div>
 
-                  <!-- Valid Until -->
-                  <div class="min-w-0">
-                    <label class="block text-xs font-medium text-default mb-1 flex items-center gap-1">
-                      Valid Until
-                    </label>
-                    <UPopover v-model:open="validUntilDatePopoverOpen" :disabled="isReadOnlyEstimate">
-                      <UButton 
-                        color="neutral" 
-                        variant="outline" 
-                        icon="i-heroicons-calendar-days"
-                        class="w-full justify-start"
-                        size="sm"
-                        :disabled="isReadOnlyEstimate"
-                      >
-                        {{ validUntilDateDisplayText }}
-                      </UButton>
-                      <template #content>
-                        <UCalendar v-model="validUntilDateValue" class="p-2" :disabled="isReadOnlyEstimate" @update:model-value="validUntilDatePopoverOpen = false" />
-                      </template>
-                    </UPopover>
-                  </div>
 
                   <!-- Total Amount -->
                    <div v-if="false">
@@ -458,7 +432,6 @@ const commitDiscount = () => {
 // Panel references
 const leftPanel = ref<HTMLElement | null>(null);
 const estimateDatePopoverOpen = ref(false);
-const validUntilDatePopoverOpen = ref(false);
 
 // Handle corporation change
 const handleCorporationChange = async (corporationUuid: string | undefined) => {
@@ -506,31 +479,10 @@ const estimateDateValue = computed({
   }
 });
 
-const validUntilDateValue = computed({
-  get: () => {
-    if (!props.form.valid_until) return null;
-    const date = new Date(props.form.valid_until);
-    return new CalendarDate(date.getFullYear(), date.getMonth() + 1, date.getDate());
-  },
-  set: (value: CalendarDate | null) => {
-    if (value) {
-      const dateString = `${value.year}-${String(value.month).padStart(2, '0')}-${String(value.day).padStart(2, '0')}`;
-      handleFormUpdate('valid_until', dateString);
-    } else {
-      handleFormUpdate('valid_until', null);
-    }
-  }
-});
-
 // Display text for date inputs
 const estimateDateDisplayText = computed(() => {
   if (!estimateDateValue.value) return 'Select estimate date';
   return df.format(estimateDateValue.value.toDate(getLocalTimeZone()));
-});
-
-const validUntilDateDisplayText = computed(() => {
-  if (!validUntilDateValue.value) return 'Select valid until date';
-  return df.format(validUntilDateValue.value.toDate(getLocalTimeZone()));
 });
 
 // Project options - use estimateCreationStore for new estimates, global store for editing

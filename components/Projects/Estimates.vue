@@ -122,7 +122,7 @@
       <div class="relative overflow-auto rounded-2xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         <!-- Loading skeleton -->
         <div class="bg-gray-50 dark:bg-gray-700">
-          <div class="grid grid-cols-9 gap-4 px-2 py-2 text-sm font-bold text-gray-800 dark:text-gray-200 tracking-wider border-b border-gray-200 dark:border-gray-600">
+          <div class="grid grid-cols-8 gap-4 px-2 py-2 text-sm font-bold text-gray-800 dark:text-gray-200 tracking-wider border-b border-gray-200 dark:border-gray-600">
             <div class="flex items-center gap-2">
               <USkeleton class="h-4 w-4 rounded" />
               <USkeleton class="h-4 w-20" />
@@ -164,7 +164,7 @@
         <!-- Table Body -->
         <div class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
           <div v-for="i in 8" :key="i" class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150">
-            <div class="grid grid-cols-9 gap-4 px-2 py-1 text-xs text-gray-900 dark:text-gray-100 border-gray-100 dark:border-gray-700">
+            <div class="grid grid-cols-8 gap-4 px-2 py-1 text-xs text-gray-900 dark:text-gray-100 border-gray-100 dark:border-gray-700">
               <div class="flex items-center">
                 <USkeleton class="h-4 w-20" />
               </div>
@@ -176,9 +176,6 @@
               </div>
               <div class="flex items-center">
                 <USkeleton class="h-4 w-24" />
-              </div>
-              <div class="flex items-center">
-                <USkeleton class="h-4 w-12" />
               </div>
               <div class="flex items-center">
                 <USkeleton class="h-4 w-20" />
@@ -574,16 +571,6 @@ const columns: TableColumn<any>[] = [
         variant: 'soft',
         size: 'sm'
       }, () => config.label)
-    }
-  },
-  {
-    accessorKey: 'valid_until',
-    header: 'Valid Until',
-    enableSorting: false,
-    meta: { class: { th: 'text-left', td: 'text-left' } },
-    cell: ({ row }: { row: { original: any } }) => {
-      const validUntil = row.original.valid_until;
-      return h('div', validUntil ? formatDate(validUntil) : 'N/A')
     }
   },
   {

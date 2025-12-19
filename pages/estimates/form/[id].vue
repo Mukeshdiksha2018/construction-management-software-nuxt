@@ -638,7 +638,6 @@ const saveEstimate = async () => {
       corporation_uuid: corporationUuid,
       // Convert local form dates to UTC ISO before save
       estimate_date: toUTCString(form.value.estimate_date) as any,
-      valid_until: toUTCString(form.value.valid_until) as any,
       status: form.value.status as 'Draft' | 'Ready' | 'Approved'
     }
 
