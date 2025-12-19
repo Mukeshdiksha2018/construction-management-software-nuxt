@@ -61,7 +61,8 @@
               :key="item.id"
               :class="[
                 'align-middle transition-colors duration-150',
-                activeRowIndex === index ? 'bg-primary-50/40 dark:bg-primary-900/20' : ''
+                activeRowIndex === index ? 'bg-primary-50/40 dark:bg-primary-900/20' : '',
+                isOverInvoiced(item, index) ? 'bg-error-50/50 dark:bg-error-900/20 border-l-4 border-error-500' : ''
               ]"
             >
               <td class="px-2 py-2 align-middle w-1/12">
@@ -1179,6 +1180,27 @@ const emitInvoiceUnitPriceChange = (index: number, value: string | number | null
   const computedTotal = roundCurrency(numericValue * quantityNumeric)
   emit('invoice-unit-price-change', { index, value, numericValue, computedTotal })
   emitInvoiceTotalChange(index, computedTotal)
+}
+
+// Check if an item has invoice quantity greater than to_be_invoiced
+const isOverInvoiced = (item: PurchaseOrderItemDisplay, index: number): boolean => {
+  if (!showInvoiceValues.value) return false
+  const toBeInvoiced = parseNumericInput(item.to_be_invoiced ?? 0)
+  if (toBeInvoiced <= 0) return false // No limit if to_be_invoiced is 0 or negative
+  
+  // Check both the draft value and the actual item value
+  const draftValue = invoiceDrafts[index]?.quantityInput
+  const currentValue = item.invoice_quantity
+  
+  // Parse draft value if it exists
+  if (draftValue !== undefined && draftValue !== null && draftValue !== '') {
+    const draftNumeric = parseNumericInput(draftValue)
+    if (draftNumeric > toBeInvoiced) return true
+  }
+  
+  // Parse current value
+  const currentNumeric = parseNumericInput(currentValue)
+  return currentNumeric > toBeInvoiced
 }
 
 const emitInvoiceQuantityChange = (index: number, value: string | number | null | undefined) => {

@@ -300,7 +300,7 @@
                   variant="outline"
                   icon="i-heroicons-arrow-uturn-left"
                   size="sm"
-                  :disabled="savingInvoice"
+                  :disabled="savingInvoice || hasInvoiceValidationError"
                   :loading="savingInvoice"
                   @click="handleSaveAsDraft"
                 >
@@ -312,7 +312,7 @@
                   variant="solid"
                   icon="i-heroicons-banknotes"
                   size="sm"
-                  :disabled="savingInvoice"
+                  :disabled="savingInvoice || hasInvoiceValidationError"
                   :loading="savingInvoice"
                   @click="handlePay"
                 >
@@ -347,7 +347,7 @@
                   :variant="saveDraftButtonVariant"
                   :icon="saveDraftButtonIcon"
                   size="sm"
-                  :disabled="savingInvoice"
+                  :disabled="savingInvoice || hasInvoiceValidationError"
                   :loading="savingInvoice"
                   @click="handleSaveAsDraft"
                 >
@@ -360,7 +360,7 @@
                   variant="solid"
                   icon="i-heroicons-paper-airplane"
                   size="sm"
-                  :disabled="savingInvoice"
+                  :disabled="savingInvoice || hasInvoiceValidationError"
                   :loading="savingInvoice"
                   @click="handleMarkPending"
                 >
@@ -384,6 +384,7 @@
       </template>
       <template #body>
         <VendorInvoiceForm
+          ref="invoiceFormRef"
           :key="formKey"
           v-model:form="invoiceForm"
           :editing-invoice="!!invoiceForm.uuid"
@@ -495,9 +496,15 @@ const formKey = ref(0) // Key to force VendorInvoiceForm remount
 const invoiceForm = ref<any>({
   attachments: []
 })
+const invoiceFormRef = ref<InstanceType<typeof VendorInvoiceForm> | null>(null)
 const savingInvoice = ref(false)
 const loadingEditInvoice = ref(false)
 const totalInvoiceAmountError = ref<string | null>(null)
+
+// Get validation errors from VendorInvoiceForm
+const hasInvoiceValidationError = computed(() => {
+  return invoiceFormRef.value?.hasValidationError ?? false
+})
 
 // Approval button visibility
 const showApprovalButtons = computed(() => {
@@ -612,7 +619,7 @@ const saveDraftButtonVariant = computed(() => {
 
 const isSaveDraftButtonDisabled = computed(() => {
   const status = String(invoiceForm.value?.status || '').toLowerCase()
-  return status === 'paid'
+  return status === 'paid' || hasInvoiceValidationError.value
 })
 
 // Column pinning for sticky actions column

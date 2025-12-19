@@ -4965,5 +4965,87 @@ onMounted(async () => {
   // from financial_breakdown.totals.amount automatically, both for new and existing invoices
 });
 
+// Validation: Check for items with invoice quantity > to_be_invoiced
+const parseNumericValue = (value: any): number => {
+  if (value === null || value === undefined) return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const normalized = String(value).replace(/,/g, '').trim();
+  if (!normalized) return 0;
+  const numeric = Number(normalized);
+  return Number.isFinite(numeric) ? numeric : 0;
+};
+
+const overInvoicedItems = computed(() => {
+  const items: any[] = [];
+  
+  // Check PO items
+  if (isAgainstPO.value && Array.isArray(poItems.value)) {
+    poItems.value.forEach((item: any, index: number) => {
+      const toBeInvoiced = parseNumericValue(item.to_be_invoiced ?? 0);
+      const invoiceQty = parseNumericValue(item.invoice_quantity ?? 0);
+      
+      if (toBeInvoiced > 0 && invoiceQty > toBeInvoiced) {
+        items.push({
+          ...item,
+          index,
+          to_be_invoiced: toBeInvoiced,
+          invoice_quantity: invoiceQty,
+          over_invoiced_quantity: invoiceQty - toBeInvoiced,
+          source: 'PO'
+        });
+      }
+    });
+  }
+  
+  // Check CO items
+  if (isAgainstCO.value && Array.isArray(coItems.value)) {
+    coItems.value.forEach((item: any, index: number) => {
+      const toBeInvoiced = parseNumericValue(item.to_be_invoiced ?? 0);
+      const invoiceQty = parseNumericValue(item.invoice_quantity ?? 0);
+      
+      if (toBeInvoiced > 0 && invoiceQty > toBeInvoiced) {
+        items.push({
+          ...item,
+          index,
+          to_be_invoiced: toBeInvoiced,
+          invoice_quantity: invoiceQty,
+          over_invoiced_quantity: invoiceQty - toBeInvoiced,
+          source: 'CO'
+        });
+      }
+    });
+  }
+  
+  return items;
+});
+
+const hasOverInvoicedItems = computed(() => overInvoicedItems.value.length > 0);
+
+const overInvoicedValidationError = computed(() => {
+  if (!hasOverInvoicedItems.value) return null;
+  
+  const itemCount = overInvoicedItems.value.length;
+  const itemsList = overInvoicedItems.value
+    .map((item, idx) => {
+      const itemName = item.item_name || item.name || item.description || `Item ${idx + 1}`;
+      const toBeInvoiced = item.to_be_invoiced ?? 0;
+      const invoiceQty = item.invoice_quantity ?? 0;
+      return `"${itemName}" (To Be Invoiced: ${toBeInvoiced}, Invoice Qty: ${invoiceQty})`;
+    })
+    .join('; ');
+  
+  return `${itemCount} item(s) have invoice quantity greater than to be invoiced quantity. ${itemsList}`;
+});
+
+const hasValidationError = computed(() => !!hasOverInvoicedItems.value);
+
+// Expose validation errors to parent component
+defineExpose({
+  overInvoicedItems,
+  hasOverInvoicedItems,
+  overInvoicedValidationError,
+  hasValidationError,
+});
+
 </script>
 

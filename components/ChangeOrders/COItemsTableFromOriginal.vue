@@ -94,7 +94,10 @@
             <tr
               v-for="(row, index) in displayRows"
               :key="row.id || index"
-              class="align-middle"
+              :class="[
+                'align-middle',
+                isOverInvoiced(row, index) ? 'bg-error-50/50 dark:bg-error-900/20 border-l-4 border-error-500' : ''
+              ]"
             >
               <td class="px-2 py-2">
                 <div class="text-xs">
@@ -258,7 +261,10 @@
         <div
           v-for="(row, index) in displayRows"
           :key="row.id || index"
-          class="px-4 py-4 space-y-3"
+          :class="[
+            'px-4 py-4 space-y-3',
+            isOverInvoiced(row, index) ? 'bg-error-50/50 dark:bg-error-900/20 border-l-4 border-error-500' : ''
+          ]"
         >
           <div class="text-xs">
             <div class="font-semibold text-default">{{ row.name }}</div>
@@ -679,6 +685,27 @@ const onInvoiceUnitPriceInput = (index: number, value: string | number | null | 
   const computedTotal = roundCurrency(unit * qty)
   emit('invoice-unit-price-change', { index, value, numericValue: unit, computedTotal })
   emit('invoice-total-change', { index, value: computedTotal })
+}
+
+// Check if an item has invoice quantity greater than to_be_invoiced
+const isOverInvoiced = (row: OriginalItemDisplay, index: number): boolean => {
+  if (!showInvoiceValues.value) return false
+  const toBeInvoiced = parseNumericInput(row.to_be_invoiced ?? 0)
+  if (toBeInvoiced <= 0) return false // No limit if to_be_invoiced is 0 or negative
+  
+  // Check both the draft value and the actual row value
+  const draftValue = invoiceDrafts[index]?.quantityInput
+  const currentValue = row.invoice_quantity
+  
+  // Parse draft value if it exists
+  if (draftValue !== undefined && draftValue !== null && draftValue !== '') {
+    const draftNumeric = parseNumericInput(draftValue)
+    if (draftNumeric > toBeInvoiced) return true
+  }
+  
+  // Parse current value
+  const currentNumeric = parseNumericInput(currentValue)
+  return currentNumeric > toBeInvoiced
 }
 
 const onInvoiceQuantityInput = (index: number, value: string | number | null | undefined) => {
