@@ -49,6 +49,7 @@
               <th v-if="!hideLocation" class="w-1/12 px-4 py-2 text-left">Location</th>
               <th class="w-1/12 px-4 py-2 text-right">Unit Price</th>
               <th class="w-1/12 px-4 py-2 text-right">UOM</th>
+              <th v-if="showInvoiceValues" class="w-1/12 px-4 py-2 text-right">To Be Invoiced</th>
               <th class="w-1/12 px-4 py-2 text-right">Qty</th>
               <th class="w-2/12 px-4 py-2 text-right">Total</th>
               <th class="w-1/12 px-4 py-2 text-right">Actions</th>
@@ -240,6 +241,11 @@
                   @update:model-value="(value) => emitUomChange(index, value as string | undefined)"
                   @change="(opt) => emitUomChange(index, opt?.value ?? null, opt)"
                 />
+              </td>
+              <td v-if="showInvoiceValues" class="px-2 py-2 text-right align-middle">
+                <div class="flex items-center justify-end">
+                  <span class="font-mono text-sm text-default">{{ formatQuantity(item.to_be_invoiced ?? 0) }}</span>
+                </div>
               </td>
               <td class="px-2 py-2 text-right align-middle">
                 <div class="flex flex-col items-end gap-1">
@@ -661,6 +667,7 @@ interface PurchaseOrderItemDisplay {
   invoice_unit_price?: string | number | null
   invoice_quantity?: string | number | null
   invoice_total?: string | number | null
+  to_be_invoiced?: string | number | null
   options?: Array<{
     label?: string
     value?: string

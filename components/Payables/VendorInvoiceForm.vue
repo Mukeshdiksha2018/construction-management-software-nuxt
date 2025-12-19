@@ -1764,6 +1764,104 @@ const handlePOChange = async (value: any) => {
 };
 
 
+// Fetch previous invoice quantities for PO items (excluding current invoice)
+const fetchPOPreviousInvoiceQuantities = async (poUuid: string, currentInvoiceUuid?: string | null): Promise<Map<string, number>> => {
+  if (!poUuid) {
+    return new Map();
+  }
+  
+  try {
+    // Fetch all vendor invoices for this PO (excluding current invoice if editing)
+    const invoicesResponse = await $fetch<{ data: any[] }>(`/api/vendor-invoices?corporation_uuid=${props.form.corporation_uuid || corpStore.selectedCorporation?.uuid || ''}`);
+    const allInvoices = Array.isArray(invoicesResponse?.data) ? invoicesResponse.data : [];
+    
+    // Filter invoices for this PO, excluding current invoice
+    const poInvoices = allInvoices.filter((inv: any) => 
+      inv.purchase_order_uuid === poUuid && 
+      inv.invoice_type === 'AGAINST_PO' &&
+      inv.is_active === true &&
+      (!currentInvoiceUuid || inv.uuid !== currentInvoiceUuid)
+    );
+    
+    // Fetch invoice items for all these invoices
+    const invoiceQuantitiesMap = new Map<string, number>();
+    
+    for (const invoice of poInvoices) {
+      if (invoice.uuid) {
+        try {
+          const invoiceResponse = await $fetch<{ data: any }>(`/api/vendor-invoices/${invoice.uuid}`);
+          const invoiceData = invoiceResponse?.data;
+          if (invoiceData?.po_invoice_items && Array.isArray(invoiceData.po_invoice_items)) {
+            invoiceData.po_invoice_items.forEach((item: any) => {
+              if (item.po_item_uuid && item.invoice_quantity !== null && item.invoice_quantity !== undefined) {
+                const currentTotal = invoiceQuantitiesMap.get(item.po_item_uuid) || 0;
+                const quantity = parseFloat(String(item.invoice_quantity)) || 0;
+                invoiceQuantitiesMap.set(item.po_item_uuid, currentTotal + quantity);
+              }
+            });
+          }
+        } catch (error) {
+          console.warn(`[VendorInvoiceForm] Failed to fetch invoice items for invoice ${invoice.uuid}:`, error);
+        }
+      }
+    }
+    
+    return invoiceQuantitiesMap;
+  } catch (error) {
+    console.warn('[VendorInvoiceForm] Failed to fetch previous PO invoice quantities:', error);
+    return new Map();
+  }
+};
+
+// Fetch previous invoice quantities for CO items (excluding current invoice)
+const fetchCOPreviousInvoiceQuantities = async (coUuid: string, currentInvoiceUuid?: string | null): Promise<Map<string, number>> => {
+  if (!coUuid) {
+    return new Map();
+  }
+  
+  try {
+    // Fetch all vendor invoices for this CO (excluding current invoice if editing)
+    const invoicesResponse = await $fetch<{ data: any[] }>(`/api/vendor-invoices?corporation_uuid=${props.form.corporation_uuid || corpStore.selectedCorporation?.uuid || ''}`);
+    const allInvoices = Array.isArray(invoicesResponse?.data) ? invoicesResponse.data : [];
+    
+    // Filter invoices for this CO, excluding current invoice
+    const coInvoices = allInvoices.filter((inv: any) => 
+      inv.change_order_uuid === coUuid && 
+      inv.invoice_type === 'AGAINST_CO' &&
+      inv.is_active === true &&
+      (!currentInvoiceUuid || inv.uuid !== currentInvoiceUuid)
+    );
+    
+    // Fetch invoice items for all these invoices
+    const invoiceQuantitiesMap = new Map<string, number>();
+    
+    for (const invoice of coInvoices) {
+      if (invoice.uuid) {
+        try {
+          const invoiceResponse = await $fetch<{ data: any }>(`/api/vendor-invoices/${invoice.uuid}`);
+          const invoiceData = invoiceResponse?.data;
+          if (invoiceData?.co_invoice_items && Array.isArray(invoiceData.co_invoice_items)) {
+            invoiceData.co_invoice_items.forEach((item: any) => {
+              if (item.co_item_uuid && item.invoice_quantity !== null && item.invoice_quantity !== undefined) {
+                const currentTotal = invoiceQuantitiesMap.get(item.co_item_uuid) || 0;
+                const quantity = parseFloat(String(item.invoice_quantity)) || 0;
+                invoiceQuantitiesMap.set(item.co_item_uuid, currentTotal + quantity);
+              }
+            });
+          }
+        } catch (error) {
+          console.warn(`[VendorInvoiceForm] Failed to fetch invoice items for invoice ${invoice.uuid}:`, error);
+        }
+      }
+    }
+    
+    return invoiceQuantitiesMap;
+  } catch (error) {
+    console.warn('[VendorInvoiceForm] Failed to fetch previous CO invoice quantities:', error);
+    return new Map();
+  }
+};
+
 // Fetch PO items and financial breakdown
 const fetchPOItems = async (poUuid: string) => {
   if (!poUuid) {
@@ -1784,6 +1882,10 @@ const fetchPOItems = async (poUuid: string) => {
         projectUuid: props.form.project_uuid,
       });
     }
+    
+    // Fetch previous invoice quantities
+    const previousInvoiceQuantities = await fetchPOPreviousInvoiceQuantities(poUuid, props.form.uuid);
+    
     // Fetch both PO items and PO details (for financial breakdown)
     // Try purchase-order-forms first, then fallback to purchase-orders
     let poResponse: { data: any } | null = null;
@@ -1927,6 +2029,13 @@ const fetchPOItems = async (poUuid: string) => {
               ? (savedInvoiceItem.invoice_total !== undefined ? savedInvoiceItem.invoice_total : null)
               : (savedInvoiceItems.length > 0 ? null : (item.po_total ?? item.total ?? null)))
           : null,
+      // Calculate "to be invoiced" quantity: PO quantity - sum of previously invoiced quantities
+      to_be_invoiced: (() => {
+        const poQty = parseFloat(String(item.po_quantity ?? item.quantity ?? 0)) || 0;
+        const previouslyInvoiced = previousInvoiceQuantities.get(poItemUuid) || 0;
+        const result = Math.max(0, poQty - previouslyInvoiced);
+        return result;
+      })(),
       approval_checks: props.form.uuid && savedInvoiceItem
         ? (savedInvoiceItem.approval_checks || [])
         : (item.approval_checks || item.approval_checks_uuids || []),
@@ -2321,6 +2430,9 @@ const fetchCOItems = async (coUuid: string) => {
   }
   
   try {
+    // Fetch previous invoice quantities
+    const previousInvoiceQuantities = await fetchCOPreviousInvoiceQuantities(coUuid, props.form.uuid);
+    
     // Fetch both CO items and CO details (for financial breakdown)
     const coResponse = await $fetch<{ data: any }>(`/api/change-orders/${coUuid}`);
     const itemsResponse = await $fetch<{ data: any[] }>(`/api/change-order-items?change_order_uuid=${coUuid}`);
@@ -2438,6 +2550,13 @@ const fetchCOItems = async (coUuid: string) => {
               ? (savedInvoiceItem.invoice_total !== undefined ? savedInvoiceItem.invoice_total : null)
               : (savedInvoiceItems.length > 0 ? null : (item.co_total ?? null)))
           : null,
+        // Calculate "to be invoiced" quantity: CO quantity - sum of previously invoiced quantities
+        to_be_invoiced: (() => {
+          const coQty = parseFloat(String(item.co_quantity ?? 0)) || 0;
+          const previouslyInvoiced = previousInvoiceQuantities.get(coItemUuid) || 0;
+          const result = Math.max(0, coQty - previouslyInvoiced);
+          return result;
+        })(),
         approval_checks: item.approval_checks || [],
         options: item.options || []
       };

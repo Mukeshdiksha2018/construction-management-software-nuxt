@@ -84,6 +84,7 @@
               <th class="w-1/12 px-4 py-2 text-right">Orig Qty</th>
               <th class="w-1/12 px-4 py-2 text-right">Orig Total</th>
               <th class="w-1/12 px-4 py-2 text-right">CO Unit</th>
+              <th v-if="showInvoiceValues" class="w-1/12 px-4 py-2 text-right">To Be Invoiced</th>
               <th class="w-1/12 px-4 py-2 text-right">CO Qty</th>
               <th class="w-1/12 px-4 py-2 text-right">CO Total</th>
               <th class="w-1/12 px-4 py-2 text-right">Actions</th>
@@ -174,6 +175,11 @@
                       />
                     </div>
                   </div>
+                </div>
+              </td>
+              <td v-if="showInvoiceValues" class="px-2 py-2 text-right">
+                <div class="flex items-center justify-end">
+                  <span class="font-mono text-sm text-default">{{ formatQuantity(row.to_be_invoiced ?? 0) }}</span>
                 </div>
               </td>
               <td class="px-2 py-2 text-right">
@@ -336,6 +342,10 @@
                 />
               </div>
             </div>
+            <div v-if="showInvoiceValues">
+              <span class="block text-[11px] uppercase tracking-wide text-muted/80">To Be Invoiced</span>
+              <span class="font-mono text-sm text-default">{{ formatQuantity(row.to_be_invoiced ?? 0) }}</span>
+            </div>
             <div>
               <span class="block text-[11px] uppercase tracking-wide text-muted/80">CO Qty</span>
               <!-- CO Quantity (greyed out when showInvoiceValues is true) -->
@@ -435,6 +445,7 @@ interface OriginalItemDisplay {
   invoice_unit_price?: number | string | null
   invoice_quantity?: number | string | null
   invoice_total?: number | string | null
+  to_be_invoiced?: number | string | null
   [key: string]: any
 }
 
