@@ -14,11 +14,13 @@ export default defineEventHandler(async (event) => {
   const vendorInvoiceUuid = query.vendor_invoice_uuid as string | undefined;
   const purchaseOrderUuid = query.purchase_order_uuid as string | undefined;
   const changeOrderUuid = query.change_order_uuid as string | undefined;
+  const excludeCurrentInvoice = query.exclude_current_invoice === 'true';
 
-  if (!vendorInvoiceUuid) {
+  // Allow fetching by PO/CO only (for new invoices) OR by vendor_invoice_uuid (for existing invoices)
+  if (!vendorInvoiceUuid && !purchaseOrderUuid && !changeOrderUuid) {
     throw createError({
       statusCode: 400,
-      statusMessage: "vendor_invoice_uuid is required",
+      statusMessage: "Either vendor_invoice_uuid or (purchase_order_uuid/change_order_uuid) is required",
     });
   }
 
@@ -27,15 +29,24 @@ export default defineEventHandler(async (event) => {
     let queryBuilder = supabaseServer
       .from("adjusted_advance_payment_cost_codes")
       .select("*")
-      .eq("vendor_invoice_uuid", vendorInvoiceUuid)
       .eq("is_active", true);
 
-    // Optionally filter by PO or CO
-    if (purchaseOrderUuid) {
-      queryBuilder = queryBuilder.eq("purchase_order_uuid", purchaseOrderUuid);
-    }
-    if (changeOrderUuid) {
-      queryBuilder = queryBuilder.eq("change_order_uuid", changeOrderUuid);
+    // If vendor_invoice_uuid is provided, filter by it (for existing invoices)
+    if (vendorInvoiceUuid && !excludeCurrentInvoice) {
+      queryBuilder = queryBuilder.eq("vendor_invoice_uuid", vendorInvoiceUuid);
+    } else {
+      // For new invoices or when excluding current invoice, fetch all adjusted amounts for the PO/CO
+      if (purchaseOrderUuid) {
+        queryBuilder = queryBuilder.eq("purchase_order_uuid", purchaseOrderUuid);
+      }
+      if (changeOrderUuid) {
+        queryBuilder = queryBuilder.eq("change_order_uuid", changeOrderUuid);
+      }
+      
+      // Exclude current invoice if specified (when editing and we want all other invoices' adjustments)
+      if (excludeCurrentInvoice && vendorInvoiceUuid) {
+        queryBuilder = queryBuilder.neq("vendor_invoice_uuid", vendorInvoiceUuid);
+      }
     }
 
     const { data, error } = await queryBuilder.order("created_at", { ascending: true });

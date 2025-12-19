@@ -49,6 +49,9 @@
             <th v-if="hasPreviouslyAdjustedCostCodes" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-green-700 dark:text-green-400 border-b border-gray-200 dark:border-gray-700">
               Previously Adjusted
             </th>
+            <th v-if="hasPreviouslyAdjustedCostCodes && showAdjustmentInputs" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-400 border-b border-gray-200 dark:border-gray-700">
+              Remaining to be Adjusted
+            </th>
             <th v-if="showAdjustmentInputs" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700">
               Adjust Amount
             </th>
@@ -61,7 +64,10 @@
           <tr
             v-for="(payment, index) in advancePayments"
             :key="payment.uuid || index"
-            class="hover:bg-gray-50 dark:hover:bg-gray-800/50"
+            :class="[
+              'hover:bg-gray-50 dark:hover:bg-gray-800/50',
+              hasOverAdjustedAmount(payment) ? 'bg-error-50/50 dark:bg-error-900/20 border-l-4 border-error-500' : ''
+            ]"
           >
             <!-- Invoice Number -->
             <td class="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
@@ -134,6 +140,22 @@
               </div>
             </td>
 
+            <!-- Remaining to be Adjusted Column (only shown when hasPreviouslyAdjustedCostCodes and showAdjustmentInputs) -->
+            <td v-if="hasPreviouslyAdjustedCostCodes && showAdjustmentInputs" class="px-4 py-3">
+              <div v-if="payment.costCodes && payment.costCodes.length > 0" class="space-y-1">
+                <div
+                  v-for="(costCode, ccIndex) in payment.costCodes"
+                  :key="'remaining-' + (costCode.uuid || ccIndex)"
+                  class="text-xs"
+                >
+                  <span class="font-medium text-blue-600 dark:text-blue-400">
+                    {{ formatCurrency(getRemainingAmount(payment.uuid, costCode)) }}
+                  </span>
+                </div>
+              </div>
+              <span v-else class="text-xs text-gray-400">-</span>
+            </td>
+
             <!-- Adjust Amount Column (only shown when showAdjustmentInputs is true) -->
             <td v-if="showAdjustmentInputs" class="px-4 py-3">
               <div v-if="payment.costCodes && payment.costCodes.length > 0" class="space-y-2">
@@ -147,7 +169,7 @@
                     type="number"
                     step="0.01"
                     min="0"
-                    :max="costCode.advance_amount || costCode.advanceAmount || 0"
+                    :max="getRemainingAmount(payment.uuid, costCode) + (parseFloat(getAdjustedAmount(payment.uuid, costCode.cost_code_uuid || costCode.uuid)) || 0)"
                     placeholder="0.00"
                     size="xs"
                     class="w-24"
@@ -155,7 +177,7 @@
                     @update:model-value="handleAdjustedAmountChange(payment.uuid, costCode, $event)"
                   />
                   <span class="text-xs text-gray-500 dark:text-gray-400">
-                    / {{ formatCurrency(costCode.advance_amount || costCode.advanceAmount || 0) }}
+                    / {{ formatCurrency(getRemainingAmount(payment.uuid, costCode)) }}
                   </span>
                 </div>
               </div>
@@ -266,6 +288,16 @@ const getPreviouslyAdjustedAmount = (advancePaymentUuid: string, costCodeUuid: s
   return match ? (parseFloat(String(match.adjusted_amount)) || 0) : 0
 }
 
+// Get remaining amount to be adjusted for a specific advance payment and cost code
+// This is: advance_amount - previously_adjusted (not including current adjustment)
+const getRemainingAmount = (advancePaymentUuid: string, costCode: any): number => {
+  const advanceAmount = parseFloat(costCode.advance_amount || costCode.advanceAmount || '0') || 0
+  const costCodeUuid = costCode.cost_code_uuid || costCode.uuid
+  const previouslyAdjusted = getPreviouslyAdjustedAmount(advancePaymentUuid, costCodeUuid)
+  const remaining = advanceAmount - previouslyAdjusted
+  return Math.max(0, remaining) // Don't allow negative
+}
+
 // Get total previously adjusted amount for a specific advance payment
 const getTotalPreviouslyAdjustedForPayment = (advancePaymentUuid: string): number => {
   if (!props.previouslyAdjustedCostCodes || props.previouslyAdjustedCostCodes.length === 0) {
@@ -290,9 +322,24 @@ const totalPreviouslyAdjusted = computed(() => {
 const footerColspan = computed(() => {
   let cols = 4 // Invoice Number, Invoice Date, Status, Cost Code Breakdown
   if (hasPreviouslyAdjustedCostCodes.value) cols++
+  if (hasPreviouslyAdjustedCostCodes.value && props.showAdjustmentInputs) cols++ // Remaining column
   if (props.showAdjustmentInputs) cols++
   return cols
 })
+
+// Check if any cost code in a payment has over-adjusted amount
+const hasOverAdjustedAmount = (payment: any): boolean => {
+  if (!payment.costCodes || payment.costCodes.length === 0) return false
+  if (!props.showAdjustmentInputs) return false
+  
+  return payment.costCodes.some((costCode: any) => {
+    const costCodeUuid = costCode.cost_code_uuid || costCode.uuid
+    const currentlyAdjusted = parseFloat(getAdjustedAmount(payment.uuid, costCodeUuid)) || 0
+    const remaining = getRemainingAmount(payment.uuid, costCode)
+    // If currently adjusted exceeds remaining, it's an error
+    return currentlyAdjusted > remaining
+  })
+}
 
 // Initialize local adjusted amounts from props
 watch(
@@ -477,9 +524,12 @@ const handleAdjustedAmountChange = (advancePaymentUuid: string, costCode: any, v
   if (value !== null && value !== undefined && value !== '') {
     const parsed = parseFloat(value)
     if (!isNaN(parsed) && parsed >= 0) {
-      // Ensure it doesn't exceed the available amount
-      const maxAmount = parseFloat(costCode.advance_amount || costCode.advanceAmount || '0') || 0
-      numericValue = Math.min(parsed, maxAmount)
+      // Calculate max allowed: advance_amount - previously_adjusted
+      const advanceAmount = parseFloat(costCode.advance_amount || costCode.advanceAmount || '0') || 0
+      const previouslyAdjusted = getPreviouslyAdjustedAmount(advancePaymentUuid, costCodeUuid)
+      const maxAllowed = advanceAmount - previouslyAdjusted
+      // Allow user to type any value (for validation/highlighting), but don't cap it
+      numericValue = parsed
     }
   }
 
@@ -532,5 +582,14 @@ watch(
   },
   { immediate: true }
 )
+
+// Expose validation state for parent component
+const hasValidationError = computed(() => {
+  return advancePayments.value.some((payment) => hasOverAdjustedAmount(payment))
+})
+
+defineExpose({
+  hasValidationError
+})
 </script>
 

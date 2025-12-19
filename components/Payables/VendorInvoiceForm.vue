@@ -369,6 +369,7 @@
 
       <!-- Advance Payment Breakdown Table -->
       <AdvancePaymentBreakdownTable
+        ref="poAdvancePaymentBreakdownRef"
         :purchase-order-uuid="form.purchase_order_uuid"
         :current-invoice-uuid="form.uuid"
         :show-adjustment-inputs="true"
@@ -399,6 +400,7 @@
 
       <!-- Advance Payment Breakdown Table -->
       <AdvancePaymentBreakdownTable
+        ref="coAdvancePaymentBreakdownRef"
         :change-order-uuid="form.change_order_uuid"
         :current-invoice-uuid="form.uuid"
         :show-adjustment-inputs="true"
@@ -1472,6 +1474,7 @@ const poItemsLoading = ref(false);
 const poItemsError = ref<string | null>(null);
 const poItemsKey = ref(0); // Key to force re-render of POItemsTableWithEstimates
 const poAdvancePaid = ref<number>(0); // Total advance payments made for the selected PO
+const poAdvancePaymentBreakdownRef = ref<InstanceType<typeof AdvancePaymentBreakdownTable> | null>(null);
 
 // CO items state (for Against CO invoice type)
 const coItems = ref<any[]>([]);
@@ -1480,6 +1483,7 @@ const coItemsError = ref<string | null>(null);
 const coItemsKey = ref(0); // Key to force re-render of COItemsTableFromOriginal
 const isUpdatingCOInvoiceItems = ref(false); // Guard flag to prevent infinite loops when syncing CO invoice items
 const coAdvancePaid = ref<number>(0); // Total advance payments made for the selected CO
+const coAdvancePaymentBreakdownRef = ref<InstanceType<typeof AdvancePaymentBreakdownTable> | null>(null);
 
 // Adjusted advance payment amounts (keyed by advancePaymentUuid -> costCodeUuid -> adjustedAmount)
 const adjustedAdvancePaymentAmounts = ref<Record<string, Record<string, number>>>({});
@@ -1540,6 +1544,50 @@ const fetchPreviouslyAdjustedCostCodes = async (vendorInvoiceUuid: string, poOrC
   }
 };
 
+// Fetch ALL previously adjusted cost codes for a PO/CO (across all invoices)
+// This is used for new invoices to show remaining amounts
+const fetchAllPreviouslyAdjustedCostCodes = async (poOrCoUuid: string, isCO = false, excludeInvoiceUuid?: string) => {
+  if (!poOrCoUuid) {
+    previouslyAdjustedCostCodes.value = [];
+    return;
+  }
+
+  try {
+    const queryParams: Record<string, string> = {};
+    
+    if (isCO) {
+      queryParams.change_order_uuid = poOrCoUuid;
+    } else {
+      queryParams.purchase_order_uuid = poOrCoUuid;
+    }
+
+    // Exclude current invoice if editing
+    if (excludeInvoiceUuid) {
+      queryParams.exclude_current_invoice = 'true';
+      queryParams.vendor_invoice_uuid = excludeInvoiceUuid;
+    }
+
+    const response = await $fetch<{ data: any[] }>('/api/adjusted-advance-payment-cost-codes', {
+      query: queryParams,
+    });
+
+    const costCodes = Array.isArray(response?.data) ? response.data : [];
+    previouslyAdjustedCostCodes.value = costCodes.map((cc: any) => ({
+      cost_code_uuid: cc.cost_code_uuid,
+      cost_code_label: cc.cost_code_label,
+      cost_code_number: cc.cost_code_number,
+      cost_code_name: cc.cost_code_name,
+      adjusted_amount: parseFloat(String(cc.adjusted_amount)) || 0,
+      advance_payment_uuid: cc.advance_payment_uuid,
+    }));
+
+    console.log('[VendorInvoiceForm] Fetched all previously adjusted cost codes:', previouslyAdjustedCostCodes.value);
+  } catch (err: any) {
+    console.error('[VendorInvoiceForm] Error fetching all previously adjusted cost codes:', err);
+    previouslyAdjustedCostCodes.value = [];
+  }
+};
+
 // Watch for form changes to load adjusted amounts when editing
 watch(
   () => props.form.adjusted_advance_payment_amounts,
@@ -1569,16 +1617,10 @@ watch(
 );
 
 // Watch for form UUID and PO/CO changes to fetch previously adjusted cost codes
-// This is needed to display what amounts were previously adjusted for this invoice
+// This is needed to display what amounts were previously adjusted
 watch(
   [() => props.form.uuid, () => props.form.purchase_order_uuid, () => props.form.change_order_uuid, () => props.form.invoice_type, () => props.editingInvoice],
   async ([newUuid, newPoUuid, newCoUuid, newInvoiceType, newEditingInvoice], [oldUuid]) => {
-    // Only fetch for existing invoices being edited
-    if (!newUuid || !newEditingInvoice) {
-      previouslyAdjustedCostCodes.value = [];
-      return;
-    }
-
     // Only fetch for AGAINST_PO or AGAINST_CO invoices
     const invoiceType = String(newInvoiceType || '').toUpperCase();
     if (invoiceType !== 'AGAINST_PO' && invoiceType !== 'AGAINST_CO') {
@@ -1590,9 +1632,21 @@ watch(
     const isCO = invoiceType === 'AGAINST_CO';
     const poOrCoUuid = isCO ? newCoUuid : newPoUuid;
 
-    // Fetch if UUID changed or on initial load
-    if (newUuid !== oldUuid || previouslyAdjustedCostCodes.value.length === 0) {
-      await fetchPreviouslyAdjustedCostCodes(newUuid, poOrCoUuid, isCO);
+    if (!poOrCoUuid) {
+      previouslyAdjustedCostCodes.value = [];
+      return;
+    }
+
+    // For existing invoices, fetch adjustments for this specific invoice
+    // For new invoices, fetch ALL adjustments for the PO/CO to show remaining amounts
+    if (newUuid && newEditingInvoice) {
+      // Existing invoice - fetch adjustments for this invoice only
+      if (newUuid !== oldUuid || previouslyAdjustedCostCodes.value.length === 0) {
+        await fetchPreviouslyAdjustedCostCodes(newUuid, poOrCoUuid, isCO);
+      }
+    } else {
+      // New invoice - fetch ALL adjustments for the PO/CO to calculate remaining amounts
+      await fetchAllPreviouslyAdjustedCostCodes(poOrCoUuid, isCO, newUuid);
     }
   },
   { immediate: true }
@@ -5021,8 +5075,19 @@ const overInvoicedItems = computed(() => {
 
 const hasOverInvoicedItems = computed(() => overInvoicedItems.value.length > 0);
 
+// Check for over-adjusted advance payment amounts
+const hasAdvancePaymentValidationError = computed(() => {
+  if (isAgainstPO.value && poAdvancePaymentBreakdownRef.value) {
+    return poAdvancePaymentBreakdownRef.value.hasValidationError ?? false;
+  }
+  if (isAgainstCO.value && coAdvancePaymentBreakdownRef.value) {
+    return coAdvancePaymentBreakdownRef.value.hasValidationError ?? false;
+  }
+  return false;
+});
+
 const overInvoicedValidationError = computed(() => {
-  if (!hasOverInvoicedItems.value) return null;
+  if (!hasOverInvoicedItems.value && !hasAdvancePaymentValidationError.value) return null;
   
   const itemCount = overInvoicedItems.value.length;
   const itemsList = overInvoicedItems.value
@@ -5037,13 +5102,14 @@ const overInvoicedValidationError = computed(() => {
   return `${itemCount} item(s) have invoice quantity greater than to be invoiced quantity. ${itemsList}`;
 });
 
-const hasValidationError = computed(() => !!hasOverInvoicedItems.value);
+const hasValidationError = computed(() => hasOverInvoicedItems.value || hasAdvancePaymentValidationError.value);
 
 // Expose validation errors to parent component
 defineExpose({
   overInvoicedItems,
   hasOverInvoicedItems,
   overInvoicedValidationError,
+  hasAdvancePaymentValidationError,
   hasValidationError,
 });
 
