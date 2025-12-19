@@ -983,15 +983,48 @@ const loadInvoiceForModal = async (invoice: any, viewMode: boolean = false) => {
       invoiceForm.value = { ...invoiceForm.value, change_order_uuid: null }
     }
     // Set po_co_uuid for advance payment and holdback invoices
+    // For holdback invoices, also fetch PO/CO details to get po_number/co_number
     if (detailed.po_co_uuid) {
       invoiceForm.value = { ...invoiceForm.value, po_co_uuid: detailed.po_co_uuid }
       await nextTick()
     } else if (detailed.invoice_type === 'AGAINST_ADVANCE_PAYMENT' || detailed.invoice_type === 'AGAINST_HOLDBACK_AMOUNT') {
       // For advance payment and holdback invoices, set po_co_uuid based on purchase_order_uuid or change_order_uuid
       if (detailed.purchase_order_uuid) {
-        invoiceForm.value = { ...invoiceForm.value, po_co_uuid: `PO:${detailed.purchase_order_uuid}` }
+        // Set po_number from detailed (which comes from API JOIN) or fetch if missing
+        let poNumber = invoiceForm.value.po_number || detailed.po_number || ''
+        if (!poNumber && detailed.invoice_type === 'AGAINST_HOLDBACK_AMOUNT') {
+          try {
+            const poResponse = await $fetch<{ data: any }>(`/api/purchase-order-forms/${detailed.purchase_order_uuid}`)
+            if (poResponse?.data?.po_number) {
+              poNumber = poResponse.data.po_number
+            }
+          } catch (error) {
+            console.warn('[VendorInvoicesList] Failed to fetch PO number for holdback invoice:', error)
+          }
+        }
+        invoiceForm.value = { 
+          ...invoiceForm.value, 
+          po_co_uuid: `PO:${detailed.purchase_order_uuid}`,
+          po_number: poNumber
+        }
       } else if (detailed.change_order_uuid) {
-        invoiceForm.value = { ...invoiceForm.value, po_co_uuid: `CO:${detailed.change_order_uuid}` }
+        // Set co_number from detailed (which comes from API JOIN) or fetch if missing
+        let coNumber = invoiceForm.value.co_number || detailed.co_number || ''
+        if (!coNumber && detailed.invoice_type === 'AGAINST_HOLDBACK_AMOUNT') {
+          try {
+            const coResponse = await $fetch<{ data: any }>(`/api/change-orders/${detailed.change_order_uuid}`)
+            if (coResponse?.data?.co_number) {
+              coNumber = coResponse.data.co_number
+            }
+          } catch (error) {
+            console.warn('[VendorInvoicesList] Failed to fetch CO number for holdback invoice:', error)
+          }
+        }
+        invoiceForm.value = { 
+          ...invoiceForm.value, 
+          po_co_uuid: `CO:${detailed.change_order_uuid}`,
+          co_number: coNumber
+        }
       }
       await nextTick()
     } else {
@@ -1000,6 +1033,8 @@ const loadInvoiceForModal = async (invoice: any, viewMode: boolean = false) => {
     }
 
     // 6. Now set all remaining fields at once (dates, amounts, etc.)
+    // Ensure po_number and co_number are explicitly set for holdback invoices
+    // IMPORTANT: Preserve po_co_uuid that was set earlier for holdback invoices
     const remainingFields = {
       bill_date: detailed.bill_date,
       due_date: detailed.due_date,
@@ -1018,6 +1053,12 @@ const loadInvoiceForModal = async (invoice: any, viewMode: boolean = false) => {
       financial_breakdown: detailed.financial_breakdown,
       uuid: detailed.uuid,
       status: detailed.status,
+      // Explicitly include po_number and co_number from detailed (they come from API JOINs)
+      // This ensures they're set for holdback invoices even if not in invoiceForm.value yet
+      po_number: invoiceForm.value.po_number || detailed.po_number || '',
+      co_number: invoiceForm.value.co_number || detailed.co_number || '',
+      // IMPORTANT: Preserve po_co_uuid that was set earlier for holdback/advance payment invoices
+      po_co_uuid: invoiceForm.value.po_co_uuid || detailed.po_co_uuid || null,
       // Include any other fields that might be needed
       ...Object.keys(detailed).reduce((acc: any, key: string) => {
         // Only include fields that haven't been set yet

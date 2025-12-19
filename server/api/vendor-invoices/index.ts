@@ -844,7 +844,7 @@ export default defineEventHandler(async (event) => {
           vendorUuid: data.vendor_uuid ?? null,
           purchaseOrderUuid: data.purchase_order_uuid ?? null,
           changeOrderUuid: data.change_order_uuid ?? null,
-          holdbackInvoiceUuid: data.holdback_invoice_uuid ?? null,
+          holdbackInvoiceUuid: body.holdback_invoice_uuid ?? null, // Use body.holdback_invoice_uuid, not data.holdback_invoice_uuid
           items: body.holdback_cost_codes,
         });
       }
@@ -1355,7 +1355,7 @@ export default defineEventHandler(async (event) => {
             vendorUuid: data.vendor_uuid ?? null,
             purchaseOrderUuid: data.purchase_order_uuid ?? null,
             changeOrderUuid: data.change_order_uuid ?? null,
-            holdbackInvoiceUuid: data.holdback_invoice_uuid ?? null,
+            holdbackInvoiceUuid: updated.holdback_invoice_uuid ?? null, // Use updated.holdback_invoice_uuid, not data.holdback_invoice_uuid
             items: Array.isArray(updated.holdback_cost_codes) ? updated.holdback_cost_codes : [],
           });
         } else if (currentInvoiceType !== "AGAINST_HOLDBACK_AMOUNT") {
