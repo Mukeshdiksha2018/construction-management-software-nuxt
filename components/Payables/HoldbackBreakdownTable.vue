@@ -171,6 +171,10 @@ const costCodeRows = ref<any[]>([])
 const costCodeConfigMap = ref<Map<string, any>>(new Map())
 const localChartOfAccounts = ref<any[]>([])
 const holdbackInvoiceData = ref<any>(null)
+const isProcessingItems = ref(false) // Guard flag to prevent infinite loops
+const cachedPOItems = ref<Map<string, any[]>>(new Map()) // Cache PO items by UUID
+const cachedCOItems = ref<Map<string, any[]>>(new Map()) // Cache CO items by UUID
+const cachedHoldbackInvoice = ref<Map<string, any>>(new Map()) // Cache holdback invoice by UUID
 
 // Computed
 const showTable = computed(() => {
@@ -197,38 +201,65 @@ watch(totalReleaseAmount, (newTotal) => {
   emit('release-amounts-update', newTotal)
 }, { immediate: true })
 
-// Fetch PO items
+// Fetch PO items (with caching)
 const fetchPOItems = async (poUuid: string) => {
+  // Return cached data if available
+  if (cachedPOItems.value.has(poUuid)) {
+    return cachedPOItems.value.get(poUuid) || []
+  }
+
   try {
     const response = await $fetch<{ data: any[] }>(`/api/purchase-order-items?purchase_order_uuid=${poUuid}`)
-    return Array.isArray(response?.data) ? response.data : []
+    const items = Array.isArray(response?.data) ? response.data : []
+    // Cache the result
+    cachedPOItems.value.set(poUuid, items)
+    return items
   } catch (error) {
     console.error('[HoldbackBreakdownTable] Error fetching PO items:', error)
     return []
   }
 }
 
-// Fetch CO items
+// Fetch CO items (with caching)
 const fetchCOItems = async (coUuid: string) => {
+  // Return cached data if available
+  if (cachedCOItems.value.has(coUuid)) {
+    return cachedCOItems.value.get(coUuid) || []
+  }
+
   try {
     const response = await $fetch<{ data: any[] }>(`/api/change-order-items?change_order_uuid=${coUuid}`)
-    return Array.isArray(response?.data) ? response.data : []
+    const items = Array.isArray(response?.data) ? response.data : []
+    // Cache the result
+    cachedCOItems.value.set(coUuid, items)
+    return items
   } catch (error) {
     console.error('[HoldbackBreakdownTable] Error fetching CO items:', error)
     return []
   }
 }
 
-// Fetch holdback invoice data
+// Fetch holdback invoice data (with caching)
 const fetchHoldbackInvoice = async (invoiceUuid: string) => {
   if (!invoiceUuid) {
     holdbackInvoiceData.value = null
     return
   }
 
+  // Return cached data if available
+  if (cachedHoldbackInvoice.value.has(invoiceUuid)) {
+    holdbackInvoiceData.value = cachedHoldbackInvoice.value.get(invoiceUuid) || null
+    return
+  }
+
   try {
     const response = await $fetch<{ data: any }>(`/api/vendor-invoices/${invoiceUuid}`)
-    holdbackInvoiceData.value = response?.data || null
+    const invoiceData = response?.data || null
+    holdbackInvoiceData.value = invoiceData
+    // Cache the result
+    if (invoiceData) {
+      cachedHoldbackInvoice.value.set(invoiceUuid, invoiceData)
+    }
   } catch (error) {
     console.error('[HoldbackBreakdownTable] Error fetching holdback invoice:', error)
     holdbackInvoiceData.value = null
@@ -363,6 +394,11 @@ const calculateRetainageAmounts = (items: any[], holdbackInvoice: any): Map<stri
 
 // Process items and group by cost code
 const processItems = async () => {
+  // Prevent concurrent processing
+  if (isProcessingItems.value) {
+    return
+  }
+
   if (!props.purchaseOrderUuid && !props.changeOrderUuid) {
     costCodeRows.value = []
     loading.value = false
@@ -376,6 +412,7 @@ const processItems = async () => {
     return
   }
 
+  isProcessingItems.value = true
   loading.value = true
 
   try {
@@ -497,12 +534,18 @@ const processItems = async () => {
     }
 
     costCodeRows.value = rows
-    emit('update:modelValue', costCodeRows.value)
+    // Only emit if the data actually changed to prevent infinite loops
+    const currentModelValue = Array.isArray(props.modelValue) ? props.modelValue : []
+    const hasChanged = JSON.stringify(costCodeRows.value) !== JSON.stringify(currentModelValue)
+    if (hasChanged) {
+      emit('update:modelValue', costCodeRows.value)
+    }
   } catch (error) {
     console.error('[HoldbackBreakdownTable] Error processing items:', error)
     costCodeRows.value = []
   } finally {
     loading.value = false
+    isProcessingItems.value = false
   }
 }
 
@@ -592,6 +635,11 @@ const handleRemoveRow = (index: number) => {
 watch(
   [() => props.purchaseOrderUuid, () => props.changeOrderUuid, () => props.holdbackInvoiceUuid, () => props.corporationUuid],
   async () => {
+    // Skip if already processing
+    if (isProcessingItems.value) {
+      return
+    }
+
     if (props.corporationUuid) {
       await Promise.all([
         fetchCostCodeConfigurations(props.corporationUuid),
@@ -604,15 +652,31 @@ watch(
 )
 
 // Watch for modelValue changes (when loading existing invoice)
+// Only process if we're not already processing and the data actually changed
 watch(
   () => props.modelValue,
-  async (newValue) => {
+  async (newValue, oldValue) => {
+    // Skip if we're already processing to prevent infinite loops
+    if (isProcessingItems.value) {
+      return
+    }
+
+    // Skip if the data hasn't actually changed (deep comparison)
+    if (JSON.stringify(newValue) === JSON.stringify(oldValue)) {
+      return
+    }
+
     // If we have saved data, ensure we process items to load them
     // This handles the case where saved data arrives after the component has already processed items
     if (Array.isArray(newValue) && newValue.length > 0) {
       // If we have PO/CO and holdback invoice UUID, process items to merge saved data
       if ((props.purchaseOrderUuid || props.changeOrderUuid) && props.holdbackInvoiceUuid) {
-        await processItems()
+        // Only process if we don't already have rows or if the saved data is different
+        const currentRowsString = JSON.stringify(costCodeRows.value)
+        const newValueString = JSON.stringify(newValue)
+        if (costCodeRows.value.length === 0 || currentRowsString !== newValueString) {
+          await processItems()
+        }
       } else if (costCodeRows.value.length === 0) {
         // If we don't have PO/CO yet but have saved data, load it directly
         // This handles the case where saved data arrives before PO/CO is set
@@ -630,11 +694,18 @@ watch(
           gl_account_uuid: savedRow.gl_account_uuid || null
         }))
         costCodeRows.value = savedRows
-        emit('update:modelValue', costCodeRows.value)
+        // Only emit if data actually changed
+        const currentModelValue = Array.isArray(props.modelValue) ? props.modelValue : []
+        if (JSON.stringify(savedRows) !== JSON.stringify(currentModelValue)) {
+          emit('update:modelValue', costCodeRows.value)
+        }
       }
+    } else if (Array.isArray(newValue) && newValue.length === 0 && costCodeRows.value.length > 0) {
+      // If modelValue is cleared, clear rows
+      costCodeRows.value = []
     }
   },
-  { immediate: true, deep: true }
+  { immediate: false, deep: true } // Changed to false to avoid immediate processing on mount
 )
 
 // Initialize
