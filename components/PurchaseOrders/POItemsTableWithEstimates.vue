@@ -236,7 +236,7 @@
                   :corporation-uuid="corporationUuid"
                   size="xs"
                   class="w-full min-w-0 text-left"
-                  :disabled="props.readonly"
+                  :disabled="arePOFieldsDisabled"
                   @update:model-value="(value) => emitUomChange(index, value as string | undefined)"
                   @change="(opt) => emitUomChange(index, opt?.value ?? null, opt)"
                 />
@@ -452,7 +452,7 @@
                 :corporation-uuid="corporationUuid"
                 size="xs"
                 class="w-full text-left"
-                :disabled="props.readonly"
+                :disabled="arePOFieldsDisabled"
                 @update:model-value="(value) => emitUomChange(index, value as string | undefined)"
                 @change="(opt) => emitUomChange(index, opt?.value ?? null, opt)"
               />
