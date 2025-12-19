@@ -256,7 +256,7 @@ describe("server/api/adjusted-advance-payment-cost-codes", () => {
       expect(result.data[0].adjusted_amount).toBe(250);
     });
 
-    it("returns error when vendor_invoice_uuid is missing", async () => {
+    it("returns error when vendor_invoice_uuid, purchase_order_uuid, and change_order_uuid are all missing", async () => {
       const globals = stubGlobals();
       globals.mockGetQuery.mockReturnValue({});
 
@@ -271,7 +271,7 @@ describe("server/api/adjusted-advance-payment-cost-codes", () => {
       const handler = await import("@/server/api/adjusted-advance-payment-cost-codes/index");
       const event = makeEvent("GET", { query: {} });
 
-      await expect(handler.default(event)).rejects.toThrow("vendor_invoice_uuid is required");
+      await expect(handler.default(event)).rejects.toThrow("Either vendor_invoice_uuid or (purchase_order_uuid/change_order_uuid) is required");
     });
 
     it("returns error for non-GET methods", async () => {
@@ -378,6 +378,197 @@ describe("server/api/adjusted-advance-payment-cost-codes", () => {
       expect(result.data).toBeDefined();
       expect(Array.isArray(result.data)).toBe(true);
       expect(result.data.length).toBe(0);
+    });
+
+    it("fetches all adjusted cost codes by purchase_order_uuid (for new invoices)", async () => {
+      const globals = stubGlobals();
+      globals.mockGetQuery.mockReturnValue({ purchase_order_uuid: "po-1" });
+
+      const adjustedCostCodes = [
+        {
+          uuid: "acc-1",
+          vendor_invoice_uuid: "invoice-1",
+          purchase_order_uuid: "po-1",
+          advance_payment_uuid: "ap-1",
+          cost_code_uuid: "cc-1",
+          adjusted_amount: 500,
+          is_active: true,
+        },
+        {
+          uuid: "acc-2",
+          vendor_invoice_uuid: "invoice-2",
+          purchase_order_uuid: "po-1",
+          advance_payment_uuid: "ap-1",
+          cost_code_uuid: "cc-1",
+          adjusted_amount: 300,
+          is_active: true,
+        },
+      ];
+
+      const orderSpy = vi.fn(() =>
+        Promise.resolve({
+          data: adjustedCostCodes,
+          error: null,
+        })
+      );
+
+      const eq1Spy = vi.fn(() => ({
+        order: orderSpy,
+      }));
+
+      const selectSpy = vi.fn(() => ({
+        eq: eq1Spy,
+      }));
+
+      const supabaseMock = {
+        from: vi.fn(() => ({
+          select: selectSpy,
+        })),
+      };
+
+      vi.doMock("@/utils/supabaseServer", () => ({
+        supabaseServer: supabaseMock,
+      }));
+
+      const handler = await import("@/server/api/adjusted-advance-payment-cost-codes/index");
+      const event = makeEvent("GET", { query: { purchase_order_uuid: "po-1" } });
+
+      const result = await handler.default(event);
+
+      expect(result.data).toBeDefined();
+      expect(Array.isArray(result.data)).toBe(true);
+      expect(result.data.length).toBe(2);
+      // Should return all adjusted amounts for the PO (across all invoices)
+      expect(result.data[0].adjusted_amount).toBe(500);
+      expect(result.data[1].adjusted_amount).toBe(300);
+      expect(supabaseMock.from).toHaveBeenCalledWith("adjusted_advance_payment_cost_codes");
+    });
+
+    it("fetches all adjusted cost codes by change_order_uuid (for new invoices)", async () => {
+      const globals = stubGlobals();
+      globals.mockGetQuery.mockReturnValue({ change_order_uuid: "co-1" });
+
+      const adjustedCostCodes = [
+        {
+          uuid: "acc-1",
+          vendor_invoice_uuid: "invoice-1",
+          change_order_uuid: "co-1",
+          advance_payment_uuid: "ap-1",
+          cost_code_uuid: "cc-1",
+          adjusted_amount: 250,
+          is_active: true,
+        },
+      ];
+
+      const orderSpy = vi.fn(() =>
+        Promise.resolve({
+          data: adjustedCostCodes,
+          error: null,
+        })
+      );
+
+      const eq1Spy = vi.fn(() => ({
+        order: orderSpy,
+      }));
+
+      const selectSpy = vi.fn(() => ({
+        eq: eq1Spy,
+      }));
+
+      const supabaseMock = {
+        from: vi.fn(() => ({
+          select: selectSpy,
+        })),
+      };
+
+      vi.doMock("@/utils/supabaseServer", () => ({
+        supabaseServer: supabaseMock,
+      }));
+
+      const handler = await import("@/server/api/adjusted-advance-payment-cost-codes/index");
+      const event = makeEvent("GET", { query: { change_order_uuid: "co-1" } });
+
+      const result = await handler.default(event);
+
+      expect(result.data).toBeDefined();
+      expect(Array.isArray(result.data)).toBe(true);
+      expect(result.data.length).toBe(1);
+      expect(result.data[0].adjusted_amount).toBe(250);
+    });
+
+    it("excludes current invoice when exclude_current_invoice is true", async () => {
+      const globals = stubGlobals();
+      globals.mockGetQuery.mockReturnValue({ 
+        purchase_order_uuid: "po-1",
+        exclude_current_invoice: "true",
+        vendor_invoice_uuid: "invoice-1"
+      });
+
+      const adjustedCostCodes = [
+        {
+          uuid: "acc-2",
+          vendor_invoice_uuid: "invoice-2",
+          purchase_order_uuid: "po-1",
+          advance_payment_uuid: "ap-1",
+          cost_code_uuid: "cc-1",
+          adjusted_amount: 300,
+          is_active: true,
+        },
+      ];
+
+      const neqSpy = vi.fn(() => ({
+        order: vi.fn(() =>
+          Promise.resolve({
+            data: adjustedCostCodes,
+            error: null,
+          })
+        ),
+      }));
+
+      const eq2Spy = vi.fn(() => ({
+        neq: neqSpy,
+        order: vi.fn(() =>
+          Promise.resolve({
+            data: adjustedCostCodes,
+            error: null,
+          })
+        ),
+      }));
+
+      const eq1Spy = vi.fn(() => ({
+        eq: eq2Spy,
+      }));
+
+      const selectSpy = vi.fn(() => ({
+        eq: eq1Spy,
+      }));
+
+      const supabaseMock = {
+        from: vi.fn(() => ({
+          select: selectSpy,
+        })),
+      };
+
+      vi.doMock("@/utils/supabaseServer", () => ({
+        supabaseServer: supabaseMock,
+      }));
+
+      const handler = await import("@/server/api/adjusted-advance-payment-cost-codes/index");
+      const event = makeEvent("GET", { 
+        query: { 
+          purchase_order_uuid: "po-1",
+          exclude_current_invoice: "true",
+          vendor_invoice_uuid: "invoice-1"
+        } 
+      });
+
+      const result = await handler.default(event);
+
+      expect(result.data).toBeDefined();
+      expect(Array.isArray(result.data)).toBe(true);
+      expect(result.data.length).toBe(1);
+      // Should exclude invoice-1 and only return invoice-2
+      expect(result.data[0].vendor_invoice_uuid).toBe("invoice-2");
     });
   });
 });

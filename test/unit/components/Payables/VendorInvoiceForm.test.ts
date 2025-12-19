@@ -9409,5 +9409,345 @@ describe("VendorInvoiceForm.vue", () => {
       expect(firstItem.sequence).toBe('SEQ-002');
     });
   });
+
+  describe('To Be Invoiced Quantity Calculation', () => {
+    it('calculates to_be_invoiced for PO items when previous invoices exist', async () => {
+      const poUuid = 'po-to-be-invoiced';
+      const mockPOItems = {
+        data: [
+          {
+            uuid: 'po-item-1',
+            po_quantity: 100,
+            po_unit_price: 50,
+            po_total: 5000,
+          },
+        ],
+      };
+
+      const mockPOData = {
+        data: {
+          uuid: poUuid,
+          financial_breakdown: {
+            charges: {},
+            sales_taxes: {},
+            totals: { item_total: 5000, total_po_amount: 5000 },
+          },
+        },
+      };
+
+      // Mock previous invoices - one invoice with 30 quantity, another with 20 quantity
+      const mockInvoicesList = {
+        data: [
+          {
+            uuid: 'invoice-1',
+            purchase_order_uuid: poUuid,
+            invoice_type: 'AGAINST_PO',
+            is_active: true,
+          },
+          {
+            uuid: 'invoice-2',
+            purchase_order_uuid: poUuid,
+            invoice_type: 'AGAINST_PO',
+            is_active: true,
+          },
+        ],
+      };
+
+      const mockInvoice1Data = {
+        data: {
+          uuid: 'invoice-1',
+          po_invoice_items: [
+            {
+              po_item_uuid: 'po-item-1',
+              invoice_quantity: 30,
+            },
+          ],
+        },
+      };
+
+      const mockInvoice2Data = {
+        data: {
+          uuid: 'invoice-2',
+          po_invoice_items: [
+            {
+              po_item_uuid: 'po-item-1',
+              invoice_quantity: 20,
+            },
+          ],
+        },
+      };
+
+      let fetchCallCount = 0;
+      (global.$fetch as any) = vi.fn().mockImplementation((url: string): any => {
+        fetchCallCount++;
+        if (url.includes('purchase-order-items')) {
+          return Promise.resolve(mockPOItems);
+        }
+        if (url.includes('purchase-order-forms') || url.includes('purchase-orders')) {
+          return Promise.resolve(mockPOData);
+        }
+        if (url.includes('vendor-invoices?corporation_uuid')) {
+          return Promise.resolve(mockInvoicesList);
+        }
+        if (url.includes('vendor-invoices/invoice-1')) {
+          return Promise.resolve(mockInvoice1Data);
+        }
+        if (url.includes('vendor-invoices/invoice-2')) {
+          return Promise.resolve(mockInvoice2Data);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form: {
+            ...baseForm,
+            invoice_type: 'AGAINST_PO',
+            purchase_order_uuid: poUuid,
+            corporation_uuid: 'corp-1',
+          },
+          editingInvoice: false,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      const vm = wrapper.vm as any;
+      expect(vm.poItems.length).toBeGreaterThan(0);
+      
+      // to_be_invoiced should be: 100 (PO quantity) - 30 (invoice-1) - 20 (invoice-2) = 50
+      const firstItem = vm.poItems[0];
+      expect(firstItem.to_be_invoiced).toBe(50);
+    });
+
+    it('calculates to_be_invoiced for CO items when previous invoices exist', async () => {
+      const coUuid = 'co-to-be-invoiced';
+      const mockCOItems = {
+        data: [
+          {
+            uuid: 'co-item-1',
+            co_quantity: 80,
+            co_unit_price: 60,
+            co_total: 4800,
+          },
+        ],
+      };
+
+      const mockCOData = {
+        data: {
+          uuid: coUuid,
+          financial_breakdown: {
+            charges: {},
+            sales_taxes: {},
+            totals: { item_total: 4800 },
+          },
+        },
+      };
+
+      // Mock previous invoices - one invoice with 25 quantity, another with 15 quantity
+      const mockInvoicesList = {
+        data: [
+          {
+            uuid: 'invoice-1',
+            change_order_uuid: coUuid,
+            invoice_type: 'AGAINST_CO',
+            is_active: true,
+          },
+          {
+            uuid: 'invoice-2',
+            change_order_uuid: coUuid,
+            invoice_type: 'AGAINST_CO',
+            is_active: true,
+          },
+        ],
+      };
+
+      const mockInvoice1Data = {
+        data: {
+          uuid: 'invoice-1',
+          co_invoice_items: [
+            {
+              co_item_uuid: 'co-item-1',
+              invoice_quantity: 25,
+            },
+          ],
+        },
+      };
+
+      const mockInvoice2Data = {
+        data: {
+          uuid: 'invoice-2',
+          co_invoice_items: [
+            {
+              co_item_uuid: 'co-item-1',
+              invoice_quantity: 15,
+            },
+          ],
+        },
+      };
+
+      let fetchCallCount = 0;
+      (global.$fetch as any) = vi.fn().mockImplementation((url: string): any => {
+        fetchCallCount++;
+        if (url.includes('change-order-items')) {
+          return Promise.resolve(mockCOItems);
+        }
+        if (url.includes('change-orders')) {
+          return Promise.resolve(mockCOData);
+        }
+        if (url.includes('vendor-invoices?corporation_uuid')) {
+          return Promise.resolve(mockInvoicesList);
+        }
+        if (url.includes('vendor-invoices/invoice-1')) {
+          return Promise.resolve(mockInvoice1Data);
+        }
+        if (url.includes('vendor-invoices/invoice-2')) {
+          return Promise.resolve(mockInvoice2Data);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form: {
+            ...baseForm,
+            invoice_type: 'AGAINST_CO',
+            change_order_uuid: coUuid,
+            corporation_uuid: 'corp-1',
+          },
+          editingInvoice: false,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      const vm = wrapper.vm as any;
+      expect(vm.coItems.length).toBeGreaterThan(0);
+      
+      // to_be_invoiced should be: 80 (CO quantity) - 25 (invoice-1) - 15 (invoice-2) = 40
+      const firstItem = vm.coItems[0];
+      expect(firstItem.to_be_invoiced).toBe(40);
+    });
+
+    it('excludes current invoice when calculating to_be_invoiced for existing invoice', async () => {
+      const poUuid = 'po-exclude-current';
+      const currentInvoiceUuid = 'invoice-current';
+      const mockPOItems = {
+        data: [
+          {
+            uuid: 'po-item-1',
+            po_quantity: 100,
+            po_unit_price: 50,
+            po_total: 5000,
+          },
+        ],
+      };
+
+      const mockPOData = {
+        data: {
+          uuid: poUuid,
+          financial_breakdown: {
+            charges: {},
+            sales_taxes: {},
+            totals: { item_total: 5000, total_po_amount: 5000 },
+          },
+        },
+      };
+
+      // Mock previous invoices including current invoice
+      const mockInvoicesList = {
+        data: [
+          {
+            uuid: 'invoice-1',
+            purchase_order_uuid: poUuid,
+            invoice_type: 'AGAINST_PO',
+            is_active: true,
+          },
+          {
+            uuid: currentInvoiceUuid,
+            purchase_order_uuid: poUuid,
+            invoice_type: 'AGAINST_PO',
+            is_active: true,
+          },
+        ],
+      };
+
+      const mockInvoice1Data = {
+        data: {
+          uuid: 'invoice-1',
+          po_invoice_items: [
+            {
+              po_item_uuid: 'po-item-1',
+              invoice_quantity: 30,
+            },
+          ],
+        },
+      };
+
+      (global.$fetch as any) = vi.fn().mockImplementation((url: string): any => {
+        if (url.includes('purchase-order-items')) {
+          return Promise.resolve(mockPOItems);
+        }
+        if (url.includes('purchase-order-forms') || url.includes('purchase-orders')) {
+          return Promise.resolve(mockPOData);
+        }
+        if (url.includes('vendor-invoices?corporation_uuid')) {
+          return Promise.resolve(mockInvoicesList);
+        }
+        if (url.includes('vendor-invoices/invoice-1')) {
+          return Promise.resolve(mockInvoice1Data);
+        }
+        if (url.includes(`vendor-invoices/${currentInvoiceUuid}`)) {
+          // Current invoice should not be fetched for to_be_invoiced calculation
+          return Promise.reject(new Error('Should not fetch current invoice'));
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form: {
+            ...baseForm,
+            uuid: currentInvoiceUuid,
+            invoice_type: 'AGAINST_PO',
+            purchase_order_uuid: poUuid,
+            corporation_uuid: 'corp-1',
+          },
+          editingInvoice: true,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      const vm = wrapper.vm as any;
+      expect(vm.poItems.length).toBeGreaterThan(0);
+      
+      // to_be_invoiced should be: 100 (PO quantity) - 30 (invoice-1) = 70
+      // Current invoice should be excluded from calculation
+      const firstItem = vm.poItems[0];
+      expect(firstItem.to_be_invoiced).toBe(70);
+    });
+  });
 });
 

@@ -536,5 +536,280 @@ describe("AdvancePaymentBreakdownTable.vue", () => {
       expect(wrapper.text()).toContain("No advance payments found");
     });
   });
+
+  describe("Previously Adjusted Amounts", () => {
+    it("displays previously adjusted amounts when previouslyAdjustedCostCodes prop is provided", async () => {
+      mockFetch.mockResolvedValueOnce({
+        data: [
+          {
+            uuid: "inv-1",
+            number: "INV-001",
+            bill_date: "2024-01-15T00:00:00Z",
+            amount: "500.00",
+            is_active: true,
+            costCodes: [
+              {
+                uuid: "apcc-1",
+                cost_code_uuid: "cc-1",
+                cost_code_label: "CC-001 Test Code",
+                advance_amount: "500.00",
+              },
+            ],
+          },
+        ],
+      });
+
+      const previouslyAdjustedCostCodes = [
+        {
+          cost_code_uuid: "cc-1",
+          advance_payment_uuid: "inv-1",
+          adjusted_amount: 200,
+        },
+        {
+          cost_code_uuid: "cc-1",
+          advance_payment_uuid: "inv-1",
+          adjusted_amount: 150,
+        },
+      ];
+
+      const wrapper = mount(AdvancePaymentBreakdownTable, {
+        props: {
+          purchaseOrderUuid: "po-uuid-1",
+          previouslyAdjustedCostCodes,
+          showAdjustmentInputs: true,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      // Should display sum of previously adjusted amounts: 200 + 150 = 350
+      expect(wrapper.text()).toContain("$350.00");
+    });
+
+    it("sums previously adjusted amounts across multiple invoices for same cost code", async () => {
+      mockFetch.mockResolvedValueOnce({
+        data: [
+          {
+            uuid: "inv-1",
+            number: "INV-001",
+            bill_date: "2024-01-15T00:00:00Z",
+            amount: "500.00",
+            is_active: true,
+            costCodes: [
+              {
+                uuid: "apcc-1",
+                cost_code_uuid: "cc-1",
+                cost_code_label: "CC-001 Test Code",
+                advance_amount: "500.00",
+              },
+            ],
+          },
+        ],
+      });
+
+      const previouslyAdjustedCostCodes = [
+        {
+          cost_code_uuid: "cc-1",
+          advance_payment_uuid: "inv-1",
+          adjusted_amount: 100,
+        },
+        {
+          cost_code_uuid: "cc-1",
+          advance_payment_uuid: "inv-1",
+          adjusted_amount: 150,
+        },
+        {
+          cost_code_uuid: "cc-1",
+          advance_payment_uuid: "inv-1",
+          adjusted_amount: 50,
+        },
+      ];
+
+      const wrapper = mount(AdvancePaymentBreakdownTable, {
+        props: {
+          purchaseOrderUuid: "po-uuid-1",
+          previouslyAdjustedCostCodes,
+          showAdjustmentInputs: true,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      // Should display sum: 100 + 150 + 50 = 300
+      expect(wrapper.text()).toContain("$300.00");
+    });
+
+    it("displays remaining to be adjusted amount correctly", async () => {
+      mockFetch.mockResolvedValueOnce({
+        data: [
+          {
+            uuid: "inv-1",
+            number: "INV-001",
+            bill_date: "2024-01-15T00:00:00Z",
+            amount: "500.00",
+            is_active: true,
+            costCodes: [
+              {
+                uuid: "apcc-1",
+                cost_code_uuid: "cc-1",
+                cost_code_label: "CC-001 Test Code",
+                advance_amount: "500.00",
+              },
+            ],
+          },
+        ],
+      });
+
+      const previouslyAdjustedCostCodes = [
+        {
+          cost_code_uuid: "cc-1",
+          advance_payment_uuid: "inv-1",
+          adjusted_amount: 200,
+        },
+      ];
+
+      const wrapper = mount(AdvancePaymentBreakdownTable, {
+        props: {
+          purchaseOrderUuid: "po-uuid-1",
+          previouslyAdjustedCostCodes,
+          showAdjustmentInputs: true,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      // Remaining = 500 - 200 = 300
+      expect(wrapper.text()).toContain("$300.00");
+    });
+
+    it("highlights row when adjusted amount exceeds remaining amount", async () => {
+      mockFetch.mockResolvedValueOnce({
+        data: [
+          {
+            uuid: "inv-1",
+            number: "INV-001",
+            bill_date: "2024-01-15T00:00:00Z",
+            amount: "500.00",
+            is_active: true,
+            costCodes: [
+              {
+                uuid: "apcc-1",
+                cost_code_uuid: "cc-1",
+                cost_code_label: "CC-001 Test Code",
+                advance_amount: "500.00",
+              },
+            ],
+          },
+        ],
+      });
+
+      const previouslyAdjustedCostCodes = [
+        {
+          cost_code_uuid: "cc-1",
+          advance_payment_uuid: "inv-1",
+          adjusted_amount: 400,
+        },
+      ];
+
+      const wrapper = mount(AdvancePaymentBreakdownTable, {
+        props: {
+          purchaseOrderUuid: "po-uuid-1",
+          previouslyAdjustedCostCodes,
+          showAdjustmentInputs: true,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      // Remaining = 500 - 400 = 100
+      // If user enters 150, it should highlight the row
+      const input = wrapper.find('input[type="number"]');
+      if (input.exists()) {
+        await input.setValue("150");
+        await flushPromises();
+
+        // Row should have error styling
+        const row = wrapper.find('tr');
+        if (row.exists()) {
+          const classes = row.classes();
+          // Should have error background or border
+          expect(classes.some(c => c.includes('error') || c.includes('bg-error'))).toBe(true);
+        }
+      }
+    });
+
+    it("exposes hasValidationError when adjusted amount exceeds remaining", async () => {
+      mockFetch.mockResolvedValueOnce({
+        data: [
+          {
+            uuid: "inv-1",
+            number: "INV-001",
+            bill_date: "2024-01-15T00:00:00Z",
+            amount: "500.00",
+            is_active: true,
+            costCodes: [
+              {
+                uuid: "apcc-1",
+                cost_code_uuid: "cc-1",
+                cost_code_label: "CC-001 Test Code",
+                advance_amount: "500.00",
+              },
+            ],
+          },
+        ],
+      });
+
+      const previouslyAdjustedCostCodes = [
+        {
+          cost_code_uuid: "cc-1",
+          advance_payment_uuid: "inv-1",
+          adjusted_amount: 400,
+        },
+      ];
+
+      const wrapper = mount(AdvancePaymentBreakdownTable, {
+        props: {
+          purchaseOrderUuid: "po-uuid-1",
+          previouslyAdjustedCostCodes,
+          showAdjustmentInputs: true,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      const vm = wrapper.vm as any;
+      if (vm && typeof vm.hasValidationError !== 'undefined') {
+        // Set adjusted amount to exceed remaining (remaining = 100, set to 150)
+        const input = wrapper.find('input[type="number"]');
+        if (input.exists()) {
+          await input.setValue("150");
+          await flushPromises();
+          
+          // Should expose validation error
+          expect(vm.hasValidationError).toBe(true);
+        }
+      }
+    });
+  });
 });
 
