@@ -85,7 +85,7 @@
                   <UInput
                     :model-value="row.releaseAmount !== null && row.releaseAmount !== undefined ? String(row.releaseAmount) : ''"
                     type="number"
-                    step="0.01"
+                    step="1"
                     min="0"
                     size="xs"
                     class="w-full"
