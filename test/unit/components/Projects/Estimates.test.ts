@@ -460,7 +460,7 @@ describe("Estimates", () => {
       wrapper = createWrapper();
 
       const columns = wrapper.vm.columns;
-      expect(columns).toHaveLength(9);
+      expect(columns).toHaveLength(8);
 
       const columnKeys = columns.map((col) => col.accessorKey);
       expect(columnKeys).toContain("corporation_uuid");
@@ -468,7 +468,6 @@ describe("Estimates", () => {
       expect(columnKeys).toContain("estimate_number");
       expect(columnKeys).toContain("project_name");
       expect(columnKeys).toContain("status");
-      expect(columnKeys).toContain("valid_until");
       expect(columnKeys).toContain("total_amount");
       expect(columnKeys).toContain("final_amount");
       expect(columnKeys).toContain("actions");

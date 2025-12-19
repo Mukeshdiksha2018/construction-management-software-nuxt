@@ -56,7 +56,6 @@ describe('EstimateForm', () => {
     project_uuid: '',
     corporation_uuid: '',
     estimate_date: '',
-    valid_until: '',
     status: 'Draft',
     total_amount: 0,
     tax_amount: 0,
@@ -263,23 +262,6 @@ describe('EstimateForm', () => {
       expect(wrapper.vm.estimateDateDisplayText).toBe('Select estimate date')
     })
 
-    it('should format valid until date display text', () => {
-      wrapper = createWrapper({
-        form: {
-          ...mockForm,
-          valid_until: '2024-02-15'
-        }
-      })
-      
-      expect(wrapper.vm.validUntilDateDisplayText).toContain('Feb')
-      expect(wrapper.vm.validUntilDateDisplayText).toContain('15')
-    })
-
-    it('should show placeholder when no valid until date is selected', () => {
-      wrapper = createWrapper()
-      
-      expect(wrapper.vm.validUntilDateDisplayText).toBe('Select valid until date')
-    })
   })
 
   describe('Calculations', () => {
@@ -640,25 +622,6 @@ describe('EstimateForm', () => {
       expect(wrapper.vm.estimateDateDisplayText).toBe("Select estimate date");
     });
 
-    it("should format valid until date correctly", () => {
-      wrapper = createWrapper();
-
-      wrapper.vm.form.valid_until = "2024-02-15";
-
-      expect(wrapper.vm.validUntilDateValue).toBeDefined();
-      expect(wrapper.vm.validUntilDateDisplayText).toBe("Feb 15, 2024");
-    });
-
-    it("should handle empty valid until date", () => {
-      wrapper = createWrapper();
-
-      wrapper.vm.form.valid_until = "";
-
-      expect(wrapper.vm.validUntilDateValue).toBeNull();
-      expect(wrapper.vm.validUntilDateDisplayText).toBe(
-        "Select valid until date"
-      );
-    });
   });
 
   describe("Corporation Display", () => {
@@ -833,25 +796,6 @@ describe('EstimateForm', () => {
       }
     });
 
-    it('should disable valid until date picker when estimate is approved', () => {
-      wrapper = createWrapper({
-        form: {
-          ...mockForm,
-          status: 'Approved',
-          valid_until: '2024-02-15'
-        },
-        editingEstimate: true
-      });
-
-      const dateButtons = wrapper.findAll('button');
-      const validUntilButton = dateButtons.find(btn => 
-        btn.text().includes('Feb') || btn.text().includes('15')
-      );
-      
-      if (validUntilButton) {
-        expect(validUntilButton.attributes('disabled')).toBeDefined();
-      }
-    });
 
     it('should disable tax amount input when estimate is approved', async () => {
       wrapper = createWrapper({
