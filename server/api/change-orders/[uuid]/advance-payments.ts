@@ -22,8 +22,8 @@ export default defineEventHandler(async (event) => {
 
   try {
     // Fetch all advance payment invoices for this change order
-    // If currentInvoiceUuid is provided, include advance payments adjusted against that invoice
-    // Otherwise, only show unadjusted advance payments
+    // Always show ALL advance payments (even if partially adjusted) so users can adjust remaining amounts
+    // The component will calculate remaining amounts based on previously adjusted cost codes
     // Include financial_breakdown to get tax and charges information
     let queryBuilder = supabaseServer
       .from("vendor_invoices")
@@ -33,13 +33,9 @@ export default defineEventHandler(async (event) => {
       // Only include active advance payment invoices
       .eq("is_active", true);
 
-    // If viewing an existing invoice, include advance payments adjusted against it
-    // Otherwise, only show unadjusted advance payments
-    if (currentInvoiceUuid) {
-      queryBuilder = queryBuilder.or(`adjusted_against_vendor_invoice_uuid.is.null,adjusted_against_vendor_invoice_uuid.eq.${currentInvoiceUuid}`);
-    } else {
-      queryBuilder = queryBuilder.is("adjusted_against_vendor_invoice_uuid", null);
-    }
+    // Always return all advance payments (regardless of adjustment status)
+    // The component will handle showing remaining amounts based on previously adjusted cost codes
+    // If viewing an existing invoice, we still show all payments so the user can see what was adjusted
 
     const { data: invoices, error: invoicesError } = await queryBuilder.order("bill_date", { ascending: false });
 
