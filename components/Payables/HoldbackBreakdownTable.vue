@@ -399,15 +399,26 @@ const processItems = async () => {
     return
   }
 
+  // If we have saved data (modelValue), don't clear it even if props are temporarily unset
+  // This prevents clearing data during the loading sequence
+  const hasSavedData = Array.isArray(props.modelValue) && props.modelValue.length > 0
+
   if (!props.purchaseOrderUuid && !props.changeOrderUuid) {
-    costCodeRows.value = []
+    // Only clear if we don't have saved data
+    if (!hasSavedData) {
+      costCodeRows.value = []
+    }
     loading.value = false
     return
   }
 
   // If holdback invoice UUID is not set, don't process items but keep component visible
+  // But preserve saved data if it exists
   if (!props.holdbackInvoiceUuid) {
-    costCodeRows.value = []
+    // Only clear if we don't have saved data
+    if (!hasSavedData) {
+      costCodeRows.value = []
+    }
     loading.value = false
     return
   }
@@ -634,21 +645,39 @@ const handleRemoveRow = (index: number) => {
 // Watch for props changes
 watch(
   [() => props.purchaseOrderUuid, () => props.changeOrderUuid, () => props.holdbackInvoiceUuid, () => props.corporationUuid],
-  async () => {
+  async ([newPoUuid, newCoUuid, newHoldbackUuid, newCorpUuid], [oldPoUuid, oldCoUuid, oldHoldbackUuid, oldCorpUuid]) => {
     // Skip if already processing
     if (isProcessingItems.value) {
       return
     }
 
-    if (props.corporationUuid) {
+    // If we have saved data (modelValue), don't clear it even if props are temporarily unset
+    // This prevents clearing data during the loading sequence
+    const hasSavedData = Array.isArray(props.modelValue) && props.modelValue.length > 0
+    
+    // Only clear data if we don't have saved data AND props are actually being cleared (not just initially undefined)
+    if (!hasSavedData && !newPoUuid && !newCoUuid && !newHoldbackUuid && (oldPoUuid || oldCoUuid || oldHoldbackUuid)) {
+      // Props are being cleared (not just initially undefined), so clear the data
+      costCodeRows.value = []
+      loading.value = false
+      return
+    }
+
+    // If we have saved data but props aren't set yet, wait for them to be set
+    if (hasSavedData && !newPoUuid && !newCoUuid && !newHoldbackUuid) {
+      // Don't process yet, wait for props to be set
+      return
+    }
+
+    if (newCorpUuid) {
       await Promise.all([
-        fetchCostCodeConfigurations(props.corporationUuid),
-        fetchChartOfAccounts(props.corporationUuid)
+        fetchCostCodeConfigurations(newCorpUuid),
+        fetchChartOfAccounts(newCorpUuid)
       ])
     }
     await processItems()
   },
-  { immediate: true }
+  { immediate: false } // Changed to false to prevent firing before props are set
 )
 
 // Watch for modelValue changes (when loading existing invoice)
@@ -710,11 +739,38 @@ watch(
 
 // Initialize
 onMounted(async () => {
+  // If we have saved data but props aren't set yet, load it directly
+  // This handles the case where the component mounts with saved data before props are set
+  if (Array.isArray(props.modelValue) && props.modelValue.length > 0 && costCodeRows.value.length === 0) {
+    if (!props.purchaseOrderUuid && !props.changeOrderUuid && !props.holdbackInvoiceUuid) {
+      // Load saved data directly if props aren't set yet
+      const savedRows = props.modelValue.map((savedRow: any) => ({
+        id: savedRow.id || savedRow.uuid || `holdback-row-${Date.now()}-${Math.random().toString(36).substring(2)}`,
+        cost_code_uuid: savedRow.cost_code_uuid || null,
+        cost_code_label: savedRow.cost_code_label || null,
+        cost_code_number: savedRow.cost_code_number || null,
+        cost_code_name: savedRow.cost_code_name || null,
+        totalAmount: savedRow.totalAmount !== undefined ? savedRow.totalAmount : (savedRow.total_amount !== undefined ? savedRow.total_amount : 0),
+        retainageAmount: savedRow.retainageAmount !== undefined ? savedRow.retainageAmount : (savedRow.retainage_amount !== undefined ? savedRow.retainage_amount : 0),
+        releaseAmount: savedRow.releaseAmount !== undefined && savedRow.releaseAmount !== null
+          ? savedRow.releaseAmount
+          : (savedRow.release_amount !== undefined && savedRow.release_amount !== null ? savedRow.release_amount : 0),
+        gl_account_uuid: savedRow.gl_account_uuid || null
+      }))
+      costCodeRows.value = savedRows
+    }
+  }
+
   if (props.corporationUuid) {
     await Promise.all([
       fetchCostCodeConfigurations(props.corporationUuid),
       fetchChartOfAccounts(props.corporationUuid)
     ])
+  }
+  
+  // Process items if we have all required props
+  if ((props.purchaseOrderUuid || props.changeOrderUuid) && props.holdbackInvoiceUuid && props.corporationUuid) {
+    await processItems()
   }
   await processItems()
 })

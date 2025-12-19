@@ -423,7 +423,8 @@
     </div>
 
     <!-- Holdback Breakdown Table (only for Against Holdback Amount) -->
-    <div v-if="isAgainstHoldback && (form.purchase_order_uuid || form.change_order_uuid)" class="mt-6">
+    <!-- Show table if we have holdback invoice UUID OR if we have saved holdback cost codes (for existing invoices) -->
+    <div v-if="isAgainstHoldback && ((form.purchase_order_uuid || form.change_order_uuid) || (holdbackCostCodes && holdbackCostCodes.length > 0))" class="mt-6">
       <HoldbackBreakdownTable
         :purchase-order-uuid="form.purchase_order_uuid"
         :change-order-uuid="form.change_order_uuid"
