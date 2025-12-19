@@ -138,7 +138,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { useCurrencyFormat } from '@/composables/useCurrencyFormat'
-import { useCostCodeConfigurationsStore } from '@/stores/costCodeConfigurations'
 import CostCodeSelect from '@/components/Shared/CostCodeSelect.vue'
 import ChartOfAccountsSelect from '@/components/Shared/ChartOfAccountsSelect.vue'
 
@@ -163,7 +162,6 @@ const emit = defineEmits<{
 }>()
 
 const { formatCurrency } = useCurrencyFormat()
-const costCodeConfigurationsStore = useCostCodeConfigurationsStore()
 
 // Local state
 const loading = ref(false)
@@ -175,6 +173,7 @@ const isProcessingItems = ref(false) // Guard flag to prevent infinite loops
 const cachedPOItems = ref<Map<string, any[]>>(new Map()) // Cache PO items by UUID
 const cachedCOItems = ref<Map<string, any[]>>(new Map()) // Cache CO items by UUID
 const cachedHoldbackInvoice = ref<Map<string, any>>(new Map()) // Cache holdback invoice by UUID
+const cachedCostCodeConfigs = ref<Map<string, any[]>>(new Map()) // Cache cost code configurations by corporation UUID
 
 // Computed
 const showTable = computed(() => {
@@ -266,22 +265,45 @@ const fetchHoldbackInvoice = async (invoiceUuid: string) => {
   }
 }
 
-// Fetch cost code configurations
+// Fetch cost code configurations (with caching)
 const fetchCostCodeConfigurations = async (corporationUuid: string) => {
   if (!corporationUuid) return
   
-  try {
-    await costCodeConfigurationsStore.fetchConfigurations(corporationUuid, false, false)
-    const configs = costCodeConfigurationsStore.getActiveConfigurations(corporationUuid)
-    
+  // Return cached data if available
+  if (cachedCostCodeConfigs.value.has(corporationUuid)) {
+    const configs = cachedCostCodeConfigs.value.get(corporationUuid) || []
     costCodeConfigMap.value.clear()
     configs.forEach((config: any) => {
       if (config?.uuid) {
         costCodeConfigMap.value.set(config.uuid, config)
       }
     })
+    return
+  }
+
+  try {
+    const response = await $fetch<{ data: any[] }>(`/api/cost-code-configurations`, {
+      query: { corporation_uuid: corporationUuid },
+    })
+    
+    const configs = Array.isArray(response?.data) ? response.data : []
+    
+    // Cache the result
+    cachedCostCodeConfigs.value.set(corporationUuid, configs)
+    
+    // Update the map
+    costCodeConfigMap.value.clear()
+    configs
+      .filter((config: any) => config?.is_active !== false && config?.uuid) // Only active configurations
+      .forEach((config: any) => {
+        if (config?.uuid) {
+          costCodeConfigMap.value.set(config.uuid, config)
+        }
+      })
   } catch (error) {
     console.error('[HoldbackBreakdownTable] Error fetching cost code configurations:', error)
+    // Don't throw - just log the error and continue
+    cachedCostCodeConfigs.value.set(corporationUuid, []) // Cache empty array to prevent repeated failed fetches
   }
 }
 
@@ -571,17 +593,19 @@ const processItems = async () => {
 }
 
 // Handlers
-const handleCostCodeChange = async (index: number, value: string | null, option?: any) => {
+const handleCostCodeChange = (index: number, value: string | null, option?: any) => {
   if (index < 0 || index >= costCodeRows.value.length) return
 
   const row = { ...costCodeRows.value[index] }
   row.cost_code_uuid = value || null
 
-  // Ensure we have cost code configurations loaded
-  if (value && props.corporationUuid) {
-    if (costCodeConfigMap.value.size === 0) {
-      await fetchCostCodeConfigurations(props.corporationUuid)
-    }
+  // Fetch cost code configurations in background if needed (non-blocking)
+  if (value && props.corporationUuid && costCodeConfigMap.value.size === 0) {
+    // Don't await - fetch in background and update later if needed
+    fetchCostCodeConfigurations(props.corporationUuid).catch((error) => {
+      // Silently fail - we'll try to get config from option or use defaults
+      console.warn('[HoldbackBreakdownTable] Failed to fetch cost code configurations:', error)
+    })
   }
 
   if (option?.costCode) {
