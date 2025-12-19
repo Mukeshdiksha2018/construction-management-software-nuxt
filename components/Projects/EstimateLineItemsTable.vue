@@ -931,6 +931,7 @@
                             <ItemTypeSelect
                               v-model="item.item_type"
                               :corporation-uuid="props.editingEstimate ? corpStore.selectedCorporation?.uuid : estimateCreationStore.selectedCorporationUuid"
+                              :project-uuid="props.projectUuid"
                               placeholder="Select type"
                               size="xs"
                               class="w-32"
@@ -944,6 +945,7 @@
                             <SequenceSelect
                               v-model="item.item_uuid"
                               :corporation-uuid="props.editingEstimate ? corpStore.selectedCorporation?.uuid : estimateCreationStore.selectedCorporationUuid"
+                              :project-uuid="props.projectUuid"
                               :use-estimate-creation-store="!props.editingEstimate"
                               :items="getMaterialItemOptionsForSequence(item)"
                               size="xs"
@@ -957,6 +959,7 @@
                             <ItemSelect
                               v-model="item.item_uuid"
                               :corporation-uuid="props.editingEstimate ? corpStore.selectedCorporation?.uuid : estimateCreationStore.selectedCorporationUuid"
+                              :project-uuid="props.projectUuid"
                               :use-estimate-creation-store="!props.editingEstimate"
                               :items="getMaterialItemOptionsForItem(item)"
                               size="xs"
@@ -1843,9 +1846,17 @@ const enrichMaterialItemsWithSequence = (savedItems: any[], costCodeUuid: string
     return savedItems
   }
   
+  // Filter preferred items by project if projectUuid is provided
+  let filteredPreferredItems = costCodeConfig.preferred_items
+  if (props.projectUuid) {
+    filteredPreferredItems = costCodeConfig.preferred_items.filter((item: any) => 
+      item.project_uuid === props.projectUuid
+    )
+  }
+  
   // Create a map of preferred items by uuid for quick lookup
   const preferredItemsMap: Map<string, any> = new Map(
-    costCodeConfig.preferred_items.map((item: any) => [String(item.uuid), item as any])
+    filteredPreferredItems.map((item: any) => [String(item.uuid), item as any])
   )
   
   // Enrich saved items with current sequence values
@@ -1872,8 +1883,16 @@ const loadPreferredItems = () => {
   )
   
   if (costCodeConfig && costCodeConfig.preferred_items && costCodeConfig.preferred_items.length > 0) {
+    // Filter preferred items by project if projectUuid is provided
+    let filteredPreferredItems = costCodeConfig.preferred_items
+    if (props.projectUuid) {
+      filteredPreferredItems = costCodeConfig.preferred_items.filter((item: any) => 
+        item.project_uuid === props.projectUuid
+      )
+    }
+    
     // Convert preferred items to material items format
-    materialItems.value = costCodeConfig.preferred_items.map((item: any) => {
+    materialItems.value = filteredPreferredItems.map((item: any) => {
       const resolvedUnit = resolveUnitOption(item.unit_uuid, item.unit || item.unit_label || item.unit_short_name)
       const materialItem = normalizeMaterialItem({
         item_uuid: item.uuid || '',

@@ -84,6 +84,7 @@ const props = withDefaults(defineProps<{
   className?: string
   disabled?: boolean
   corporationUuid?: string
+  projectUuid?: string
   costCodeUuid?: string
   items?: ExternalItemOption[]
   ui?: any
@@ -163,12 +164,15 @@ const storeItems = computed<ExternalItemOption[]>(() => {
       activeConfigs.forEach((config: any) => {
         if (config.preferred_items && Array.isArray(config.preferred_items) && config.preferred_items.length > 0) {
           config.preferred_items.forEach((item: any) => {
-            allItems.push({
-              ...item,
-              cost_code_configuration_uuid: config.uuid,
-              cost_code_number: config.cost_code_number,
-              cost_code_name: config.cost_code_name,
-            })
+            // Filter by project if projectUuid is provided
+            if (!props.projectUuid || item.project_uuid === props.projectUuid) {
+              allItems.push({
+                ...item,
+                cost_code_configuration_uuid: config.uuid,
+                cost_code_number: config.cost_code_number,
+                cost_code_name: config.cost_code_name,
+              })
+            }
           })
         }
       })
@@ -205,7 +209,13 @@ const storeItems = computed<ExternalItemOption[]>(() => {
       ? configurationsStore.getAllItems(props.corporationUuid)
       : []
 
-  return Array.isArray(allItems) ? (allItems as ExternalItemOption[]) : []
+  // Filter by project if projectUuid is provided
+  let filteredItems = Array.isArray(allItems) ? (allItems as ExternalItemOption[]) : []
+  if (props.projectUuid && filteredItems.length > 0) {
+    filteredItems = filteredItems.filter((item: any) => item.project_uuid === props.projectUuid)
+  }
+
+  return filteredItems
 })
 
 const itemOptions = computed<ItemOption[]>(() => {
