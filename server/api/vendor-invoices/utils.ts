@@ -244,7 +244,7 @@ export const sanitizeHoldbackCostCode = (item: any = {}) => {
     cost_code_label: item.cost_code_label || null,
     cost_code_number: item.cost_code_number || null,
     cost_code_name: item.cost_code_name || null,
-    gl_account_uuid: item.gl_account_uuid || null,
+    gl_account_uuid: item.gl_account_uuid || item.glAccountUuid || null, // Support both snake_case and camelCase
     total_amount: toNumberOrNull(item.totalAmount || item.total_amount) || 0,
     retainage_amount: toNumberOrNull(item.retainageAmount || item.retainage_amount) || 0,
     release_amount: toNumberOrNull(item.releaseAmount || item.release_amount) || 0,

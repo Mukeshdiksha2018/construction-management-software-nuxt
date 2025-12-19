@@ -260,16 +260,20 @@ const persistHoldbackCostCodes = async (options: {
 
   const prepared = items
     .filter((item) => item.cost_code_uuid) // Only include items with cost code
-    .map((item) => ({
-      ...sanitizeHoldbackCostCode(item),
-      corporation_uuid: corporationUuid,
-      project_uuid: projectUuid,
-      vendor_uuid: vendorUuid,
-      purchase_order_uuid: purchaseOrderUuid,
-      change_order_uuid: changeOrderUuid,
-      holdback_invoice_uuid: holdbackInvoiceUuid,
-      vendor_invoice_uuid: vendorInvoiceUuid,
-    }));
+    .map((item) => {
+      const sanitized = sanitizeHoldbackCostCode(item);
+      return {
+        ...sanitized,
+        corporation_uuid: corporationUuid,
+        project_uuid: projectUuid,
+        vendor_uuid: vendorUuid,
+        purchase_order_uuid: purchaseOrderUuid,
+        change_order_uuid: changeOrderUuid,
+        holdback_invoice_uuid: holdbackInvoiceUuid || null, // Ensure holdback_invoice_uuid is set
+        gl_account_uuid: sanitized.gl_account_uuid || item.gl_account_uuid || null, // Ensure gl_account_uuid is preserved
+        vendor_invoice_uuid: vendorInvoiceUuid,
+      };
+    });
 
   if (prepared.length === 0) {
     return;

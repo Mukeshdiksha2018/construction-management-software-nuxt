@@ -478,6 +478,9 @@ const processItems = async () => {
           }
         })
 
+        // Get GL account from cost code configuration if available
+        const glAccountUuid = config?.gl_account_uuid || null
+
         costCodeMap.set(costCodeUuid, {
           cost_code_uuid: costCodeUuid,
           cost_code_number: costCodeNumber,
@@ -486,7 +489,7 @@ const processItems = async () => {
           totalAmount: Math.round((totalAmount + Number.EPSILON) * 100) / 100,
           retainageAmount: retainageAmounts.get(costCodeUuid) || 0,
           releaseAmount: 0,
-          gl_account_uuid: null
+          gl_account_uuid: glAccountUuid
         })
       }
     })
@@ -513,12 +516,19 @@ const processItems = async () => {
           row.releaseAmount = savedRow.releaseAmount !== undefined && savedRow.releaseAmount !== null
             ? savedRow.releaseAmount
             : (savedRow.release_amount !== undefined && savedRow.release_amount !== null ? savedRow.release_amount : 0)
-          row.gl_account_uuid = savedRow.gl_account_uuid || null
+          // Preserve saved GL account, or use from cost code config if not saved
+          row.gl_account_uuid = savedRow.gl_account_uuid || row.gl_account_uuid || null
           // Preserve saved retainage amount if it exists (for existing invoices)
           if (savedRow.retainageAmount !== undefined && savedRow.retainageAmount !== null) {
             row.retainageAmount = savedRow.retainageAmount
           } else if (savedRow.retainage_amount !== undefined && savedRow.retainage_amount !== null) {
             row.retainageAmount = savedRow.retainage_amount
+          }
+        } else {
+          // If no saved row, try to get GL account from cost code config
+          const config = costCodeConfigMap.value.get(row.cost_code_uuid)
+          if (!row.gl_account_uuid && config?.gl_account_uuid) {
+            row.gl_account_uuid = config.gl_account_uuid
           }
         }
       })
@@ -561,11 +571,18 @@ const processItems = async () => {
 }
 
 // Handlers
-const handleCostCodeChange = (index: number, value: string | null, option?: any) => {
+const handleCostCodeChange = async (index: number, value: string | null, option?: any) => {
   if (index < 0 || index >= costCodeRows.value.length) return
 
   const row = { ...costCodeRows.value[index] }
   row.cost_code_uuid = value || null
+
+  // Ensure we have cost code configurations loaded
+  if (value && props.corporationUuid) {
+    if (costCodeConfigMap.value.size === 0) {
+      await fetchCostCodeConfigurations(props.corporationUuid)
+    }
+  }
 
   if (option?.costCode) {
     const costCode = option.costCode
@@ -578,7 +595,14 @@ const handleCostCodeChange = (index: number, value: string | null, option?: any)
       row.cost_code_number = config.cost_code_number || ''
       row.cost_code_name = config.cost_code_name || ''
       row.cost_code_label = [config.cost_code_number, config.cost_code_name].filter(Boolean).join(' ').trim() || null
+      // Set GL account from cost code configuration if not already set
+      if (!row.gl_account_uuid && config.gl_account_uuid) {
+        row.gl_account_uuid = config.gl_account_uuid
+      }
     }
+  } else {
+    // Clear GL account if cost code is cleared
+    row.gl_account_uuid = null
   }
 
   costCodeRows.value[index] = row
