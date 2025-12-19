@@ -182,12 +182,14 @@ const isCostCodeDisabled = computed(() => {
   return props.readonly || !!(props.purchaseOrderUuid || props.changeOrderUuid)
 })
 
-// Calculate total release amount
+// Calculate total release amount (rounded to 2 decimal places)
 const totalReleaseAmount = computed(() => {
-  return costCodeRows.value.reduce((sum, row) => {
+  const total = costCodeRows.value.reduce((sum, row) => {
     const releaseAmount = parseFloat(String(row.releaseAmount || 0)) || 0
     return sum + releaseAmount
   }, 0)
+  // Round to 2 decimal places to avoid floating point precision issues
+  return Math.round(total * 100) / 100
 })
 
 // Watch total release amount and emit to parent

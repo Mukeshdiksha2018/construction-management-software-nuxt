@@ -3391,7 +3391,29 @@ const handleHoldbackCostCodesUpdate = (value: any[]) => {
 
 // Handle holdback release amounts update
 const handleHoldbackReleaseAmountsUpdate = (totalReleaseAmount: number) => {
-  holdbackReleaseAmountTotal.value = totalReleaseAmount;
+  // Round to 2 decimal places to avoid floating point precision issues
+  const roundedTotal = Math.round(totalReleaseAmount * 100) / 100;
+  holdbackReleaseAmountTotal.value = roundedTotal;
+  
+  // Update financial_breakdown.totals.item_total to ensure it matches the release amount total
+  // This ensures the FinancialBreakdown component has the correct item_total
+  const updatedForm = { ...props.form };
+  if (!updatedForm.financial_breakdown || typeof updatedForm.financial_breakdown === 'string') {
+    try {
+      updatedForm.financial_breakdown = typeof updatedForm.financial_breakdown === 'string' 
+        ? JSON.parse(updatedForm.financial_breakdown) 
+        : { totals: {} };
+    } catch (e) {
+      updatedForm.financial_breakdown = { totals: {} };
+    }
+  }
+  if (!updatedForm.financial_breakdown.totals) {
+    updatedForm.financial_breakdown.totals = {};
+  }
+  updatedForm.financial_breakdown.totals.item_total = roundedTotal;
+  
+  emit('update:form', updatedForm);
+  
   // Don't update amount here - FinancialBreakdown component will calculate it based on item_total + charges + taxes
   // The FinancialBreakdown component watches itemTotal and will automatically update the amount
 };
