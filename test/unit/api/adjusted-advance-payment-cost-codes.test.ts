@@ -412,8 +412,12 @@ describe("server/api/adjusted-advance-payment-cost-codes", () => {
         })
       );
 
-      const eq1Spy = vi.fn(() => ({
+      const eq2Spy = vi.fn(() => ({
         order: orderSpy,
+      }));
+
+      const eq1Spy = vi.fn(() => ({
+        eq: eq2Spy,
       }));
 
       const selectSpy = vi.fn(() => ({
@@ -467,8 +471,12 @@ describe("server/api/adjusted-advance-payment-cost-codes", () => {
         })
       );
 
-      const eq1Spy = vi.fn(() => ({
+      const eq2Spy = vi.fn(() => ({
         order: orderSpy,
+      }));
+
+      const eq1Spy = vi.fn(() => ({
+        eq: eq2Spy,
       }));
 
       const selectSpy = vi.fn(() => ({

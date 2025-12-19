@@ -226,14 +226,12 @@ describe("server/api/purchase-orders/[uuid]/advance-payments", () => {
         eq: vi.fn(() => ({
           eq: vi.fn(() => ({
             eq: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                order: vi.fn(() =>
-                  Promise.resolve({
-                    data: null,
-                    error: { message: "Database connection failed" },
-                  })
-                ),
-              })),
+              order: vi.fn(() =>
+                Promise.resolve({
+                  data: null,
+                  error: { message: "Database connection failed" },
+                })
+              ),
             })),
           })),
         })),
@@ -261,22 +259,20 @@ describe("server/api/purchase-orders/[uuid]/advance-payments", () => {
         eq: vi.fn(() => ({
           eq: vi.fn(() => ({
             eq: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                order: vi.fn(() =>
-                  Promise.resolve({
-                    data: [
-                      {
-                        uuid: "inv-1",
-                        number: "INV-001",
-                        bill_date: "2024-01-15",
-                        amount: "240.00",
-                        is_active: true,
-                      },
-                    ],
-                    error: null,
-                  })
-                ),
-              })),
+              order: vi.fn(() =>
+                Promise.resolve({
+                  data: [
+                    {
+                      uuid: "inv-1",
+                      number: "INV-001",
+                      bill_date: "2024-01-15",
+                      amount: "240.00",
+                      is_active: true,
+                    },
+                  ],
+                  error: null,
+                })
+              ),
             })),
           })),
         })),
@@ -344,22 +340,20 @@ describe("server/api/purchase-orders/[uuid]/advance-payments", () => {
         eq: vi.fn(() => ({
           eq: vi.fn(() => ({
             eq: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                order: vi.fn(() =>
-                  Promise.resolve({
-                    data: [
-                      {
-                        uuid: "inv-1",
-                        number: "INV-001",
-                        bill_date: "2024-01-15",
-                        amount: "240.00",
-                        is_active: true,
-                      },
-                    ],
-                    error: null,
-                  })
-                ),
-              })),
+              order: vi.fn(() =>
+                Promise.resolve({
+                  data: [
+                    {
+                      uuid: "inv-1",
+                      number: "INV-001",
+                      bill_date: "2024-01-15",
+                      amount: "240.00",
+                      is_active: true,
+                    },
+                  ],
+                  error: null,
+                })
+              ),
             })),
           })),
         })),
@@ -469,22 +463,20 @@ describe("server/api/purchase-orders/[uuid]/advance-payments", () => {
         eq: vi.fn(() => ({
           eq: vi.fn(() => ({
             eq: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                order: vi.fn(() =>
-                  Promise.resolve({
-                    data: [
-                      {
-                        uuid: "inv-1",
-                        number: "INV-001",
-                        bill_date: "2024-01-15",
-                        amount: "240.00",
-                        is_active: true,
-                      },
-                    ],
-                    error: null,
-                  })
-                ),
-              })),
+              order: vi.fn(() =>
+                Promise.resolve({
+                  data: [
+                    {
+                      uuid: "inv-1",
+                      number: "INV-001",
+                      bill_date: "2024-01-15",
+                      amount: "240.00",
+                      is_active: true,
+                    },
+                  ],
+                  error: null,
+                })
+              ),
             })),
           })),
         })),
@@ -532,31 +524,29 @@ describe("server/api/purchase-orders/[uuid]/advance-payments", () => {
         eq: vi.fn(() => ({
           eq: vi.fn(() => ({
             eq: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                order: vi.fn(() =>
-                  Promise.resolve({
-                    data: [
-                      {
-                        uuid: "inv-1",
-                        number: "INV-001",
-                        bill_date: "2024-01-15",
-                        amount: "240.00",
-                        is_active: true,
-                        adjusted_against_vendor_invoice_uuid: "invoice-uuid-1",
-                      },
-                      {
-                        uuid: "inv-2",
-                        number: "INV-002",
-                        bill_date: "2024-01-20",
-                        amount: "100.00",
-                        is_active: true,
-                        adjusted_against_vendor_invoice_uuid: null,
-                      },
-                    ],
-                    error: null,
-                  })
-                ),
-              })),
+              order: vi.fn(() =>
+                Promise.resolve({
+                  data: [
+                    {
+                      uuid: "inv-1",
+                      number: "INV-001",
+                      bill_date: "2024-01-15",
+                      amount: "240.00",
+                      is_active: true,
+                      adjusted_against_vendor_invoice_uuid: "invoice-uuid-1",
+                    },
+                    {
+                      uuid: "inv-2",
+                      number: "INV-002",
+                      bill_date: "2024-01-20",
+                      amount: "100.00",
+                      is_active: true,
+                      adjusted_against_vendor_invoice_uuid: null,
+                    },
+                  ],
+                  error: null,
+                })
+              ),
             })),
           })),
         })),
