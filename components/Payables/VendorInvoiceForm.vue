@@ -422,6 +422,20 @@
       />
     </div>
 
+    <!-- Holdback Breakdown Table (only for Against Holdback Amount) -->
+    <div v-if="isAgainstHoldback && (form.purchase_order_uuid || form.change_order_uuid)" class="mt-6">
+      <HoldbackBreakdownTable
+        :purchase-order-uuid="form.purchase_order_uuid"
+        :change-order-uuid="form.change_order_uuid"
+        :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
+        :readonly="props.readonly"
+        :model-value="holdbackCostCodes"
+        :holdback-invoice-uuid="form.holdback_invoice_uuid"
+        @update:model-value="handleHoldbackCostCodesUpdate"
+        @release-amounts-update="handleHoldbackReleaseAmountsUpdate"
+      />
+    </div>
+
     <!-- Line Items Table (only for Direct Invoice) -->
     <div v-if="isDirectInvoice && !hasAllItemsZeroToBeInvoiced" class="mt-6">
       <DirectVendorInvoiceLineItemsTable
@@ -854,6 +868,143 @@
       </div>
     </div>
 
+    <!-- File Upload and Financial Breakdown Section (for Against Holdback Amount) -->
+    <div v-if="isAgainstHoldback && (form.purchase_order_uuid || form.change_order_uuid) && form.holdback_invoice_uuid" class="mt-6 flex flex-col lg:flex-row gap-6">
+      <!-- File Upload Section (Left) -->
+      <div class="w-full lg:w-auto lg:flex-shrink-0 lg:max-w-md">
+        <!-- Upload Section -->
+        <UCard variant="soft" class="mb-3">
+          <div class="flex justify-between items-center mb-3">
+            <h4 class="text-base font-bold text-default flex items-center gap-2 border-b border-default/60 pb-2">
+              <UIcon name="i-heroicons-cloud-arrow-up-solid" class="w-5 h-5 text-primary-500" />
+              File Upload
+            </h4>
+            <span class="text-xs text-muted bg-elevated px-2 py-1 rounded border border-default/60">
+              {{ totalAttachmentCount }} files
+              <span
+                v-if="uploadedAttachmentCount > 0"
+                class="text-success-600 dark:text-success-400"
+              >
+                ({{ uploadedAttachmentCount }} uploaded)
+              </span>
+            </span>
+          </div>
+
+          <UFileUpload
+            v-slot="{ open }"
+            v-model="uploadedFiles"
+            accept=".pdf,.png,.jpg,.jpeg"
+            multiple
+          >
+            <div class="space-y-2">
+              <UButton
+                :label="isUploading ? 'Uploading...' : (uploadedFiles.length > 0 ? 'Add more files' : 'Choose files')"
+                color="primary"
+                variant="solid"
+                size="sm"
+                :icon="isUploading ? 'i-heroicons-arrow-path' : 'i-heroicons-document-plus'"
+                :loading="isUploading"
+                :disabled="isUploading || props.readonly"
+                @click="open()"
+              />
+
+              <p
+                v-if="fileUploadErrorMessage"
+                class="text-xs text-error-600 flex items-center gap-1 p-2 bg-error-50 rounded border border-error-200 dark:bg-error-500/10 dark:border-error-500/30"
+              >
+                <UIcon name="i-heroicons-exclamation-triangle" class="w-3 h-3 flex-shrink-0" />
+                <span class="truncate">{{ fileUploadErrorMessage }}</span>
+              </p>
+
+              <p class="text-[11px] text-muted text-center">
+                PDF or image files · Maximum size 10MB each
+              </p>
+            </div>
+          </UFileUpload>
+        </UCard>
+
+        <!-- Uploaded Files List -->
+        <UCard variant="soft">
+          <div class="flex justify-between items-center mb-3">
+            <h4 class="text-base font-bold text-default flex items-center gap-2 border-b border-default/60 pb-2">
+              <UIcon name="i-heroicons-document-text-solid" class="w-5 h-5 text-primary-500" />
+              Uploaded Files
+            </h4>
+          </div>
+
+          <div
+            v-if="!form.attachments || form.attachments.length === 0"
+            class="flex flex-col items-center justify-center min-h-[200px] text-muted p-6"
+          >
+            <UIcon name="i-heroicons-document" class="w-12 h-12 mb-3 text-muted" />
+            <p class="text-sm font-medium mb-1">No files uploaded</p>
+            <p class="text-xs text-muted text-center">
+              Use the button above to attach invoice documents.
+            </p>
+          </div>
+
+          <div v-else class="max-h-[300px] overflow-y-auto">
+            <div class="space-y-2">
+              <div
+                v-for="(attachment, index) in form.attachments"
+                :key="attachment.uuid || attachment.tempId || `attachment-${index}`"
+                class="flex items-center gap-2 p-2 bg-elevated rounded-md border border-default text-xs hover:bg-accented transition-colors"
+              >
+                <UIcon
+                  :name="attachment.uuid || attachment.isUploaded ? 'i-heroicons-check-circle' : 'i-heroicons-arrow-up-tray'"
+                  class="w-3 h-3"
+                  :class="attachment.uuid || attachment.isUploaded ? 'text-success-600' : 'text-warning-500'"
+                />
+                <span class="truncate flex-1 text-default">
+                  {{ attachment.document_name || attachment.name || `File ${index + 1}` }}
+                </span>
+                <span class="text-[11px] text-muted">
+                  {{ formatFileSize(attachment.size || attachment.file_size) }}
+                </span>
+                <div class="flex items-center gap-1">
+                  <UButton
+                    icon="i-heroicons-eye-solid"
+                    color="neutral"
+                    variant="soft"
+                    size="xs"
+                    class="p-1 h-auto text-xs"
+                    @click.stop="previewFile(attachment)"
+                  />
+                  <UButton
+                    icon="mingcute:delete-fill"
+                    color="error"
+                    variant="soft"
+                    size="xs"
+                    class="p-1 h-auto text-xs"
+                    :disabled="props.readonly"
+                    @click.stop="removeFile(index)"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </UCard>
+      </div>
+
+      <!-- Financial Breakdown (Right) -->
+      <div class="w-full lg:flex-1 flex justify-start lg:justify-end">
+        <div class="w-full lg:w-auto lg:min-w-[520px]">
+          <FinancialBreakdown
+            :item-total="holdbackReleaseAmountTotal"
+            :form-data="form"
+            :read-only="props.readonly"
+            item-total-label="Release Amount Total"
+            total-label="Total Invoice Amount"
+            total-field-name="amount"
+            :show-total-amount="true"
+            total-amount-label="Total Amount"
+            :allow-edit-total="false"
+            @update="handleFinancialBreakdownUpdate"
+          />
+        </div>
+      </div>
+    </div>
+
     <!-- File Upload and Financial Breakdown Section (for Against CO) -->
     <div v-if="isAgainstCO && !hasAllItemsZeroToBeInvoiced" class="mt-6 flex flex-col lg:flex-row gap-6">
       <!-- File Upload Section (Left) -->
@@ -1042,6 +1193,7 @@ import DirectVendorInvoiceLineItemsTable from '@/components/Payables/DirectVendo
 import AdvancePaymentCostCodesTable from '@/components/Payables/AdvancePaymentCostCodesTable.vue';
 import AdvancePaymentBreakdownTable from '@/components/Payables/AdvancePaymentBreakdownTable.vue';
 import HoldbackInvoiceSelect from '@/components/Payables/HoldbackInvoiceSelect.vue';
+import HoldbackBreakdownTable from '@/components/Payables/HoldbackBreakdownTable.vue';
 import FinancialBreakdown from '@/components/PurchaseOrders/FinancialBreakdown.vue';
 import POItemsTableWithEstimates from '@/components/PurchaseOrders/POItemsTableWithEstimates.vue';
 import COItemsTableFromOriginal from '@/components/ChangeOrders/COItemsTableFromOriginal.vue';
@@ -1271,6 +1423,16 @@ const removedAdvancePaymentCostCodes = computed(() => {
     ? props.form.removed_advance_payment_cost_codes 
     : []
 });
+
+// Holdback cost codes (for Against Holdback Amount invoice type)
+const holdbackCostCodes = computed(() => {
+  return Array.isArray(props.form.holdback_cost_codes) 
+    ? props.form.holdback_cost_codes 
+    : []
+});
+
+// Total release amount from holdback breakdown table
+const holdbackReleaseAmountTotal = ref(0);
 
 // Computed property to determine if subsequent fields should be disabled
 const areSubsequentFieldsDisabled = computed(() => {
@@ -3162,6 +3324,9 @@ const handleHoldbackSelection = async (invoice: any) => {
   
   const updatedForm = { ...props.form };
   
+  // Store the holdback invoice UUID for the breakdown table
+  updatedForm.holdback_invoice_uuid = invoice.uuid;
+  
   // Determine if this is against PO or CO based on invoice type
   if (invoice.invoice_type === 'AGAINST_PO' && invoice.purchase_order_uuid) {
     const poUuid = invoice.purchase_order_uuid;
@@ -3201,18 +3366,8 @@ const handleHoldbackSelection = async (invoice: any) => {
     updatedForm.holdback = holdbackPercentage;
   }
   
-  // Calculate and set holdback amount from the invoice
-  const invoiceAmount = typeof invoice.amount === 'number' 
-    ? invoice.amount 
-    : (parseFloat(String(invoice.amount || '0')) || 0);
-  
-  const holdbackAmount = holdbackPercentage > 0 && invoiceAmount > 0
-    ? (invoiceAmount * holdbackPercentage) / 100
-    : 0;
-  
-  if (holdbackAmount > 0) {
-    updatedForm.amount = holdbackAmount;
-  }
+  // Don't set amount here - it will be calculated from release amounts in the breakdown table
+  // The financial breakdown will calculate the total based on release amounts
   
   emit('update:form', updatedForm);
 };
@@ -3227,6 +3382,18 @@ const handleRemovedCostCodesUpdate = (value: any[]) => {
   // Ensure we're passing an array
   const arrayValue = Array.isArray(value) ? value : []
   handleFormUpdate('removed_advance_payment_cost_codes', arrayValue);
+};
+
+// Handle holdback cost codes update
+const handleHoldbackCostCodesUpdate = (value: any[]) => {
+  handleFormUpdate('holdback_cost_codes', value);
+};
+
+// Handle holdback release amounts update
+const handleHoldbackReleaseAmountsUpdate = (totalReleaseAmount: number) => {
+  holdbackReleaseAmountTotal.value = totalReleaseAmount;
+  // Don't update amount here - FinancialBreakdown component will calculate it based on item_total + charges + taxes
+  // The FinancialBreakdown component watches itemTotal and will automatically update the amount
 };
 
 // Helper function to update financial_breakdown for advance payment invoices
@@ -3896,10 +4063,13 @@ watch(
       handleFormUpdate('po_number', '');
       handleFormUpdate('co_number', '');
       handleFormUpdate('holdback', null);
+      handleFormUpdate('holdback_invoice_uuid', null);
+      handleFormUpdate('holdback_cost_codes', []);
       poItems.value = [];
       coItems.value = [];
       poItemsError.value = null;
       coItemsError.value = null;
+      holdbackReleaseAmountTotal.value = 0;
     }
     
     // If switching to "Against Holdback Amount", open modal if project and vendor are selected
@@ -4486,13 +4656,14 @@ const coHoldbackAmount = computed(() => {
   return roundCurrencyValue((baseTotal * holdbackPercentage) / 100)
 })
 
-// Watch for financial_breakdown changes to sync amount for Against PO and Against CO invoices
+// Watch for financial_breakdown changes to sync amount for Against PO, Against CO, and Against Holdback Amount invoices
 // For Against PO and Against CO, the FinancialBreakdown calculates: item_total (from invoice values) + charges + taxes - advances - holdbacks
+// For Against Holdback Amount, the FinancialBreakdown calculates: item_total (from release amounts) + charges + taxes
 // The calculated NET total is stored in financial_breakdown.totals.amount (via totalFieldName="amount")
 watch(
   () => props.form.financial_breakdown,
   (newBreakdown) => {
-    if ((isAgainstPO.value || isAgainstCO.value)) {
+    if ((isAgainstPO.value || isAgainstCO.value || isAgainstHoldback.value)) {
       // Parse financial_breakdown if it's a string
       let financialBreakdown = newBreakdown
       if (typeof financialBreakdown === 'string') {
@@ -4507,6 +4678,8 @@ watch(
       if (financialBreakdown?.totals) {
         // For Against PO and Against CO, the FinancialBreakdown component sets totals.amount
         // (using totalFieldName="amount") which is the NET total after all deductions
+        // For Against Holdback Amount, the FinancialBreakdown component sets totals.amount
+        // which is the total after charges and taxes (release amounts + charges + taxes)
         // For backwards compatibility, also check total_invoice_amount (used in older saved invoices)
         const calculatedAmount = financialBreakdown.totals.amount ?? 
                            financialBreakdown.totals.total_invoice_amount
@@ -4516,8 +4689,9 @@ watch(
           const calculatedAmountNum = parseNumericInput(calculatedAmount)
           const currentAmount = parseNumericInput(props.form.amount || 0)
           
-          // Update amount to match the calculated NET total from FinancialBreakdown
-          // This ensures the amount field reflects: (invoice_item_total + charges + taxes - advances - holdbacks)
+          // Update amount to match the calculated total from FinancialBreakdown
+          // For Against PO/CO: (invoice_item_total + charges + taxes - advances - holdbacks)
+          // For Against Holdback Amount: (release_amount_total + charges + taxes)
           if (Math.abs(calculatedAmountNum - currentAmount) > 0.01) {
             handleFormUpdate('amount', calculatedAmountNum)
           }
