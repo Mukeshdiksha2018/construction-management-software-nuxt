@@ -278,14 +278,16 @@ const hasPreviouslyAdjustedCostCodes = computed(() => {
 })
 
 // Get previously adjusted amount for a specific advance payment and cost code
+// Sum all adjustments across all invoices for this advance payment and cost code
 const getPreviouslyAdjustedAmount = (advancePaymentUuid: string, costCodeUuid: string): number => {
   if (!props.previouslyAdjustedCostCodes || props.previouslyAdjustedCostCodes.length === 0) {
     return 0
   }
-  const match = props.previouslyAdjustedCostCodes.find(
+  // Filter all matching cost codes and sum their adjusted amounts
+  const matches = props.previouslyAdjustedCostCodes.filter(
     cc => cc.advance_payment_uuid === advancePaymentUuid && cc.cost_code_uuid === costCodeUuid
   )
-  return match ? (parseFloat(String(match.adjusted_amount)) || 0) : 0
+  return matches.reduce((sum, cc) => sum + (parseFloat(String(cc.adjusted_amount)) || 0), 0)
 }
 
 // Get remaining amount to be adjusted for a specific advance payment and cost code
