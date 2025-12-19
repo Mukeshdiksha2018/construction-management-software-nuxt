@@ -897,8 +897,8 @@ const loadInvoiceForModal = async (invoice: any, viewMode: boolean = false) => {
     }
 
     // Set po_co_uuid based on purchase_order_uuid or change_order_uuid for POCOSelect component
-    // This is needed when loading existing invoices with "Against Advance Payment" type
-    if (detailed.invoice_type === 'AGAINST_ADVANCE_PAYMENT') {
+    // This is needed when loading existing invoices with "Against Advance Payment" or "Against Holdback Amount" type
+    if (detailed.invoice_type === 'AGAINST_ADVANCE_PAYMENT' || detailed.invoice_type === 'AGAINST_HOLDBACK_AMOUNT') {
       if (detailed.purchase_order_uuid) {
         detailed.po_co_uuid = `PO:${detailed.purchase_order_uuid}`
       } else if (detailed.change_order_uuid) {
@@ -982,12 +982,20 @@ const loadInvoiceForModal = async (invoice: any, viewMode: boolean = false) => {
       // Explicitly set to null if not present
       invoiceForm.value = { ...invoiceForm.value, change_order_uuid: null }
     }
-    // Set po_co_uuid for advance payment invoices
+    // Set po_co_uuid for advance payment and holdback invoices
     if (detailed.po_co_uuid) {
       invoiceForm.value = { ...invoiceForm.value, po_co_uuid: detailed.po_co_uuid }
       await nextTick()
+    } else if (detailed.invoice_type === 'AGAINST_ADVANCE_PAYMENT' || detailed.invoice_type === 'AGAINST_HOLDBACK_AMOUNT') {
+      // For advance payment and holdback invoices, set po_co_uuid based on purchase_order_uuid or change_order_uuid
+      if (detailed.purchase_order_uuid) {
+        invoiceForm.value = { ...invoiceForm.value, po_co_uuid: `PO:${detailed.purchase_order_uuid}` }
+      } else if (detailed.change_order_uuid) {
+        invoiceForm.value = { ...invoiceForm.value, po_co_uuid: `CO:${detailed.change_order_uuid}` }
+      }
+      await nextTick()
     } else {
-      // Explicitly set to null if not present (for non-advance-payment invoices)
+      // Explicitly set to null if not present (for other invoice types)
       invoiceForm.value = { ...invoiceForm.value, po_co_uuid: null }
     }
 
@@ -1003,6 +1011,8 @@ const loadInvoiceForModal = async (invoice: any, viewMode: boolean = false) => {
       attachments: detailed.attachments || [],
       advance_payment_cost_codes: detailed.advance_payment_cost_codes || [],
       removed_advance_payment_cost_codes: detailed.removed_advance_payment_cost_codes || [],
+      holdback_invoice_uuid: detailed.holdback_invoice_uuid || null,
+      holdback_cost_codes: detailed.holdback_cost_codes || [],
       po_invoice_items: detailed.po_invoice_items || [],
       co_invoice_items: detailed.co_invoice_items || [],
       financial_breakdown: detailed.financial_breakdown,
@@ -1012,7 +1022,8 @@ const loadInvoiceForModal = async (invoice: any, viewMode: boolean = false) => {
       ...Object.keys(detailed).reduce((acc: any, key: string) => {
         // Only include fields that haven't been set yet
         if (!['corporation_uuid', 'project_uuid', 'invoice_type', 'vendor_uuid', 
-              'purchase_order_uuid', 'change_order_uuid', 'po_co_uuid', 'po_number', 'co_number'].includes(key)) {
+              'purchase_order_uuid', 'change_order_uuid', 'po_co_uuid', 'po_number', 'co_number',
+              'holdback_invoice_uuid', 'holdback_cost_codes'].includes(key)) {
           acc[key] = detailed[key]
         }
         return acc

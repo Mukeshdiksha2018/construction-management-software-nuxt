@@ -606,15 +606,35 @@ watch(
 // Watch for modelValue changes (when loading existing invoice)
 watch(
   () => props.modelValue,
-  (newValue) => {
-    // If we have saved data and no rows, process items to load them
-    if (Array.isArray(newValue) && newValue.length > 0 && costCodeRows.value.length === 0) {
-      // Only update if we don't have rows yet (initial load)
-      // processItems will handle merging saved data
-      processItems()
+  async (newValue) => {
+    // If we have saved data, ensure we process items to load them
+    // This handles the case where saved data arrives after the component has already processed items
+    if (Array.isArray(newValue) && newValue.length > 0) {
+      // If we have PO/CO and holdback invoice UUID, process items to merge saved data
+      if ((props.purchaseOrderUuid || props.changeOrderUuid) && props.holdbackInvoiceUuid) {
+        await processItems()
+      } else if (costCodeRows.value.length === 0) {
+        // If we don't have PO/CO yet but have saved data, load it directly
+        // This handles the case where saved data arrives before PO/CO is set
+        const savedRows = newValue.map((savedRow: any) => ({
+          id: savedRow.id || savedRow.uuid || `holdback-row-${Date.now()}-${Math.random().toString(36).substring(2)}`,
+          cost_code_uuid: savedRow.cost_code_uuid || null,
+          cost_code_label: savedRow.cost_code_label || null,
+          cost_code_number: savedRow.cost_code_number || null,
+          cost_code_name: savedRow.cost_code_name || null,
+          totalAmount: savedRow.totalAmount !== undefined ? savedRow.totalAmount : (savedRow.total_amount !== undefined ? savedRow.total_amount : 0),
+          retainageAmount: savedRow.retainageAmount !== undefined ? savedRow.retainageAmount : (savedRow.retainage_amount !== undefined ? savedRow.retainage_amount : 0),
+          releaseAmount: savedRow.releaseAmount !== undefined && savedRow.releaseAmount !== null
+            ? savedRow.releaseAmount
+            : (savedRow.release_amount !== undefined && savedRow.release_amount !== null ? savedRow.release_amount : 0),
+          gl_account_uuid: savedRow.gl_account_uuid || null
+        }))
+        costCodeRows.value = savedRows
+        emit('update:modelValue', costCodeRows.value)
+      }
     }
   },
-  { immediate: false, deep: true }
+  { immediate: true, deep: true }
 )
 
 // Initialize
