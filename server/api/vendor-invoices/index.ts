@@ -1623,6 +1623,23 @@ export default defineEventHandler(async (event) => {
         }
       }
 
+      // Fetch holdback cost codes if this is a holdback invoice
+      let holdbackCostCodes: any[] = [];
+      if (newInvoiceType === "AGAINST_HOLDBACK_AMOUNT") {
+        const { data: hccData, error: hccError } = await supabaseServer
+          .from("holdback_cost_codes")
+          .select("*")
+          .eq("vendor_invoice_uuid", data.uuid)
+          .eq("is_active", true)
+          .order("created_at", { ascending: true });
+
+        if (hccError) {
+          console.error("Error fetching holdback cost codes:", hccError);
+        } else {
+          holdbackCostCodes = hccData || [];
+        }
+      }
+
       const decorated = decorateVendorInvoiceRecord({ ...responseData });
       (decorated as any).line_items = lineItems;
       (decorated as any).advance_payment_cost_codes = advancePaymentCostCodes;
