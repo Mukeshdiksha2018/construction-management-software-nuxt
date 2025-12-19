@@ -271,7 +271,7 @@
                   variant="soft"
                   icon="i-heroicons-x-circle"
                   size="sm"
-                  :disabled="savingInvoice"
+                  :disabled="savingInvoice || hasInvoiceValidationError"
                   :loading="savingInvoice"
                   @click="handleRejectToDraft"
                 >
@@ -283,7 +283,7 @@
                   variant="solid"
                   icon="i-heroicons-arrow-up-circle"
                   size="sm"
-                  :disabled="savingInvoice"
+                  :disabled="savingInvoice || hasInvoiceValidationError"
                   :loading="savingInvoice"
                   @click="handleApprove"
                 >
