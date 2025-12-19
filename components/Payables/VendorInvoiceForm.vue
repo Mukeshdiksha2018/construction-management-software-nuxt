@@ -331,7 +331,7 @@
 
     <!-- Advance Payment Cost Codes Table (only for Against Advance Payment) -->
     <AdvancePaymentCostCodesTable
-      v-if="isAgainstAdvancePayment"
+      v-if="isAgainstAdvancePayment && !hasAllItemsZeroToBeInvoiced"
       :po-co-uuid="form.po_co_uuid"
       :po-co-type="poCoType"
       :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
@@ -342,8 +342,18 @@
       @update:removed-cost-codes="handleRemovedCostCodesUpdate"
     />
 
+    <!-- Validation Error Message for Zero To Be Invoiced (shown before tables) -->
+    <UAlert
+      v-if="overInvoicedValidationError && hasAllItemsZeroToBeInvoiced"
+      color="error"
+      variant="soft"
+      class="mt-6"
+      title="Cannot Create Invoice"
+      :description="overInvoicedValidationError"
+    />
+
     <!-- PO Items Table (only for Against PO) -->
-    <div v-if="isAgainstPO" class="mt-6">
+    <div v-if="isAgainstPO && !hasAllItemsZeroToBeInvoiced" class="mt-6">
       <POItemsTableWithEstimates
         :key="`po-items-${form.purchase_order_uuid || 'none'}-${poItemsKey}-${poItems.length}`"
         title="Purchase Order Items"
@@ -379,20 +389,10 @@
         @adjusted-amount-change="handleAdjustedAmountChange"
         @adjusted-amounts-update="handleAdjustedAmountsUpdate"
       />
-      
-      <!-- Validation Error Message for Zero To Be Invoiced -->
-      <UAlert
-        v-if="overInvoicedValidationError && hasAllItemsZeroToBeInvoiced"
-        color="error"
-        variant="soft"
-        class="mt-4"
-        title="Cannot Create Invoice"
-        :description="overInvoicedValidationError"
-      />
     </div>
 
     <!-- CO Items Table (only for Against CO) -->
-    <div v-if="isAgainstCO" class="mt-6">
+    <div v-if="isAgainstCO && !hasAllItemsZeroToBeInvoiced" class="mt-6">
       <COItemsTableFromOriginal
         :key="`co-items-${form.change_order_uuid || 'none'}-${coItemsKey}-${coItems.length}`"
         title="Change Order Items"
@@ -406,16 +406,6 @@
         @invoice-unit-price-change="handleCOInvoiceUnitPriceChange"
         @invoice-quantity-change="handleCOInvoiceQuantityChange"
         @invoice-total-change="handleCOInvoiceTotalChange"
-      />
-      
-      <!-- Validation Error Message for Zero To Be Invoiced -->
-      <UAlert
-        v-if="overInvoicedValidationError && hasAllItemsZeroToBeInvoiced"
-        color="error"
-        variant="soft"
-        class="mt-4"
-        title="Cannot Create Invoice"
-        :description="overInvoicedValidationError"
       />
 
       <!-- Advance Payment Breakdown Table -->
@@ -433,7 +423,7 @@
     </div>
 
     <!-- Line Items Table (only for Direct Invoice) -->
-    <div v-if="isDirectInvoice" class="mt-6">
+    <div v-if="isDirectInvoice && !hasAllItemsZeroToBeInvoiced" class="mt-6">
       <DirectVendorInvoiceLineItemsTable
         :items="lineItems"
         :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
@@ -450,7 +440,7 @@
     </div>
 
     <!-- File Upload and Financial Breakdown Section (for Advance Payment Invoice) -->
-    <div v-if="isAgainstAdvancePayment" class="mt-6 flex flex-col lg:flex-row gap-6">
+    <div v-if="isAgainstAdvancePayment && !hasAllItemsZeroToBeInvoiced" class="mt-6 flex flex-col lg:flex-row gap-6">
       <!-- File Upload Section (Left) -->
       <div class="w-full lg:w-auto lg:flex-shrink-0 lg:max-w-md">
         <!-- Upload Section -->
@@ -725,7 +715,7 @@
     </div>
 
     <!-- File Upload and Financial Breakdown Section (for Against PO) -->
-    <div v-if="isAgainstPO" class="mt-6 flex flex-col lg:flex-row gap-6">
+    <div v-if="isAgainstPO && !hasAllItemsZeroToBeInvoiced" class="mt-6 flex flex-col lg:flex-row gap-6">
       <!-- File Upload Section (Left) -->
       <div class="w-full lg:w-auto lg:flex-shrink-0 lg:max-w-md">
         <!-- Upload Section -->
@@ -865,7 +855,7 @@
     </div>
 
     <!-- File Upload and Financial Breakdown Section (for Against CO) -->
-    <div v-if="isAgainstCO" class="mt-6 flex flex-col lg:flex-row gap-6">
+    <div v-if="isAgainstCO && !hasAllItemsZeroToBeInvoiced" class="mt-6 flex flex-col lg:flex-row gap-6">
       <!-- File Upload Section (Left) -->
       <div class="w-full lg:w-auto lg:flex-shrink-0 lg:max-w-md">
         <!-- Upload Section -->
