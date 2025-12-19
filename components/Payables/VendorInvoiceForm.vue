@@ -379,6 +379,16 @@
         @adjusted-amount-change="handleAdjustedAmountChange"
         @adjusted-amounts-update="handleAdjustedAmountsUpdate"
       />
+      
+      <!-- Validation Error Message for Zero To Be Invoiced -->
+      <UAlert
+        v-if="overInvoicedValidationError && hasAllItemsZeroToBeInvoiced"
+        color="error"
+        variant="soft"
+        class="mt-4"
+        title="Cannot Create Invoice"
+        :description="overInvoicedValidationError"
+      />
     </div>
 
     <!-- CO Items Table (only for Against CO) -->
@@ -396,6 +406,16 @@
         @invoice-unit-price-change="handleCOInvoiceUnitPriceChange"
         @invoice-quantity-change="handleCOInvoiceQuantityChange"
         @invoice-total-change="handleCOInvoiceTotalChange"
+      />
+      
+      <!-- Validation Error Message for Zero To Be Invoiced -->
+      <UAlert
+        v-if="overInvoicedValidationError && hasAllItemsZeroToBeInvoiced"
+        color="error"
+        variant="soft"
+        class="mt-4"
+        title="Cannot Create Invoice"
+        :description="overInvoicedValidationError"
       />
 
       <!-- Advance Payment Breakdown Table -->
@@ -5075,6 +5095,34 @@ const overInvoicedItems = computed(() => {
 
 const hasOverInvoicedItems = computed(() => overInvoicedItems.value.length > 0);
 
+// Check if all items have to_be_invoiced === 0 (no items available to invoice)
+const hasAllItemsZeroToBeInvoiced = computed(() => {
+  // Only check for new invoices (not editing existing ones)
+  if (props.form.uuid) return false;
+  
+  // Check PO items
+  if (isAgainstPO.value && Array.isArray(poItems.value) && poItems.value.length > 0) {
+    // Must have at least one item, and all items must have to_be_invoiced <= 0
+    const allZero = poItems.value.every((item: any) => {
+      const toBeInvoiced = parseNumericValue(item.to_be_invoiced ?? 0);
+      return toBeInvoiced <= 0;
+    });
+    return allZero;
+  }
+  
+  // Check CO items
+  if (isAgainstCO.value && Array.isArray(coItems.value) && coItems.value.length > 0) {
+    // Must have at least one item, and all items must have to_be_invoiced <= 0
+    const allZero = coItems.value.every((item: any) => {
+      const toBeInvoiced = parseNumericValue(item.to_be_invoiced ?? 0);
+      return toBeInvoiced <= 0;
+    });
+    return allZero;
+  }
+  
+  return false;
+});
+
 // Check for over-adjusted advance payment amounts
 const hasAdvancePaymentValidationError = computed(() => {
   if (isAgainstPO.value && poAdvancePaymentBreakdownRef.value) {
@@ -5087,7 +5135,12 @@ const hasAdvancePaymentValidationError = computed(() => {
 });
 
 const overInvoicedValidationError = computed(() => {
-  if (!hasOverInvoicedItems.value && !hasAdvancePaymentValidationError.value) return null;
+  if (!hasOverInvoicedItems.value && !hasAdvancePaymentValidationError.value && !hasAllItemsZeroToBeInvoiced.value) return null;
+  
+  // If all items have zero to_be_invoiced, show specific error
+  if (hasAllItemsZeroToBeInvoiced.value) {
+    return "Cannot create invoice: All items have zero quantity available to be invoiced. All quantities have already been invoiced.";
+  }
   
   const itemCount = overInvoicedItems.value.length;
   const itemsList = overInvoicedItems.value
@@ -5102,7 +5155,7 @@ const overInvoicedValidationError = computed(() => {
   return `${itemCount} item(s) have invoice quantity greater than to be invoiced quantity. ${itemsList}`;
 });
 
-const hasValidationError = computed(() => hasOverInvoicedItems.value || hasAdvancePaymentValidationError.value);
+const hasValidationError = computed(() => hasOverInvoicedItems.value || hasAdvancePaymentValidationError.value || hasAllItemsZeroToBeInvoiced.value);
 
 // Expose validation errors to parent component
 defineExpose({
@@ -5110,6 +5163,7 @@ defineExpose({
   hasOverInvoicedItems,
   overInvoicedValidationError,
   hasAdvancePaymentValidationError,
+  hasAllItemsZeroToBeInvoiced,
   hasValidationError,
 });
 
