@@ -5573,6 +5573,7 @@ describe('EstimateLineItemsTable', () => {
               unit: "EA",
               description: "Test description",
               status: "active",
+              project_uuid: "project-1",
             },
             {
               id: 2,
@@ -5584,6 +5585,7 @@ describe('EstimateLineItemsTable', () => {
               unit: "EA",
               description: "Test description 2",
               status: "active",
+              project_uuid: "project-1",
             },
           ],
         },
@@ -5638,14 +5640,16 @@ describe('EstimateLineItemsTable', () => {
               item_name: "Test Item 1",
               item_sequence: "FA-301",
               unit_price: 100,
-              unit_uuid: "uom-1"
+              unit_uuid: "uom-1",
+              project_uuid: "project-1"
             },
             {
               uuid: "item-2",
               item_name: "Test Item 2",
               item_sequence: "FA-302",
               unit_price: 200,
-              unit_uuid: "uom-1"
+              unit_uuid: "uom-1",
+              project_uuid: "project-1"
             }
           ]
         }
@@ -5675,11 +5679,13 @@ describe('EstimateLineItemsTable', () => {
           preferred_items: [
             {
               uuid: "item-1",
-              item_sequence: "FA-301"
+              item_sequence: "FA-301",
+              project_uuid: "project-1"
             },
             {
               uuid: "item-2",
-              item_sequence: "FA-302"
+              item_sequence: "FA-302",
+              project_uuid: "project-1"
             }
           ]
         }
@@ -5789,11 +5795,13 @@ describe('EstimateLineItemsTable', () => {
           preferred_items: [
             {
               uuid: "item-1",
-              item_sequence: "FA-301"
+              item_sequence: "FA-301",
+              project_uuid: "project-1"
             },
             {
               uuid: "item-2",
-              item_sequence: "FA-302"
+              item_sequence: "FA-302",
+              project_uuid: "project-1"
             }
           ]
         }
@@ -5878,6 +5886,7 @@ describe('EstimateLineItemsTable', () => {
               item_sequence: null, // No sequence
               unit_price: 100,
               unit: "EA",
+              project_uuid: "project-1",
             },
           ],
         },
@@ -5952,11 +5961,13 @@ describe('EstimateLineItemsTable', () => {
           preferred_items: [
             {
               uuid: "item-1",
-              item_sequence: "FA-301"
+              item_sequence: "FA-301",
+              project_uuid: "project-1"
             },
             {
               uuid: "item-2",
-              item_sequence: "FA-302"
+              item_sequence: "FA-302",
+              project_uuid: "project-1"
             }
           ]
         }
@@ -6023,6 +6034,7 @@ describe('EstimateLineItemsTable', () => {
               unit: "EA",
               description: "Test description",
               status: "active",
+              project_uuid: "project-1",
             },
           ],
         },
@@ -6047,6 +6059,7 @@ describe('EstimateLineItemsTable', () => {
               unit: "EA",
               description: "Test description 2",
               status: "active",
+              project_uuid: "project-1",
             },
           ],
         },
@@ -6544,7 +6557,7 @@ describe('EstimateLineItemsTable', () => {
           {
             uuid: 'config-1',
             preferred_items: [
-              { uuid: 'item-1', item_name: 'Test Item', item_sequence: 'SEQ-001' }
+              { uuid: 'item-1', item_name: 'Test Item', item_sequence: 'SEQ-001', project_uuid: 'project-1' }
             ]
           }
         ]
@@ -6668,7 +6681,8 @@ describe('EstimateLineItemsTable', () => {
           preferred_items: [
             {
               uuid: 'item-1',
-              item_sequence: 'NEW-SEQ' // New sequence
+              item_sequence: 'NEW-SEQ', // New sequence
+              project_uuid: 'project-1'
             }
           ]
         }
