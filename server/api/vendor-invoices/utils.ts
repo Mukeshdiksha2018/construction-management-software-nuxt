@@ -238,3 +238,17 @@ export const sanitizeAdvancePaymentCostCode = (item: any = {}) => {
   };
 };
 
+export const sanitizeHoldbackCostCode = (item: any = {}) => {
+  return {
+    cost_code_uuid: item.cost_code_uuid || null,
+    cost_code_label: item.cost_code_label || null,
+    cost_code_number: item.cost_code_number || null,
+    cost_code_name: item.cost_code_name || null,
+    gl_account_uuid: item.gl_account_uuid || null,
+    total_amount: toNumberOrNull(item.totalAmount || item.total_amount) || 0,
+    retainage_amount: toNumberOrNull(item.retainageAmount || item.retainage_amount) || 0,
+    release_amount: toNumberOrNull(item.releaseAmount || item.release_amount) || 0,
+    metadata: item.metadata || {},
+  };
+};
+

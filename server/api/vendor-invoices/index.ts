@@ -1,5 +1,5 @@
 import { supabaseServer } from "@/utils/supabaseServer";
-import { sanitizeAttachments, buildFinancialBreakdown, decorateVendorInvoiceRecord, sanitizeAdvancePaymentCostCode } from "./utils";
+import { sanitizeAttachments, buildFinancialBreakdown, decorateVendorInvoiceRecord, sanitizeAdvancePaymentCostCode, sanitizeHoldbackCostCode } from "./utils";
 import { sanitizeDirectVendorInvoiceLineItem } from "../direct-vendor-invoice-line-items/utils";
 import { sanitizePurchaseOrderInvoiceItem } from "../purchase-order-invoice-items/utils";
 import { sanitizeChangeOrderInvoiceItem } from "../change-order-invoice-items/utils";
@@ -209,6 +209,74 @@ const persistAdvancePaymentCostCodes = async (options: {
 
   const { error: insertError } = await supabaseServer
     .from("advance_payment_cost_codes")
+    .insert(prepared);
+
+  if (insertError) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: insertError.message,
+    });
+  }
+};
+
+const persistHoldbackCostCodes = async (options: {
+  vendorInvoiceUuid: string;
+  corporationUuid: string | null;
+  projectUuid: string | null;
+  vendorUuid: string | null;
+  purchaseOrderUuid: string | null;
+  changeOrderUuid: string | null;
+  holdbackInvoiceUuid: string | null;
+  items: any[];
+}) => {
+  const {
+    vendorInvoiceUuid,
+    corporationUuid,
+    projectUuid,
+    vendorUuid,
+    purchaseOrderUuid,
+    changeOrderUuid,
+    holdbackInvoiceUuid,
+    items = [],
+  } = options;
+
+  if (!vendorInvoiceUuid) return;
+
+  const { error: deleteError } = await supabaseServer
+    .from("holdback_cost_codes")
+    .delete()
+    .eq("vendor_invoice_uuid", vendorInvoiceUuid);
+
+  if (deleteError) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: deleteError.message,
+    });
+  }
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return;
+  }
+
+  const prepared = items
+    .filter((item) => item.cost_code_uuid) // Only include items with cost code
+    .map((item) => ({
+      ...sanitizeHoldbackCostCode(item),
+      corporation_uuid: corporationUuid,
+      project_uuid: projectUuid,
+      vendor_uuid: vendorUuid,
+      purchase_order_uuid: purchaseOrderUuid,
+      change_order_uuid: changeOrderUuid,
+      holdback_invoice_uuid: holdbackInvoiceUuid,
+      vendor_invoice_uuid: vendorInvoiceUuid,
+    }));
+
+  if (prepared.length === 0) {
+    return;
+  }
+
+  const { error: insertError } = await supabaseServer
+    .from("holdback_cost_codes")
     .insert(prepared);
 
   if (insertError) {
@@ -767,6 +835,20 @@ export default defineEventHandler(async (event) => {
         });
       }
 
+      // Handle holdback cost codes for holdback invoices
+      if (normalizedInvoiceType === "AGAINST_HOLDBACK_AMOUNT" && Array.isArray(body.holdback_cost_codes)) {
+        await persistHoldbackCostCodes({
+          vendorInvoiceUuid: data.uuid,
+          corporationUuid: data.corporation_uuid ?? null,
+          projectUuid: data.project_uuid ?? null,
+          vendorUuid: data.vendor_uuid ?? null,
+          purchaseOrderUuid: data.purchase_order_uuid ?? null,
+          changeOrderUuid: data.change_order_uuid ?? null,
+          holdbackInvoiceUuid: data.holdback_invoice_uuid ?? null,
+          items: body.holdback_cost_codes,
+        });
+      }
+
       // Save PO invoice items if this is an AGAINST_PO invoice
       if (normalizedInvoiceType === "AGAINST_PO") {
         if (Array.isArray(body.po_invoice_items)) {
@@ -943,6 +1025,23 @@ export default defineEventHandler(async (event) => {
         }
       }
 
+      // Fetch holdback cost codes if this is a holdback invoice
+      let holdbackCostCodes: any[] = [];
+      if (normalizedInvoiceType === "AGAINST_HOLDBACK_AMOUNT") {
+        const { data: hccData, error: hccError } = await supabaseServer
+          .from("holdback_cost_codes")
+          .select("*")
+          .eq("vendor_invoice_uuid", data.uuid)
+          .eq("is_active", true)
+          .order("created_at", { ascending: true });
+
+        if (hccError) {
+          console.error("Error fetching holdback cost codes:", hccError);
+        } else {
+          holdbackCostCodes = hccData || [];
+        }
+      }
+
       // Fetch PO invoice items if this is an AGAINST_PO invoice
       let poInvoiceItems: any[] = [];
       if (normalizedInvoiceType === "AGAINST_PO") {
@@ -980,6 +1079,7 @@ export default defineEventHandler(async (event) => {
       const decorated = decorateVendorInvoiceRecord({ ...responseData });
       (decorated as any).line_items = lineItems;
       (decorated as any).advance_payment_cost_codes = advancePaymentCostCodes;
+      (decorated as any).holdback_cost_codes = holdbackCostCodes;
       (decorated as any).po_invoice_items = poInvoiceItems;
       (decorated as any).co_invoice_items = coInvoiceItems;
       // Include removed_advance_payment_cost_codes if it exists
@@ -1244,6 +1344,35 @@ export default defineEventHandler(async (event) => {
           .eq("vendor_invoice_uuid", data.uuid);
       }
 
+      // Handle holdback cost codes for holdback invoices
+      if (newInvoiceType === "AGAINST_HOLDBACK_AMOUNT") {
+        if (updated.holdback_cost_codes !== undefined) {
+          // Save holdback cost codes if provided
+          await persistHoldbackCostCodes({
+            vendorInvoiceUuid: data.uuid,
+            corporationUuid: data.corporation_uuid ?? null,
+            projectUuid: data.project_uuid ?? null,
+            vendorUuid: data.vendor_uuid ?? null,
+            purchaseOrderUuid: data.purchase_order_uuid ?? null,
+            changeOrderUuid: data.change_order_uuid ?? null,
+            holdbackInvoiceUuid: data.holdback_invoice_uuid ?? null,
+            items: Array.isArray(updated.holdback_cost_codes) ? updated.holdback_cost_codes : [],
+          });
+        } else if (currentInvoiceType !== "AGAINST_HOLDBACK_AMOUNT") {
+          // If switching from non-holdback to holdback, clear any existing holdback cost codes
+          await supabaseServer
+            .from("holdback_cost_codes")
+            .delete()
+            .eq("vendor_invoice_uuid", data.uuid);
+        }
+      } else if (currentInvoiceType === "AGAINST_HOLDBACK_AMOUNT" && newInvoiceType !== "AGAINST_HOLDBACK_AMOUNT") {
+        // If switching from holdback to non-holdback, delete holdback cost codes
+        await supabaseServer
+          .from("holdback_cost_codes")
+          .delete()
+          .eq("vendor_invoice_uuid", data.uuid);
+      }
+
       // Handle PO invoice items for AGAINST_PO invoices
       if (newInvoiceType === "AGAINST_PO") {
         if (updated.po_invoice_items !== undefined) {
@@ -1497,6 +1626,7 @@ export default defineEventHandler(async (event) => {
       const decorated = decorateVendorInvoiceRecord({ ...responseData });
       (decorated as any).line_items = lineItems;
       (decorated as any).advance_payment_cost_codes = advancePaymentCostCodes;
+      (decorated as any).holdback_cost_codes = holdbackCostCodes;
       (decorated as any).po_invoice_items = poInvoiceItems;
       (decorated as any).co_invoice_items = coInvoiceItems;
       // Include removed_advance_payment_cost_codes if it exists
