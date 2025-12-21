@@ -9749,5 +9749,665 @@ describe("VendorInvoiceForm.vue", () => {
       expect(firstItem.to_be_invoiced).toBe(70);
     });
   });
+
+  describe("Holdback Invoice PO/CO Number Fetching", () => {
+    const mockHoldbackInvoicePO = {
+      uuid: "holdback-invoice-1",
+      invoice_type: "AGAINST_PO",
+      purchase_order_uuid: "po-uuid-1",
+      po_number: "PO-12345",
+      co_number: null,
+      change_order_uuid: null,
+      corporation_uuid: "corp-1",
+      project_uuid: "project-1",
+      vendor_uuid: "vendor-1",
+      amount: 10000,
+      holdback: 10,
+    };
+
+    const mockHoldbackInvoiceCO = {
+      uuid: "holdback-invoice-2",
+      invoice_type: "AGAINST_CO",
+      change_order_uuid: "co-uuid-1",
+      co_number: "CO-67890",
+      po_number: null,
+      purchase_order_uuid: null,
+      corporation_uuid: "corp-1",
+      project_uuid: "project-1",
+      vendor_uuid: "vendor-1",
+      amount: 5000,
+      holdback: 5,
+    };
+
+    const mockPOData = {
+      data: {
+        uuid: "po-uuid-1",
+        po_number: "PO-12345",
+        corporation_uuid: "corp-1",
+        project_uuid: "project-1",
+        vendor_uuid: "vendor-1",
+      },
+    };
+
+    const mockCOData = {
+      data: {
+        uuid: "co-uuid-1",
+        co_number: "CO-67890",
+        corporation_uuid: "corp-1",
+        project_uuid: "project-1",
+        vendor_uuid: "vendor-1",
+      },
+    };
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      (global.$fetch as any) = vi.fn();
+    });
+
+    it("fetches PO number when holdback_invoice_uuid is set and invoice is AGAINST_PO", async () => {
+      // Mock holdback invoice without po_number to force API fetch
+      const holdbackInvoiceWithoutPONumber = {
+        ...mockHoldbackInvoicePO,
+        po_number: null, // No po_number, so it will fetch from PO API
+      };
+
+      (global.$fetch as any).mockImplementation((url: string): any => {
+        if (url.includes("vendor-invoices/holdback-invoice-1") && !url.includes("?")) {
+          return Promise.resolve({ data: holdbackInvoiceWithoutPONumber });
+        }
+        if (url.includes("purchase-order-forms/po-uuid-1") && !url.includes("?") && !url.includes("po-items")) {
+          return Promise.resolve(mockPOData);
+        }
+        // Allow store fetches and PO items fetches
+        if (url.includes("purchase-order-forms?") || url.includes("change-orders?") || url.includes("vendor-invoices?") || url.includes("po-items")) {
+          return Promise.resolve({ data: [] });
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const form = {
+        ...baseForm,
+        uuid: "invoice-1",
+        invoice_type: "AGAINST_HOLDBACK_AMOUNT",
+        holdback_invoice_uuid: "holdback-invoice-1",
+        po_number: "",
+        co_number: "",
+        po_co_uuid: null,
+        purchase_order_uuid: null,
+        change_order_uuid: null,
+      };
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: true,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Check that holdback invoice was fetched
+      const holdbackInvoiceCalls = (global.$fetch as any).mock.calls.filter((call: any[]) =>
+        call[0]?.includes("vendor-invoices/holdback-invoice-1") && !call[0]?.includes("?")
+      );
+      expect(holdbackInvoiceCalls.length).toBeGreaterThan(0);
+
+      // Check that PO was fetched (excluding PO items fetches)
+      const poCalls = (global.$fetch as any).mock.calls.filter((call: any[]) =>
+        call[0]?.includes("purchase-order-forms/po-uuid-1") && !call[0]?.includes("?") && !call[0]?.includes("po-items")
+      );
+      expect(poCalls.length).toBeGreaterThan(0);
+
+      const updateFormCalls = wrapper.emitted("update:form");
+      expect(updateFormCalls).toBeDefined();
+      if (updateFormCalls && updateFormCalls.length > 0) {
+        const lastUpdate = updateFormCalls[updateFormCalls.length - 1][0];
+        expect(lastUpdate.po_number).toBe("PO-12345");
+        expect(lastUpdate.purchase_order_uuid).toBe("po-uuid-1");
+        expect(lastUpdate.po_co_uuid).toBe("PO:po-uuid-1");
+      }
+    });
+
+    it("fetches CO number when holdback_invoice_uuid is set and invoice is AGAINST_CO", async () => {
+      // Mock holdback invoice without co_number to force API fetch
+      const holdbackInvoiceWithoutCONumber = {
+        ...mockHoldbackInvoiceCO,
+        co_number: null, // No co_number, so it will fetch from CO API
+      };
+
+      (global.$fetch as any).mockImplementation((url: string): any => {
+        if (url.includes("vendor-invoices/holdback-invoice-2") && !url.includes("?")) {
+          return Promise.resolve({ data: holdbackInvoiceWithoutCONumber });
+        }
+        if (url.includes("change-orders/co-uuid-1") && !url.includes("?")) {
+          return Promise.resolve(mockCOData);
+        }
+        // Allow store fetches
+        if (url.includes("purchase-order-forms?") || url.includes("change-orders?") || url.includes("vendor-invoices?")) {
+          return Promise.resolve({ data: [] });
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const form = {
+        ...baseForm,
+        uuid: "invoice-2",
+        invoice_type: "AGAINST_HOLDBACK_AMOUNT",
+        holdback_invoice_uuid: "holdback-invoice-2",
+        po_number: "",
+        co_number: "",
+        po_co_uuid: null,
+        purchase_order_uuid: null,
+        change_order_uuid: null,
+      };
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: true,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Check that holdback invoice was fetched
+      const holdbackInvoiceCalls = (global.$fetch as any).mock.calls.filter((call: any[]) =>
+        call[0]?.includes("vendor-invoices/holdback-invoice-2") && !call[0]?.includes("?")
+      );
+      expect(holdbackInvoiceCalls.length).toBeGreaterThan(0);
+
+      // Check that CO was fetched
+      const coCalls = (global.$fetch as any).mock.calls.filter((call: any[]) =>
+        call[0]?.includes("change-orders/co-uuid-1") && !call[0]?.includes("?")
+      );
+      expect(coCalls.length).toBeGreaterThan(0);
+
+      const updateFormCalls = wrapper.emitted("update:form");
+      expect(updateFormCalls).toBeDefined();
+      if (updateFormCalls && updateFormCalls.length > 0) {
+        const lastUpdate = updateFormCalls[updateFormCalls.length - 1][0];
+        expect(lastUpdate.co_number).toBe("CO-67890");
+        expect(lastUpdate.change_order_uuid).toBe("co-uuid-1");
+        expect(lastUpdate.po_co_uuid).toBe("CO:co-uuid-1");
+      }
+    });
+
+    it("fetches PO number from po_co_uuid when po_co_uuid is set but po_number is missing", async () => {
+      (global.$fetch as any).mockImplementation((url: string): any => {
+        if (url.includes("purchase-order-forms/po-uuid-1") && !url.includes("?")) {
+          return Promise.resolve(mockPOData);
+        }
+        // Allow store fetches
+        if (url.includes("purchase-order-forms?") || url.includes("change-orders?") || url.includes("vendor-invoices?")) {
+          return Promise.resolve({ data: [] });
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const form = {
+        ...baseForm,
+        uuid: "invoice-3",
+        invoice_type: "AGAINST_HOLDBACK_AMOUNT",
+        holdback_invoice_uuid: null,
+        po_number: "",
+        co_number: "",
+        po_co_uuid: "PO:po-uuid-1",
+        purchase_order_uuid: "po-uuid-1",
+        change_order_uuid: null,
+      };
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: true,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Check that PO was fetched (excluding store fetches)
+      const poCalls = (global.$fetch as any).mock.calls.filter((call: any[]) =>
+        call[0]?.includes("purchase-order-forms/po-uuid-1") && !call[0]?.includes("?")
+      );
+      expect(poCalls.length).toBeGreaterThan(0);
+
+      const updateFormCalls = wrapper.emitted("update:form");
+      expect(updateFormCalls).toBeDefined();
+      if (updateFormCalls && updateFormCalls.length > 0) {
+        const lastUpdate = updateFormCalls[updateFormCalls.length - 1][0];
+        expect(lastUpdate.po_number).toBe("PO-12345");
+      }
+    });
+
+    it("fetches CO number from po_co_uuid when po_co_uuid is set but co_number is missing", async () => {
+      (global.$fetch as any).mockImplementation((url: string): any => {
+        if (url.includes("change-orders/co-uuid-1") && !url.includes("?")) {
+          return Promise.resolve(mockCOData);
+        }
+        // Allow store fetches
+        if (url.includes("purchase-order-forms?") || url.includes("change-orders?") || url.includes("vendor-invoices?")) {
+          return Promise.resolve({ data: [] });
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const form = {
+        ...baseForm,
+        uuid: "invoice-4",
+        invoice_type: "AGAINST_HOLDBACK_AMOUNT",
+        holdback_invoice_uuid: null,
+        po_number: "",
+        co_number: "",
+        po_co_uuid: "CO:co-uuid-1",
+        purchase_order_uuid: null,
+        change_order_uuid: "co-uuid-1",
+      };
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: true,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Check that CO was fetched (excluding store fetches)
+      const coCalls = (global.$fetch as any).mock.calls.filter((call: any[]) =>
+        call[0]?.includes("change-orders/co-uuid-1") && !call[0]?.includes("?")
+      );
+      expect(coCalls.length).toBeGreaterThan(0);
+
+      const updateFormCalls = wrapper.emitted("update:form");
+      expect(updateFormCalls).toBeDefined();
+      if (updateFormCalls && updateFormCalls.length > 0) {
+        const lastUpdate = updateFormCalls[updateFormCalls.length - 1][0];
+        expect(lastUpdate.co_number).toBe("CO-67890");
+      }
+    });
+
+    it("does not fetch when po_number is already set", async () => {
+      (global.$fetch as any).mockImplementation((url: string): any => {
+        // Allow store fetches
+        if (url.includes("purchase-order-forms?") || url.includes("change-orders?") || url.includes("vendor-invoices?")) {
+          return Promise.resolve({ data: [] });
+        }
+        // Should not fetch individual PO when po_number is already set
+        if (url.includes("purchase-order-forms/po-uuid-1") && !url.includes("?")) {
+          return Promise.reject(new Error("Should not fetch when po_number is already set"));
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const form = {
+        ...baseForm,
+        uuid: "invoice-5",
+        invoice_type: "AGAINST_HOLDBACK_AMOUNT",
+        holdback_invoice_uuid: null,
+        po_number: "PO-EXISTING",
+        co_number: "",
+        po_co_uuid: "PO:po-uuid-1",
+        purchase_order_uuid: "po-uuid-1",
+        change_order_uuid: null,
+      };
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: true,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Should not call $fetch for individual purchase-order-forms (excluding store fetches)
+      const fetchCalls = (global.$fetch as any).mock.calls;
+      const poFetchCalls = fetchCalls.filter((call: any[]) =>
+        call[0]?.includes("purchase-order-forms/po-uuid-1") && !call[0]?.includes("?")
+      );
+      expect(poFetchCalls.length).toBe(0);
+    });
+
+    it("does not fetch when co_number is already set", async () => {
+      (global.$fetch as any).mockImplementation((url: string): any => {
+        // Allow store fetches
+        if (url.includes("purchase-order-forms?") || url.includes("change-orders?") || url.includes("vendor-invoices?")) {
+          return Promise.resolve({ data: [] });
+        }
+        // Should not fetch individual CO when co_number is already set
+        if (url.includes("change-orders/co-uuid-1") && !url.includes("?")) {
+          return Promise.reject(new Error("Should not fetch when co_number is already set"));
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const form = {
+        ...baseForm,
+        uuid: "invoice-6",
+        invoice_type: "AGAINST_HOLDBACK_AMOUNT",
+        holdback_invoice_uuid: null,
+        po_number: "",
+        co_number: "CO-EXISTING",
+        po_co_uuid: "CO:co-uuid-1",
+        purchase_order_uuid: null,
+        change_order_uuid: "co-uuid-1",
+      };
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: true,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Should not call $fetch for individual change-orders (excluding store fetches)
+      const fetchCalls = (global.$fetch as any).mock.calls;
+      const coFetchCalls = fetchCalls.filter((call: any[]) =>
+        call[0]?.includes("change-orders/co-uuid-1") && !call[0]?.includes("?")
+      );
+      expect(coFetchCalls.length).toBe(0);
+    });
+
+    it("does not fetch when invoice type is not AGAINST_HOLDBACK_AMOUNT", async () => {
+      // Track calls to verify holdback invoice fetching doesn't happen
+      let holdbackInvoiceFetchCalled = false;
+
+      (global.$fetch as any).mockImplementation((url: string): any => {
+        // Allow store fetches and PO items fetches (these are expected for AGAINST_PO invoices)
+        if (url.includes("purchase-order-forms?") || url.includes("change-orders?") || url.includes("vendor-invoices?") || url.includes("po-items")) {
+          return Promise.resolve({ data: [] });
+        }
+        // Track if holdback invoice is being fetched (should not happen for AGAINST_PO)
+        if (url.includes("vendor-invoices/") && !url.includes("?") && url.includes("holdback")) {
+          holdbackInvoiceFetchCalled = true;
+          return Promise.reject(new Error("Should not fetch holdback invoice for non-holdback invoice types"));
+        }
+        // Allow PO fetch for AGAINST_PO invoices (for PO items, etc.)
+        if (url.includes("purchase-order-forms/po-uuid-1") && !url.includes("?") && !url.includes("po-items")) {
+          return Promise.resolve(mockPOData);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const form = {
+        ...baseForm,
+        uuid: "invoice-7",
+        invoice_type: "AGAINST_PO",
+        holdback_invoice_uuid: null,
+        po_number: "",
+        co_number: "",
+        po_co_uuid: "PO:po-uuid-1",
+        purchase_order_uuid: "po-uuid-1",
+        change_order_uuid: null,
+      };
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: true,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Verify that holdback invoice fetching logic didn't run
+      // The po_co_uuid watcher should not trigger for non-holdback invoices
+      // and holdback_invoice_uuid watcher should not trigger when holdback_invoice_uuid is null
+      expect(holdbackInvoiceFetchCalled).toBe(false);
+      
+      // For AGAINST_PO invoices, fetching PO is expected (for PO items, etc.)
+      // The important thing is that we're not fetching holdback invoices
+      // Since invoice_type is not AGAINST_HOLDBACK_AMOUNT, the holdback invoice watchers should not trigger
+    });
+
+    it("does not fetch when editingInvoice is false", async () => {
+      (global.$fetch as any).mockImplementation((url: string): any => {
+        // Allow store fetches
+        if (url.includes("purchase-order-forms?") || url.includes("change-orders?") || url.includes("vendor-invoices?")) {
+          return Promise.resolve({ data: [] });
+        }
+        // Should not fetch holdback invoice when not editing
+        if (url.includes("vendor-invoices/holdback-invoice-1") && !url.includes("?")) {
+          return Promise.reject(new Error("Should not fetch when not editing"));
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const form = {
+        ...baseForm,
+        uuid: "invoice-8",
+        invoice_type: "AGAINST_HOLDBACK_AMOUNT",
+        holdback_invoice_uuid: "holdback-invoice-1",
+        po_number: "",
+        co_number: "",
+        po_co_uuid: null,
+        purchase_order_uuid: null,
+        change_order_uuid: null,
+      };
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: false,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Should not call $fetch for vendor-invoices/holdback-invoice-1 (excluding store fetches)
+      const fetchCalls = (global.$fetch as any).mock.calls;
+      const invoiceFetchCalls = fetchCalls.filter((call: any[]) =>
+        call[0]?.includes("vendor-invoices/holdback-invoice-1") && !call[0]?.includes("?")
+      );
+      expect(invoiceFetchCalls.length).toBe(0);
+    });
+
+    it("handles API errors gracefully when fetching holdback invoice", async () => {
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      (global.$fetch as any).mockImplementation((url: string): any => {
+        // Allow store fetches
+        if (url.includes("purchase-order-forms?") || url.includes("change-orders?") || url.includes("vendor-invoices?")) {
+          return Promise.resolve({ data: [] });
+        }
+        if (url.includes("vendor-invoices/holdback-invoice-1") && !url.includes("?")) {
+          return Promise.reject(new Error("API Error"));
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const form = {
+        ...baseForm,
+        uuid: "invoice-9",
+        invoice_type: "AGAINST_HOLDBACK_AMOUNT",
+        holdback_invoice_uuid: "holdback-invoice-1",
+        po_number: "",
+        co_number: "",
+        po_co_uuid: null,
+        purchase_order_uuid: null,
+        change_order_uuid: null,
+      };
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: true,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      consoleErrorSpy.mockRestore();
+    });
+
+    it("handles API errors gracefully when fetching PO number", async () => {
+      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      (global.$fetch as any).mockImplementation((url: string): any => {
+        // Allow store fetches
+        if (url.includes("purchase-order-forms?") || url.includes("change-orders?") || url.includes("vendor-invoices?")) {
+          return Promise.resolve({ data: [] });
+        }
+        if (url.includes("purchase-order-forms/po-uuid-1") && !url.includes("?")) {
+          return Promise.reject(new Error("PO API Error"));
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const form = {
+        ...baseForm,
+        uuid: "invoice-10",
+        invoice_type: "AGAINST_HOLDBACK_AMOUNT",
+        holdback_invoice_uuid: null,
+        po_number: "",
+        co_number: "",
+        po_co_uuid: "PO:po-uuid-1",
+        purchase_order_uuid: "po-uuid-1",
+        change_order_uuid: null,
+      };
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: true,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      expect(consoleWarnSpy).toHaveBeenCalled();
+      consoleWarnSpy.mockRestore();
+    });
+
+    it("uses po_number from holdback invoice if available", async () => {
+      const holdbackInvoiceWithPONumber = {
+        ...mockHoldbackInvoicePO,
+        po_number: "PO-FROM-INVOICE",
+      };
+
+      (global.$fetch as any).mockImplementation((url: string): any => {
+        if (url.includes("vendor-invoices/holdback-invoice-1") && !url.includes("?")) {
+          return Promise.resolve({ data: holdbackInvoiceWithPONumber });
+        }
+        // Allow store fetches
+        if (url.includes("purchase-order-forms?") || url.includes("change-orders?") || url.includes("vendor-invoices?")) {
+          return Promise.resolve({ data: [] });
+        }
+        // Should not fetch individual PO if po_number is already in invoice
+        if (url.includes("purchase-order-forms/po-uuid-1") && !url.includes("?")) {
+          return Promise.reject(new Error("Should not fetch PO when po_number is in invoice"));
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const form = {
+        ...baseForm,
+        uuid: "invoice-11",
+        invoice_type: "AGAINST_HOLDBACK_AMOUNT",
+        holdback_invoice_uuid: "holdback-invoice-1",
+        po_number: "",
+        co_number: "",
+        po_co_uuid: null,
+        purchase_order_uuid: null,
+        change_order_uuid: null,
+      };
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: true,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      const updateFormCalls = wrapper.emitted("update:form");
+      expect(updateFormCalls).toBeDefined();
+      if (updateFormCalls && updateFormCalls.length > 0) {
+        const lastUpdate = updateFormCalls[updateFormCalls.length - 1][0];
+        expect(lastUpdate.po_number).toBe("PO-FROM-INVOICE");
+      }
+    });
+  });
 });
 
