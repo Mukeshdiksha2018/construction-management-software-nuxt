@@ -470,6 +470,7 @@
       <!-- Actual holdback breakdown table -->
       <HoldbackBreakdownTable
         v-else
+        ref="holdbackBreakdownTableRef"
         :purchase-order-uuid="form.purchase_order_uuid"
         :change-order-uuid="form.change_order_uuid"
         :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
@@ -1739,6 +1740,7 @@ const poItemsError = ref<string | null>(null);
 const poItemsKey = ref(0); // Key to force re-render of POItemsTableWithEstimates
 const poAdvancePaid = ref<number>(0); // Total advance payments made for the selected PO
 const poAdvancePaymentBreakdownRef = ref<InstanceType<typeof AdvancePaymentBreakdownTable> | null>(null);
+const holdbackBreakdownTableRef = ref<InstanceType<typeof HoldbackBreakdownTable> | null>(null);
 
 // CO items state (for Against CO invoice type)
 const coItems = ref<any[]>([]);
@@ -5877,6 +5879,13 @@ const hasAdvancePaymentValidationError = computed(() => {
   return false;
 });
 
+const hasHoldbackValidationError = computed(() => {
+  if (isAgainstHoldback.value && holdbackBreakdownTableRef.value) {
+    return holdbackBreakdownTableRef.value.hasValidationError ?? false;
+  }
+  return false;
+});
+
 const overInvoicedValidationError = computed(() => {
   if (!hasOverInvoicedItems.value && !hasAdvancePaymentValidationError.value && !hasAllItemsZeroToBeInvoiced.value) return null;
   
@@ -5898,7 +5907,7 @@ const overInvoicedValidationError = computed(() => {
   return `${itemCount} item(s) have invoice quantity greater than to be invoiced quantity. ${itemsList}`;
 });
 
-const hasValidationError = computed(() => hasOverInvoicedItems.value || hasAdvancePaymentValidationError.value || hasAllItemsZeroToBeInvoiced.value);
+const hasValidationError = computed(() => hasOverInvoicedItems.value || hasAdvancePaymentValidationError.value || hasAllItemsZeroToBeInvoiced.value || hasHoldbackValidationError.value);
 
 // Expose validation errors to parent component
 defineExpose({
@@ -5906,6 +5915,7 @@ defineExpose({
   hasOverInvoicedItems,
   overInvoicedValidationError,
   hasAdvancePaymentValidationError,
+  hasHoldbackValidationError,
   hasAllItemsZeroToBeInvoiced,
   hasValidationError,
 });

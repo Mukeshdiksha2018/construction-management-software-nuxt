@@ -42,7 +42,12 @@
             <tr
               v-for="(row, index) in costCodeRows"
               :key="row.id || index"
-              class="align-middle transition-colors duration-150 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+              :class="[
+                'align-middle transition-colors duration-150 hover:bg-gray-50 dark:hover:bg-gray-800/50',
+                isReleaseAmountExceeded(row.cost_code_uuid, parseFloat(String(row.releaseAmount || 0)) || 0, row.retainageAmount || 0) && row.cost_code_uuid && row.retainageAmount && getRemainingRetainageAmount(row.cost_code_uuid, row.retainageAmount) > 0
+                  ? 'bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 dark:border-red-400'
+                  : ''
+              ]"
             >
               <!-- Cost Code -->
               <td class="px-3 py-2 align-middle">
@@ -415,6 +420,24 @@ const isReleaseAmountExceeded = (costCodeUuid: string | null, releaseAmount: num
   const remaining = getRemainingRetainageAmount(costCodeUuid, retainageAmount)
   return releaseAmount > remaining
 }
+
+// Check if any row has exceeded the available amount
+// Only consider rows where there's a valid available amount (not 0) and a release amount entered
+const hasExceededReleaseAmount = computed(() => {
+  return costCodeRows.value.some(row => {
+    if (!row.cost_code_uuid || !row.retainageAmount) return false
+    
+    const availableAmount = getRemainingRetainageAmount(row.cost_code_uuid, row.retainageAmount)
+    // Only validate if there's a valid available amount (greater than 0)
+    if (availableAmount <= 0) return false
+    
+    const releaseAmount = parseFloat(String(row.releaseAmount || 0)) || 0
+    // Only validate if user has entered a release amount
+    if (releaseAmount <= 0) return false
+    
+    return isReleaseAmountExceeded(row.cost_code_uuid, releaseAmount, row.retainageAmount)
+  })
+})
 
 // Calculate retainage amount per cost code based on holdback invoice
 // The retainage amount is the holdback amount from the invoice, distributed by cost code
@@ -917,6 +940,12 @@ onMounted(async () => {
     await processItems()
   }
   await processItems()
+})
+
+// Expose validation error to parent component
+defineExpose({
+  hasValidationError: hasExceededReleaseAmount,
+  hasExceededReleaseAmount,
 })
 </script>
 
