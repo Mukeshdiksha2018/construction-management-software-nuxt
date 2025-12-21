@@ -32,7 +32,8 @@
             <tr>
               <th class="px-3 py-2 text-left">Cost Code</th>
               <th class="px-3 py-2 text-left">GL Account</th>
-              <th class="px-3 py-2 text-right">Retainage Amount</th>
+              <th class="px-3 py-2 text-right">Holdback Amount</th>
+              <th class="px-3 py-2 text-right">Available</th>
               <th class="px-3 py-2 text-right">Release Amount</th>
               <th class="px-3 py-2 text-center">Action</th>
             </tr>
@@ -79,6 +80,19 @@
                 </span>
               </td>
 
+              <!-- Available -->
+              <td class="px-3 py-2 align-middle text-right">
+                <div v-if="row.cost_code_uuid && row.retainageAmount" class="text-sm">
+                  <div class="text-gray-700 dark:text-gray-300 font-medium">
+                    {{ formatCurrency(getRemainingRetainageAmount(row.cost_code_uuid, row.retainageAmount)) }}
+                  </div>
+                  <div v-if="getPreviouslyReleasedAmount(row.cost_code_uuid) > 0" class="text-xs text-warning-600 dark:text-warning-400 mt-0.5">
+                    ({{ formatCurrency(getPreviouslyReleasedAmount(row.cost_code_uuid)) }} already released)
+                  </div>
+                </div>
+                <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
+              </td>
+
               <!-- Release Amount -->
               <td class="px-3 py-2 align-middle">
                 <div class="relative">
@@ -102,12 +116,6 @@
                     @update:model-value="(value) => handleReleaseAmountChange(index, value)"
                     @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab') e.preventDefault(); }"
                   />
-                  <div v-if="row.cost_code_uuid && row.retainageAmount" class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Available: {{ formatCurrency(getRemainingRetainageAmount(row.cost_code_uuid, row.retainageAmount)) }}
-                    <span v-if="getPreviouslyReleasedAmount(row.cost_code_uuid) > 0" class="text-warning-600 dark:text-warning-400">
-                      ({{ formatCurrency(getPreviouslyReleasedAmount(row.cost_code_uuid)) }} already released)
-                    </span>
-                  </div>
                   <div v-if="isReleaseAmountExceeded(row.cost_code_uuid, parseFloat(String(row.releaseAmount || 0)) || 0, row.retainageAmount || 0)" class="text-xs text-red-600 dark:text-red-400 mt-1">
                     Exceeds available amount
                   </div>
