@@ -442,6 +442,7 @@
         :model-value="holdbackCostCodes"
         :holdback-invoice-uuid="form.holdback_invoice_uuid"
         :current-invoice-uuid="form.uuid"
+        :previously-released-cost-codes="previouslyReleasedCostCodes"
         @update:model-value="handleHoldbackCostCodesUpdate"
         @release-amounts-update="handleHoldbackReleaseAmountsUpdate"
       />
@@ -1700,6 +1701,17 @@ interface PreviouslyAdjustedCostCode {
 }
 const previouslyAdjustedCostCodes = ref<PreviouslyAdjustedCostCode[]>([]);
 
+interface PreviouslyReleasedCostCode {
+  cost_code_uuid: string;
+  cost_code_label?: string;
+  cost_code_number?: string;
+  cost_code_name?: string;
+  release_amount: number;
+  holdback_invoice_uuid: string;
+  vendor_invoice_uuid: string;
+}
+const previouslyReleasedCostCodes = ref<PreviouslyReleasedCostCode[]>([]);
+
 // Guard to prevent watcher from overwriting user input
 const isUpdatingAdjustedAmounts = ref(false);
 
@@ -1789,6 +1801,130 @@ const fetchAllPreviouslyAdjustedCostCodes = async (poOrCoUuid: string, isCO = fa
   }
 };
 
+// Fetch previously released cost codes for an existing invoice
+const fetchPreviouslyReleasedCostCodes = async (vendorInvoiceUuid: string) => {
+  console.log('[VendorInvoiceForm] fetchPreviouslyReleasedCostCodes called with:', vendorInvoiceUuid);
+  
+  if (!vendorInvoiceUuid) {
+    console.log('[VendorInvoiceForm] No vendorInvoiceUuid, clearing previouslyReleasedCostCodes');
+    previouslyReleasedCostCodes.value = [];
+    return;
+  }
+
+  try {
+    console.log('[VendorInvoiceForm] Fetching previously released cost codes for invoice:', vendorInvoiceUuid);
+    
+    const response = await $fetch<{ data: any[] }>(
+      '/api/holdback-releases',
+      {
+        query: {
+          vendor_invoice_uuid: vendorInvoiceUuid,
+        },
+      }
+    );
+
+    console.log('[VendorInvoiceForm] API response:', {
+      dataCount: response?.data?.length || 0,
+      rawData: response?.data,
+    });
+
+    const costCodes = Array.isArray(response?.data) ? response.data : [];
+    previouslyReleasedCostCodes.value = costCodes.map((cc: any) => ({
+      cost_code_uuid: cc.cost_code_uuid,
+      cost_code_label: cc.cost_code_label,
+      cost_code_number: cc.cost_code_number,
+      cost_code_name: cc.cost_code_name,
+      release_amount: parseFloat(String(cc.release_amount)) || 0,
+      holdback_invoice_uuid: cc.holdback_invoice_uuid,
+      vendor_invoice_uuid: cc.vendor_invoice_uuid,
+    }));
+
+    console.log('[VendorInvoiceForm] Mapped previously released cost codes:', {
+      count: previouslyReleasedCostCodes.value.length,
+      costCodes: previouslyReleasedCostCodes.value,
+      summaryByCostCode: previouslyReleasedCostCodes.value.reduce((acc: Record<string, number>, cc) => {
+        const uuid = cc.cost_code_uuid;
+        if (uuid) {
+          acc[uuid] = (acc[uuid] || 0) + cc.release_amount;
+        }
+        return acc;
+      }, {}),
+    });
+  } catch (err: any) {
+    console.error('[VendorInvoiceForm] Error fetching previously released cost codes:', err);
+    previouslyReleasedCostCodes.value = [];
+  }
+};
+
+// Fetch ALL previously released cost codes for a PO/CO (across all invoices)
+// This is used for new invoices to show remaining amounts
+const fetchAllPreviouslyReleasedCostCodes = async (poOrCoUuid: string, isCO: boolean, currentInvoiceUuid?: string | null) => {
+  console.log('[VendorInvoiceForm] fetchAllPreviouslyReleasedCostCodes called with:', {
+    poOrCoUuid,
+    isCO,
+    currentInvoiceUuid,
+  });
+  
+  if (!poOrCoUuid) {
+    console.log('[VendorInvoiceForm] No poOrCoUuid, clearing previouslyReleasedCostCodes');
+    previouslyReleasedCostCodes.value = [];
+    return;
+  }
+
+  try {
+    const queryParams: Record<string, string> = {};
+    if (isCO) {
+      queryParams.change_order_uuid = poOrCoUuid;
+    } else {
+      queryParams.purchase_order_uuid = poOrCoUuid;
+    }
+    
+    // Exclude current invoice if provided (when editing and we want all other invoices' releases)
+    if (currentInvoiceUuid) {
+      queryParams.exclude_current_invoice = 'true';
+      queryParams.vendor_invoice_uuid = currentInvoiceUuid;
+    }
+
+    console.log('[VendorInvoiceForm] Fetching all previously released cost codes with query params:', queryParams);
+
+    const response = await $fetch<{ data: any[] }>(
+      '/api/holdback-releases',
+      { query: queryParams }
+    );
+
+    console.log('[VendorInvoiceForm] API response:', {
+      dataCount: response?.data?.length || 0,
+      rawData: response?.data,
+    });
+
+    const costCodes = Array.isArray(response?.data) ? response.data : [];
+    previouslyReleasedCostCodes.value = costCodes.map((cc: any) => ({
+      cost_code_uuid: cc.cost_code_uuid,
+      cost_code_label: cc.cost_code_label,
+      cost_code_number: cc.cost_code_number,
+      cost_code_name: cc.cost_code_name,
+      release_amount: parseFloat(String(cc.release_amount)) || 0,
+      holdback_invoice_uuid: cc.holdback_invoice_uuid,
+      vendor_invoice_uuid: cc.vendor_invoice_uuid,
+    }));
+
+    console.log('[VendorInvoiceForm] Mapped all previously released cost codes:', {
+      count: previouslyReleasedCostCodes.value.length,
+      costCodes: previouslyReleasedCostCodes.value,
+      summaryByCostCode: previouslyReleasedCostCodes.value.reduce((acc: Record<string, number>, cc) => {
+        const uuid = cc.cost_code_uuid;
+        if (uuid) {
+          acc[uuid] = (acc[uuid] || 0) + cc.release_amount;
+        }
+        return acc;
+      }, {}),
+    });
+  } catch (err: any) {
+    console.error('[VendorInvoiceForm] Error fetching all previously released cost codes:', err);
+    previouslyReleasedCostCodes.value = [];
+  }
+};
+
 // Watch for form changes to load adjusted amounts when editing
 watch(
   () => props.form.adjusted_advance_payment_amounts,
@@ -1848,6 +1984,99 @@ watch(
     } else {
       // New invoice - fetch ALL adjustments for the PO/CO to calculate remaining amounts
       await fetchAllPreviouslyAdjustedCostCodes(poOrCoUuid, isCO, newUuid);
+    }
+  },
+  { immediate: true }
+);
+
+// Watch previouslyReleasedCostCodes to log when it changes (for debugging)
+watch(
+  () => previouslyReleasedCostCodes.value,
+  (newValue) => {
+    console.log('[VendorInvoiceForm] previouslyReleasedCostCodes changed:', {
+      count: newValue?.length || 0,
+      data: newValue,
+      summary: newValue?.reduce((acc: Record<string, number>, cc) => {
+        const uuid = cc.cost_code_uuid;
+        if (uuid) {
+          acc[uuid] = (acc[uuid] || 0) + cc.release_amount;
+        }
+        return acc;
+      }, {}),
+    });
+  },
+  { immediate: true, deep: true }
+);
+
+// Watch for form UUID and PO/CO changes to fetch previously released cost codes for holdback invoices
+// This is needed to display what amounts were previously released
+watch(
+  [() => props.form.uuid, () => props.form.purchase_order_uuid, () => props.form.change_order_uuid, () => props.form.invoice_type, () => props.form.holdback_invoice_uuid, () => props.editingInvoice],
+  async ([newUuid, newPoUuid, newCoUuid, newInvoiceType, newHoldbackInvoiceUuid, newEditingInvoice], [oldUuid]) => {
+    console.log('[VendorInvoiceForm] Watcher triggered for previously released cost codes:', {
+      newUuid,
+      newPoUuid,
+      newCoUuid,
+      newInvoiceType,
+      newHoldbackInvoiceUuid,
+      newEditingInvoice,
+      oldUuid,
+    });
+
+    // Only fetch for AGAINST_HOLDBACK_AMOUNT invoices
+    const invoiceType = String(newInvoiceType || '').toUpperCase();
+    console.log('[VendorInvoiceForm] Invoice type:', invoiceType);
+    
+    if (invoiceType !== 'AGAINST_HOLDBACK_AMOUNT') {
+      console.log('[VendorInvoiceForm] Not AGAINST_HOLDBACK_AMOUNT, clearing previouslyReleasedCostCodes');
+      previouslyReleasedCostCodes.value = [];
+      return;
+    }
+
+    // For new invoices, we need PO/CO UUID to fetch releases
+    // For existing invoices, we need holdback_invoice_uuid OR PO/CO UUID
+    // Determine if this is a PO or CO invoice based on which UUID is set
+    const isCO = !!newCoUuid;
+    const poOrCoUuid = isCO ? newCoUuid : newPoUuid;
+
+    console.log('[VendorInvoiceForm] PO/CO info:', {
+      isCO,
+      poOrCoUuid,
+      hasHoldbackInvoiceUuid: !!newHoldbackInvoiceUuid,
+    });
+
+    // For new invoices: we need PO/CO UUID (which comes from the selected holdback invoice)
+    // For existing invoices: we can fetch by vendor_invoice_uuid OR by PO/CO UUID
+    // If we don't have PO/CO UUID yet, wait for it (don't clear data)
+    if (!poOrCoUuid) {
+      if (newUuid && newEditingInvoice) {
+        // Existing invoice but no PO/CO UUID - try fetching by vendor_invoice_uuid
+        console.log('[VendorInvoiceForm] Existing invoice but no PO/CO UUID - fetching by vendor_invoice_uuid');
+        if (newUuid !== oldUuid || previouslyReleasedCostCodes.value.length === 0) {
+          await fetchPreviouslyReleasedCostCodes(newUuid);
+        }
+        return;
+      } else {
+        // New invoice but no PO/CO UUID yet - wait for it to be set (don't clear, just return)
+        console.log('[VendorInvoiceForm] New invoice but no PO/CO UUID yet, waiting for PO/CO UUID to be set...');
+        return;
+      }
+    }
+
+    // For existing invoices, fetch releases for this specific invoice
+    // For new invoices, fetch ALL releases for the PO/CO to show remaining amounts
+    if (newUuid && newEditingInvoice) {
+      // Existing invoice - fetch releases for this invoice only
+      console.log('[VendorInvoiceForm] Existing invoice - fetching releases for this invoice');
+      if (newUuid !== oldUuid || previouslyReleasedCostCodes.value.length === 0) {
+        await fetchPreviouslyReleasedCostCodes(newUuid);
+      } else {
+        console.log('[VendorInvoiceForm] Skipping fetch - UUID unchanged and data exists');
+      }
+    } else {
+      // New invoice - fetch ALL releases for the PO/CO to calculate remaining amounts
+      console.log('[VendorInvoiceForm] New invoice - fetching ALL releases for PO/CO');
+      await fetchAllPreviouslyReleasedCostCodes(poOrCoUuid, isCO, newUuid);
     }
   },
   { immediate: true }
