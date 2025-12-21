@@ -350,20 +350,9 @@ const hasOverAdjustedAmount = (payment: any): boolean => {
 watch(
   () => props.adjustedAmounts,
   (newAmounts) => {
-    console.log('[APBT] adjustedAmounts prop changed:', newAmounts)
     if (newAmounts && Object.keys(newAmounts).length > 0) {
       // Deep copy to ensure Vue reactivity works properly with nested objects
       localAdjustedAmounts.value = JSON.parse(JSON.stringify(newAmounts))
-      console.log('[APBT] Updated localAdjustedAmounts:', localAdjustedAmounts.value)
-      // Debug: Show the actual structure
-      console.log('[APBT] localAdjustedAmounts structure:', {
-        paymentKeys: Object.keys(localAdjustedAmounts.value),
-        sample: Object.entries(localAdjustedAmounts.value).map(([paymentUuid, costCodes]) => ({
-          paymentUuid,
-          costCodeKeys: Object.keys(costCodes as Record<string, number>),
-          values: costCodes
-        }))
-      })
     }
   },
   { immediate: true, deep: true }
@@ -371,14 +360,7 @@ watch(
 
 // Fetch advance payment invoices for the purchase order or change order
 const fetchAdvancePayments = async () => {
-  console.log('[APBT] fetchAdvancePayments called with:', { 
-    purchaseOrderUuid: props.purchaseOrderUuid, 
-    changeOrderUuid: props.changeOrderUuid,
-    currentInvoiceUuid: props.currentInvoiceUuid 
-  })
-  
   if (!props.purchaseOrderUuid && !props.changeOrderUuid) {
-    console.log('[APBT] No PO or CO UUID, returning empty')
     advancePayments.value = []
     return
   }
@@ -410,24 +392,6 @@ const fetchAdvancePayments = async () => {
 
     const payments = Array.isArray(response?.data) ? response.data : []
     advancePayments.value = payments
-    
-    // Debug: Log structure of payments and cost codes
-    console.log('[APBT] Advance payments fetched:', {
-      count: payments.length,
-      purchaseOrderUuid: props.purchaseOrderUuid,
-      changeOrderUuid: props.changeOrderUuid,
-      currentInvoiceUuid: props.currentInvoiceUuid,
-      samplePayment: payments.length > 0 && payments[0] ? {
-        uuid: payments[0].uuid,
-        costCodesCount: payments[0].costCodes?.length || 0,
-        adjusted_against: payments[0].adjusted_against_vendor_invoice_uuid,
-        sampleCostCode: payments[0].costCodes?.[0] ? {
-          uuid: payments[0].costCodes[0].uuid,
-          cost_code_uuid: payments[0].costCodes[0].cost_code_uuid,
-          allKeys: Object.keys(payments[0].costCodes[0])
-        } : 'no cost codes'
-      } : 'no payments returned'
-    })
   } catch (err: any) {
     console.error('Error fetching advance payments:', err)
     error.value = err.message || 'Failed to load advance payments'
@@ -495,30 +459,16 @@ const getStatusColor = (isActive: boolean | undefined): "error" | "warning" | "i
 // Get adjusted amount for a specific advance payment and cost code
 const getAdjustedAmount = (advancePaymentUuid: string, costCodeUuid: string): string => {
   const amount = localAdjustedAmounts.value[advancePaymentUuid]?.[costCodeUuid]
-  // Debug: Log lookup details
-  if (Object.keys(localAdjustedAmounts.value).length > 0) {
-    console.log('[APBT] getAdjustedAmount lookup:', { 
-      advancePaymentUuid, 
-      costCodeUuid, 
-      found: amount,
-      availablePaymentKeys: Object.keys(localAdjustedAmounts.value),
-      availableCostCodeKeys: localAdjustedAmounts.value[advancePaymentUuid] 
-        ? Object.keys(localAdjustedAmounts.value[advancePaymentUuid]) 
-        : 'payment not found'
-    })
-  }
   if (amount === null || amount === undefined) return ''
   return String(amount)
 }
 
 // Handle adjusted amount change
 const handleAdjustedAmountChange = (advancePaymentUuid: string, costCode: any, value: string | null) => {
-  console.log('[APBT] handleAdjustedAmountChange called:', { advancePaymentUuid, costCode, value })
   // IMPORTANT: Prioritize cost_code_uuid over uuid to match the database storage
   // cost_code_uuid is the foreign key to cost_code_configurations
   // uuid is the row ID of advance_payment_cost_codes table
   const costCodeUuid = costCode.cost_code_uuid || costCode.uuid
-  console.log('[APBT] costCodeUuid:', costCodeUuid)
   if (!costCodeUuid) {
     console.warn('[APBT] costCodeUuid is falsy, returning early!')
     return
@@ -556,7 +506,6 @@ const handleAdjustedAmountChange = (advancePaymentUuid: string, costCode: any, v
   emit('adjusted-amount-change', advancePaymentUuid, costCode, numericValue)
   // Deep copy to ensure Vue reactivity is triggered in parent component
   const deepCopy = JSON.parse(JSON.stringify(localAdjustedAmounts.value))
-  console.log('[APBT] Emitting adjusted-amounts-update:', deepCopy)
   emit('adjusted-amounts-update', deepCopy)
 }
 
@@ -578,7 +527,6 @@ const totalAdjustedAmount = computed(() => {
 watch(
   () => [props.purchaseOrderUuid, props.changeOrderUuid, props.currentInvoiceUuid],
   ([newPoUuid, newCoUuid, newCurrentInvoiceUuid]) => {
-    console.log('[APBT] PO/CO/Invoice UUID watcher fired:', { newPoUuid, newCoUuid, newCurrentInvoiceUuid })
     if (newPoUuid || newCoUuid) {
       fetchAdvancePayments()
     } else {

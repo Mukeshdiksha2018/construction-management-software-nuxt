@@ -211,24 +211,6 @@ const hasPreviouslyReleasedCostCodes = computed(() => {
   return props.previouslyReleasedCostCodes && props.previouslyReleasedCostCodes.length > 0
 })
 
-// Watch for previouslyReleasedCostCodes prop changes
-watch(
-  () => props.previouslyReleasedCostCodes,
-  (newValue) => {
-    console.log('[HoldbackBreakdownTable] previouslyReleasedCostCodes prop changed:', {
-      count: newValue?.length || 0,
-      data: newValue,
-      summary: newValue?.reduce((acc: Record<string, number>, cc) => {
-        const uuid = cc.cost_code_uuid;
-        if (uuid) {
-          acc[uuid] = (acc[uuid] || 0) + cc.release_amount;
-        }
-        return acc;
-      }, {}),
-    });
-  },
-  { immediate: true, deep: true }
-)
 
 // Computed
 const showTable = computed(() => {
@@ -386,14 +368,7 @@ const fetchChartOfAccounts = async (corporationUuid: string) => {
 // Get previously released amount for a specific cost code
 // Sum all releases across all invoices for this cost code (similar to getPreviouslyAdjustedAmount for advance payments)
 const getPreviouslyReleasedAmount = (costCodeUuid: string): number => {
-  console.log('[HoldbackBreakdownTable] getPreviouslyReleasedAmount called for costCodeUuid:', costCodeUuid);
-  console.log('[HoldbackBreakdownTable] previouslyReleasedCostCodes prop:', {
-    count: props.previouslyReleasedCostCodes?.length || 0,
-    data: props.previouslyReleasedCostCodes,
-  });
-  
   if (!props.previouslyReleasedCostCodes || props.previouslyReleasedCostCodes.length === 0) {
-    console.log('[HoldbackBreakdownTable] No previously released cost codes, returning 0');
     return 0
   }
   
@@ -402,15 +377,7 @@ const getPreviouslyReleasedAmount = (costCodeUuid: string): number => {
     cc => cc.cost_code_uuid === costCodeUuid
   )
   
-  console.log('[HoldbackBreakdownTable] Matches for costCodeUuid:', {
-    costCodeUuid,
-    matchCount: matches.length,
-    matches: matches,
-  });
-  
   const total = matches.reduce((sum, cc) => sum + (parseFloat(String(cc.release_amount)) || 0), 0)
-  
-  console.log('[HoldbackBreakdownTable] Total previously released for', costCodeUuid, ':', total);
   
   return total
 }
@@ -418,26 +385,12 @@ const getPreviouslyReleasedAmount = (costCodeUuid: string): number => {
 // Get remaining retainage amount to be released for a specific cost code
 // This is: retainage_amount - previously_released (not including current release)
 const getRemainingRetainageAmount = (costCodeUuid: string | null, retainageAmount: number): number => {
-  console.log('[HoldbackBreakdownTable] getRemainingRetainageAmount called:', {
-    costCodeUuid,
-    retainageAmount,
-  });
-  
   if (!costCodeUuid) {
-    console.log('[HoldbackBreakdownTable] No costCodeUuid, returning 0');
     return 0
   }
   
   const previouslyReleased = getPreviouslyReleasedAmount(costCodeUuid)
   const remaining = retainageAmount - previouslyReleased
-  
-  console.log('[HoldbackBreakdownTable] Remaining calculation:', {
-    costCodeUuid,
-    retainageAmount,
-    previouslyReleased,
-    remaining,
-    final: Math.max(0, remaining),
-  });
   
   return Math.max(0, remaining) // Don't allow negative
 }
