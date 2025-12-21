@@ -879,7 +879,8 @@
     </div>
 
     <!-- File Upload and Financial Breakdown Section (for Against Holdback Amount) -->
-    <div v-if="isAgainstHoldback && (form.purchase_order_uuid || form.change_order_uuid) && form.holdback_invoice_uuid" class="mt-6 flex flex-col lg:flex-row gap-6">
+    <!-- Show if we have holdback invoice UUID OR if we have saved holdback cost codes (for existing invoices) -->
+    <div v-if="isAgainstHoldback && ((form.purchase_order_uuid || form.change_order_uuid) || (holdbackCostCodes && holdbackCostCodes.length > 0))" class="mt-6 flex flex-col lg:flex-row gap-6">
       <!-- File Upload Section (Left) -->
       <div class="w-full lg:w-auto lg:flex-shrink-0 lg:max-w-md">
         <!-- Upload Section -->
