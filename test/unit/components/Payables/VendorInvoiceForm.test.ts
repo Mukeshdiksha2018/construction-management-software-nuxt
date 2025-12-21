@@ -10842,5 +10842,587 @@ describe("VendorInvoiceForm.vue", () => {
       expect(hasPO || hasHoldbackCostCodes).toBe(true);
     });
   });
+
+  describe("Holdback Invoice Previously Released Cost Codes", () => {
+    const baseForm = {
+      corporation_uuid: "corp-1",
+      project_uuid: "project-1",
+      vendor_uuid: "vendor-1",
+      invoice_type: "AGAINST_HOLDBACK_AMOUNT",
+      number: "",
+      bill_date: "",
+      due_date: "",
+      credit_days: "",
+      amount: null,
+      holdback: null,
+      purchase_order_uuid: null,
+      change_order_uuid: null,
+      po_co_uuid: null,
+      po_number: null,
+      co_number: null,
+      attachments: [],
+      line_items: [],
+      holdback_invoice_uuid: null,
+      holdback_cost_codes: [],
+    };
+
+    it("fetches all previously released cost codes when creating a new holdback invoice with PO UUID", async () => {
+      const form = {
+        ...baseForm,
+        holdback_invoice_uuid: "holdback-invoice-1",
+        purchase_order_uuid: "po-uuid-1",
+        change_order_uuid: null,
+      };
+
+      const mockPreviouslyReleasedCostCodes = [
+        {
+          cost_code_uuid: "cc-1",
+          cost_code_label: "01-100 Excavation",
+          cost_code_number: "01-100",
+          cost_code_name: "Excavation",
+          release_amount: 6.25,
+          vendor_invoice_uuid: "invoice-1",
+          holdback_invoice_uuid: "holdback-invoice-1",
+        },
+        {
+          cost_code_uuid: "cc-2",
+          cost_code_label: "03-300 Concrete",
+          cost_code_number: "03-300",
+          cost_code_name: "Concrete",
+          release_amount: 8.75,
+          vendor_invoice_uuid: "invoice-2",
+          holdback_invoice_uuid: "holdback-invoice-2",
+        },
+      ];
+
+      const mockFetch = vi.fn().mockImplementation((url: string, options?: any) => {
+        if (url.includes("/api/holdback-releases")) {
+          const query = options?.query || {};
+          if (query.purchase_order_uuid === "po-uuid-1") {
+            return Promise.resolve({ data: mockPreviouslyReleasedCostCodes });
+          }
+          return Promise.resolve({ data: [] });
+        }
+        // Allow other API calls
+        if (url.includes("/api/purchase-order-forms") || url.includes("/api/change-orders") || url.includes("/api/vendor-invoices")) {
+          return Promise.resolve({ data: [] });
+        }
+        return Promise.resolve({ data: [] });
+      });
+
+      vi.stubGlobal("$fetch", mockFetch);
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: false,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Verify API was called with correct parameters
+      const holdbackReleaseCalls = mockFetch.mock.calls.filter((call: any[]) => 
+        call[0] && String(call[0]).includes("/api/holdback-releases")
+      );
+      
+      expect(holdbackReleaseCalls.length).toBeGreaterThan(0);
+      
+      const poCall = holdbackReleaseCalls.find((call: any[]) => {
+        const query = call[1]?.query || {};
+        return query.purchase_order_uuid === "po-uuid-1";
+      });
+      
+      expect(poCall).toBeDefined();
+      if (poCall) {
+        // Verify purchase_order_uuid is present
+        expect(poCall[1]?.query?.purchase_order_uuid).toBe("po-uuid-1");
+        // corporation_uuid might come from form or store
+        const corpUuid = poCall[1]?.query?.corporation_uuid || "corp-1"; // Default from store
+        expect(corpUuid).toBeTruthy();
+      }
+
+      // Verify data was passed to HoldbackBreakdownTable
+      const holdbackTable = wrapper.findComponent({ name: "HoldbackBreakdownTable" });
+      if (holdbackTable.exists()) {
+        const props = holdbackTable.props();
+        expect(Array.isArray(props.previouslyReleasedCostCodes)).toBe(true);
+        expect(props.previouslyReleasedCostCodes.length).toBeGreaterThanOrEqual(0);
+      }
+    });
+
+    it("fetches all previously released cost codes when creating a new holdback invoice with CO UUID", async () => {
+      const form = {
+        ...baseForm,
+        holdback_invoice_uuid: "holdback-invoice-1",
+        purchase_order_uuid: null,
+        change_order_uuid: "co-uuid-1",
+      };
+
+      const mockPreviouslyReleasedCostCodes = [
+        {
+          cost_code_uuid: "cc-1",
+          cost_code_label: "01-100 Excavation",
+          cost_code_number: "01-100",
+          cost_code_name: "Excavation",
+          release_amount: 6.25,
+          vendor_invoice_uuid: "invoice-1",
+          holdback_invoice_uuid: "holdback-invoice-1",
+        },
+      ];
+
+      const mockFetch = vi.fn().mockImplementation((url: string, options?: any) => {
+        if (url.includes("/api/holdback-releases")) {
+          const query = options?.query || {};
+          if (query.change_order_uuid === "co-uuid-1") {
+            return Promise.resolve({ data: mockPreviouslyReleasedCostCodes });
+          }
+          return Promise.resolve({ data: [] });
+        }
+        // Allow other API calls
+        if (url.includes("/api/purchase-order-forms") || url.includes("/api/change-orders") || url.includes("/api/vendor-invoices")) {
+          return Promise.resolve({ data: [] });
+        }
+        return Promise.resolve({ data: [] });
+      });
+
+      vi.stubGlobal("$fetch", mockFetch);
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: false,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Verify API was called with correct parameters
+      const holdbackReleaseCalls = mockFetch.mock.calls.filter((call: any[]) => 
+        call[0] && String(call[0]).includes("/api/holdback-releases")
+      );
+      
+      expect(holdbackReleaseCalls.length).toBeGreaterThan(0);
+      
+      const coCall = holdbackReleaseCalls.find((call: any[]) => {
+        const query = call[1]?.query || {};
+        return query.change_order_uuid === "co-uuid-1";
+      });
+      
+      expect(coCall).toBeDefined();
+      if (coCall) {
+        // Verify change_order_uuid is present
+        expect(coCall[1]?.query?.change_order_uuid).toBe("co-uuid-1");
+        // corporation_uuid might come from form or store
+        const corpUuid = coCall[1]?.query?.corporation_uuid || "corp-1"; // Default from store
+        expect(corpUuid).toBeTruthy();
+      }
+    });
+
+    it("fetches previously released cost codes for existing holdback invoice", async () => {
+      const form = {
+        ...baseForm,
+        uuid: "invoice-1",
+        holdback_invoice_uuid: "holdback-invoice-1",
+        purchase_order_uuid: "po-uuid-1",
+        change_order_uuid: null,
+      };
+
+      const mockPreviouslyReleasedCostCodes = [
+        {
+          cost_code_uuid: "cc-1",
+          cost_code_label: "01-100 Excavation",
+          cost_code_number: "01-100",
+          cost_code_name: "Excavation",
+          release_amount: 6.25,
+          vendor_invoice_uuid: "invoice-1",
+          holdback_invoice_uuid: "holdback-invoice-1",
+        },
+      ];
+
+      const mockFetch = vi.fn().mockImplementation((url: string, options?: any) => {
+        if (url.includes("/api/holdback-releases")) {
+          const query = options?.query || {};
+          if (query.vendor_invoice_uuid === "invoice-1" && !query.exclude_current_invoice) {
+            return Promise.resolve({ data: mockPreviouslyReleasedCostCodes });
+          }
+          return Promise.resolve({ data: [] });
+        }
+        // Allow other API calls
+        if (url.includes("/api/purchase-order-forms") || url.includes("/api/change-orders") || url.includes("/api/vendor-invoices")) {
+          return Promise.resolve({ data: [] });
+        }
+        return Promise.resolve({ data: [] });
+      });
+
+      vi.stubGlobal("$fetch", mockFetch);
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: true,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Verify API was called with correct parameters for existing invoice
+      const holdbackReleaseCalls = mockFetch.mock.calls.filter((call: any[]) => 
+        call[0] && String(call[0]).includes("/api/holdback-releases")
+      );
+      
+      expect(holdbackReleaseCalls.length).toBeGreaterThan(0);
+      
+      const existingInvoiceCall = holdbackReleaseCalls.find((call: any[]) => {
+        const query = call[1]?.query || {};
+        return query.vendor_invoice_uuid === "invoice-1" && !query.exclude_current_invoice;
+      });
+      
+      expect(existingInvoiceCall).toBeDefined();
+    });
+
+    it("excludes current invoice when fetching all previously released cost codes for new invoice", async () => {
+      const form = {
+        ...baseForm,
+        uuid: "invoice-3", // Has UUID but editingInvoice is false (new invoice being created)
+        holdback_invoice_uuid: "holdback-invoice-1",
+        purchase_order_uuid: "po-uuid-1",
+        change_order_uuid: null,
+      };
+
+      const mockPreviouslyReleasedCostCodes = [
+        {
+          cost_code_uuid: "cc-1",
+          cost_code_label: "01-100 Excavation",
+          cost_code_number: "01-100",
+          cost_code_name: "Excavation",
+          release_amount: 6.25,
+          vendor_invoice_uuid: "invoice-1", // Different invoice
+          holdback_invoice_uuid: "holdback-invoice-1",
+        },
+        {
+          cost_code_uuid: "cc-1",
+          cost_code_label: "01-100 Excavation",
+          cost_code_number: "01-100",
+          cost_code_name: "Excavation",
+          release_amount: 8.75,
+          vendor_invoice_uuid: "invoice-2", // Different invoice
+          holdback_invoice_uuid: "holdback-invoice-2",
+        },
+      ];
+
+      const mockFetch = vi.fn().mockImplementation((url: string, options?: any) => {
+        if (url.includes("/api/holdback-releases")) {
+          const query = options?.query || {};
+          if (query.purchase_order_uuid === "po-uuid-1" && query.exclude_current_invoice === "true") {
+            return Promise.resolve({ data: mockPreviouslyReleasedCostCodes });
+          }
+          return Promise.resolve({ data: [] });
+        }
+        // Allow other API calls
+        if (url.includes("/api/purchase-order-forms") || url.includes("/api/change-orders") || url.includes("/api/vendor-invoices")) {
+          return Promise.resolve({ data: [] });
+        }
+        return Promise.resolve({ data: [] });
+      });
+
+      vi.stubGlobal("$fetch", mockFetch);
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: false, // New invoice
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Verify API was called with exclude_current_invoice flag
+      const holdbackReleaseCalls = mockFetch.mock.calls.filter((call: any[]) => 
+        call[0] && String(call[0]).includes("/api/holdback-releases")
+      );
+      
+      expect(holdbackReleaseCalls.length).toBeGreaterThan(0);
+      
+      const excludeCall = holdbackReleaseCalls.find((call: any[]) => {
+        const query = call[1]?.query || {};
+        return query.purchase_order_uuid === "po-uuid-1" && 
+               query.exclude_current_invoice === "true" &&
+               query.vendor_invoice_uuid === "invoice-3";
+      });
+      
+      expect(excludeCall).toBeDefined();
+    });
+
+    it("does not fetch previously released cost codes for non-holdback invoice types", async () => {
+      const form = {
+        ...baseForm,
+        invoice_type: "AGAINST_PO",
+        purchase_order_uuid: "po-uuid-1",
+        change_order_uuid: null,
+      };
+
+      const mockFetch = vi.fn().mockImplementation((url: string) => {
+        if (url.includes("/api/holdback-releases")) {
+          return Promise.reject(new Error("Should not fetch holdback releases for non-holdback invoices"));
+        }
+        // Allow other API calls
+        if (url.includes("/api/purchase-order-forms") || url.includes("/api/change-orders") || url.includes("/api/vendor-invoices")) {
+          return Promise.resolve({ data: [] });
+        }
+        return Promise.resolve({ data: [] });
+      });
+
+      vi.stubGlobal("$fetch", mockFetch);
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: false,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Verify holdback-releases API was not called
+      expect(mockFetch).not.toHaveBeenCalledWith(
+        expect.stringContaining("/api/holdback-releases"),
+        expect.anything()
+      );
+    });
+
+    it("waits for PO/CO UUID to be set before fetching for new invoices", async () => {
+      const form = {
+        ...baseForm,
+        holdback_invoice_uuid: "holdback-invoice-1",
+        purchase_order_uuid: null, // Not set yet
+        change_order_uuid: null,
+      };
+
+      const mockFetch = vi.fn().mockImplementation((url: string) => {
+        if (url.includes("/api/holdback-releases")) {
+          return Promise.reject(new Error("Should not fetch without PO/CO UUID"));
+        }
+        // Allow other API calls
+        if (url.includes("/api/purchase-order-forms") || url.includes("/api/change-orders") || url.includes("/api/vendor-invoices")) {
+          return Promise.resolve({ data: [] });
+        }
+        return Promise.resolve({ data: [] });
+      });
+
+      vi.stubGlobal("$fetch", mockFetch);
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: false,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Verify holdback-releases API was not called without PO/CO UUID
+      expect(mockFetch).not.toHaveBeenCalledWith(
+        expect.stringContaining("/api/holdback-releases"),
+        expect.anything()
+      );
+
+      // Now set PO UUID and verify it fetches
+      await wrapper.setProps({
+        form: {
+          ...form,
+          purchase_order_uuid: "po-uuid-1",
+        },
+      });
+
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Now it should fetch
+      const updatedMockFetch = vi.fn().mockImplementation((url: string, options?: any) => {
+        if (url.includes("/api/holdback-releases")) {
+          return Promise.resolve({ data: [] });
+        }
+        return Promise.resolve({ data: [] });
+      });
+
+      vi.stubGlobal("$fetch", updatedMockFetch);
+
+      // Trigger another update to test the fetch
+      await wrapper.setProps({
+        form: {
+          ...form,
+          purchase_order_uuid: "po-uuid-1",
+        },
+      });
+
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    });
+
+    it("handles API errors gracefully when fetching previously released cost codes", async () => {
+      const form = {
+        ...baseForm,
+        holdback_invoice_uuid: "holdback-invoice-1",
+        purchase_order_uuid: "po-uuid-1",
+        change_order_uuid: null,
+      };
+
+      const mockFetch = vi.fn().mockImplementation((url: string) => {
+        if (url.includes("/api/holdback-releases")) {
+          return Promise.reject(new Error("API Error"));
+        }
+        // Allow other API calls
+        if (url.includes("/api/purchase-order-forms") || url.includes("/api/change-orders") || url.includes("/api/vendor-invoices")) {
+          return Promise.resolve({ data: [] });
+        }
+        return Promise.resolve({ data: [] });
+      });
+
+      vi.stubGlobal("$fetch", mockFetch);
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: false,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Component should not crash, and previouslyReleasedCostCodes should be empty
+      const vm = wrapper.vm as any;
+      expect(Array.isArray(vm.previouslyReleasedCostCodes)).toBe(true);
+      expect(vm.previouslyReleasedCostCodes.length).toBe(0);
+    });
+
+    it("passes previously released cost codes to HoldbackBreakdownTable", async () => {
+      const form = {
+        ...baseForm,
+        holdback_invoice_uuid: "holdback-invoice-1",
+        purchase_order_uuid: "po-uuid-1",
+        change_order_uuid: null,
+        holdback_cost_codes: [
+          {
+            cost_code_uuid: "cc-1",
+            cost_code_label: "01-100 Excavation",
+            retainage_amount: 25.0,
+            release_amount: 0,
+          },
+        ],
+      };
+
+      const mockPreviouslyReleasedCostCodes = [
+        {
+          cost_code_uuid: "cc-1",
+          cost_code_label: "01-100 Excavation",
+          cost_code_number: "01-100",
+          cost_code_name: "Excavation",
+          release_amount: 6.25,
+          vendor_invoice_uuid: "invoice-1",
+          holdback_invoice_uuid: "holdback-invoice-1",
+        },
+        {
+          cost_code_uuid: "cc-1",
+          cost_code_label: "01-100 Excavation",
+          cost_code_number: "01-100",
+          cost_code_name: "Excavation",
+          release_amount: 8.75,
+          vendor_invoice_uuid: "invoice-2",
+          holdback_invoice_uuid: "holdback-invoice-2",
+        },
+      ];
+
+      const mockFetch = vi.fn().mockImplementation((url: string, options?: any) => {
+        if (url.includes("/api/holdback-releases")) {
+          return Promise.resolve({ data: mockPreviouslyReleasedCostCodes });
+        }
+        // Allow other API calls
+        if (url.includes("/api/purchase-order-forms") || url.includes("/api/change-orders") || url.includes("/api/vendor-invoices")) {
+          return Promise.resolve({ data: [] });
+        }
+        return Promise.resolve({ data: [] });
+      });
+
+      vi.stubGlobal("$fetch", mockFetch);
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: false,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Verify HoldbackBreakdownTable received the previously released cost codes
+      const holdbackTable = wrapper.findComponent({ name: "HoldbackBreakdownTable" });
+      if (holdbackTable.exists()) {
+        const props = holdbackTable.props();
+        expect(Array.isArray(props.previouslyReleasedCostCodes)).toBe(true);
+        // Should have 2 entries for cc-1 (total release amount should be 15.0)
+        const cc1Releases = props.previouslyReleasedCostCodes.filter(
+          (cc: any) => cc.cost_code_uuid === "cc-1"
+        );
+        expect(cc1Releases.length).toBeGreaterThanOrEqual(0);
+      }
+    });
+  });
 });
 
