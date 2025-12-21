@@ -10409,5 +10409,327 @@ describe("VendorInvoiceForm.vue", () => {
       }
     });
   });
+
+  describe("Holdback Invoice Financial Breakdown Visibility", () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      (global.$fetch as any) = vi.fn().mockImplementation((url: string): any => {
+        // Allow store fetches
+        if (url.includes("purchase-order-forms?") || url.includes("change-orders?") || url.includes("vendor-invoices?")) {
+          return Promise.resolve({ data: [] });
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+    });
+
+    it("shows financial breakdown when holdback cost codes exist (for existing invoices)", async () => {
+      const form = {
+        ...baseForm,
+        uuid: "invoice-1",
+        invoice_type: "AGAINST_HOLDBACK_AMOUNT",
+        holdback_invoice_uuid: "holdback-invoice-1",
+        purchase_order_uuid: null,
+        change_order_uuid: null,
+        holdback_cost_codes: [
+          {
+            cost_code_uuid: "cc-1",
+            cost_code_label: "01-100 Excavation",
+            total_amount: 1000,
+            release_amount: 500,
+          },
+        ],
+      };
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: true,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      // Check if FinancialBreakdown component is rendered for holdback invoices
+      // There might be multiple FinancialBreakdown components, so find all and check for holdback one
+      const financialBreakdowns = wrapper.findAllComponents({ name: "FinancialBreakdown" });
+      const holdbackFinancialBreakdown = financialBreakdowns.find((fb: any) => 
+        fb.props("itemTotalLabel") === "Release Amount Total"
+      );
+      expect(holdbackFinancialBreakdown).toBeDefined();
+      expect(holdbackFinancialBreakdown?.exists()).toBe(true);
+    });
+
+    it("shows financial breakdown when PO/CO UUIDs are set (for new invoices)", async () => {
+      const form = {
+        ...baseForm,
+        uuid: null, // New invoice
+        invoice_type: "AGAINST_HOLDBACK_AMOUNT",
+        holdback_invoice_uuid: "holdback-invoice-1",
+        purchase_order_uuid: "po-uuid-1",
+        change_order_uuid: null,
+        holdback_cost_codes: [],
+      };
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: false,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      // Check if FinancialBreakdown component is rendered for holdback invoices
+      const financialBreakdowns = wrapper.findAllComponents({ name: "FinancialBreakdown" });
+      const holdbackFinancialBreakdown = financialBreakdowns.find((fb: any) => 
+        fb.props("itemTotalLabel") === "Release Amount Total"
+      );
+      expect(holdbackFinancialBreakdown).toBeDefined();
+      expect(holdbackFinancialBreakdown?.exists()).toBe(true);
+    });
+
+    it("shows financial breakdown when CO UUID is set (for new invoices)", async () => {
+      const form = {
+        ...baseForm,
+        uuid: null, // New invoice
+        invoice_type: "AGAINST_HOLDBACK_AMOUNT",
+        holdback_invoice_uuid: "holdback-invoice-1",
+        purchase_order_uuid: null,
+        change_order_uuid: "co-uuid-1",
+        holdback_cost_codes: [],
+      };
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: false,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      // Check if FinancialBreakdown component is rendered for holdback invoices
+      const financialBreakdowns = wrapper.findAllComponents({ name: "FinancialBreakdown" });
+      const holdbackFinancialBreakdown = financialBreakdowns.find((fb: any) => 
+        fb.props("itemTotalLabel") === "Release Amount Total"
+      );
+      expect(holdbackFinancialBreakdown).toBeDefined();
+      expect(holdbackFinancialBreakdown?.exists()).toBe(true);
+    });
+
+    it("does not show financial breakdown when neither condition is met", async () => {
+      const form = {
+        ...baseForm,
+        uuid: null, // New invoice
+        invoice_type: "AGAINST_HOLDBACK_AMOUNT",
+        holdback_invoice_uuid: null,
+        purchase_order_uuid: null,
+        change_order_uuid: null,
+        holdback_cost_codes: [],
+      };
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: false,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      // Check if FinancialBreakdown component for holdback is NOT rendered
+      const financialBreakdowns = wrapper.findAllComponents({ name: "FinancialBreakdown" });
+      const holdbackFinancialBreakdown = financialBreakdowns.find((fb: any) => 
+        fb.props("itemTotalLabel") === "Release Amount Total"
+      );
+      expect(holdbackFinancialBreakdown).toBeUndefined();
+    });
+
+    it("shows financial breakdown with hide-charges prop set to true", async () => {
+      const form = {
+        ...baseForm,
+        uuid: "invoice-1",
+        invoice_type: "AGAINST_HOLDBACK_AMOUNT",
+        holdback_invoice_uuid: "holdback-invoice-1",
+        purchase_order_uuid: "po-uuid-1",
+        change_order_uuid: null,
+        holdback_cost_codes: [
+          {
+            cost_code_uuid: "cc-1",
+            cost_code_label: "01-100 Excavation",
+            total_amount: 1000,
+            release_amount: 500,
+          },
+        ],
+      };
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: true,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      // Check if FinancialBreakdown component is rendered with hide-charges prop
+      const financialBreakdown = wrapper.findComponent({ name: "FinancialBreakdown" });
+      expect(financialBreakdown.exists()).toBe(true);
+      expect(financialBreakdown.props("hideCharges")).toBe(true);
+    });
+
+    it("shows financial breakdown when both PO UUID and holdback cost codes exist", async () => {
+      const form = {
+        ...baseForm,
+        uuid: "invoice-1",
+        invoice_type: "AGAINST_HOLDBACK_AMOUNT",
+        holdback_invoice_uuid: "holdback-invoice-1",
+        purchase_order_uuid: "po-uuid-1",
+        change_order_uuid: null,
+        holdback_cost_codes: [
+          {
+            cost_code_uuid: "cc-1",
+            cost_code_label: "01-100 Excavation",
+            total_amount: 1000,
+            release_amount: 500,
+          },
+        ],
+      };
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: true,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      // Check if FinancialBreakdown component is rendered
+      const financialBreakdown = wrapper.findComponent({ name: "FinancialBreakdown" });
+      expect(financialBreakdown.exists()).toBe(true);
+    });
+
+    it("does not show financial breakdown for non-holdback invoice types", async () => {
+      const form = {
+        ...baseForm,
+        uuid: "invoice-1",
+        invoice_type: "AGAINST_PO",
+        holdback_invoice_uuid: null,
+        purchase_order_uuid: "po-uuid-1",
+        change_order_uuid: null,
+        holdback_cost_codes: [],
+      };
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: true,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      // For AGAINST_PO invoices, there should be a different FinancialBreakdown
+      // but not the one for holdback invoices
+      // The holdback section should not be visible
+      const holdbackSection = wrapper.find('[data-testid="holdback-financial-breakdown"]');
+      expect(holdbackSection.exists()).toBe(false);
+    });
+
+    it("updates financial breakdown when holdback cost codes change", async () => {
+      const form = {
+        ...baseForm,
+        uuid: "invoice-1",
+        invoice_type: "AGAINST_HOLDBACK_AMOUNT",
+        holdback_invoice_uuid: "holdback-invoice-1",
+        purchase_order_uuid: "po-uuid-1",
+        change_order_uuid: null,
+        holdback_cost_codes: [
+          {
+            cost_code_uuid: "cc-1",
+            cost_code_label: "01-100 Excavation",
+            total_amount: 1000,
+            release_amount: 500,
+          },
+        ],
+      };
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: true,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      // Initial state - should show financial breakdown
+      let financialBreakdown = wrapper.findComponent({ name: "FinancialBreakdown" });
+      expect(financialBreakdown.exists()).toBe(true);
+
+      // Update form to remove holdback cost codes but keep PO UUID
+      await wrapper.setProps({
+        form: {
+          ...form,
+          holdback_cost_codes: [],
+        },
+      });
+
+      await flushPromises();
+
+      // Should still show financial breakdown because PO UUID is set
+      financialBreakdown = wrapper.findComponent({ name: "FinancialBreakdown" });
+      expect(financialBreakdown.exists()).toBe(true);
+    });
+  });
 });
 
