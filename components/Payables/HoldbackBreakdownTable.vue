@@ -86,16 +86,31 @@
                     :model-value="row.releaseAmount !== null && row.releaseAmount !== undefined ? String(row.releaseAmount) : ''"
                     type="number"
                     step="1"
-                    min="0"
+                    :min="0"
+                    :max="getAvailableRetainageAmount(row.cost_code_uuid, row.retainageAmount || 0) + (parseFloat(String(row.releaseAmount || 0)) || 0)"
                     pattern="[0-9.]*"
                     inputmode="decimal"
                     size="xs"
-                    class="w-full"
+                    :class="[
+                      'w-full',
+                      isReleaseAmountExceeded(row.cost_code_uuid, parseFloat(String(row.releaseAmount || 0)) || 0, row.retainageAmount || 0) 
+                        ? 'border-red-500 dark:border-red-400' 
+                        : ''
+                    ]"
                     :disabled="readonly || !row.cost_code_uuid"
                     placeholder="0.00"
                     @update:model-value="(value) => handleReleaseAmountChange(index, value)"
                     @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab') e.preventDefault(); }"
                   />
+                  <div v-if="row.cost_code_uuid && row.retainageAmount" class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Available: {{ formatCurrency(getAvailableRetainageAmount(row.cost_code_uuid, row.retainageAmount)) }}
+                    <span v-if="releasedAmountsByCostCode.get(row.cost_code_uuid) && releasedAmountsByCostCode.get(row.cost_code_uuid)! > 0" class="text-warning-600 dark:text-warning-400">
+                      ({{ formatCurrency(releasedAmountsByCostCode.get(row.cost_code_uuid)!) }} already released)
+                    </span>
+                  </div>
+                  <div v-if="isReleaseAmountExceeded(row.cost_code_uuid, parseFloat(String(row.releaseAmount || 0)) || 0, row.retainageAmount || 0)" class="text-xs text-red-600 dark:text-red-400 mt-1">
+                    Exceeds available amount
+                  </div>
                 </div>
               </td>
 
@@ -151,12 +166,14 @@ interface Props {
   readonly?: boolean
   modelValue?: any[]
   holdbackInvoiceUuid?: string | null // UUID of the holdback invoice to get retainage amounts
+  currentInvoiceUuid?: string | null // UUID of the current invoice being created/edited (to exclude from calculations)
 }
 
 const props = withDefaults(defineProps<Props>(), {
   readonly: false,
   modelValue: () => [],
-  holdbackInvoiceUuid: null
+  holdbackInvoiceUuid: null,
+  currentInvoiceUuid: null
 })
 
 const emit = defineEmits<{
@@ -177,6 +194,8 @@ const cachedPOItems = ref<Map<string, any[]>>(new Map()) // Cache PO items by UU
 const cachedCOItems = ref<Map<string, any[]>>(new Map()) // Cache CO items by UUID
 const cachedHoldbackInvoice = ref<Map<string, any>>(new Map()) // Cache holdback invoice by UUID
 const cachedCostCodeConfigs = ref<Map<string, any[]>>(new Map()) // Cache cost code configurations by corporation UUID
+const existingHoldbackInvoices = ref<any[]>([]) // Existing holdback invoices for the PO/CO
+const releasedAmountsByCostCode = ref<Map<string, number>>(new Map()) // Map of cost_code_uuid -> total released amount
 
 // Computed
 const showTable = computed(() => {
@@ -331,6 +350,76 @@ const fetchChartOfAccounts = async (corporationUuid: string) => {
   }
 }
 
+// Fetch existing holdback invoices for the PO/CO
+const fetchExistingHoldbackInvoices = async () => {
+  if (!props.purchaseOrderUuid && !props.changeOrderUuid) {
+    existingHoldbackInvoices.value = []
+    releasedAmountsByCostCode.value.clear()
+    return
+  }
+
+  try {
+    const currentInvoiceUuid = props.currentInvoiceUuid || undefined
+    let url = ''
+    
+    if (props.purchaseOrderUuid) {
+      url = `/api/purchase-orders/${props.purchaseOrderUuid}/holdback-invoices`
+    } else if (props.changeOrderUuid) {
+      url = `/api/change-orders/${props.changeOrderUuid}/holdback-invoices`
+    }
+
+    if (!url) {
+      existingHoldbackInvoices.value = []
+      releasedAmountsByCostCode.value.clear()
+      return
+    }
+
+    const response = await $fetch<{ data: any[] }>(url, {
+      query: currentInvoiceUuid ? { currentInvoiceUuid } : {}
+    })
+
+    existingHoldbackInvoices.value = Array.isArray(response?.data) ? response.data : []
+
+    // Calculate total released amounts per cost code
+    const releasedMap = new Map<string, number>()
+    
+    existingHoldbackInvoices.value.forEach((invoice: any) => {
+      const costCodes = invoice.cost_codes || []
+      costCodes.forEach((cc: any) => {
+        const costCodeUuid = cc.cost_code_uuid
+        if (!costCodeUuid) return
+
+        const releaseAmount = parseFloat(String(cc.release_amount || 0)) || 0
+        const currentTotal = releasedMap.get(costCodeUuid) || 0
+        releasedMap.set(costCodeUuid, currentTotal + releaseAmount)
+      })
+    })
+
+    releasedAmountsByCostCode.value = releasedMap
+  } catch (error) {
+    console.error('[HoldbackBreakdownTable] Error fetching existing holdback invoices:', error)
+    existingHoldbackInvoices.value = []
+    releasedAmountsByCostCode.value.clear()
+  }
+}
+
+// Get available retainage amount for a cost code (retainage - already released)
+const getAvailableRetainageAmount = (costCodeUuid: string | null, retainageAmount: number): number => {
+  if (!costCodeUuid) return 0
+  
+  const alreadyReleased = releasedAmountsByCostCode.value.get(costCodeUuid) || 0
+  const available = retainageAmount - alreadyReleased
+  return Math.max(0, available) // Don't return negative values
+}
+
+// Check if release amount exceeds available
+const isReleaseAmountExceeded = (costCodeUuid: string | null, releaseAmount: number, retainageAmount: number): boolean => {
+  if (!costCodeUuid) return false
+  
+  const available = getAvailableRetainageAmount(costCodeUuid, retainageAmount)
+  return releaseAmount > available
+}
+
 // Calculate retainage amount per cost code based on holdback invoice
 // The retainage amount is the holdback amount from the invoice, distributed by cost code
 const calculateRetainageAmounts = (items: any[], holdbackInvoice: any): Map<string, number> => {
@@ -454,6 +543,9 @@ const processItems = async () => {
   try {
     // Fetch holdback invoice data
     await fetchHoldbackInvoice(props.holdbackInvoiceUuid)
+
+    // Fetch existing holdback invoices to calculate remaining amounts
+    await fetchExistingHoldbackInvoices()
 
     // Fetch items based on PO or CO
     let items: any[] = []
@@ -655,6 +747,13 @@ const handleReleaseAmountChange = (index: number, value: string | null) => {
   if (value !== null && value !== undefined && value !== '') {
     const parsed = parseFloat(value)
     if (!isNaN(parsed) && parsed >= 0) {
+      // Check if value exceeds available retainage amount
+      const costCodeUuid = row.cost_code_uuid
+      const retainageAmount = row.retainageAmount || 0
+      const available = getAvailableRetainageAmount(costCodeUuid, retainageAmount)
+      
+      // Allow user to type any value (for validation/highlighting), but don't cap it here
+      // The max attribute on the input will prevent entering values above available
       numericValue = parsed
     }
   }
@@ -695,11 +794,16 @@ const handleRemoveRow = (index: number) => {
 
 // Watch for props changes
 watch(
-  [() => props.purchaseOrderUuid, () => props.changeOrderUuid, () => props.holdbackInvoiceUuid, () => props.corporationUuid],
-  async ([newPoUuid, newCoUuid, newHoldbackUuid, newCorpUuid], [oldPoUuid, oldCoUuid, oldHoldbackUuid, oldCorpUuid]) => {
+  [() => props.purchaseOrderUuid, () => props.changeOrderUuid, () => props.holdbackInvoiceUuid, () => props.corporationUuid, () => props.currentInvoiceUuid],
+  async ([newPoUuid, newCoUuid, newHoldbackUuid, newCorpUuid, newCurrentInvoiceUuid], [oldPoUuid, oldCoUuid, oldHoldbackUuid, oldCorpUuid, oldCurrentInvoiceUuid]) => {
     // Skip if already processing
     if (isProcessingItems.value) {
       return
+    }
+
+    // If PO/CO changed, fetch existing holdback invoices
+    if ((newPoUuid !== oldPoUuid || newCoUuid !== oldCoUuid || newCurrentInvoiceUuid !== oldCurrentInvoiceUuid) && (newPoUuid || newCoUuid)) {
+      await fetchExistingHoldbackInvoices()
     }
 
     // If we have saved data (modelValue), don't clear it even if props are temporarily unset

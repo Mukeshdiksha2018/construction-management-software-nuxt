@@ -441,6 +441,7 @@
         :readonly="props.readonly"
         :model-value="holdbackCostCodes"
         :holdback-invoice-uuid="form.holdback_invoice_uuid"
+        :current-invoice-uuid="form.uuid"
         @update:model-value="handleHoldbackCostCodesUpdate"
         @release-amounts-update="handleHoldbackReleaseAmountsUpdate"
       />
@@ -1947,7 +1948,7 @@ const handleCorporationChange = async (corporationUuid?: string | null) => {
   // But skip this check if we're loading an existing invoice (project might not be in store yet)
   if (normalizedCorporationUuid && props.form.project_uuid && !props.form.uuid) {
     // Check if the current project belongs to the new corporation
-    const projects = projectsStore.getProjectsMetadata(normalizedCorporationUuid);
+    const projects = projectsStore.projectsMetadata;
     const currentProject = projects?.find((p: any) => p.uuid === props.form.project_uuid);
     if (!currentProject) {
       handleFormUpdate('project_uuid', null);
