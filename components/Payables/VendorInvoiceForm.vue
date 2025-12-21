@@ -293,10 +293,13 @@
                   :model-value="amountInputValue"
                   type="number"
                   step="0.01"
+                  pattern="[0-9.]*"
+                  inputmode="decimal"
                   placeholder="0.00"
                   size="sm"
                   class="w-full"
                   :disabled="true"
+                  @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab') e.preventDefault(); }"
                   readonly
                 />
               </div>
@@ -312,10 +315,13 @@
                   :model-value="holdbackInputValue"
                   type="number"
                   step="0.01"
+                  pattern="[0-9.]*"
+                  inputmode="decimal"
                   placeholder="0"
                   size="sm"
                   class="w-full pr-8"
                   :disabled="areSubsequentFieldsDisabled"
+                  @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab') e.preventDefault(); }"
                   @update:model-value="handleHoldbackChange"
                 />
                 <div class="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs text-gray-500 font-medium pointer-events-none bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded border border-default">

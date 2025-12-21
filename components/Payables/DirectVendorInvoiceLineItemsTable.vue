@@ -106,11 +106,14 @@
                   :model-value="itemDrafts[index]?.unitPriceInput ?? toInputString(item.unit_price)"
                   type="number"
                   step="0.01"
+                  pattern="[0-9.]*"
+                  inputmode="decimal"
                   size="xs"
                   class="w-full max-w-[100px] text-right font-mono"
                   :disabled="readonly"
                   placeholder="0.00"
                   @update:model-value="(value) => handleUnitPriceChange(index, value)"
+                  @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab') e.preventDefault(); }"
                 />
               </div>
             </td>
@@ -133,10 +136,13 @@
                 :model-value="itemDrafts[index]?.quantityInput ?? toInputString(item.quantity)"
                 type="number"
                 step="0.01"
+                pattern="[0-9.]*"
+                inputmode="decimal"
                 size="xs"
                 class="w-full max-w-[80px] text-right font-mono"
                 :disabled="readonly"
                 placeholder="0"
+                @keypress="(e) => { if (!/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab') e.preventDefault(); }"
                 @update:model-value="(value) => handleQuantityChange(index, value)"
               />
             </td>

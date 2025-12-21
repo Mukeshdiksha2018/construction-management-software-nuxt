@@ -167,13 +167,16 @@
                   <UInput
                     :model-value="getAdjustedAmount(payment.uuid, costCode.cost_code_uuid || costCode.uuid)"
                     type="number"
-                    step="0.01"
+                    step="1"
                     min="0"
+                    pattern="[0-9.]*"
+                    inputmode="decimal"
                     :max="getRemainingAmount(payment.uuid, costCode) + (parseFloat(getAdjustedAmount(payment.uuid, costCode.cost_code_uuid || costCode.uuid)) || 0)"
                     placeholder="0.00"
                     size="xs"
                     class="w-24"
                     :disabled="readonly"
+                    @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab') e.preventDefault(); }"
                     @update:model-value="handleAdjustedAmountChange(payment.uuid, costCode, $event)"
                   />
                   <span class="text-xs text-gray-500 dark:text-gray-400">

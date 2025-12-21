@@ -121,10 +121,13 @@
                   v-model="form.amount"
                   type="number"
                   step="0.01"
+                  pattern="[0-9.]*"
+                  inputmode="decimal"
                   placeholder="0.00"
                   size="sm"
                   class="w-full pl-6"
                   :disabled="form.approval_status === 'Approved'"
+                  @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab') e.preventDefault(); }"
                 />
                 <span class="absolute left-2 top-1/2 transform -translate-y-1/2 text-xs text-gray-500 font-medium pointer-events-none">
                   {{ currencySymbol }}
@@ -265,10 +268,13 @@
                   v-model="item.amount"
                   type="number"
                   step="0.01"
+                  pattern="[0-9.]*"
+                  inputmode="decimal"
                   placeholder="0.00"
                   size="sm"
                   class="w-full"
                   :disabled="form.approval_status === 'Approved'"
+                  @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab') e.preventDefault(); }"
                   @input="() => emit('update-line-calculations')"
                 />
               </div>
@@ -401,10 +407,13 @@
                   v-model="item.amount"
                   type="number"
                   step="0.01"
+                  pattern="[0-9.]*"
+                  inputmode="decimal"
                   placeholder="0.00"
                   size="sm"
                   class="w-full"
                   @input="() => emit('update-credit-calculations')"
+                  @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab') e.preventDefault(); }"
                 />
               </div>
               

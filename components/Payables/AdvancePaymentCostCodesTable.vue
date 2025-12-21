@@ -96,12 +96,16 @@
                   <UInput
                     :model-value="row.advanceAmount !== null && row.advanceAmount !== undefined ? String(row.advanceAmount) : ''"
                     type="number"
-                    step="0.01"
+                    step="1"
+                    min="0"
+                    pattern="[0-9.]*"
+                    inputmode="decimal"
                     size="xs"
                     class="w-full"
                     :disabled="readonly || !row.cost_code_uuid"
                     placeholder="0.00"
                     @update:model-value="(value) => handleAdvanceAmountChange(index, value)"
+                    @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab') e.preventDefault(); }"
                   />
                 </div>
               </td>
