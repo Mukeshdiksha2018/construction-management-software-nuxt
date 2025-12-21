@@ -274,8 +274,11 @@
                 class="w-full justify-start"
                 @click="showHoldbackModal = true"
               >
-                <span v-if="form.po_co_uuid">
-                  {{ form.po_number || form.co_number || 'Selected' }}
+                <span v-if="form.holdback_invoice_uuid || form.po_co_uuid">
+                  <span v-if="form.po_number">{{ form.po_number }}</span>
+                  <span v-else-if="form.co_number">{{ form.co_number }}</span>
+                  <span v-else-if="form.holdback_invoice_uuid">Holdback Invoice Selected</span>
+                  <span v-else>Selected</span>
                 </span>
                 <span v-else>
                   {{ !form.project_uuid ? 'Select project first' : !form.vendor_uuid ? 'Select vendor first' : 'Select PO/CO for holdback invoice' }}
@@ -1440,6 +1443,22 @@ const holdbackCostCodes = computed(() => {
 
 // Total release amount from holdback breakdown table
 const holdbackReleaseAmountTotal = ref(0);
+
+// Debug: Watch form values for holdback invoice
+watch(
+  [() => props.form.po_number, () => props.form.co_number, () => props.form.po_co_uuid, () => props.form.holdback_invoice_uuid],
+  ([newPoNumber, newCoNumber, newPoCoUuid, newHoldbackInvoiceUuid], [oldPoNumber, oldCoNumber, oldPoCoUuid, oldHoldbackInvoiceUuid]) => {
+    if (isAgainstHoldback.value) {
+      console.log('[VendorInvoiceForm] Form values changed (holdback invoice):', {
+        po_number: { old: oldPoNumber, new: newPoNumber },
+        co_number: { old: oldCoNumber, new: newCoNumber },
+        po_co_uuid: { old: oldPoCoUuid, new: newPoCoUuid },
+        holdback_invoice_uuid: { old: oldHoldbackInvoiceUuid, new: newHoldbackInvoiceUuid }
+      });
+    }
+  },
+  { immediate: true }
+);
 
 // Computed property to determine if subsequent fields should be disabled
 const areSubsequentFieldsDisabled = computed(() => {
@@ -3323,6 +3342,165 @@ const handleHoldbackChange = (value: string | null) => {
   }
 };
 
+// Fetch holdback invoice details to populate PO/CO number when loading existing invoice
+const fetchHoldbackInvoiceDetails = async () => {
+  console.log('[VendorInvoiceForm] fetchHoldbackInvoiceDetails called', {
+    holdback_invoice_uuid: props.form.holdback_invoice_uuid,
+    isAgainstHoldback: isAgainstHoldback.value,
+    isFetching: isFetchingHoldbackInvoiceDetails.value,
+    current_po_number: props.form.po_number,
+    current_co_number: props.form.co_number,
+    current_po_co_uuid: props.form.po_co_uuid
+  });
+  
+  if (isFetchingHoldbackInvoiceDetails.value) {
+    console.log('[VendorInvoiceForm] Already fetching, skipping...');
+    return; // Prevent concurrent fetches
+  }
+  
+  if (!props.form.holdback_invoice_uuid || !isAgainstHoldback.value) {
+    console.log('[VendorInvoiceForm] Missing holdback_invoice_uuid or not against holdback, skipping...', {
+      holdback_invoice_uuid: props.form.holdback_invoice_uuid,
+      isAgainstHoldback: isAgainstHoldback.value
+    });
+    return;
+  }
+  
+  isFetchingHoldbackInvoiceDetails.value = true;
+  
+  try {
+    console.log('[VendorInvoiceForm] Fetching holdback invoice:', props.form.holdback_invoice_uuid);
+    // Fetch the holdback invoice to get its PO/CO UUID
+    const invoiceResponse = await $fetch<{ data: any }>(`/api/vendor-invoices/${props.form.holdback_invoice_uuid}`);
+    const holdbackInvoice = invoiceResponse?.data;
+    
+    console.log('[VendorInvoiceForm] Holdback invoice fetched:', {
+      invoice: holdbackInvoice,
+      invoice_type: holdbackInvoice?.invoice_type,
+      purchase_order_uuid: holdbackInvoice?.purchase_order_uuid,
+      change_order_uuid: holdbackInvoice?.change_order_uuid,
+      po_number: holdbackInvoice?.po_number,
+      co_number: holdbackInvoice?.co_number
+    });
+    
+    if (!holdbackInvoice) {
+      console.warn('[VendorInvoiceForm] No holdback invoice data returned');
+      return;
+    }
+    
+    const updatedForm = { ...props.form };
+    
+    // Determine if this is against PO or CO based on invoice type
+    if (holdbackInvoice.invoice_type === 'AGAINST_PO' && holdbackInvoice.purchase_order_uuid) {
+      const poUuid = holdbackInvoice.purchase_order_uuid;
+      console.log('[VendorInvoiceForm] Processing AGAINST_PO invoice', { poUuid });
+      
+      // Only update if not already set (to avoid overwriting)
+      if (!updatedForm.purchase_order_uuid || updatedForm.purchase_order_uuid !== poUuid) {
+        updatedForm.purchase_order_uuid = poUuid;
+        updatedForm.po_co_uuid = `PO:${poUuid}`;
+        updatedForm.change_order_uuid = null;
+        console.log('[VendorInvoiceForm] Updated purchase_order_uuid and po_co_uuid', {
+          purchase_order_uuid: updatedForm.purchase_order_uuid,
+          po_co_uuid: updatedForm.po_co_uuid
+        });
+      }
+      
+      // Always get PO number from invoice, or fetch from PO if not available
+      // This ensures we always have the PO number even if form already has an empty string
+      let poNumber = holdbackInvoice.po_number || '';
+      console.log('[VendorInvoiceForm] Initial PO number from invoice:', poNumber);
+      
+      if (!poNumber && poUuid) {
+        try {
+          console.log('[VendorInvoiceForm] Fetching PO number from API:', poUuid);
+          const poResponse = await $fetch<{ data: any }>(`/api/purchase-order-forms/${poUuid}`);
+          poNumber = poResponse?.data?.po_number || '';
+          console.log('[VendorInvoiceForm] PO number fetched from API:', poNumber);
+        } catch (error) {
+          console.warn('[VendorInvoiceForm] Error fetching PO number:', error);
+        }
+      }
+      updatedForm.po_number = poNumber;
+      updatedForm.co_number = '';
+      
+      // Also ensure po_co_uuid is set
+      if (!updatedForm.po_co_uuid || updatedForm.po_co_uuid !== `PO:${poUuid}`) {
+        updatedForm.po_co_uuid = `PO:${poUuid}`;
+      }
+      
+      console.log('[VendorInvoiceForm] Final PO values:', {
+        po_number: updatedForm.po_number,
+        po_co_uuid: updatedForm.po_co_uuid,
+        purchase_order_uuid: updatedForm.purchase_order_uuid
+      });
+    } else if (holdbackInvoice.invoice_type === 'AGAINST_CO' && holdbackInvoice.change_order_uuid) {
+      const coUuid = holdbackInvoice.change_order_uuid;
+      console.log('[VendorInvoiceForm] Processing AGAINST_CO invoice', { coUuid });
+      
+      // Only update if not already set (to avoid overwriting)
+      if (!updatedForm.change_order_uuid || updatedForm.change_order_uuid !== coUuid) {
+        updatedForm.change_order_uuid = coUuid;
+        updatedForm.po_co_uuid = `CO:${coUuid}`;
+        updatedForm.purchase_order_uuid = null;
+        console.log('[VendorInvoiceForm] Updated change_order_uuid and po_co_uuid', {
+          change_order_uuid: updatedForm.change_order_uuid,
+          po_co_uuid: updatedForm.po_co_uuid
+        });
+      }
+      
+      // Always get CO number from invoice, or fetch from CO if not available
+      // This ensures we always have the CO number even if form already has an empty string
+      let coNumber = holdbackInvoice.co_number || '';
+      console.log('[VendorInvoiceForm] Initial CO number from invoice:', coNumber);
+      
+      if (!coNumber && coUuid) {
+        try {
+          console.log('[VendorInvoiceForm] Fetching CO number from API:', coUuid);
+          const coResponse = await $fetch<{ data: any }>(`/api/change-orders/${coUuid}`);
+          coNumber = coResponse?.data?.co_number || '';
+          console.log('[VendorInvoiceForm] CO number fetched from API:', coNumber);
+        } catch (error) {
+          console.warn('[VendorInvoiceForm] Error fetching CO number:', error);
+        }
+      }
+      updatedForm.co_number = coNumber;
+      updatedForm.po_number = '';
+      
+      // Also ensure po_co_uuid is set
+      if (!updatedForm.po_co_uuid || updatedForm.po_co_uuid !== `CO:${coUuid}`) {
+        updatedForm.po_co_uuid = `CO:${coUuid}`;
+      }
+      
+      console.log('[VendorInvoiceForm] Final CO values:', {
+        co_number: updatedForm.co_number,
+        po_co_uuid: updatedForm.po_co_uuid,
+        change_order_uuid: updatedForm.change_order_uuid
+      });
+    } else {
+      console.warn('[VendorInvoiceForm] Invalid invoice type or missing UUID', {
+        invoice_type: holdbackInvoice.invoice_type,
+        purchase_order_uuid: holdbackInvoice.purchase_order_uuid,
+        change_order_uuid: holdbackInvoice.change_order_uuid
+      });
+    }
+    
+    // Always emit update to ensure form is updated (even if values appear the same, they might be empty strings)
+    console.log('[VendorInvoiceForm] Emitting form update with:', {
+      po_number: updatedForm.po_number,
+      co_number: updatedForm.co_number,
+      po_co_uuid: updatedForm.po_co_uuid,
+      purchase_order_uuid: updatedForm.purchase_order_uuid,
+      change_order_uuid: updatedForm.change_order_uuid
+    });
+    emit('update:form', updatedForm);
+  } catch (error) {
+    console.error('[VendorInvoiceForm] Error fetching holdback invoice details:', error);
+  } finally {
+    isFetchingHoldbackInvoiceDetails.value = false;
+  }
+};
+
 // Handle holdback invoice selection
 const handleHoldbackSelection = async (invoice: any) => {
   if (!invoice || typeof invoice !== 'object' || !invoice.uuid) {
@@ -3340,7 +3518,18 @@ const handleHoldbackSelection = async (invoice: any) => {
     updatedForm.purchase_order_uuid = poUuid;
     updatedForm.po_co_uuid = `PO:${poUuid}`;
     updatedForm.change_order_uuid = null;
-    updatedForm.po_number = invoice.po_number || '';
+    
+    // Get PO number from invoice, or fetch from PO if not available
+    let poNumber = invoice.po_number || '';
+    if (!poNumber && poUuid) {
+      try {
+        const poResponse = await $fetch<{ data: any }>(`/api/purchase-order-forms/${poUuid}`);
+        poNumber = poResponse?.data?.po_number || '';
+      } catch (error) {
+        console.warn('[VendorInvoiceForm] Error fetching PO number:', error);
+      }
+    }
+    updatedForm.po_number = poNumber;
     updatedForm.co_number = '';
     
     // Fetch PO items if needed
@@ -3352,7 +3541,18 @@ const handleHoldbackSelection = async (invoice: any) => {
     updatedForm.change_order_uuid = coUuid;
     updatedForm.po_co_uuid = `CO:${coUuid}`;
     updatedForm.purchase_order_uuid = null;
-    updatedForm.co_number = invoice.co_number || '';
+    
+    // Get CO number from invoice, or fetch from CO if not available
+    let coNumber = invoice.co_number || '';
+    if (!coNumber && coUuid) {
+      try {
+        const coResponse = await $fetch<{ data: any }>(`/api/change-orders/${coUuid}`);
+        coNumber = coResponse?.data?.co_number || '';
+      } catch (error) {
+        console.warn('[VendorInvoiceForm] Error fetching CO number:', error);
+      }
+    }
+    updatedForm.co_number = coNumber;
     updatedForm.po_number = '';
     
     // Fetch CO items if needed
@@ -4273,6 +4473,165 @@ watch(
 const isUpdatingFromPOCOSelect = ref(false);
 const isUpdatingAdvancePaymentAmount = ref(false); // Guard flag to prevent recursive updates
 const isUpdatingDueDate = ref(false); // Guard flag to prevent recursive updates when calculating due date
+const isFetchingHoldbackInvoiceDetails = ref(false); // Guard flag to prevent recursive fetches
+
+// Watch for holdback_invoice_uuid to fetch PO/CO number when loading existing invoice
+watch(
+  [() => props.form.holdback_invoice_uuid, () => props.form.uuid, () => props.editingInvoice, () => props.form.invoice_type],
+  async ([newHoldbackInvoiceUuid, newUuid, newEditingInvoice, newInvoiceType], [oldHoldbackInvoiceUuid]) => {
+    console.log('[VendorInvoiceForm] Holdback invoice watcher triggered', {
+      newHoldbackInvoiceUuid,
+      oldHoldbackInvoiceUuid,
+      newUuid,
+      newEditingInvoice,
+      newInvoiceType,
+      current_po_number: props.form.po_number,
+      current_co_number: props.form.co_number
+    });
+    
+    // Only fetch for existing holdback invoices
+    if (!newHoldbackInvoiceUuid || !newUuid || !newEditingInvoice) {
+      console.log('[VendorInvoiceForm] Watcher: Missing required fields, skipping', {
+        hasHoldbackInvoiceUuid: !!newHoldbackInvoiceUuid,
+        hasUuid: !!newUuid,
+        isEditing: !!newEditingInvoice
+      });
+      return;
+    }
+    
+    // Only fetch if invoice type is AGAINST_HOLDBACK_AMOUNT
+    if (String(newInvoiceType || '').toUpperCase() !== 'AGAINST_HOLDBACK_AMOUNT') {
+      console.log('[VendorInvoiceForm] Watcher: Not AGAINST_HOLDBACK_AMOUNT, skipping', {
+        invoice_type: newInvoiceType
+      });
+      return;
+    }
+    
+    // Always fetch if holdback_invoice_uuid changed (loading new invoice)
+    // Or if PO/CO number is missing/empty (even if it's an empty string)
+    const poNumberEmpty = !props.form.po_number || String(props.form.po_number).trim() === '';
+    const coNumberEmpty = !props.form.co_number || String(props.form.co_number).trim() === '';
+    const shouldFetch = newHoldbackInvoiceUuid !== oldHoldbackInvoiceUuid || 
+                       (poNumberEmpty && coNumberEmpty);
+    
+    console.log('[VendorInvoiceForm] Watcher: Should fetch?', {
+      shouldFetch,
+      holdbackInvoiceUuidChanged: newHoldbackInvoiceUuid !== oldHoldbackInvoiceUuid,
+      poNumberEmpty,
+      coNumberEmpty
+    });
+    
+    if (shouldFetch) {
+      console.log('[VendorInvoiceForm] Watcher: Calling fetchHoldbackInvoiceDetails');
+      // Add a small delay to ensure form is fully loaded
+      await nextTick();
+      // Fetch holdback invoice details to get PO/CO number
+      await fetchHoldbackInvoiceDetails();
+    } else {
+      console.log('[VendorInvoiceForm] Watcher: Skipping fetch (already has PO/CO numbers)');
+    }
+  },
+  { immediate: true }
+);
+
+// Watch for po_co_uuid to fetch PO/CO number when it's set but number is missing
+// This handles the case where po_co_uuid is set but po_number/co_number are empty
+watch(
+  [() => props.form.po_co_uuid, () => props.form.po_number, () => props.form.co_number, () => props.form.invoice_type, () => props.form.uuid, () => props.editingInvoice],
+  async ([newPoCoUuid, newPoNumber, newCoNumber, invoiceType, uuid, editingInvoice], [oldPoCoUuid]) => {
+    console.log('[VendorInvoiceForm] po_co_uuid watcher triggered', {
+      newPoCoUuid,
+      oldPoCoUuid,
+      newPoNumber,
+      newCoNumber,
+      invoiceType,
+      uuid,
+      editingInvoice
+    });
+    
+    // Only for holdback invoices
+    if (String(invoiceType || '').toUpperCase() !== 'AGAINST_HOLDBACK_AMOUNT') {
+      console.log('[VendorInvoiceForm] po_co_uuid watcher: Not AGAINST_HOLDBACK_AMOUNT, skipping');
+      return;
+    }
+    
+    // Only for existing invoices
+    if (!uuid || !editingInvoice) {
+      console.log('[VendorInvoiceForm] po_co_uuid watcher: Not existing invoice, skipping', {
+        hasUuid: !!uuid,
+        isEditing: !!editingInvoice
+      });
+      return;
+    }
+    
+    // Only if po_co_uuid is set and changed
+    if (!newPoCoUuid || newPoCoUuid === oldPoCoUuid) {
+      console.log('[VendorInvoiceForm] po_co_uuid watcher: po_co_uuid not set or unchanged, skipping', {
+        hasPoCoUuid: !!newPoCoUuid,
+        changed: newPoCoUuid !== oldPoCoUuid
+      });
+      return;
+    }
+    
+    // Only if PO/CO number is missing
+    const poNumberEmpty = !newPoNumber || String(newPoNumber).trim() === '';
+    const coNumberEmpty = !newCoNumber || String(newCoNumber).trim() === '';
+    
+    console.log('[VendorInvoiceForm] po_co_uuid watcher: Checking if numbers are missing', {
+      poNumberEmpty,
+      coNumberEmpty
+    });
+    
+    if (!poNumberEmpty && !coNumberEmpty) {
+      console.log('[VendorInvoiceForm] po_co_uuid watcher: Already has numbers, skipping');
+      return; // Already has numbers
+    }
+    
+    console.log('[VendorInvoiceForm] po_co_uuid watcher: Fetching PO/CO number', {
+      po_co_uuid: newPoCoUuid,
+      po_number: newPoNumber,
+      co_number: newCoNumber
+    });
+    
+    // Extract UUID from po_co_uuid (format: "PO:uuid" or "CO:uuid")
+    if (newPoCoUuid.startsWith('PO:')) {
+      const poUuid = newPoCoUuid.replace(/^PO:/, '').trim();
+      if (poUuid && poNumberEmpty) {
+        try {
+          console.log('[VendorInvoiceForm] Fetching PO number for:', poUuid);
+          const poResponse = await $fetch<{ data: any }>(`/api/purchase-order-forms/${poUuid}`);
+          const poNumber = poResponse?.data?.po_number || '';
+          if (poNumber) {
+            console.log('[VendorInvoiceForm] Fetched PO number:', poNumber);
+            const updatedForm = { ...props.form };
+            updatedForm.po_number = poNumber;
+            emit('update:form', updatedForm);
+          }
+        } catch (error) {
+          console.warn('[VendorInvoiceForm] Error fetching PO number:', error);
+        }
+      }
+    } else if (newPoCoUuid.startsWith('CO:')) {
+      const coUuid = newPoCoUuid.replace(/^CO:/, '').trim();
+      if (coUuid && coNumberEmpty) {
+        try {
+          console.log('[VendorInvoiceForm] Fetching CO number for:', coUuid);
+          const coResponse = await $fetch<{ data: any }>(`/api/change-orders/${coUuid}`);
+          const coNumber = coResponse?.data?.co_number || '';
+          if (coNumber) {
+            console.log('[VendorInvoiceForm] Fetched CO number:', coNumber);
+            const updatedForm = { ...props.form };
+            updatedForm.co_number = coNumber;
+            emit('update:form', updatedForm);
+          }
+        } catch (error) {
+          console.warn('[VendorInvoiceForm] Error fetching CO number:', error);
+        }
+      }
+    }
+  },
+  { immediate: true }
+);
 
 watch(
   [() => props.form.purchase_order_uuid, () => props.form.change_order_uuid, () => props.form.invoice_type],
@@ -5220,6 +5579,66 @@ onMounted(async () => {
   // If loading an existing invoice with Against PO type and PO selected, fetch PO items
   if (isAgainstPO.value && props.form.purchase_order_uuid) {
     await fetchPOItems(props.form.purchase_order_uuid);
+  }
+  
+  // If loading an existing holdback invoice, fetch the holdback invoice details to get PO/CO number
+  if (isAgainstHoldback.value && props.form.holdback_invoice_uuid && props.form.uuid && props.editingInvoice) {
+    console.log('[VendorInvoiceForm] onMounted: Calling fetchHoldbackInvoiceDetails', {
+      isAgainstHoldback: isAgainstHoldback.value,
+      holdback_invoice_uuid: props.form.holdback_invoice_uuid,
+      uuid: props.form.uuid,
+      editingInvoice: props.editingInvoice,
+      current_po_number: props.form.po_number,
+      current_co_number: props.form.co_number
+    });
+    await fetchHoldbackInvoiceDetails();
+  }
+  
+  // Also check if po_co_uuid is set but po_number/co_number are missing (for holdback invoices)
+  if (isAgainstHoldback.value && props.form.po_co_uuid && props.form.uuid && props.editingInvoice) {
+    const poNumberEmpty = !props.form.po_number || String(props.form.po_number).trim() === '';
+    const coNumberEmpty = !props.form.co_number || String(props.form.co_number).trim() === '';
+    
+    if (poNumberEmpty || coNumberEmpty) {
+      console.log('[VendorInvoiceForm] onMounted: po_co_uuid is set but number is missing, fetching...', {
+        po_co_uuid: props.form.po_co_uuid,
+        po_number: props.form.po_number,
+        co_number: props.form.co_number
+      });
+      
+      // Extract UUID from po_co_uuid and fetch the number
+      if (props.form.po_co_uuid.startsWith('PO:')) {
+        const poUuid = props.form.po_co_uuid.replace(/^PO:/, '').trim();
+        if (poUuid && poNumberEmpty) {
+          try {
+            console.log('[VendorInvoiceForm] onMounted: Fetching PO number for:', poUuid);
+            const poResponse = await $fetch<{ data: any }>(`/api/purchase-order-forms/${poUuid}`);
+            const poNumber = poResponse?.data?.po_number || '';
+            if (poNumber) {
+              console.log('[VendorInvoiceForm] onMounted: Fetched PO number:', poNumber);
+              handleFormUpdate('po_number', poNumber);
+            }
+          } catch (error) {
+            console.warn('[VendorInvoiceForm] onMounted: Error fetching PO number:', error);
+          }
+        }
+      } else if (props.form.po_co_uuid.startsWith('CO:')) {
+        const coUuid = props.form.po_co_uuid.replace(/^CO:/, '').trim();
+        if (coUuid && coNumberEmpty) {
+          try {
+            console.log('[VendorInvoiceForm] onMounted: Fetching CO number for:', coUuid);
+            const coResponse = await $fetch<{ data: any }>(`/api/change-orders/${coUuid}`);
+            const coNumber = coResponse?.data?.co_number || '';
+            if (coNumber) {
+              console.log('[VendorInvoiceForm] onMounted: Fetched CO number:', coNumber);
+              handleFormUpdate('co_number', coNumber);
+            }
+          } catch (error) {
+            console.warn('[VendorInvoiceForm] onMounted: Error fetching CO number:', error);
+          }
+        }
+      }
+    }
   }
   
   // If loading an existing invoice with Against CO type and CO selected, fetch CO items
