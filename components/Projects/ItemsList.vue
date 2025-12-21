@@ -389,6 +389,7 @@
                     size="sm"
                     class="w-full pl-6"
                     :disabled="!itemForm.project_uuid"
+                    @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"
                   />
                   <span class="absolute left-2 top-1/2 transform -translate-y-1/2 text-xs text-gray-500 font-medium pointer-events-none">
                     {{ currencySymbol }}
@@ -469,6 +470,7 @@
                   size="sm"
                   class="w-full"
                   :disabled="!itemForm.project_uuid"
+                  @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"
                 />
               </div>
               <div>
@@ -514,6 +516,7 @@
                   size="sm"
                   class="w-full"
                   :disabled="!itemForm.project_uuid"
+                  @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"
                 />
               </div>
               <div>
@@ -528,6 +531,7 @@
                   size="sm"
                   class="w-full"
                   :disabled="!itemForm.project_uuid"
+                  @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"
                 />
               </div>
             </div>

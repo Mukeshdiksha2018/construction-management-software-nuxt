@@ -248,6 +248,7 @@
                       placeholder="%"
                       size="sm"
                       class="w-full"
+                      @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"
                       @update:model-value="(value) => handleFormUpdate('contingency_percentage', value)"
                     />
                   </div>
@@ -267,6 +268,7 @@
                             placeholder="Area"
                             size="sm"
                             class="w-full"
+                            @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"
                             @update:model-value="(value) => handleFormUpdate('area_sq_ft', value)"
                           />
                         </div>
@@ -287,6 +289,7 @@
                             placeholder="Rooms"
                             size="sm"
                             class="w-full"
+                            @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"
                             @update:model-value="(value) => handleFormUpdate('no_of_rooms', value)"
                           />
                         </div>

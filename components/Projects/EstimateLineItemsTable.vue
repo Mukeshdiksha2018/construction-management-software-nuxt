@@ -783,6 +783,7 @@
                       placeholder="0.00"
                       :disabled="isReadOnly"
                       @update:model-value="updateLaborTotal"
+                      @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"
                     />
                   </div>
                 </div>
@@ -813,6 +814,7 @@
                       placeholder="0.00"
                       :disabled="isReadOnly"
                       @update:model-value="updateLaborTotal"
+                      @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"
                     />
                   </div>
                 </div>
@@ -843,6 +845,7 @@
                       placeholder="0.00"
                       :disabled="isReadOnly"
                       @update:model-value="updateLaborTotal"
+                      @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"
                     />
                   </div>
                 </div>
@@ -888,6 +891,7 @@
                       placeholder="0.00"
                       :disabled="isReadOnly"
                       @update:model-value="updateMaterialTotal"
+                      @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"
                     />
                   </div>
                 </div>
@@ -1000,6 +1004,7 @@
                               class="w-20"
                               :disabled="isReadOnly"
                               @update:model-value="updateMaterialItemTotal(index)"
+                              @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"
                             />
                           </td>
                           <!-- UOM -->
@@ -1025,6 +1030,7 @@
                               class="w-16"
                               :disabled="isReadOnly"
                               @update:model-value="updateMaterialItemTotal(index)"
+                              @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"
                             />
                           </td>
                           <!-- Total -->
@@ -1119,6 +1125,7 @@
                     :placeholder="selectedCostCode?.contingency_enabled ? String(currentProject?.contingency_percentage ?? '0') : 'e.g. 5'"
                     class="w-40"
                     :disabled="isReadOnly || !selectedCostCode?.contingency_enabled"
+                    @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"
                     @update:model-value="(v: string | number) => {
                       if (!selectedCostCode || !selectedCostCode.contingency_enabled || isReadOnly) return
                       const str = String(v).trim()

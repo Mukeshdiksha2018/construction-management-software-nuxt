@@ -307,6 +307,7 @@
                     variant="subtle"
                     placeholder="0.00"
                     class="w-full pl-8"
+                    @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"
                   />
                 </div>
                 <p class="text-xs text-gray-500 mt-2">

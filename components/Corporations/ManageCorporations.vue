@@ -206,6 +206,7 @@
               variant="subtle"
               type="number"
               placeholder="No of Rooms"
+              @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"
             />
           </div>
           
@@ -345,6 +346,7 @@
               variant="subtle"
               type="number"
               placeholder="No of Rooms"
+              @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"
             />
           </div>
           
