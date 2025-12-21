@@ -696,36 +696,42 @@ const columns: TableColumn<any>[] = [
     accessorKey: 'bill_date',
     header: 'Bill Date',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: { original: any } }) => h('div', formatDate(row.original.bill_date))
   },
   {
     accessorKey: 'number',
     header: 'Invoice Number',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: { original: any } }) => h('div', { class: 'font-medium text-default' }, row.original.number || 'N/A')
   },
   {
     accessorKey: 'project_name',
     header: 'Project Name',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: { original: any } }) => h('div', row.original.project_name || 'N/A')
   },
   {
     accessorKey: 'vendor_name',
     header: 'Vendor Name',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: { original: any } }) => h('div', row.original.vendor_name || 'N/A')
   },
   {
     accessorKey: 'invoice_type',
     header: 'Invoice Type',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: { original: any } }) => h('div', getInvoiceTypeLabel(row.original.invoice_type))
   },
   {
     accessorKey: 'due_date',
     header: 'Due Date',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: { original: any } }) => {
       const date = row.original.due_date;
       return h('div', date ? formatDate(date) : 'N/A');
@@ -735,6 +741,7 @@ const columns: TableColumn<any>[] = [
     accessorKey: 'po_number',
     header: 'Order Number',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: { original: any } }) => {
       // Show PO number for PO invoices, CO number for CO invoices
       const orderNumber = row.original.po_number || row.original.co_number || 'N/A';
@@ -745,6 +752,7 @@ const columns: TableColumn<any>[] = [
     accessorKey: 'amount',
     header: 'Amount',
     enableSorting: false,
+    meta: { class: { th: 'text-right', td: 'text-right' } },
     cell: ({ row }: { row: { original: any } }) => {
       const amount = row.original.amount || 0;
       const formattedAmount = formatCurrency(amount);
@@ -755,6 +763,7 @@ const columns: TableColumn<any>[] = [
     accessorKey: 'status',
     header: 'Status',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: { original: any } }) => {
       let rawStatus = row.original.status || 'Draft';
       // Show Draft status as Pending in the table
@@ -776,7 +785,7 @@ const columns: TableColumn<any>[] = [
         },
         Paid: {
           label: 'Paid',
-          class: 'bg-primary/10 text-primary border border-primary/20'
+          class: 'bg-success text-white border border-success'
         }
       };
       
