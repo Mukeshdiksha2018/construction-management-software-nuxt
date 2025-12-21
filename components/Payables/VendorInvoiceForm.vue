@@ -434,7 +434,42 @@
     <!-- Holdback Breakdown Table (only for Against Holdback Amount) -->
     <!-- Show table if we have holdback invoice UUID OR if we have saved holdback cost codes (for existing invoices) -->
     <div v-if="isAgainstHoldback && ((form.purchase_order_uuid || form.change_order_uuid) || (holdbackCostCodes && holdbackCostCodes.length > 0))" class="mt-6">
+      <!-- Skeleton loader for holdback breakdown table -->
+      <div v-if="loadingHoldbackData" class="mt-6">
+        <UCard variant="soft">
+          <div class="flex items-center justify-between mb-4">
+            <USkeleton class="h-5 w-40" />
+            <USkeleton class="h-8 w-24" />
+          </div>
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-default/60">
+              <thead class="bg-muted/20 text-[11px] font-semibold uppercase tracking-wide text-muted">
+                <tr>
+                  <th class="px-3 py-2 text-left"><USkeleton class="h-4 w-20" /></th>
+                  <th class="px-3 py-2 text-left"><USkeleton class="h-4 w-24" /></th>
+                  <th class="px-3 py-2 text-right"><USkeleton class="h-4 w-28" /></th>
+                  <th class="px-3 py-2 text-right"><USkeleton class="h-4 w-20" /></th>
+                  <th class="px-3 py-2 text-right"><USkeleton class="h-4 w-24" /></th>
+                  <th class="px-3 py-2 text-center"><USkeleton class="h-4 w-16" /></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-default/60 text-sm text-default bg-white dark:bg-gray-900/40">
+                <tr v-for="i in 3" :key="i" class="align-middle">
+                  <td class="px-3 py-2"><USkeleton class="h-8 w-full" /></td>
+                  <td class="px-3 py-2"><USkeleton class="h-8 w-full" /></td>
+                  <td class="px-3 py-2 text-right"><USkeleton class="h-4 w-20 ml-auto" /></td>
+                  <td class="px-3 py-2 text-right"><USkeleton class="h-4 w-16 ml-auto" /></td>
+                  <td class="px-3 py-2"><USkeleton class="h-8 w-full" /></td>
+                  <td class="px-3 py-2 text-center"><USkeleton class="h-6 w-12 mx-auto" /></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </UCard>
+      </div>
+      <!-- Actual holdback breakdown table -->
       <HoldbackBreakdownTable
+        v-else
         :purchase-order-uuid="form.purchase_order_uuid"
         :change-order-uuid="form.change_order_uuid"
         :corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid"
@@ -1002,7 +1037,40 @@
       <!-- Financial Breakdown (Right) -->
       <div class="w-full lg:flex-1 flex justify-start lg:justify-end">
         <div class="w-full lg:w-auto lg:min-w-[520px]">
+          <!-- Skeleton loader for financial breakdown -->
+          <UCard v-if="loadingHoldbackData" variant="soft" class="w-full shadow-sm border border-default bg-white dark:bg-gray-900/40">
+            <div class="space-y-4">
+              <div class="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3">
+                <USkeleton class="h-4 w-32" />
+                <div></div>
+                <div></div>
+                <USkeleton class="h-4 w-24 ml-auto" />
+              </div>
+              <div class="space-y-2">
+                <div v-for="i in 2" :key="i" class="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3">
+                  <USkeleton class="h-10 w-full" />
+                  <USkeleton class="h-8 w-20" />
+                  <USkeleton class="h-8 w-24" />
+                  <div></div>
+                </div>
+              </div>
+              <div class="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3">
+                <USkeleton class="h-4 w-24" />
+                <div></div>
+                <div></div>
+                <USkeleton class="h-4 w-20 ml-auto" />
+              </div>
+              <div class="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3">
+                <USkeleton class="h-4 w-32" />
+                <div></div>
+                <div></div>
+                <USkeleton class="h-4 w-28 ml-auto" />
+              </div>
+            </div>
+          </UCard>
+          <!-- Actual financial breakdown -->
           <FinancialBreakdown
+            v-else
             :item-total="holdbackReleaseAmountTotal"
             :form-data="form"
             :read-only="props.readonly"
@@ -1706,6 +1774,9 @@ interface PreviouslyReleasedCostCode {
 }
 const previouslyReleasedCostCodes = ref<PreviouslyReleasedCostCode[]>([]);
 
+// Loading state for holdback data (table and financial breakdown)
+const loadingHoldbackData = ref(false);
+
 // Guard to prevent watcher from overwriting user input
 const isUpdatingAdjustedAmounts = ref(false);
 
@@ -1929,6 +2000,35 @@ watch(
 );
 
 
+// Watch for po_co_uuid, purchase_order_uuid, or change_order_uuid changes to set loading state immediately (for holdback invoices)
+// This ensures skeletons appear as soon as a PO/CO is selected
+watch(
+  [() => props.form.po_co_uuid, () => props.form.purchase_order_uuid, () => props.form.change_order_uuid, () => props.form.invoice_type],
+  ([newPoCoUuid, newPoUuid, newCoUuid, newInvoiceType], [oldPoCoUuid, oldPoUuid, oldCoUuid]) => {
+    const invoiceType = String(newInvoiceType || '').toUpperCase();
+    
+    // Only for holdback invoices
+    if (invoiceType !== 'AGAINST_HOLDBACK_AMOUNT') {
+      return;
+    }
+    
+    // Set loading immediately when any of these change from null/undefined to a value
+    const poCoChanged = !oldPoCoUuid && newPoCoUuid;
+    const poChanged = !oldPoUuid && newPoUuid;
+    const coChanged = !oldCoUuid && newCoUuid;
+    
+    // Also set loading if values change to different ones
+    const poCoValueChanged = oldPoCoUuid && newPoCoUuid && oldPoCoUuid !== newPoCoUuid;
+    const poValueChanged = oldPoUuid && newPoUuid && oldPoUuid !== newPoUuid;
+    const coValueChanged = oldCoUuid && newCoUuid && oldCoUuid !== newCoUuid;
+    
+    if (poCoChanged || poChanged || coChanged || poCoValueChanged || poValueChanged || coValueChanged) {
+      loadingHoldbackData.value = true;
+    }
+  },
+  { immediate: false }
+);
+
 // Watch for form UUID and PO/CO changes to fetch previously released cost codes for holdback invoices
 // This is needed to display what amounts were previously released
 watch(
@@ -1939,6 +2039,9 @@ watch(
     
     if (invoiceType !== 'AGAINST_HOLDBACK_AMOUNT') {
       previouslyReleasedCostCodes.value = [];
+      if (loadingHoldbackData.value) {
+        loadingHoldbackData.value = false;
+      }
       return;
     }
 
@@ -1957,6 +2060,7 @@ watch(
         if (newUuid !== oldUuid || previouslyReleasedCostCodes.value.length === 0) {
           await fetchPreviouslyReleasedCostCodes(newUuid);
         }
+        loadingHoldbackData.value = false;
         return;
       } else {
         // New invoice but no PO/CO UUID yet - wait for it to be set (don't clear, just return)
@@ -1966,14 +2070,23 @@ watch(
 
     // For existing invoices, fetch releases for this specific invoice
     // For new invoices, fetch ALL releases for the PO/CO to show remaining amounts
-    if (newUuid && newEditingInvoice) {
-      // Existing invoice - fetch releases for this invoice only
-      if (newUuid !== oldUuid || previouslyReleasedCostCodes.value.length === 0) {
-        await fetchPreviouslyReleasedCostCodes(newUuid);
+    try {
+      if (newUuid && newEditingInvoice) {
+        // Existing invoice - fetch releases for this invoice only
+        if (newUuid !== oldUuid || previouslyReleasedCostCodes.value.length === 0) {
+          await fetchPreviouslyReleasedCostCodes(newUuid);
+        }
+      } else {
+        // New invoice - fetch ALL releases for the PO/CO to calculate remaining amounts
+        await fetchAllPreviouslyReleasedCostCodes(poOrCoUuid, isCO, newUuid);
       }
-    } else {
-      // New invoice - fetch ALL releases for the PO/CO to calculate remaining amounts
-      await fetchAllPreviouslyReleasedCostCodes(poOrCoUuid, isCO, newUuid);
+    } finally {
+      // Clear loading state after data is fetched
+      // Wait a bit more to ensure the table has time to render
+      await nextTick();
+      setTimeout(() => {
+        loadingHoldbackData.value = false;
+      }, 200);
     }
   },
   { immediate: true }
@@ -3576,60 +3689,36 @@ const handleHoldbackSelection = async (invoice: any) => {
     return;
   }
   
+  // Set loading state IMMEDIATELY to show skeletons before any async operations
+  loadingHoldbackData.value = true;
+  
   const updatedForm = { ...props.form };
   
   // Store the holdback invoice UUID for the breakdown table
   updatedForm.holdback_invoice_uuid = invoice.uuid;
   
   // Determine if this is against PO or CO based on invoice type
-  if (invoice.invoice_type === 'AGAINST_PO' && invoice.purchase_order_uuid) {
+  const isPO = invoice.invoice_type === 'AGAINST_PO' && invoice.purchase_order_uuid;
+  const isCO = invoice.invoice_type === 'AGAINST_CO' && invoice.change_order_uuid;
+  
+  // Update form fields SYNCHRONOUSLY first to trigger watchers and show skeletons immediately
+  if (isPO) {
     const poUuid = invoice.purchase_order_uuid;
     updatedForm.purchase_order_uuid = poUuid;
     updatedForm.po_co_uuid = `PO:${poUuid}`;
     updatedForm.change_order_uuid = null;
-    
-    // Get PO number from invoice, or fetch from PO if not available
-    let poNumber = invoice.po_number || '';
-    if (!poNumber && poUuid) {
-      try {
-        const poResponse = await $fetch<{ data: any }>(`/api/purchase-order-forms/${poUuid}`);
-        poNumber = poResponse?.data?.po_number || '';
-      } catch (error) {
-        console.warn('[VendorInvoiceForm] Error fetching PO number:', error);
-      }
-    }
-    updatedForm.po_number = poNumber;
+    updatedForm.po_number = invoice.po_number || '';
     updatedForm.co_number = '';
-    
-    // Fetch PO items if needed
-    if (isAgainstHoldback.value) {
-      await fetchPOItems(poUuid);
-    }
-  } else if (invoice.invoice_type === 'AGAINST_CO' && invoice.change_order_uuid) {
+  } else if (isCO) {
     const coUuid = invoice.change_order_uuid;
     updatedForm.change_order_uuid = coUuid;
     updatedForm.po_co_uuid = `CO:${coUuid}`;
     updatedForm.purchase_order_uuid = null;
-    
-    // Get CO number from invoice, or fetch from CO if not available
-    let coNumber = invoice.co_number || '';
-    if (!coNumber && coUuid) {
-      try {
-        const coResponse = await $fetch<{ data: any }>(`/api/change-orders/${coUuid}`);
-        coNumber = coResponse?.data?.co_number || '';
-      } catch (error) {
-        console.warn('[VendorInvoiceForm] Error fetching CO number:', error);
-      }
-    }
-    updatedForm.co_number = coNumber;
+    updatedForm.co_number = invoice.co_number || '';
     updatedForm.po_number = '';
-    
-    // Fetch CO items if needed
-    if (isAgainstHoldback.value) {
-      await fetchCOItems(coUuid);
-    }
   } else {
     console.warn('[VendorInvoiceForm] Invalid invoice type for holdback selection:', invoice.invoice_type);
+    loadingHoldbackData.value = false;
     return;
   }
   
@@ -3642,10 +3731,63 @@ const handleHoldbackSelection = async (invoice: any) => {
     updatedForm.holdback = holdbackPercentage;
   }
   
-  // Don't set amount here - it will be calculated from release amounts in the breakdown table
-  // The financial breakdown will calculate the total based on release amounts
-  
+  // Emit form update SYNCHRONOUSLY to trigger watchers immediately
+  // This will make skeletons appear right away
   emit('update:form', updatedForm);
+  
+  // Wait for next tick to ensure watchers have fired
+  await nextTick();
+  
+  try {
+    // Now do async operations (fetching PO/CO number if missing, fetching items, etc.)
+    if (isPO) {
+      const poUuid = invoice.purchase_order_uuid;
+      
+      // Get PO number from invoice, or fetch from PO if not available
+      let poNumber = invoice.po_number || '';
+      if (!poNumber && poUuid) {
+        try {
+          const poResponse = await $fetch<{ data: any }>(`/api/purchase-order-forms/${poUuid}`);
+          poNumber = poResponse?.data?.po_number || '';
+          if (poNumber) {
+            handleFormUpdate('po_number', poNumber);
+          }
+        } catch (error) {
+          console.warn('[VendorInvoiceForm] Error fetching PO number:', error);
+        }
+      }
+      
+      // Fetch PO items if needed
+      if (isAgainstHoldback.value) {
+        await fetchPOItems(poUuid);
+      }
+    } else if (isCO) {
+      const coUuid = invoice.change_order_uuid;
+      
+      // Get CO number from invoice, or fetch from CO if not available
+      let coNumber = invoice.co_number || '';
+      if (!coNumber && coUuid) {
+        try {
+          const coResponse = await $fetch<{ data: any }>(`/api/change-orders/${coUuid}`);
+          coNumber = coResponse?.data?.co_number || '';
+          if (coNumber) {
+            handleFormUpdate('co_number', coNumber);
+          }
+        } catch (error) {
+          console.warn('[VendorInvoiceForm] Error fetching CO number:', error);
+        }
+      }
+      
+      // Fetch CO items if needed
+      if (isAgainstHoldback.value) {
+        await fetchCOItems(coUuid);
+      }
+    }
+  } catch (error) {
+    console.error('[VendorInvoiceForm] Error in handleHoldbackSelection:', error);
+    // Loading state will be cleared by the watcher
+  }
+  // Note: Loading state is cleared by the watcher after data is fetched
 };
 
 // Handle advance payment cost codes update
