@@ -1006,6 +1006,7 @@
             item-total-label="Release Amount Total"
             total-label="Total Invoice Amount"
             total-field-name="amount"
+            :hide-charges="true"
             :show-total-amount="true"
             total-amount-label="Total Amount"
             :allow-edit-total="false"
