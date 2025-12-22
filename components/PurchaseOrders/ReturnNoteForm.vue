@@ -684,6 +684,9 @@ const poOptions = computed(() => {
       if (!po?.uuid) return false;
       // Filter by corporation UUID
       if (corporationUuid && po.corporation_uuid !== corporationUuid) return false;
+      // Exclude labor purchase orders
+      const poType = String(po.po_type || '').trim().toUpperCase();
+      if (poType === 'LABOR') return false;
       // Show purchase orders with allowed statuses (case-insensitive)
       const poStatus = String(po.status || '').trim();
       const isAllowedStatus = allowedStatuses.some(
@@ -752,6 +755,9 @@ const coOptions = computed(() => {
       if (!co?.uuid) return false;
       // Filter by corporation UUID
       if (corporationUuid && co.corporation_uuid !== corporationUuid) return false;
+      // Exclude labor change orders
+      const coType = String(co.co_type || '').trim().toUpperCase();
+      if (coType === 'LABOR') return false;
       // Show change orders with allowed statuses (case-insensitive)
       const coStatus = String(co.status || '').trim();
       const isAllowedStatus = allowedStatuses.some(
