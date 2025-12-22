@@ -433,7 +433,7 @@
 
     <!-- Holdback Breakdown Table (only for Against Holdback Amount) -->
     <!-- Show table if we have holdback invoice UUID OR if we have saved holdback cost codes (for existing invoices) -->
-    <div v-if="isAgainstHoldback && ((form.purchase_order_uuid || form.change_order_uuid) || (holdbackCostCodes && holdbackCostCodes.length > 0))" class="mt-6">
+    <div v-if="isAgainstHoldback && (form.holdback_invoice_uuid || (form.purchase_order_uuid || form.change_order_uuid) || (holdbackCostCodes && holdbackCostCodes.length > 0))" class="mt-6">
       <!-- Skeleton loader for holdback breakdown table -->
       <div v-if="loadingHoldbackData" class="mt-6">
         <UCard variant="soft">

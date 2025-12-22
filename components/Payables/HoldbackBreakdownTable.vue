@@ -157,7 +157,7 @@
 
       <!-- Empty state -->
       <div v-else-if="!loading" class="text-center py-8">
-        <p v-if="!props.holdbackInvoiceUuid" class="text-sm text-warning-600 dark:text-warning-400">
+        <p v-if="!props.holdbackInvoiceUuid && !props.purchaseOrderUuid && !props.changeOrderUuid" class="text-sm text-warning-600 dark:text-warning-400">
           Please select a holdback invoice from the modal above to view the breakdown
         </p>
         <p v-else class="text-sm text-muted">No cost codes found in the selected PO/CO</p>
@@ -547,7 +547,27 @@ const processItems = async () => {
 
   // If holdback invoice UUID is not set, don't process items but keep component visible
   // But preserve saved data if it exists
+  // For existing invoices, if we have saved data and PO/CO UUIDs, we can still display the saved data
   if (!props.holdbackInvoiceUuid) {
+    // If we have saved data, load it directly (for existing invoices)
+    if (hasSavedData) {
+      const savedRows = props.modelValue.map((savedRow: any) => ({
+        id: savedRow.id || savedRow.uuid || `holdback-row-${Date.now()}-${Math.random().toString(36).substring(2)}`,
+        cost_code_uuid: savedRow.cost_code_uuid || null,
+        cost_code_label: savedRow.cost_code_label || null,
+        cost_code_number: savedRow.cost_code_number || null,
+        cost_code_name: savedRow.cost_code_name || null,
+        totalAmount: savedRow.totalAmount !== undefined ? savedRow.totalAmount : (savedRow.total_amount !== undefined ? savedRow.total_amount : 0),
+        retainageAmount: savedRow.retainageAmount !== undefined ? savedRow.retainageAmount : (savedRow.retainage_amount !== undefined ? savedRow.retainage_amount : 0),
+        releaseAmount: savedRow.releaseAmount !== undefined && savedRow.releaseAmount !== null
+          ? savedRow.releaseAmount
+          : (savedRow.release_amount !== undefined && savedRow.release_amount !== null ? savedRow.release_amount : 0),
+        gl_account_uuid: savedRow.gl_account_uuid || null
+      }))
+      costCodeRows.value = savedRows
+      loading.value = false
+      return
+    }
     // Only clear if we don't have saved data
     if (!hasSavedData) {
       costCodeRows.value = []
