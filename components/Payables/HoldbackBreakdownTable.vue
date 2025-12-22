@@ -44,7 +44,7 @@
               :key="row.id || index"
               :class="[
                 'align-middle transition-colors duration-150 hover:bg-gray-50 dark:hover:bg-gray-800/50',
-                isReleaseAmountExceeded(row.cost_code_uuid, parseFloat(String(row.releaseAmount || 0)) || 0, row.retainageAmount || 0) && row.cost_code_uuid && row.retainageAmount && getRemainingRetainageAmount(row.cost_code_uuid, row.retainageAmount) > 0
+                shouldValidateReleaseAmount && isReleaseAmountExceeded(row.cost_code_uuid, parseFloat(String(row.releaseAmount || 0)) || 0, row.retainageAmount || 0) && row.cost_code_uuid && row.retainageAmount && getRemainingRetainageAmount(row.cost_code_uuid, row.retainageAmount) > 0
                   ? 'bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 dark:border-red-400'
                   : ''
               ]"
@@ -112,16 +112,16 @@
                     size="xs"
                     :class="[
                       'w-full',
-                      isReleaseAmountExceeded(row.cost_code_uuid, parseFloat(String(row.releaseAmount || 0)) || 0, row.retainageAmount || 0) 
+                      shouldValidateReleaseAmount && isReleaseAmountExceeded(row.cost_code_uuid, parseFloat(String(row.releaseAmount || 0)) || 0, row.retainageAmount || 0) 
                         ? 'border-red-500 dark:border-red-400' 
                         : ''
                     ]"
-                    :disabled="readonly || !row.cost_code_uuid"
+                    :disabled="readonly || !row.cost_code_uuid || !!props.currentInvoiceUuid"
                     placeholder="0.00"
                     @update:model-value="(value) => handleReleaseAmountChange(index, value)"
                     @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab') e.preventDefault(); }"
                   />
-                  <div v-if="isReleaseAmountExceeded(row.cost_code_uuid, parseFloat(String(row.releaseAmount || 0)) || 0, row.retainageAmount || 0)" class="text-xs text-red-600 dark:text-red-400 mt-1">
+                  <div v-if="shouldValidateReleaseAmount && isReleaseAmountExceeded(row.cost_code_uuid, parseFloat(String(row.releaseAmount || 0)) || 0, row.retainageAmount || 0)" class="text-xs text-red-600 dark:text-red-400 mt-1">
                     Exceeds available amount
                   </div>
                 </div>
@@ -233,6 +233,11 @@ const showTable = computed(() => {
 // Cost code should be disabled when readonly OR when PO/CO is selected (cost codes come from PO/CO)
 const isCostCodeDisabled = computed(() => {
   return props.readonly || !!(props.purchaseOrderUuid || props.changeOrderUuid)
+})
+
+// Only validate release amounts for new invoices, not for existing ones
+const shouldValidateReleaseAmount = computed(() => {
+  return !props.currentInvoiceUuid // If currentInvoiceUuid is set, it's an existing invoice - skip validation
 })
 
 // Calculate total release amount (rounded to 2 decimal places)
@@ -414,7 +419,11 @@ const getAvailableRetainageAmount = (costCodeUuid: string | null, retainageAmoun
 }
 
 // Check if release amount exceeds available
+// Only validates for new invoices, not for existing ones
 const isReleaseAmountExceeded = (costCodeUuid: string | null, releaseAmount: number, retainageAmount: number): boolean => {
+  // Skip validation for existing invoices
+  if (!shouldValidateReleaseAmount.value) return false
+  
   if (!costCodeUuid) return false
   
   const remaining = getRemainingRetainageAmount(costCodeUuid, retainageAmount)
@@ -423,7 +432,11 @@ const isReleaseAmountExceeded = (costCodeUuid: string | null, releaseAmount: num
 
 // Check if any row has exceeded the available amount
 // Only consider rows where there's a valid available amount (not 0) and a release amount entered
+// Only validates for new invoices, not for existing ones
 const hasExceededReleaseAmount = computed(() => {
+  // Skip validation for existing invoices
+  if (!shouldValidateReleaseAmount.value) return false
+  
   return costCodeRows.value.some(row => {
     if (!row.cost_code_uuid || !row.retainageAmount) return false
     
