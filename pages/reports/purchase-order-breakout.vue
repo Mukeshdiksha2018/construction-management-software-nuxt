@@ -650,13 +650,18 @@ const loadReport = async () => {
     
     const purchaseOrders = response?.data || []
     
-    // Filter by status (Approved, Partially_Received, or Completed), project (required), and date range
+    // Filter by status (Approved, Partially_Received, or Completed), project (required), date range, and exclude labor POs
     const filteredPOs = purchaseOrders
       .filter((po: any) => {
         const status = String(po.status || '').toLowerCase()
         return status === 'approved' || status === 'partially_received' || status === 'completed'
       })
       .filter((po: any) => po.project_uuid === selectedProjectId.value)
+      .filter((po: any) => {
+        // Exclude labor type purchase orders
+        const poType = String(po.po_type || '').toUpperCase()
+        return poType !== 'LABOR'
+      })
       .filter((po: any) => {
         // Filter by entry_date if available, otherwise skip
         if (!po.entry_date) return false
@@ -681,40 +686,22 @@ const loadReport = async () => {
     // Create vendor map for quick lookup
     const vendorMap = new Map(vendors.map((v: any) => [v.uuid, v.vendor_name]))
     
-    // Fetch items for each purchase order
+    // Fetch items for each purchase order (labor POs are excluded)
     const reportDataWithItems = await Promise.all(
       filteredPOs.map(async (po: any) => {
         try {
-          // Determine PO type
-          const poType = (po.po_type || '').toUpperCase()
-          const isLaborPO = poType === 'LABOR'
-          
-          // Fetch items based on PO type
+          // Fetch items for purchase order
           let items: any[] = []
-          if (isLaborPO) {
-            try {
-              const laborItemsResponse: any = await $fetch('/api/labor-purchase-order-items', {
-                method: 'GET',
-                params: {
-                  purchase_order_uuid: po.uuid
-                }
-              })
-              items = laborItemsResponse?.data || []
-            } catch (laborError) {
-              console.error('Error fetching labor items for PO:', po.uuid, laborError)
-            }
-          } else {
-            try {
-              const itemsResponse: any = await $fetch('/api/purchase-order-items', {
-                method: 'GET',
-                params: {
-                  purchase_order_uuid: po.uuid
-                }
-              })
-              items = itemsResponse?.data || []
-            } catch (itemError) {
-              console.error('Error fetching items for PO:', po.uuid, itemError)
-            }
+          try {
+            const itemsResponse: any = await $fetch('/api/purchase-order-items', {
+              method: 'GET',
+              params: {
+                purchase_order_uuid: po.uuid
+              }
+            })
+            items = itemsResponse?.data || []
+          } catch (itemError) {
+            console.error('Error fetching items for PO:', po.uuid, itemError)
           }
           
           // Get vendor name from map
