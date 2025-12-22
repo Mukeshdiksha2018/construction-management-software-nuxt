@@ -433,7 +433,8 @@
 
     <!-- Holdback Breakdown Table (only for Against Holdback Amount) -->
     <!-- Show table if we have holdback invoice UUID OR if we have saved holdback cost codes (for existing invoices) -->
-    <div v-if="isAgainstHoldback && (form.holdback_invoice_uuid || (form.purchase_order_uuid || form.change_order_uuid) || (holdbackCostCodes && holdbackCostCodes.length > 0))" class="mt-6">
+    <!-- Hide when all holdback amounts are zero (but show alert in that case) -->
+    <div v-if="isAgainstHoldback && !allHoldbackAmountsZero && (form.holdback_invoice_uuid || (form.purchase_order_uuid || form.change_order_uuid) || (holdbackCostCodes && holdbackCostCodes.length > 0))" class="mt-6">
       <!-- Skeleton loader for holdback breakdown table -->
       <div v-if="loadingHoldbackData" class="mt-6">
         <UCard variant="soft">
@@ -483,6 +484,16 @@
         @release-amounts-update="handleHoldbackReleaseAmountsUpdate"
       />
     </div>
+
+    <!-- Validation error message when all holdback amounts are zero (shown outside the table container) -->
+    <UAlert
+      v-if="isAgainstHoldback && allHoldbackAmountsZero && holdbackValidationError"
+      color="error"
+      variant="soft"
+      class="mt-6"
+      title="Cannot Create Holdback Invoice"
+      :description="holdbackValidationError"
+    />
 
     <!-- Line Items Table (only for Direct Invoice) -->
     <div v-if="isDirectInvoice && !hasAllItemsZeroToBeInvoiced" class="mt-6">
@@ -918,7 +929,8 @@
 
     <!-- File Upload and Financial Breakdown Section (for Against Holdback Amount) -->
     <!-- Show if we have holdback invoice UUID OR if we have saved holdback cost codes (for existing invoices) -->
-    <div v-if="isAgainstHoldback && ((form.purchase_order_uuid || form.change_order_uuid) || (holdbackCostCodes && holdbackCostCodes.length > 0))" class="mt-6 flex flex-col lg:flex-row gap-6">
+    <!-- Hide when all holdback amounts are zero -->
+    <div v-if="isAgainstHoldback && !allHoldbackAmountsZero && ((form.purchase_order_uuid || form.change_order_uuid) || (holdbackCostCodes && holdbackCostCodes.length > 0))" class="mt-6 flex flex-col lg:flex-row gap-6">
       <!-- File Upload Section (Left) -->
       <div class="w-full lg:w-auto lg:flex-shrink-0 lg:max-w-md">
         <!-- Upload Section -->
@@ -1516,6 +1528,83 @@ const holdbackCostCodes = computed(() => {
 
 // Total release amount from holdback breakdown table
 const holdbackReleaseAmountTotal = ref(0);
+
+// Computed property to check if all available holdback amounts are zero
+// This checks if all cost codes have zero available amount (retainage - previously released)
+const allHoldbackAmountsZero = computed(() => {
+  // Only check for new holdback invoices (not when editing)
+  if (!isAgainstHoldback.value || props.form.uuid || !props.form.holdback_invoice_uuid) {
+    return false;
+  }
+
+  // If we don't have holdback cost codes yet, wait
+  if (!holdbackCostCodes.value || holdbackCostCodes.value.length === 0) {
+    return false;
+  }
+
+  // If still loading, don't show error yet
+  if (loadingHoldbackData.value) {
+    return false;
+  }
+
+  // Check each cost code to see if all have zero available amount
+  let allZero = true;
+  let hasAtLeastOneCostCode = false;
+
+  for (const costCode of holdbackCostCodes.value) {
+    const costCodeUuid = costCode.cost_code_uuid;
+    const retainageAmount = parseFloat(String(costCode.retainageAmount || costCode.retainage_amount || 0)) || 0;
+
+    // Skip if no cost code selected or no retainage amount
+    if (!costCodeUuid || retainageAmount <= 0) {
+      continue;
+    }
+
+    hasAtLeastOneCostCode = true;
+
+    // Calculate previously released amount for this cost code
+    let previouslyReleased = 0;
+    if (previouslyReleasedCostCodes.value && previouslyReleasedCostCodes.value.length > 0) {
+      const matchingReleases = previouslyReleasedCostCodes.value.filter(
+        (cc: PreviouslyReleasedCostCode) => cc.cost_code_uuid === costCodeUuid
+      );
+      previouslyReleased = matchingReleases.reduce(
+        (sum: number, cc: PreviouslyReleasedCostCode) => sum + (parseFloat(String(cc.release_amount)) || 0),
+        0
+      );
+    }
+
+    // Calculate available amount
+    const availableAmount = Math.max(0, retainageAmount - previouslyReleased);
+
+    // If any cost code has available amount > 0, not all are zero
+    if (availableAmount > 0) {
+      allZero = false;
+      break;
+    }
+  }
+
+  // Only return true if we have at least one cost code with retainage and all have zero available
+  return hasAtLeastOneCostCode && allZero;
+});
+
+// Computed property for the holdback validation error message
+const holdbackValidationError = computed(() => {
+  if (!allHoldbackAmountsZero.value) {
+    return null;
+  }
+
+  const poNumber = props.form.po_number;
+  const coNumber = props.form.co_number;
+  
+  if (poNumber) {
+    return `The holdback invoices for the total holdback amount of the purchase order ${poNumber} are already raised.`;
+  } else if (coNumber) {
+    return `The holdback invoices for the total holdback amount of the change order ${coNumber} are already raised.`;
+  } else {
+    return `The holdback invoices for the total holdback amount of the specific purchase order or change order are already raised.`;
+  }
+});
 
 // Debug: Watch form values for holdback invoice
 watch(
@@ -5880,6 +5969,11 @@ const hasAdvancePaymentValidationError = computed(() => {
 });
 
 const hasHoldbackValidationError = computed(() => {
+  // Check if all holdback amounts are zero (all available amounts are zero)
+  if (isAgainstHoldback.value && allHoldbackAmountsZero.value) {
+    return true;
+  }
+  // Check for validation errors from the holdback breakdown table
   if (isAgainstHoldback.value && holdbackBreakdownTableRef.value) {
     return holdbackBreakdownTableRef.value.hasValidationError ?? false;
   }
@@ -5918,6 +6012,8 @@ defineExpose({
   hasHoldbackValidationError,
   hasAllItemsZeroToBeInvoiced,
   hasValidationError,
+  allHoldbackAmountsZero,
+  holdbackValidationError,
 });
 
 </script>
