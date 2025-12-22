@@ -283,16 +283,31 @@
       </div>
     </div>
 
-    <ReceiptNoteItemsTable
-      v-if="(receiptType === 'purchase_order' && form.purchase_order_uuid) || (receiptType === 'change_order' && form.change_order_uuid)"
-      :items="receiptItems"
-      :loading="poItemsLoading"
-      :error="poItemsError"
-      :corporation-uuid="(form.corporation_uuid || corpStore.selectedCorporation?.uuid) ?? null"
-      :receipt-type="receiptType"
-      :readonly="props.readonly"
-      @received-quantity-change="handleReceivedQuantityChange"
-    />
+    <!-- Configure Items Button and Items Table -->
+    <div v-if="(receiptType === 'purchase_order' && form.purchase_order_uuid) || (receiptType === 'change_order' && form.change_order_uuid)" class="mt-6">
+      <!-- Configure Items Button -->
+      <div v-if="receiptItems.length > 0 && !props.readonly" class="mb-4 flex justify-end">
+        <UButton
+          color="primary"
+          variant="outline"
+          size="sm"
+          icon="i-heroicons-cog-6-tooth"
+          @click="handleConfigureItems"
+        >
+          Configure Items
+        </UButton>
+      </div>
+
+      <ReceiptNoteItemsTable
+        :items="receiptItems"
+        :loading="poItemsLoading"
+        :error="poItemsError"
+        :corporation-uuid="(form.corporation_uuid || corpStore.selectedCorporation?.uuid) ?? null"
+        :receipt-type="receiptType"
+        :readonly="props.readonly"
+        @received-quantity-change="handleReceivedQuantityChange"
+      />
+    </div>
 
     <!-- File Upload, Notes, and Financial Breakdown Section -->
     <div v-if="(receiptType === 'purchase_order' && form.purchase_order_uuid) || (receiptType === 'change_order' && form.change_order_uuid)" class="mt-6 flex flex-col lg:flex-row gap-6">
@@ -2429,23 +2444,68 @@ const handleItemsSelectionConfirm = async (selectedItems: any[]) => {
     return;
   }
 
+  // Check if we're reconfiguring (items already exist)
+  const isReconfiguring = receiptItems.value.length > 0 && 
+    ((pendingSourceType.value === 'purchase_order' && pendingSourceUuid.value === props.form.purchase_order_uuid) ||
+     (pendingSourceType.value === 'change_order' && pendingSourceUuid.value === props.form.change_order_uuid));
+
   // Transform selected items to receipt items format
   const transformed = transformPoItemsToReceiptItems(selectedItems);
   
-  // For new receipt notes, ensure received quantities are null (not prefilled)
-  const newReceiptItems = transformed.map((item) => ({
-    ...item,
-    received_quantity: null,
-    received_total: null,
-  }));
-  
-  receiptItems.value = newReceiptItems;
+  if (isReconfiguring) {
+    // When reconfiguring, preserve received quantities from existing items
+    // Create a map of existing items by their UUID for quick lookup
+    const existingItemsMap = new Map<string, any>();
+    receiptItems.value.forEach((existingItem: any) => {
+      const itemUuid = existingItem.uuid || existingItem.base_item_uuid || existingItem.id;
+      if (itemUuid) {
+        existingItemsMap.set(String(itemUuid), existingItem);
+      }
+    });
+    
+    // Merge transformed items with existing received quantities
+    const newReceiptItems = transformed.map((item) => {
+      const itemUuid = item.uuid || item.base_item_uuid || item.id;
+      const existingItem = itemUuid ? existingItemsMap.get(String(itemUuid)) : null;
+      
+      if (existingItem) {
+        // Preserve received quantity and total from existing item
+        return {
+          ...item,
+          received_quantity: existingItem.received_quantity ?? null,
+          received_total: existingItem.received_total ?? null,
+          grn_total: existingItem.grn_total ?? null,
+          grn_total_with_charges_taxes: existingItem.grn_total_with_charges_taxes ?? null,
+        };
+      } else {
+        // New item - no received quantity
+        return {
+          ...item,
+          received_quantity: null,
+          received_total: null,
+        };
+      }
+    });
+    
+    receiptItems.value = newReceiptItems;
+  } else {
+    // For new receipt notes, ensure received quantities are null (not prefilled)
+    const newReceiptItems = transformed.map((item) => ({
+      ...item,
+      received_quantity: null,
+      received_total: null,
+    }));
+    
+    receiptItems.value = newReceiptItems;
+  }
   
   // Update form with receipt items
   updateFormField("receipt_items", receiptItems.value);
   
-  // Load financial data from source
-  await loadFinancialDataFromSource(pendingSourceUuid.value, pendingSourceType.value);
+  // Load financial data from source (only if not already loaded)
+  if (!isReconfiguring) {
+    await loadFinancialDataFromSource(pendingSourceUuid.value, pendingSourceType.value);
+  }
   
   // Clear pending data
   pendingSourceUuid.value = null;
@@ -2455,21 +2515,114 @@ const handleItemsSelectionConfirm = async (selectedItems: any[]) => {
 
 // Handler for when user cancels item selection
 const handleItemsSelectionCancel = () => {
-  // Clear the PO/CO selection if user cancels
-  if (pendingSourceType.value === 'purchase_order') {
-    updateFormField("purchase_order_uuid", null);
-  } else if (pendingSourceType.value === 'change_order') {
-    updateFormField("change_order_uuid", null);
+  // Only clear PO/CO selection if this was a new selection (not reconfiguration)
+  // If we're reconfiguring (pendingSourceUuid matches current PO/CO), don't clear
+  const isReconfiguring = (pendingSourceType.value === 'purchase_order' && pendingSourceUuid.value === props.form.purchase_order_uuid) ||
+                          (pendingSourceType.value === 'change_order' && pendingSourceUuid.value === props.form.change_order_uuid);
+  
+  if (!isReconfiguring) {
+    // Clear the PO/CO selection if user cancels
+    if (pendingSourceType.value === 'purchase_order') {
+      updateFormField("purchase_order_uuid", null);
+    } else if (pendingSourceType.value === 'change_order') {
+      updateFormField("change_order_uuid", null);
+    }
+    
+    // Clear items
+    poItems.value = [];
+    receiptItems.value = [];
   }
   
   // Clear pending data
   pendingSourceUuid.value = null;
   pendingSourceType.value = null;
   availableItemsForSelection.value = [];
+};
+
+// Handler for Configure Items button - reopen selection modal with current items
+const handleConfigureItems = async () => {
+  const currentSourceUuid = receiptType.value === 'purchase_order' 
+    ? props.form.purchase_order_uuid 
+    : props.form.change_order_uuid;
+  const currentSourceType = receiptType.value;
   
-  // Clear items
-  poItems.value = [];
-  receiptItems.value = [];
+  if (!currentSourceUuid || !currentSourceType) {
+    return;
+  }
+  
+  // Set pending data
+  pendingSourceUuid.value = currentSourceUuid;
+  pendingSourceType.value = currentSourceType;
+  
+  // Fetch all items from PO/CO to show in modal
+  try {
+    poItemsLoading.value = true;
+    poItemsError.value = null;
+    
+    // Ensure item types and preferred items are loaded for lookup
+    const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
+    const projectUuid = props.form.project_uuid;
+    if (corpUuid && projectUuid) {
+      // Fetch item types if needed
+      if (itemTypesStore.itemTypes.length === 0) {
+        try {
+          await itemTypesStore.fetchItemTypes(corpUuid, projectUuid);
+        } catch (error) {
+          // Continue even if item types fetch fails
+        }
+      }
+      
+      // Ensure preferred items are loaded (for sequence and UOM lookup)
+      try {
+        await purchaseOrderResourcesStore.ensurePreferredItems({
+          corporationUuid: corpUuid,
+          projectUuid: projectUuid,
+          force: false,
+        });
+      } catch (error) {
+        // Continue even if preferred items fetch fails
+      }
+    }
+    
+    let items: any[] = [];
+    
+    if (currentSourceType === 'purchase_order') {
+      // Try to use the store function, fallback to direct API call
+      if (typeof purchaseOrderResourcesStore.fetchPurchaseOrderItems === 'function') {
+        items = await purchaseOrderResourcesStore.fetchPurchaseOrderItems(currentSourceUuid);
+      } else {
+        // Fallback: call API directly
+        const response: any = await $fetch("/api/purchase-order-items", {
+          method: "GET",
+          query: {
+            purchase_order_uuid: currentSourceUuid,
+          },
+        });
+        items = Array.isArray(response?.data) ? response.data : [];
+      }
+    } else if (currentSourceType === 'change_order') {
+      // Fetch change order items
+      const response: any = await $fetch("/api/change-order-items", {
+        method: "GET",
+        query: {
+          change_order_uuid: currentSourceUuid,
+        },
+      });
+      items = Array.isArray(response?.data) ? response.data : [];
+    }
+    
+    // Transform items to receipt items format for the modal
+    const transformed = transformPoItemsToReceiptItems(items);
+    availableItemsForSelection.value = transformed;
+    
+    // Show the modal
+    showItemsSelectionModal.value = true;
+  } catch (error: any) {
+    console.error("[ReceiptNoteForm] Failed to fetch items for configuration:", error);
+    poItemsError.value = error?.message || "Failed to load items";
+  } finally {
+    poItemsLoading.value = false;
+  }
 };
 
 // Watch for purchase order or change order changes
