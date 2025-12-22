@@ -125,6 +125,20 @@ vi.mock("@/composables/useCurrencyFormat", () => ({
   }),
 }));
 
+const localPurchaseOrders = ref<any[]>([]);
+const localChangeOrders = ref<any[]>([]);
+const fetchLocalPurchaseOrdersMock = vi.fn();
+const fetchLocalChangeOrdersMock = vi.fn();
+
+vi.mock("@/composables/useLocalPOCOData", () => ({
+  useLocalPOCOData: () => ({
+    localPurchaseOrders,
+    localChangeOrders,
+    fetchLocalPurchaseOrders: fetchLocalPurchaseOrdersMock,
+    fetchLocalChangeOrders: fetchLocalChangeOrdersMock,
+  }),
+}));
+
 const uiStubs = {
   UInput: {
     props: ["modelValue"],
@@ -211,6 +225,8 @@ describe("ReturnNoteForm", () => {
     vi.clearAllMocks();
     stockReceiptNotesState.value = [];
     stockReturnNotesState.value = [];
+    localPurchaseOrders.value = [];
+    localChangeOrders.value = [];
   });
 
   describe("Pre-populated return items from shortfall", () => {
@@ -770,6 +786,360 @@ describe("ReturnNoteForm", () => {
       // Should only count Returned status notes
       // Cancelled note should be ignored
       expect(fetchStockReturnNotesMock).toHaveBeenCalled();
+    });
+  });
+
+  describe("Labor PO/CO Exclusion", () => {
+    it("should exclude labor purchase orders from poOptions", async () => {
+      // Set up local purchase orders with both MATERIAL and LABOR types
+      localPurchaseOrders.value = [
+        {
+          uuid: "po-material-1",
+          po_number: "PO-MAT-1",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          vendor_uuid: "vendor-1",
+          status: "Approved",
+          po_type: "MATERIAL",
+        },
+        {
+          uuid: "po-labor-1",
+          po_number: "PO-LAB-1",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          vendor_uuid: "vendor-1",
+          status: "Approved",
+          po_type: "LABOR",
+        },
+        {
+          uuid: "po-material-2",
+          po_number: "PO-MAT-2",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          vendor_uuid: "vendor-1",
+          status: "Partially_Received",
+          po_type: "MATERIAL",
+        },
+        {
+          uuid: "po-labor-2",
+          po_number: "PO-LAB-2",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          vendor_uuid: "vendor-1",
+          status: "Partially_Received",
+          po_type: "LABOR",
+        },
+      ];
+
+      const wrapper = mountForm({
+        form: {
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          return_type: "purchase_order",
+        },
+        editingReturnNote: false,
+      });
+
+      await flushPromises();
+      await wrapper.vm.$nextTick();
+
+      // Access the component instance to check poOptions
+      const vm = wrapper.vm as any;
+      const poOptions = vm.poOptions;
+
+      // Should only include MATERIAL purchase orders, not LABOR
+      expect(poOptions).toHaveLength(2);
+      expect(poOptions.map((opt: any) => opt.value)).toContain("po-material-1");
+      expect(poOptions.map((opt: any) => opt.value)).toContain("po-material-2");
+      expect(poOptions.map((opt: any) => opt.value)).not.toContain("po-labor-1");
+      expect(poOptions.map((opt: any) => opt.value)).not.toContain("po-labor-2");
+
+      // Verify all options are MATERIAL type
+      poOptions.forEach((opt: any) => {
+        expect(opt.type_label).toBe("Material");
+        expect(opt.po?.po_type).toBe("MATERIAL");
+      });
+    });
+
+    it("should exclude labor change orders from coOptions", async () => {
+      // Set up local change orders with both MATERIAL and LABOR types
+      localChangeOrders.value = [
+        {
+          uuid: "co-material-1",
+          co_number: "CO-MAT-1",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          vendor_uuid: "vendor-1",
+          status: "Approved",
+          co_type: "MATERIAL",
+        },
+        {
+          uuid: "co-labor-1",
+          co_number: "CO-LAB-1",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          vendor_uuid: "vendor-1",
+          status: "Approved",
+          co_type: "LABOR",
+        },
+        {
+          uuid: "co-material-2",
+          co_number: "CO-MAT-2",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          vendor_uuid: "vendor-1",
+          status: "Partially_Received",
+          co_type: "MATERIAL",
+        },
+        {
+          uuid: "co-labor-2",
+          co_number: "CO-LAB-2",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          vendor_uuid: "vendor-1",
+          status: "Partially_Received",
+          co_type: "LABOR",
+        },
+      ];
+
+      const wrapper = mountForm({
+        form: {
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          return_type: "change_order",
+        },
+        editingReturnNote: false,
+      });
+
+      await flushPromises();
+      await wrapper.vm.$nextTick();
+
+      // Access the component instance to check coOptions
+      const vm = wrapper.vm as any;
+      const coOptions = vm.coOptions;
+
+      // Should only include MATERIAL change orders, not LABOR
+      expect(coOptions).toHaveLength(2);
+      expect(coOptions.map((opt: any) => opt.value)).toContain("co-material-1");
+      expect(coOptions.map((opt: any) => opt.value)).toContain("co-material-2");
+      expect(coOptions.map((opt: any) => opt.value)).not.toContain("co-labor-1");
+      expect(coOptions.map((opt: any) => opt.value)).not.toContain("co-labor-2");
+
+      // Verify all options are MATERIAL type
+      coOptions.forEach((opt: any) => {
+        expect(opt.type_label).toBe("Material");
+        expect(opt.co?.co_type).toBe("MATERIAL");
+      });
+    });
+
+    it("should exclude labor purchase orders regardless of case", async () => {
+      // Test with different case variations
+      localPurchaseOrders.value = [
+        {
+          uuid: "po-material-1",
+          po_number: "PO-MAT-1",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          vendor_uuid: "vendor-1",
+          status: "Approved",
+          po_type: "MATERIAL",
+        },
+        {
+          uuid: "po-labor-1",
+          po_number: "PO-LAB-1",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          vendor_uuid: "vendor-1",
+          status: "Approved",
+          po_type: "labor", // lowercase
+        },
+        {
+          uuid: "po-labor-2",
+          po_number: "PO-LAB-2",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          vendor_uuid: "vendor-1",
+          status: "Approved",
+          po_type: "Labor", // mixed case
+        },
+        {
+          uuid: "po-labor-3",
+          po_number: "PO-LAB-3",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          vendor_uuid: "vendor-1",
+          status: "Approved",
+          po_type: "LABOR", // uppercase
+        },
+      ];
+
+      const wrapper = mountForm({
+        form: {
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          return_type: "purchase_order",
+        },
+        editingReturnNote: false,
+      });
+
+      await flushPromises();
+      await wrapper.vm.$nextTick();
+
+      const vm = wrapper.vm as any;
+      const poOptions = vm.poOptions;
+
+      // Should only include MATERIAL, exclude all LABOR variations
+      expect(poOptions).toHaveLength(1);
+      expect(poOptions.map((opt: any) => opt.value)).toContain("po-material-1");
+      expect(poOptions.map((opt: any) => opt.value)).not.toContain("po-labor-1");
+      expect(poOptions.map((opt: any) => opt.value)).not.toContain("po-labor-2");
+      expect(poOptions.map((opt: any) => opt.value)).not.toContain("po-labor-3");
+    });
+
+    it("should exclude labor change orders regardless of case", async () => {
+      // Test with different case variations
+      localChangeOrders.value = [
+        {
+          uuid: "co-material-1",
+          co_number: "CO-MAT-1",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          vendor_uuid: "vendor-1",
+          status: "Approved",
+          co_type: "MATERIAL",
+        },
+        {
+          uuid: "co-labor-1",
+          co_number: "CO-LAB-1",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          vendor_uuid: "vendor-1",
+          status: "Approved",
+          co_type: "labor", // lowercase
+        },
+        {
+          uuid: "co-labor-2",
+          co_number: "CO-LAB-2",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          vendor_uuid: "vendor-1",
+          status: "Approved",
+          co_type: "Labor", // mixed case
+        },
+        {
+          uuid: "co-labor-3",
+          co_number: "CO-LAB-3",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          vendor_uuid: "vendor-1",
+          status: "Approved",
+          co_type: "LABOR", // uppercase
+        },
+      ];
+
+      const wrapper = mountForm({
+        form: {
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          return_type: "change_order",
+        },
+        editingReturnNote: false,
+      });
+
+      await flushPromises();
+      await wrapper.vm.$nextTick();
+
+      const vm = wrapper.vm as any;
+      const coOptions = vm.coOptions;
+
+      // Should only include MATERIAL, exclude all LABOR variations
+      expect(coOptions).toHaveLength(1);
+      expect(coOptions.map((opt: any) => opt.value)).toContain("co-material-1");
+      expect(coOptions.map((opt: any) => opt.value)).not.toContain("co-labor-1");
+      expect(coOptions.map((opt: any) => opt.value)).not.toContain("co-labor-2");
+      expect(coOptions.map((opt: any) => opt.value)).not.toContain("co-labor-3");
+    });
+
+    it("should handle empty poOptions when all purchase orders are labor type", async () => {
+      localPurchaseOrders.value = [
+        {
+          uuid: "po-labor-1",
+          po_number: "PO-LAB-1",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          vendor_uuid: "vendor-1",
+          status: "Approved",
+          po_type: "LABOR",
+        },
+        {
+          uuid: "po-labor-2",
+          po_number: "PO-LAB-2",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          vendor_uuid: "vendor-1",
+          status: "Partially_Received",
+          po_type: "LABOR",
+        },
+      ];
+
+      const wrapper = mountForm({
+        form: {
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          return_type: "purchase_order",
+        },
+        editingReturnNote: false,
+      });
+
+      await flushPromises();
+      await wrapper.vm.$nextTick();
+
+      const vm = wrapper.vm as any;
+      const poOptions = vm.poOptions;
+
+      // Should be empty since all POs are labor type
+      expect(poOptions).toHaveLength(0);
+    });
+
+    it("should handle empty coOptions when all change orders are labor type", async () => {
+      localChangeOrders.value = [
+        {
+          uuid: "co-labor-1",
+          co_number: "CO-LAB-1",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          vendor_uuid: "vendor-1",
+          status: "Approved",
+          co_type: "LABOR",
+        },
+        {
+          uuid: "co-labor-2",
+          co_number: "CO-LAB-2",
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          vendor_uuid: "vendor-1",
+          status: "Partially_Received",
+          co_type: "LABOR",
+        },
+      ];
+
+      const wrapper = mountForm({
+        form: {
+          corporation_uuid: "corp-1",
+          project_uuid: "project-1",
+          return_type: "change_order",
+        },
+        editingReturnNote: false,
+      });
+
+      await flushPromises();
+      await wrapper.vm.$nextTick();
+
+      const vm = wrapper.vm as any;
+      const coOptions = vm.coOptions;
+
+      // Should be empty since all COs are labor type
+      expect(coOptions).toHaveLength(0);
     });
   });
 });
