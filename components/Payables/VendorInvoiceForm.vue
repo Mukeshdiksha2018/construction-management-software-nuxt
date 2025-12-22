@@ -286,28 +286,6 @@
               </UButton>
             </div>
 
-            <!-- Total Invoice Amount -->
-            <div>
-              <label class="block text-xs font-medium text-default mb-1">
-                Total Invoice Amount <span class="text-red-500">*</span>
-              </label>
-              <div class="relative">
-                <UInput
-                  :model-value="amountInputValue"
-                  type="number"
-                  step="0.01"
-                  pattern="[0-9.]*"
-                  inputmode="decimal"
-                  placeholder="0.00"
-                  size="sm"
-                  class="w-full"
-                  :disabled="true"
-                  @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab') e.preventDefault(); }"
-                  readonly
-                />
-              </div>
-            </div>
-
             <!-- Holdback (only for Against PO or Against CO) -->
             <div v-if="isAgainstPO || isAgainstCO">
               <label class="block text-xs font-medium text-default mb-1">
@@ -4437,9 +4415,42 @@ const handleFinancialBreakdownUpdate = (updates: Record<string, any>) => {
   // The FinancialBreakdown component handles all calculations
   // We just need to update the form with the updates
   const updatedForm = { ...props.form };
+  
+  // Get the amount from financial_breakdown.totals.amount BEFORE updating the form
+  // This is the exact value displayed in FinancialBreakdown component
+  // Priority: 1. updates.financial_breakdown.totals.amount (the displayed value), 2. updates.amount (fallback)
+  let calculatedAmount: any = null;
+  
+  // First, try to get from updates.financial_breakdown.totals.amount (this is what's displayed)
+  const fb = updates.financial_breakdown;
+  if (fb && typeof fb === 'object' && fb.totals) {
+    // Use totals.amount which is the final calculated total displayed in FinancialBreakdown
+    // This is the exact same value shown in the "Total Invoice Amount" field in FinancialBreakdown
+    calculatedAmount = fb.totals.amount ?? fb.totals.total_invoice_amount;
+  }
+  
+  // Fallback to updates.amount if not found in financial_breakdown
+  if ((calculatedAmount === null || calculatedAmount === undefined || calculatedAmount === '') && updates.amount !== null && updates.amount !== undefined && updates.amount !== '') {
+    calculatedAmount = updates.amount;
+  }
+  
+  // Now update the form with all updates
   Object.keys(updates).forEach((key) => {
     updatedForm[key] = updates[key];
   });
+  
+  // Always update the amount field to match FinancialBreakdown's calculated total
+  // This is the single source of truth for the invoice amount
+  // Use the exact value from FinancialBreakdown (already rounded by FinancialBreakdown)
+  if (calculatedAmount !== null && calculatedAmount !== undefined && calculatedAmount !== '') {
+    const amountNum = parseNumericInput(calculatedAmount);
+    // Use the exact value from FinancialBreakdown - it's already rounded, so don't round again
+    updatedForm.amount = amountNum;
+  } else {
+    // If no calculated amount, set to 0
+    updatedForm.amount = 0;
+  }
+  
   emit('update:form', updatedForm);
 };
 
@@ -5286,57 +5297,9 @@ const coHoldbackAmount = computed(() => {
   return roundCurrencyValue((baseTotal * holdbackPercentage) / 100)
 })
 
-// Watch for financial_breakdown changes to sync amount for Against PO, Against CO, and Against Holdback Amount invoices
-// For Against PO and Against CO, the FinancialBreakdown calculates: item_total (from invoice values) + charges + taxes - advances - holdbacks
-// For Against Holdback Amount, the FinancialBreakdown calculates: item_total (from release amounts) + charges + taxes
-// The calculated NET total is stored in financial_breakdown.totals.amount (via totalFieldName="amount")
-watch(
-  () => props.form.financial_breakdown,
-  (newBreakdown) => {
-    if ((isAgainstPO.value || isAgainstCO.value || isAgainstHoldback.value)) {
-      // Parse financial_breakdown if it's a string
-      let financialBreakdown = newBreakdown
-      if (typeof financialBreakdown === 'string') {
-        try {
-          financialBreakdown = JSON.parse(financialBreakdown)
-        } catch (e) {
-          console.warn('[VendorInvoiceForm] Failed to parse financial_breakdown in watcher:', e)
-          return
-        }
-      }
-      
-      if (financialBreakdown?.totals) {
-        // For Against PO and Against CO, the FinancialBreakdown component sets totals.amount
-        // (using totalFieldName="amount") which is the NET total after all deductions
-        // For Against Holdback Amount, the FinancialBreakdown component sets totals.amount
-        // which is the total after charges and taxes (release amounts + charges + taxes)
-        // For backwards compatibility, also check total_invoice_amount (used in older saved invoices)
-        const calculatedAmount = financialBreakdown.totals.amount ?? 
-                           financialBreakdown.totals.total_invoice_amount
-        
-        // Only update if there's a valid calculated amount
-        if (calculatedAmount !== null && calculatedAmount !== undefined && calculatedAmount !== '') {
-          const calculatedAmountNum = parseNumericInput(calculatedAmount)
-          const currentAmount = parseNumericInput(props.form.amount || 0)
-          
-          // Update amount to match the calculated total from FinancialBreakdown
-          // For Against PO/CO: (invoice_item_total + charges + taxes - advances - holdbacks)
-          // For Against Holdback Amount: (release_amount_total + charges + taxes)
-          if (Math.abs(calculatedAmountNum - currentAmount) > 0.01) {
-            handleFormUpdate('amount', calculatedAmountNum)
-          }
-        } else {
-          // If calculated amount is null/undefined/empty, set amount to 0
-          // This happens when there are no invoice values entered yet
-          if (props.form.amount !== 0 && props.form.amount !== null) {
-            handleFormUpdate('amount', 0)
-          }
-        }
-      }
-    }
-  },
-  { deep: true, immediate: true }
-);
+// Watch for financial_breakdown changes - REMOVED
+// The handleFinancialBreakdownUpdate function now handles all amount updates directly from FinancialBreakdown
+// This ensures we use the exact value from financial_breakdown.totals.amount (the displayed value)
 
 // Watch poItemsTotal to ensure FinancialBreakdown recalculates when invoice values change
 // This matches the behavior of direct invoices where lineItemsTotal changes trigger recalculation
