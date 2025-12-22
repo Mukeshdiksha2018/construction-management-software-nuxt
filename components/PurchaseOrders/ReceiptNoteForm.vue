@@ -290,6 +290,10 @@
       :error="poItemsError"
       :corporation-uuid="(form.corporation_uuid || corpStore.selectedCorporation?.uuid) ?? null"
       :receipt-type="receiptType"
+      :purchase-order-uuid="receiptType === 'purchase_order' ? form.purchase_order_uuid : null"
+      :change-order-uuid="receiptType === 'change_order' ? form.change_order_uuid : null"
+      :project-uuid="form.project_uuid ?? null"
+      :current-receipt-note-uuid="form.uuid ?? null"
       :readonly="props.readonly"
       @received-quantity-change="handleReceivedQuantityChange"
     >
@@ -912,11 +916,40 @@ const isPODropdownDisabled = computed(() => {
 const poOption = computed({
   get: () => {
     if (!props.form.purchase_order_uuid) return null;
-    return (
-      poOptions.value.find(
-        (opt) => opt.value === props.form.purchase_order_uuid
-      ) ?? null
+    
+    // First try to find in the filtered options
+    const foundOption = poOptions.value.find(
+      (opt) => opt.value === props.form.purchase_order_uuid
     );
+    
+    if (foundOption) return foundOption;
+    
+    // If not found in filtered options but we're editing, try to find in localPurchaseOrders
+    // This handles cases where the PO exists but doesn't match current filters
+    if (props.editingReceiptNote && props.form.uuid) {
+      const po = localPurchaseOrders.value.find(
+        (p: any) => p.uuid === props.form.purchase_order_uuid
+      );
+      if (po) {
+        const vendor = localVendors.value.find(v => v.uuid === po.vendor_uuid);
+        const vendorName = vendor?.vendor_name || 'N/A';
+        const poNum = po?.po_number || 'Unnamed PO';
+        const typeInfo = getPOTypeInfo(String(po.po_type || '').toUpperCase());
+        
+        return {
+          label: `${poNum} — ${vendorName}`,
+          value: po.uuid,
+          project_uuid: po.project_uuid,
+          vendor_uuid: po.vendor_uuid,
+          total: po.total_po_amount ?? 0,
+          type_color: typeInfo.color,
+          type_label: typeInfo.label,
+          po: po
+        };
+      }
+    }
+    
+    return null;
   },
   set: (option) => {
     const value =
@@ -1033,11 +1066,40 @@ const isCODropdownDisabled = computed(() => {
 const coOption = computed({
   get: () => {
     if (!props.form.change_order_uuid) return null;
-    return (
-      coOptions.value.find(
-        (opt) => opt.value === props.form.change_order_uuid
-      ) ?? null
+    
+    // First try to find in the filtered options
+    const foundOption = coOptions.value.find(
+      (opt) => opt.value === props.form.change_order_uuid
     );
+    
+    if (foundOption) return foundOption;
+    
+    // If not found in filtered options but we're editing, try to find in localChangeOrders
+    // This handles cases where the CO exists but doesn't match current filters
+    if (props.editingReceiptNote && props.form.uuid) {
+      const co = localChangeOrders.value.find(
+        (c: any) => c.uuid === props.form.change_order_uuid
+      );
+      if (co) {
+        const vendor = localVendors.value.find(v => v.uuid === co.vendor_uuid);
+        const vendorName = vendor?.vendor_name || co.vendor_name || 'N/A';
+        const coNum = co?.co_number || 'Unnamed CO';
+        const typeInfo = getCOTypeInfo(String(co.co_type || '').toUpperCase());
+        
+        return {
+          label: `${coNum} — ${vendorName}`,
+          value: co.uuid,
+          project_uuid: co.project_uuid,
+          vendor_uuid: co.vendor_uuid,
+          total: co.total_co_amount ?? 0,
+          type_color: typeInfo.color,
+          type_label: typeInfo.label,
+          co: co
+        };
+      }
+    }
+    
+    return null;
   },
   set: (option) => {
     const value =
@@ -1295,20 +1357,166 @@ onMounted(async () => {
     if (props.editingReceiptNote && props.form.uuid) {
       const vendorUuid = props.form.vendor_uuid;
       const projectUuid = props.form.project_uuid;
+      const currentReceiptType = receiptType.value;
+      const poUuid = props.form.purchase_order_uuid;
+      const coUuid = props.form.change_order_uuid;
       
-      if (vendorUuid && projectUuid) {
+      // If vendor is not set but PO/CO is set, fetch the PO/CO to get its vendor_uuid
+      if (!vendorUuid && projectUuid) {
+        if (currentReceiptType === 'purchase_order' && poUuid) {
+          try {
+            const response: any = await $fetch("/api/purchase-order-forms", {
+              method: "GET",
+              query: {
+                corporation_uuid: corpUuid,
+                uuid: poUuid,
+              },
+            });
+            const poData = Array.isArray(response?.data) ? response.data[0] : response?.data;
+            if (poData?.vendor_uuid) {
+              // Update form with vendor_uuid from PO
+              updateFormField("vendor_uuid", poData.vendor_uuid);
+              // Add the PO to localPurchaseOrders if not already there
+              if (!localPurchaseOrders.value.find((p: any) => p.uuid === poUuid)) {
+                localPurchaseOrders.value.push(poData);
+              }
+              // Use the vendor from PO for fetching
+              const poVendorUuid = poData.vendor_uuid;
+              await Promise.allSettled([
+                fetchLocalPurchaseOrders(String(corpUuid), poVendorUuid, projectUuid),
+                fetchLocalChangeOrders(String(corpUuid), poVendorUuid, projectUuid),
+              ]);
+            } else {
+              // Add the PO to localPurchaseOrders if not already there
+              if (poData && !localPurchaseOrders.value.find((p: any) => p.uuid === poUuid)) {
+                localPurchaseOrders.value.push(poData);
+              }
+              // Fallback: fetch all POs/COs for the project
+              await Promise.allSettled([
+                fetchLocalPurchaseOrders(String(corpUuid), null, projectUuid),
+                fetchLocalChangeOrders(String(corpUuid), null, projectUuid),
+              ]);
+            }
+          } catch (error) {
+            console.error("[ReceiptNoteForm] Failed to fetch PO for vendor:", error);
+            // Fallback: fetch all POs/COs for the project
+            if (projectUuid) {
+              await Promise.allSettled([
+                fetchLocalPurchaseOrders(String(corpUuid), null, projectUuid),
+                fetchLocalChangeOrders(String(corpUuid), null, projectUuid),
+              ]);
+            }
+          }
+        } else if (currentReceiptType === 'change_order' && coUuid) {
+          try {
+            const response: any = await $fetch("/api/change-orders", {
+              method: "GET",
+              query: {
+                corporation_uuid: corpUuid,
+                uuid: coUuid,
+              },
+            });
+            const coData = Array.isArray(response?.data) ? response.data[0] : response?.data;
+            if (coData?.vendor_uuid) {
+              // Update form with vendor_uuid from CO
+              updateFormField("vendor_uuid", coData.vendor_uuid);
+              // Add the CO to localChangeOrders if not already there
+              if (!localChangeOrders.value.find((c: any) => c.uuid === coUuid)) {
+                localChangeOrders.value.push(coData);
+              }
+              // Use the vendor from CO for fetching
+              const coVendorUuid = coData.vendor_uuid;
+              await Promise.allSettled([
+                fetchLocalPurchaseOrders(String(corpUuid), coVendorUuid, projectUuid),
+                fetchLocalChangeOrders(String(corpUuid), coVendorUuid, projectUuid),
+              ]);
+            } else {
+              // Add the CO to localChangeOrders if not already there
+              if (coData && !localChangeOrders.value.find((c: any) => c.uuid === coUuid)) {
+                localChangeOrders.value.push(coData);
+              }
+              // Fallback: fetch all POs/COs for the project
+              await Promise.allSettled([
+                fetchLocalPurchaseOrders(String(corpUuid), null, projectUuid),
+                fetchLocalChangeOrders(String(corpUuid), null, projectUuid),
+              ]);
+            }
+          } catch (error) {
+            console.error("[ReceiptNoteForm] Failed to fetch CO for vendor:", error);
+            // Fallback: fetch all POs/COs for the project
+            if (projectUuid) {
+              await Promise.allSettled([
+                fetchLocalPurchaseOrders(String(corpUuid), null, projectUuid),
+                fetchLocalChangeOrders(String(corpUuid), null, projectUuid),
+              ]);
+            }
+          }
+        } else if (projectUuid) {
+          // Project is set but no PO/CO - fetch all POs/COs for the project
+          await Promise.allSettled([
+            fetchLocalPurchaseOrders(String(corpUuid), null, projectUuid),
+            fetchLocalChangeOrders(String(corpUuid), null, projectUuid),
+          ]);
+        }
+      } else if (vendorUuid && projectUuid) {
         // Both vendor and project are set - fetch filtered POs/COs
         await Promise.allSettled([
           fetchLocalPurchaseOrders(String(corpUuid), vendorUuid, projectUuid),
           fetchLocalChangeOrders(String(corpUuid), vendorUuid, projectUuid),
         ]);
-      } else if (projectUuid && (props.form.purchase_order_uuid || props.form.change_order_uuid)) {
+      } else if (projectUuid && (poUuid || coUuid)) {
         // Project is set but vendor is not - fetch all POs/COs for the project
         // This allows showing the current PO/CO even if vendor isn't set
+        // Also fetch the specific PO/CO to ensure it's in the list
         await Promise.allSettled([
           fetchLocalPurchaseOrders(String(corpUuid), null, projectUuid),
           fetchLocalChangeOrders(String(corpUuid), null, projectUuid),
         ]);
+        
+        // Ensure the current PO/CO is in the local arrays
+        if (poUuid && !localPurchaseOrders.value.find((p: any) => p.uuid === poUuid)) {
+          try {
+            const response: any = await $fetch("/api/purchase-order-forms", {
+              method: "GET",
+              query: {
+                corporation_uuid: corpUuid,
+                uuid: poUuid,
+              },
+            });
+            const poData = Array.isArray(response?.data) ? response.data[0] : response?.data;
+            if (poData) {
+              localPurchaseOrders.value.push(poData);
+              // If vendor is not set, set it from PO
+              if (!vendorUuid && poData.vendor_uuid) {
+                updateFormField("vendor_uuid", poData.vendor_uuid);
+              }
+            }
+          } catch (error) {
+            console.error("[ReceiptNoteForm] Failed to fetch specific PO:", error);
+          }
+        }
+        
+        if (coUuid && !localChangeOrders.value.find((c: any) => c.uuid === coUuid)) {
+          try {
+            const response: any = await $fetch("/api/change-orders", {
+              method: "GET",
+              query: {
+                corporation_uuid: corpUuid,
+                uuid: coUuid,
+              },
+            });
+            const coData = Array.isArray(response?.data) ? response.data[0] : response?.data;
+            if (coData) {
+              localChangeOrders.value.push(coData);
+              // If vendor is not set, set it from CO
+              if (!vendorUuid && coData.vendor_uuid) {
+                updateFormField("vendor_uuid", coData.vendor_uuid);
+              }
+            }
+          } catch (error) {
+            console.error("[ReceiptNoteForm] Failed to fetch specific CO:", error);
+          }
+        }
       }
     }
   }

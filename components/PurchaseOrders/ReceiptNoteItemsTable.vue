@@ -40,6 +40,7 @@
               <th class="w-[110px] px-4 py-2 text-right">Unit Price</th>
               <th class="w-[90px] px-4 py-2 text-right">UOM</th>
               <th class="w-[90px] px-4 py-2 text-right">{{ quantityColumnLabel }}</th>
+              <th class="w-[120px] px-4 py-2 text-right">Leftover Qty</th>
               <th class="w-[120px] px-4 py-2 text-right">Received Qty</th>
               <th class="w-[120px] px-4 py-2 text-right">Total</th>
             </tr>
@@ -107,12 +108,19 @@
                 {{ formatQuantity(item.ordered_quantity ?? item.po_quantity ?? 0) }}
               </td>
               <td class="px-3 py-2 text-right align-middle">
+                <div class="inline-flex items-center justify-end gap-1 rounded-md border border-default bg-background px-3 py-1.5 font-mono text-sm"
+                  :class="getLeftoverQuantity(item, index) <= 0 ? 'text-error-600 dark:text-error-400' : 'text-default'">
+                  <span>{{ formatQuantity(getLeftoverQuantity(item, index)) }}</span>
+                </div>
+              </td>
+              <td class="px-3 py-2 text-right align-middle">
                 <UInput
                   :model-value="getReceivedInputValue(item, index)"
                   size="xs"
                   inputmode="decimal"
                   class="w-full max-w-[130px] text-right font-mono"
                   :disabled="props.readonly"
+                  :class="isOverLeftover(item, index) ? 'border-error-500' : ''"
                   @focus="setActiveRow(index)"
                   @blur="clearActiveRow(index)"
                   @update:model-value="(value) => emitReceivedQuantityChange(index, value)"
@@ -203,12 +211,20 @@
               </span>
             </div>
             <div class="flex flex-col gap-1 items-end text-right">
+              <span class="block text-[11px] uppercase tracking-wide text-muted/80">Leftover Qty</span>
+              <span class="font-mono text-sm"
+                :class="getLeftoverQuantity(item, index) <= 0 ? 'text-error-600 dark:text-error-400' : 'text-default'">
+                {{ formatQuantity(getLeftoverQuantity(item, index)) }}
+              </span>
+            </div>
+            <div class="flex flex-col gap-1 items-end text-right">
               <span class="block text-[11px] uppercase tracking-wide text-muted/80">Received Qty</span>
               <UInput
                 :model-value="getReceivedInputValue(item, index)"
                 size="xs"
                 inputmode="decimal"
                 class="text-right font-mono"
+                :class="isOverLeftover(item, index) ? 'border-error-500' : ''"
                 :disabled="props.readonly"
                 @focus="setActiveRow(index)"
                 @blur="clearActiveRow(index)"
@@ -233,7 +249,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, watch, ref } from 'vue'
+import { computed, reactive, watch, ref, onMounted } from 'vue'
 import { useCurrencyFormat } from '@/composables/useCurrencyFormat'
 
 interface ReceiptNoteItemDisplay {
@@ -272,6 +288,10 @@ const props = withDefaults(defineProps<{
   emptyMessage?: string
   corporationUuid?: string | null
   receiptType?: 'purchase_order' | 'change_order'
+  purchaseOrderUuid?: string | null
+  changeOrderUuid?: string | null
+  projectUuid?: string | null
+  currentReceiptNoteUuid?: string | null
   readonly?: boolean
 }>(), {
   items: () => [],
@@ -282,6 +302,10 @@ const props = withDefaults(defineProps<{
   emptyMessage: 'No receipt items found.',
   corporationUuid: null,
   receiptType: 'purchase_order',
+  purchaseOrderUuid: null,
+  changeOrderUuid: null,
+  projectUuid: null,
+  currentReceiptNoteUuid: null,
 })
 
 const emit = defineEmits<{
@@ -446,13 +470,23 @@ const emitReceivedQuantityChange = (index: number, value: string | number | null
   draft.touched = true
 
   const numericValue = parseNumericInput(draft.receivedInput)
+  const leftoverQty = getLeftoverQuantity(item as ReceiptNoteItemDisplay, index)
+  
+  // Validate: received quantity should not exceed leftover quantity
+  const validatedNumericValue = numericValue > leftoverQty ? leftoverQty : numericValue
+  
+  // Update draft if value was clamped
+  if (numericValue > leftoverQty) {
+    draft.receivedInput = toInputString(validatedNumericValue)
+  }
+  
   const unitNumeric = parseNumericInput(item?.unit_price)
-  const computedTotal = roundCurrency(unitNumeric * numericValue)
+  const computedTotal = roundCurrency(unitNumeric * validatedNumericValue)
 
   emit('received-quantity-change', {
     index,
-    value,
-    numericValue,
+    value: validatedNumericValue > leftoverQty ? leftoverQty : value,
+    numericValue: validatedNumericValue,
     computedTotal,
   })
 }
@@ -473,6 +507,143 @@ const isOverReceived = (item: ReceiptNoteItemDisplay): boolean => {
   const receivedQty = parseNumericInput(item.received_quantity ?? 0)
   return receivedQty > orderedQty && orderedQty > 0
 }
+
+// Map to store total received quantities for each item (keyed by item_uuid or base_item_uuid)
+const totalReceivedQuantities = ref<Map<string, number>>(new Map())
+const loadingLeftoverQuantities = ref(false)
+
+// Fetch all receipt notes for the selected PO/CO and calculate total received quantities
+const fetchTotalReceivedQuantities = async () => {
+  const corpUuid = props.corporationUuid
+  const projectUuid = props.projectUuid
+  const sourceUuid = props.receiptType === 'purchase_order' ? props.purchaseOrderUuid : props.changeOrderUuid
+  
+  if (!corpUuid || !projectUuid || !sourceUuid) {
+    totalReceivedQuantities.value.clear()
+    return
+  }
+
+  loadingLeftoverQuantities.value = true
+  try {
+    // Fetch all receipt notes for this PO/CO
+    const receiptNotesResponse: any = await $fetch("/api/stock-receipt-notes", {
+      method: "GET",
+      query: {
+        corporation_uuid: corpUuid,
+        project_uuid: projectUuid,
+        ...(props.receiptType === 'purchase_order' 
+          ? { purchase_order_uuid: sourceUuid }
+          : { change_order_uuid: sourceUuid }
+        ),
+      },
+    })
+
+    const receiptNotes = Array.isArray(receiptNotesResponse?.data) 
+      ? receiptNotesResponse.data 
+      : Array.isArray(receiptNotesResponse) 
+      ? receiptNotesResponse 
+      : []
+
+    // Filter out inactive receipt notes and the current receipt note (if editing)
+    const activeReceiptNotes = receiptNotes.filter((note: any) => {
+      if (note.is_active === false) return false
+      if (props.currentReceiptNoteUuid && note.uuid === props.currentReceiptNoteUuid) return false
+      return true
+    })
+
+    // Fetch receipt note items for all matching receipt notes
+    const allReceiptNoteItems: any[] = []
+    for (const receiptNote of activeReceiptNotes) {
+      try {
+        const response: any = await $fetch("/api/receipt-note-items", {
+          method: "GET",
+          query: {
+            corporation_uuid: corpUuid,
+            project_uuid: projectUuid,
+            receipt_note_uuid: receiptNote.uuid,
+            item_type: props.receiptType,
+          },
+        })
+        
+        const items = Array.isArray(response?.data) ? response.data : Array.isArray(response) ? response : []
+        allReceiptNoteItems.push(...items)
+      } catch (error) {
+        console.error(`[ReceiptNoteItemsTable] Failed to fetch receipt note items for ${receiptNote.uuid}:`, error)
+      }
+    }
+
+    // Create a map of total received quantities by item identifier
+    const receivedMap = new Map<string, number>()
+    allReceiptNoteItems.forEach((rni: any) => {
+      if (rni.is_active === false) return
+      
+      // Use item_uuid or base_item_uuid as the key
+      const itemUuid = rni.item_uuid || rni.base_item_uuid
+      if (itemUuid) {
+        const key = String(itemUuid).trim().toLowerCase()
+        const existingQty = receivedMap.get(key) || 0
+        const receivedQty = parseNumericInput(rni.received_quantity ?? 0)
+        receivedMap.set(key, existingQty + receivedQty)
+      }
+    })
+
+    totalReceivedQuantities.value = receivedMap
+  } catch (error) {
+    console.error("[ReceiptNoteItemsTable] Error fetching total received quantities:", error)
+    totalReceivedQuantities.value.clear()
+  } finally {
+    loadingLeftoverQuantities.value = false
+  }
+}
+
+// Calculate leftover quantity for an item
+const getLeftoverQuantity = (item: ReceiptNoteItemDisplay, index: number): number => {
+  const orderedQty = parseNumericInput(item.ordered_quantity ?? item.po_quantity ?? 0)
+  
+  // Get the item identifier
+  const itemUuid = item.item_uuid || item.base_item_uuid
+  if (!itemUuid) {
+    return orderedQty // If no item UUID, assume no previous receipts
+  }
+  
+  const key = String(itemUuid).trim().toLowerCase()
+  const totalReceived = totalReceivedQuantities.value.get(key) || 0
+  
+  // Calculate leftover: ordered quantity - total received (excluding current input)
+  const leftover = orderedQty - totalReceived
+  
+  return Math.max(0, leftover) // Don't return negative values
+}
+
+// Check if the entered received quantity exceeds leftover quantity
+const isOverLeftover = (item: ReceiptNoteItemDisplay, index: number): boolean => {
+  const draft = drafts[index]
+  const leftoverQty = getLeftoverQuantity(item, index)
+  
+  // If user is editing, check the draft value
+  if (draft && draft.touched) {
+    const enteredQty = parseNumericInput(draft.receivedInput)
+    return enteredQty > leftoverQty
+  }
+  
+  // Otherwise check the item's received quantity
+  const receivedQty = parseNumericInput(item.received_quantity ?? 0)
+  return receivedQty > leftoverQty
+}
+
+// Watch for changes to PO/CO UUID or project UUID to refetch
+watch(
+  () => [props.purchaseOrderUuid, props.changeOrderUuid, props.projectUuid, props.corporationUuid],
+  () => {
+    fetchTotalReceivedQuantities()
+  },
+  { immediate: true }
+)
+
+// Also fetch when component mounts
+onMounted(() => {
+  fetchTotalReceivedQuantities()
+})
 </script>
 
 
