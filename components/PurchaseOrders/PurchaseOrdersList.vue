@@ -368,7 +368,7 @@
     <!-- Items Table - Show when filters are applied and data exists -->
     <!-- Always show this table when data exists, regardless of status filter -->
     <div v-if="itemsTableData.length > 0 && hasPermission('po_view') && isReady" class="mb-6">
-      <UCard variant="soft" class="mb-4">
+      <div class="bg-gray-50 dark:bg-gray-800 rounded-lg overflow-hidden">
         <UTable
           :data="itemsTableData"
           :columns="itemsTableColumns"
@@ -376,7 +376,7 @@
           v-model:selected="selectedItemsTableRows"
           :selectable="true"
         />
-      </UCard>
+      </div>
     </div>
 
     <!-- Purchase Orders Table - Only show when ToBeRaised is NOT selected and no items table is shown -->
