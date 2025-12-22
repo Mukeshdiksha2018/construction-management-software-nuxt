@@ -9,8 +9,11 @@
           Update the received quantity or cost code for each purchase order line.
         </p>
       </div>
-      <div v-if="hasItems" class="text-[11px] font-medium text-muted uppercase tracking-wide">
-        {{ items.length }} items
+      <div v-if="hasItems" class="flex items-center gap-3">
+        <slot name="header-actions" />
+        <div class="text-[11px] font-medium text-muted uppercase tracking-wide">
+          {{ items.length }} items
+        </div>
       </div>
     </div>
 

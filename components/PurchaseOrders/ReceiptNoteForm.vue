@@ -283,11 +283,19 @@
       </div>
     </div>
 
-    <!-- Configure Items Button and Items Table -->
-    <div v-if="(receiptType === 'purchase_order' && form.purchase_order_uuid) || (receiptType === 'change_order' && form.change_order_uuid)" class="mt-6">
-      <!-- Configure Items Button -->
-      <div v-if="receiptItems.length > 0 && !props.readonly" class="mb-4 flex justify-end">
+    <ReceiptNoteItemsTable
+      v-if="(receiptType === 'purchase_order' && form.purchase_order_uuid) || (receiptType === 'change_order' && form.change_order_uuid)"
+      :items="receiptItems"
+      :loading="poItemsLoading"
+      :error="poItemsError"
+      :corporation-uuid="(form.corporation_uuid || corpStore.selectedCorporation?.uuid) ?? null"
+      :receipt-type="receiptType"
+      :readonly="props.readonly"
+      @received-quantity-change="handleReceivedQuantityChange"
+    >
+      <template #header-actions>
         <UButton
+          v-if="receiptItems.length > 0 && !props.readonly"
           color="primary"
           variant="outline"
           size="sm"
@@ -296,18 +304,8 @@
         >
           Configure Items
         </UButton>
-      </div>
-
-      <ReceiptNoteItemsTable
-        :items="receiptItems"
-        :loading="poItemsLoading"
-        :error="poItemsError"
-        :corporation-uuid="(form.corporation_uuid || corpStore.selectedCorporation?.uuid) ?? null"
-        :receipt-type="receiptType"
-        :readonly="props.readonly"
-        @received-quantity-change="handleReceivedQuantityChange"
-      />
-    </div>
+      </template>
+    </ReceiptNoteItemsTable>
 
     <!-- File Upload, Notes, and Financial Breakdown Section -->
     <div v-if="(receiptType === 'purchase_order' && form.purchase_order_uuid) || (receiptType === 'change_order' && form.change_order_uuid)" class="mt-6 flex flex-col lg:flex-row gap-6">
