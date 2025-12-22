@@ -71,13 +71,13 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    // Fetch approved purchase orders for this project
+    // Fetch purchase orders for this project (Approved, Completed, and Partially_Received)
     const { data: purchaseOrders, error: poError } = await supabase
       .from('purchase_order_forms')
       .select('uuid, vendor_uuid, financial_breakdown')
       .eq('corporation_uuid', corporationUuid)
       .eq('project_uuid', projectUuid)
-      .eq('status', 'Approved')
+      .in('status', ['Approved', 'Completed', 'Partially_Received'])
       .eq('is_active', true)
 
     if (poError) {
@@ -87,13 +87,13 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // Fetch approved change orders for this project
+    // Fetch change orders for this project (Approved, Completed, and Partially_Received)
     const { data: changeOrders, error: coError } = await supabase
       .from('change_orders')
       .select('uuid, vendor_uuid, financial_breakdown')
       .eq('corporation_uuid', corporationUuid)
       .eq('project_uuid', projectUuid)
-      .eq('status', 'Approved')
+      .in('status', ['Approved', 'Completed', 'Partially_Received'])
       .eq('is_active', true)
 
     if (coError) {

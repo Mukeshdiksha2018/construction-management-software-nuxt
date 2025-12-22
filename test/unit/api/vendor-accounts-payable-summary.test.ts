@@ -218,7 +218,7 @@ describe("server/api/reports/vendor-accounts-payable-summary", () => {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
               eq: vi.fn(() => ({
-                eq: vi.fn(() => ({
+                in: vi.fn(() => ({
                   eq: vi.fn(() =>
                     Promise.resolve({ data: purchaseOrders, error: null })
                   ),
@@ -233,7 +233,7 @@ describe("server/api/reports/vendor-accounts-payable-summary", () => {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
               eq: vi.fn(() => ({
-                eq: vi.fn(() => ({
+                in: vi.fn(() => ({
                   eq: vi.fn(() =>
                     Promise.resolve({ data: changeOrders, error: null })
                   ),
@@ -349,7 +349,7 @@ describe("server/api/reports/vendor-accounts-payable-summary", () => {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
               eq: vi.fn(() => ({
-                eq: vi.fn(() => ({
+                in: vi.fn(() => ({
                   eq: vi.fn(() =>
                     Promise.resolve({ data: purchaseOrders, error: null })
                   ),
@@ -364,7 +364,7 @@ describe("server/api/reports/vendor-accounts-payable-summary", () => {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
               eq: vi.fn(() => ({
-                eq: vi.fn(() => ({
+                in: vi.fn(() => ({
                   eq: vi.fn(() =>
                     Promise.resolve({ data: changeOrders, error: null })
                   ),
@@ -500,7 +500,7 @@ describe("server/api/reports/vendor-accounts-payable-summary", () => {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
               eq: vi.fn(() => ({
-                eq: vi.fn(() => ({
+                in: vi.fn(() => ({
                   eq: vi.fn(() =>
                     Promise.resolve({ data: purchaseOrders, error: null })
                   ),
@@ -515,7 +515,7 @@ describe("server/api/reports/vendor-accounts-payable-summary", () => {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
               eq: vi.fn(() => ({
-                eq: vi.fn(() => ({
+                in: vi.fn(() => ({
                   eq: vi.fn(() =>
                     Promise.resolve({ data: changeOrders, error: null })
                   ),
@@ -641,7 +641,7 @@ describe("server/api/reports/vendor-accounts-payable-summary", () => {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
               eq: vi.fn(() => ({
-                eq: vi.fn(() => ({
+                in: vi.fn(() => ({
                   eq: vi.fn(() =>
                     Promise.resolve({ data: purchaseOrders, error: null })
                   ),
@@ -656,7 +656,7 @@ describe("server/api/reports/vendor-accounts-payable-summary", () => {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
               eq: vi.fn(() => ({
-                eq: vi.fn(() => ({
+                in: vi.fn(() => ({
                   eq: vi.fn(() =>
                     Promise.resolve({ data: changeOrders, error: null })
                   ),
@@ -750,7 +750,7 @@ describe("server/api/reports/vendor-accounts-payable-summary", () => {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
               eq: vi.fn(() => ({
-                eq: vi.fn(() => ({
+                in: vi.fn(() => ({
                   eq: vi.fn(() =>
                     Promise.resolve({ data: purchaseOrders, error: null })
                   ),
@@ -765,7 +765,7 @@ describe("server/api/reports/vendor-accounts-payable-summary", () => {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
               eq: vi.fn(() => ({
-                eq: vi.fn(() => ({
+                in: vi.fn(() => ({
                   eq: vi.fn(() =>
                     Promise.resolve({ data: changeOrders, error: null })
                   ),
@@ -991,7 +991,7 @@ describe("server/api/reports/vendor-accounts-payable-summary", () => {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
               eq: vi.fn(() => ({
-                eq: vi.fn(() => ({
+                in: vi.fn(() => ({
                   eq: vi.fn(() =>
                     Promise.resolve({ data: purchaseOrders, error: null })
                   ),
@@ -1006,7 +1006,7 @@ describe("server/api/reports/vendor-accounts-payable-summary", () => {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
               eq: vi.fn(() => ({
-                eq: vi.fn(() => ({
+                in: vi.fn(() => ({
                   eq: vi.fn(() =>
                     Promise.resolve({ data: changeOrders, error: null })
                   ),
@@ -1125,7 +1125,7 @@ describe("server/api/reports/vendor-accounts-payable-summary", () => {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
               eq: vi.fn(() => ({
-                eq: vi.fn(() => ({
+                in: vi.fn(() => ({
                   eq: vi.fn(() =>
                     Promise.resolve({ data: purchaseOrders, error: null })
                   ),
@@ -1140,7 +1140,7 @@ describe("server/api/reports/vendor-accounts-payable-summary", () => {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
               eq: vi.fn(() => ({
-                eq: vi.fn(() => ({
+                in: vi.fn(() => ({
                   eq: vi.fn(() =>
                     Promise.resolve({ data: changeOrders, error: null })
                   ),
