@@ -646,6 +646,12 @@ watch(
 onMounted(() => {
   fetchTotalReceivedQuantities()
 })
+
+// Expose methods for testing
+defineExpose({
+  computeRowTotal,
+  emitReceivedQuantityChange,
+})
 </script>
 
 

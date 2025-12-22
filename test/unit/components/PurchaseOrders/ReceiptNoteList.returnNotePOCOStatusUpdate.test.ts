@@ -181,6 +181,51 @@ const ReceiptNoteFormStub = {
   props: ["form", "editingReceiptNote", "readonly"],
   emits: ["update:form"],
   setup(props: any, { expose }: any) {
+    // Calculate total received quantities from other receipt notes (excluding current one)
+    const totalReceivedQuantitiesMap = computed(() => {
+      const map = new Map<string, number>();
+      const currentReceiptNoteId = props.form?.uuid;
+      const poUuid = props.form?.purchase_order_uuid;
+      const coUuid = props.form?.change_order_uuid;
+      const receiptType = props.form?.receipt_type || 'purchase_order';
+
+      // Filter receipt notes that match the current PO/CO and exclude the current receipt note
+      stockReceiptNotesState.value.forEach((note: any) => {
+        if (note.is_active === false || note.uuid === currentReceiptNoteId) return;
+
+        const isMatchingPO = receiptType === 'purchase_order' && note.purchase_order_uuid === poUuid;
+        const isMatchingCO = receiptType === 'change_order' && note.change_order_uuid === coUuid;
+
+        if ((isMatchingPO || isMatchingCO) && note.receipt_items) {
+          note.receipt_items.forEach((rni: any) => {
+            if (rni.is_active === false) return;
+            const itemUuid = rni.item_uuid || rni.base_item_uuid;
+            if (itemUuid) {
+              const key = String(itemUuid).trim().toLowerCase();
+              const existingQty = map.get(key) || 0;
+              const receivedQty = parseFloat(String(rni.received_quantity || 0)) || 0;
+              map.set(key, existingQty + receivedQty);
+            }
+          });
+        }
+      });
+
+      return map;
+    });
+
+    // Calculate leftover quantity for an item
+    const getLeftoverQuantity = (item: any): number => {
+      const orderedQty = parseFloat(String(item.ordered_quantity || item.po_quantity || 0)) || 0;
+      const itemUuid = item.uuid || item.base_item_uuid;
+      if (!itemUuid) {
+        return orderedQty;
+      }
+      const key = String(itemUuid).trim().toLowerCase();
+      const totalReceived = totalReceivedQuantitiesMap.value.get(key) || 0;
+      const leftover = orderedQty - totalReceived;
+      return Math.max(0, leftover);
+    };
+
     const shortfallItems = computed(() => {
       if (!props.form?.receipt_items || !Array.isArray(props.form.receipt_items)) {
         return [];
@@ -188,15 +233,17 @@ const ReceiptNoteFormStub = {
 
       return props.form.receipt_items
         .map((item: any) => {
-          const orderedQty = parseFloat(String(item.ordered_quantity || item.po_quantity || 0)) || 0;
+          const leftoverQty = getLeftoverQuantity(item);
           const receivedQty = parseFloat(String(item.received_quantity || 0)) || 0;
 
-          if (receivedQty < orderedQty && orderedQty > 0) {
+          // Shortfall is the difference between leftover quantity and received quantity
+          if (receivedQty < leftoverQty && leftoverQty > 0) {
             return {
               ...item,
-              ordered_quantity: orderedQty,
+              ordered_quantity: parseFloat(String(item.ordered_quantity || item.po_quantity || 0)) || 0,
               received_quantity: receivedQty,
-              shortfall_quantity: orderedQty - receivedQty,
+              leftover_quantity: leftoverQty,
+              shortfall_quantity: leftoverQty - receivedQty,
             };
           }
           return null;

@@ -10,6 +10,22 @@ vi.mock("@/composables/useCurrencyFormat", () => ({
   }),
 }));
 
+// Mock $fetch for receipt notes API calls
+const mockFetch = vi.fn();
+vi.stubGlobal("$fetch", mockFetch);
+
+// Default mock implementation - return empty arrays for receipt notes
+// This means no previous receipts, so leftover quantity = ordered quantity
+mockFetch.mockImplementation((url: string) => {
+  if (url.includes("/api/stock-receipt-notes")) {
+    return Promise.resolve({ data: [] });
+  }
+  if (url.includes("/api/receipt-note-items")) {
+    return Promise.resolve({ data: [] });
+  }
+  return Promise.resolve({ data: [] });
+});
+
 const uiStubs = {
   UInput: {
     props: ["modelValue", "size", "inputmode", "class"],
@@ -102,6 +118,17 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
+    // Reset mock to return empty arrays (no previous receipts)
+    // This means leftover quantity = ordered quantity for all items
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/stock-receipt-notes")) {
+        return Promise.resolve({ data: [] });
+      }
+      if (url.includes("/api/receipt-note-items")) {
+        return Promise.resolve({ data: [] });
+      }
+      return Promise.resolve({ data: [] });
+    });
   });
 
   afterEach(() => {
@@ -397,7 +424,17 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
     });
 
     it("should calculate total correctly from quantity and unit price", async () => {
-      const wrapper = mountTable();
+      // Use an item with higher ordered quantity to allow entering 12
+      const itemsWithHigherOrderedQty = [
+        {
+          ...mockItems[0],
+          ordered_quantity: 15,
+          po_quantity: 15,
+        },
+        ...mockItems.slice(1),
+      ];
+      const wrapper = mountTable({ items: itemsWithHigherOrderedQty });
+      await flushPromises();
 
       const inputs = wrapper.findAll("input.u-input-stub");
       const receivedInput = inputs[inputs.length - 2];
@@ -700,7 +737,17 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
     });
 
     it("should handle items with very large quantities", async () => {
-      const wrapper = mountTable();
+      // Use an item with very large ordered quantity to allow entering 999999
+      const itemsWithLargeOrderedQty = [
+        {
+          ...mockItems[0],
+          ordered_quantity: 1000000,
+          po_quantity: 1000000,
+        },
+        ...mockItems.slice(1),
+      ];
+      const wrapper = mountTable({ items: itemsWithLargeOrderedQty });
+      await flushPromises();
 
       const inputs = wrapper.findAll("input.u-input-stub");
       const receivedInput = inputs[inputs.length - 2];

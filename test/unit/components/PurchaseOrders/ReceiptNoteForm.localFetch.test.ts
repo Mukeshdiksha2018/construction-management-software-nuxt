@@ -96,6 +96,18 @@ vi.mock("@/stores/vendors", () => {
   return { useVendorStore };
 });
 
+const stockReceiptNotesState = ref<any[]>([]);
+
+vi.mock("@/stores/stockReceiptNotes", () => {
+  const useStockReceiptNotesStore = defineStore("stockReceiptNotes", () => ({
+    stockReceiptNotes: stockReceiptNotesState,
+    fetchStockReceiptNotes: vi.fn().mockResolvedValue(undefined),
+    loading: ref(false),
+    error: ref(null),
+  }));
+  return { useStockReceiptNotesStore };
+});
+
 vi.mock("@/composables/useUTCDateFormat", () => {
   const toUTCString = (value: string | null) => {
     if (!value) return null as any;
@@ -284,6 +296,7 @@ const uiStubs = {
 
 describe("ReceiptNoteForm - Local Fetch Functionality", () => {
   beforeEach(() => {
+    stockReceiptNotesState.value = [];
     setActivePinia(createPinia());
     fetchMock.mockClear();
     fetchPurchaseOrdersMock.mockClear();

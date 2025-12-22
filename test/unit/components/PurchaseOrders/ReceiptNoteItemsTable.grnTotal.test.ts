@@ -1,4 +1,4 @@
-import { mount } from "@vue/test-utils";
+import { mount, flushPromises } from "@vue/test-utils";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import ReceiptNoteItemsTable from "@/components/PurchaseOrders/ReceiptNoteItemsTable.vue";
 
@@ -8,6 +8,21 @@ vi.mock("@/composables/useCurrencyFormat", () => ({
     currencySymbol: { value: "$" },
   }),
 }));
+
+// Mock $fetch for receipt notes API calls
+const mockFetch = vi.fn();
+vi.stubGlobal("$fetch", mockFetch);
+
+// Default mock implementation - return empty arrays for receipt notes
+mockFetch.mockImplementation((url: string) => {
+  if (url.includes("/api/stock-receipt-notes")) {
+    return Promise.resolve({ data: [] });
+  }
+  if (url.includes("/api/receipt-note-items")) {
+    return Promise.resolve({ data: [] });
+  }
+  return Promise.resolve({ data: [] });
+});
 
 const CostCodeSelectStub = {
   name: "CostCodeSelect",
@@ -148,6 +163,8 @@ describe("ReceiptNoteItemsTable - GRN Total Display", () => {
       const items = [
         {
           id: "item-1",
+          base_item_uuid: "item-1",
+          uuid: "item-1",
           item_name: "Test Item 1",
           unit_price: 100,
           received_quantity: 5,
@@ -158,39 +175,41 @@ describe("ReceiptNoteItemsTable - GRN Total Display", () => {
       ];
 
       const wrapper = mountTable(items);
+      await flushPromises();
       await wrapper.vm.$nextTick();
 
-      // Find the received quantity input and update it
-      const qtyInputs = wrapper.findAll('input[inputmode="decimal"]');
-      expect(qtyInputs.length).toBeGreaterThan(0);
-      const qtyInput = qtyInputs[0];
-
-      // Access the component instance to trigger the handler directly
+      // Access the component instance
       const tableComponent = wrapper.vm as any;
       
-      // Simulate user entering a new quantity - trigger the emitReceivedQuantityChange method
-      // This will set the draft as touched and calculate the total
-      if (tableComponent.emitReceivedQuantityChange) {
-        tableComponent.emitReceivedQuantityChange(0, "7");
-        await wrapper.vm.$nextTick();
+      // Wait for drafts to be initialized by the watcher
+      await wrapper.vm.$nextTick();
+      
+      // Verify drafts exists and is accessible
+      expect(tableComponent.drafts).toBeDefined();
+      
+      // The watcher should have created a draft for index 0
+      // Wait a bit more to ensure watcher has run
+      await wrapper.vm.$nextTick();
+      
+      // Get the actual draft that was created by the watcher
+      const existingDraft = tableComponent.drafts[0];
+      expect(existingDraft).toBeDefined();
+      
+      // Now update the draft as if user entered "7"
+      // Since drafts is reactive, we can modify it directly
+      existingDraft.receivedInput = "7";
+      existingDraft.touched = true;
+      
+      await wrapper.vm.$nextTick();
 
-        // When draft is touched, computeRowTotal should use unit_price * draft quantity
-        // 100 * 7 = 700
-        const computedTotal = tableComponent.computeRowTotal(items[0], 0);
-        
-        // Verify the computed total is 700
-        expect(computedTotal).toBe(700);
-      } else {
-        // Fallback: just verify the method exists or the component structure
-        expect(tableComponent).toBeDefined();
-        // The draft mechanism exists - verify computeRowTotal handles drafts
-        const draft = { key: "item-1", receivedInput: "7", touched: true };
-        (tableComponent.drafts as any)[0] = draft;
-        await wrapper.vm.$nextTick();
-        
-        const computedTotal = tableComponent.computeRowTotal(items[0], 0);
-        expect(computedTotal).toBe(700);
-      }
+      // When draft is touched, computeRowTotal should use unit_price * draft quantity
+      // 100 * 7 = 700
+      // computeRowTotal is now exposed, so we can access it directly
+      expect(typeof tableComponent.computeRowTotal).toBe('function');
+      const computedTotal = tableComponent.computeRowTotal(items[0], 0);
+      
+      // Verify the computed total is 700
+      expect(computedTotal).toBe(700);
     });
   });
 

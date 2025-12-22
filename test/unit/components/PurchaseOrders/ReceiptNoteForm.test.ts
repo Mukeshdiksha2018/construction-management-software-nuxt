@@ -136,6 +136,18 @@ vi.mock("@/stores/vendors", () => {
   return { useVendorStore };
 });
 
+const stockReceiptNotesState = ref<any[]>([]);
+
+vi.mock("@/stores/stockReceiptNotes", () => {
+  const useStockReceiptNotesStore = defineStore("stockReceiptNotes", () => ({
+    stockReceiptNotes: stockReceiptNotesState,
+    fetchStockReceiptNotes: vi.fn().mockResolvedValue(undefined),
+    loading: ref(false),
+    error: ref(null),
+  }));
+  return { useStockReceiptNotesStore };
+});
+
 vi.mock("@/composables/useUTCDateFormat", () => {
   const toUTCString = (value: string | null) => {
     if (!value) return null as any;
@@ -271,6 +283,12 @@ mockFetch.mockImplementation((url: string) => {
   if (url.includes("/api/change-orders")) {
     return Promise.resolve({ data: changeOrdersData.value });
   }
+  if (url.includes("/api/stock-receipt-notes")) {
+    return Promise.resolve({ data: stockReceiptNotesState.value });
+  }
+  if (url.includes("/api/receipt-note-items")) {
+    return Promise.resolve({ data: [] });
+  }
   return Promise.resolve({ data: [] });
 });
 
@@ -316,6 +334,7 @@ describe("ReceiptNoteForm", () => {
     setActivePinia(createPinia());
     users.value = [];
     hasData.value = false;
+    stockReceiptNotesState.value = [];
     
     // Reset $fetch mock
     mockFetch.mockImplementation((url: string) => {
@@ -324,6 +343,12 @@ describe("ReceiptNoteForm", () => {
       }
       if (url.includes("/api/change-orders")) {
         return Promise.resolve({ data: changeOrdersData.value });
+      }
+      if (url.includes("/api/stock-receipt-notes")) {
+        return Promise.resolve({ data: stockReceiptNotesState.value });
+      }
+      if (url.includes("/api/receipt-note-items")) {
+        return Promise.resolve({ data: [] });
       }
       return Promise.resolve({ data: [] });
     });
