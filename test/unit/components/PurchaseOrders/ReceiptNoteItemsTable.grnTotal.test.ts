@@ -38,6 +38,9 @@ const mountTable = (items: any[] = []) => {
       loading: false,
       error: null,
       corporationUuid: "corp-1",
+      projectUuid: "project-1",
+      purchaseOrderUuid: "po-1",
+      receiptType: "purchase_order",
     },
     global: {
       stubs: {
@@ -55,28 +58,42 @@ const mountTable = (items: any[] = []) => {
 describe("ReceiptNoteItemsTable - GRN Total Display", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset mock to return empty arrays (no previous receipts)
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/stock-receipt-notes")) {
+        return Promise.resolve({ data: [] });
+      }
+      if (url.includes("/api/receipt-note-items")) {
+        return Promise.resolve({ data: [] });
+      }
+      return Promise.resolve({ data: [] });
+    });
   });
 
-  describe("computeRowTotal prioritizes grn_total_with_charges_taxes", () => {
-    it("should display grn_total_with_charges_taxes when available", () => {
+  describe("computeRowTotal calculates from unit_price * received_quantity", () => {
+    it("should display calculated total (unit_price * received_quantity) regardless of grn_total_with_charges_taxes", () => {
       const items = [
         {
           id: "item-1",
+          uuid: "item-uuid-1",
+          base_item_uuid: "item-uuid-1",
           item_name: "Test Item 1",
           unit_price: 100,
           received_quantity: 5,
           received_total: 500,
           grn_total: 500,
-          grn_total_with_charges_taxes: 605, // Includes charges/taxes proportionally
+          grn_total_with_charges_taxes: 605, // This is ignored - we calculate from unit_price * quantity
         },
         {
           id: "item-2",
+          uuid: "item-uuid-2",
+          base_item_uuid: "item-uuid-2",
           item_name: "Test Item 2",
           unit_price: 150,
           received_quantity: 4,
           received_total: 600,
           grn_total: 600,
-          grn_total_with_charges_taxes: 726, // Includes charges/taxes proportionally
+          grn_total_with_charges_taxes: 726, // This is ignored - we calculate from unit_price * quantity
         },
       ];
 
@@ -86,15 +103,17 @@ describe("ReceiptNoteItemsTable - GRN Total Display", () => {
       const totalCells = wrapper.findAll(".font-mono");
       const totals = totalCells.map((cell) => cell.text());
 
-      // Should show GRN totals (with charges/taxes), not received_total
-      expect(totals.some((text) => text.includes("605"))).toBe(true);
-      expect(totals.some((text) => text.includes("726"))).toBe(true);
+      // Should show calculated totals: 100 * 5 = 500, 150 * 4 = 600
+      expect(totals.some((text) => text.includes("500"))).toBe(true);
+      expect(totals.some((text) => text.includes("600"))).toBe(true);
     });
 
-    it("should fallback to received_total if grn_total_with_charges_taxes is not available", () => {
+    it("should calculate from unit_price * received_quantity even when received_total exists", () => {
       const items = [
         {
           id: "item-1",
+          uuid: "item-uuid-1",
+          base_item_uuid: "item-uuid-1",
           item_name: "Test Item 1",
           unit_price: 100,
           received_quantity: 5,
@@ -109,7 +128,7 @@ describe("ReceiptNoteItemsTable - GRN Total Display", () => {
       const totalCells = wrapper.findAll(".font-mono");
       const totals = totalCells.map((cell) => cell.text());
 
-      // Should show received_total as fallback
+      // Should calculate from unit_price * received_quantity: 100 * 5 = 500
       expect(totals.some((text) => text.includes("500"))).toBe(true);
     });
 
@@ -135,16 +154,18 @@ describe("ReceiptNoteItemsTable - GRN Total Display", () => {
       expect(totals.some((text) => text.includes("300"))).toBe(true);
     });
 
-    it("should use grn_total_with_charges_taxes even when received_total exists", () => {
+    it("should calculate from unit_price * received_quantity regardless of grn_total_with_charges_taxes", () => {
       const items = [
         {
           id: "item-1",
+          uuid: "item-uuid-1",
+          base_item_uuid: "item-uuid-1",
           item_name: "Test Item 1",
           unit_price: 100,
           received_quantity: 5,
           received_total: 500,
           grn_total: 500,
-          grn_total_with_charges_taxes: 550, // Should prioritize this
+          grn_total_with_charges_taxes: 550, // This is ignored - we calculate from unit_price * quantity
         },
       ];
 
@@ -153,10 +174,8 @@ describe("ReceiptNoteItemsTable - GRN Total Display", () => {
       const totalCells = wrapper.findAll(".font-mono");
       const totals = totalCells.map((cell) => cell.text());
 
-      // Should show 550 (GRN total with charges), not 500 (received_total)
-      expect(totals.some((text) => text.includes("550"))).toBe(true);
-      // Should not show the plain received_total of 500
-      expect(totals.some((text) => text === "$500.00" || text === "500.00")).toBe(false);
+      // Should calculate from unit_price * received_quantity: 100 * 5 = 500
+      expect(totals.some((text) => text.includes("500"))).toBe(true);
     });
 
     it("should show calculated total when user is editing quantity (draft state)", async () => {
@@ -247,29 +266,33 @@ describe("ReceiptNoteItemsTable - GRN Total Display", () => {
     });
   });
 
-  describe("Proportional allocation of GRN totals", () => {
-    it("should display proportionally allocated GRN totals for multiple items", () => {
-      // Scenario: Item Total = 1000, GRN Total with charges/taxes = 1100
-      // Item 1: 600/1000 * 1100 = 660
-      // Item 2: 400/1000 * 1100 = 440
+  describe("Total calculation from unit_price * received_quantity", () => {
+    it("should display calculated totals (unit_price * received_quantity) for multiple items", () => {
+      // Scenario: We calculate from unit_price * received_quantity, not from grn_total_with_charges_taxes
+      // Item 1: 100 * 6 = 600
+      // Item 2: 100 * 4 = 400
       const items = [
         {
           id: "item-1",
+          uuid: "item-uuid-1",
+          base_item_uuid: "item-uuid-1",
           item_name: "Item 1",
           unit_price: 100,
           received_quantity: 6,
           received_total: 600,
           grn_total: 600,
-          grn_total_with_charges_taxes: 660,
+          grn_total_with_charges_taxes: 660, // This is ignored
         },
         {
           id: "item-2",
+          uuid: "item-uuid-2",
+          base_item_uuid: "item-uuid-2",
           item_name: "Item 2",
           unit_price: 100,
           received_quantity: 4,
           received_total: 400,
           grn_total: 400,
-          grn_total_with_charges_taxes: 440,
+          grn_total_with_charges_taxes: 440, // This is ignored
         },
       ];
 
@@ -278,9 +301,9 @@ describe("ReceiptNoteItemsTable - GRN Total Display", () => {
       const totalCells = wrapper.findAll(".font-mono");
       const totals = totalCells.map((cell) => cell.text()).join(" ");
 
-      // Verify both proportionally allocated totals are displayed
-      expect(totals).toContain("660");
-      expect(totals).toContain("440");
+      // Verify calculated totals are displayed: 100 * 6 = 600, 100 * 4 = 400
+      expect(totals).toContain("600");
+      expect(totals).toContain("400");
     });
 
     it("should handle zero GRN total gracefully", () => {

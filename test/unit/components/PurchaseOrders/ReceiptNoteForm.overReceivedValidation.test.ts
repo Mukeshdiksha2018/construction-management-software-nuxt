@@ -101,6 +101,23 @@ vi.mock("@/stores/vendors", () => {
   return { useVendorStore };
 });
 
+vi.mock("@/stores/stockReceiptNotes", () => {
+  const useStockReceiptNotesStore = defineStore("stockReceiptNotes", () => ({
+    stockReceiptNotes: ref([]),
+    fetchStockReceiptNotes: vi.fn().mockResolvedValue(undefined),
+  }));
+  return { useStockReceiptNotesStore };
+});
+
+vi.mock("@/composables/useLocalPOCOData", () => ({
+  useLocalPOCOData: () => ({
+    localPurchaseOrders: ref([]),
+    localChangeOrders: ref([]),
+    fetchLocalPurchaseOrders: vi.fn().mockResolvedValue(undefined),
+    fetchLocalChangeOrders: vi.fn().mockResolvedValue(undefined),
+  }),
+}));
+
 vi.mock("@/composables/useUTCDateFormat", () => {
   const toUTCString = (value: string | null) => {
     if (!value) return null as any;
@@ -202,9 +219,23 @@ const uiStubs = {
   },
 };
 
-vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ data: [] }));
+// Mock $fetch for receipt notes API calls
+const mockFetch = vi.fn();
+vi.stubGlobal('$fetch', mockFetch);
 
-const mountForm = (formOverrides: Record<string, any> = {}, receiptItems: any[] = []) => {
+// Default mock implementation - return empty arrays for receipt notes
+// This means no previous receipts, so leftover quantity = ordered quantity
+mockFetch.mockImplementation((url: string) => {
+  if (url.includes("/api/stock-receipt-notes")) {
+    return Promise.resolve({ data: [] });
+  }
+  if (url.includes("/api/receipt-note-items")) {
+    return Promise.resolve({ data: [] });
+  }
+  return Promise.resolve({ data: [] });
+});
+
+const mountForm = async (formOverrides: Record<string, any> = {}, receiptItems: any[] = []) => {
   const form = {
     uuid: null,
     corporation_uuid: "corp-1",
@@ -220,6 +251,7 @@ const mountForm = (formOverrides: Record<string, any> = {}, receiptItems: any[] 
     notes: "",
     grn_number: "GRN-000001",
     receipt_items: receiptItems,
+    receipt_type: formOverrides.receipt_type || "purchase_order",
     ...formOverrides,
   };
 
@@ -240,11 +272,26 @@ const mountForm = (formOverrides: Record<string, any> = {}, receiptItems: any[] 
     },
   });
 
-  // Set receiptItems directly on the component instance for testing
+  // Wait for component to mount and watchers to initialize
+  await flushPromises();
+  await wrapper.vm.$nextTick();
+  
+  // Set receiptItems directly on the component's internal ref if provided
   if (receiptItems.length > 0) {
     const vm = wrapper.vm as any;
     if (vm.receiptItems) {
-      vm.receiptItems = receiptItems;
+      // Clear existing items and set new ones
+      if (Array.isArray(vm.receiptItems)) {
+        vm.receiptItems.splice(0, vm.receiptItems.length, ...receiptItems);
+      } else {
+        vm.receiptItems = receiptItems;
+      }
+      // Ensure totalReceivedQuantitiesMap is initialized (empty map since no previous receipts)
+      if (vm.totalReceivedQuantitiesMap) {
+        // Map should be empty, which means leftover = ordered quantity
+        // This is already initialized by the watcher, but we ensure it's ready
+      }
+      await wrapper.vm.$nextTick();
     }
   }
 
@@ -257,6 +304,17 @@ describe("ReceiptNoteForm - Over-Received Quantity Validation", () => {
     setActivePinia(createPinia());
     users.value = [];
     hasData.value = false;
+    // Reset mock to return empty arrays (no previous receipts)
+    // This means leftover quantity = ordered quantity for all items
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/stock-receipt-notes")) {
+        return Promise.resolve({ data: [] });
+      }
+      if (url.includes("/api/receipt-note-items")) {
+        return Promise.resolve({ data: [] });
+      }
+      return Promise.resolve({ data: [] });
+    });
   });
 
   afterEach(() => {
@@ -264,10 +322,12 @@ describe("ReceiptNoteForm - Over-Received Quantity Validation", () => {
   });
 
   describe("overReceivedItems computed property", () => {
-    it("should return empty array when no items have over-received quantities", () => {
+    it("should return empty array when no items have over-received quantities", async () => {
       const receiptItems = [
         {
           id: "item-1",
+          uuid: "item-uuid-1",
+          base_item_uuid: "item-uuid-1",
           ordered_quantity: 10,
           po_quantity: 10,
           received_quantity: 5,
@@ -275,6 +335,8 @@ describe("ReceiptNoteForm - Over-Received Quantity Validation", () => {
         },
         {
           id: "item-2",
+          uuid: "item-uuid-2",
+          base_item_uuid: "item-uuid-2",
           ordered_quantity: 8,
           po_quantity: 8,
           received_quantity: 3,
@@ -282,17 +344,19 @@ describe("ReceiptNoteForm - Over-Received Quantity Validation", () => {
         },
       ];
 
-      const wrapper = mountForm({}, receiptItems);
+      const wrapper = await mountForm({}, receiptItems);
       const vm = wrapper.vm as any;
 
       expect(vm.overReceivedItems).toEqual([]);
       expect(vm.hasOverReceivedItems).toBe(false);
     });
 
-    it("should detect items with received quantity greater than ordered quantity", () => {
+    it("should detect items with received quantity greater than leftover quantity", async () => {
       const receiptItems = [
         {
           id: "item-1",
+          uuid: "item-uuid-1",
+          base_item_uuid: "item-uuid-1",
           ordered_quantity: 10,
           po_quantity: 10,
           received_quantity: 15,
@@ -301,6 +365,8 @@ describe("ReceiptNoteForm - Over-Received Quantity Validation", () => {
         },
         {
           id: "item-2",
+          uuid: "item-uuid-2",
+          base_item_uuid: "item-uuid-2",
           ordered_quantity: 8,
           po_quantity: 8,
           received_quantity: 3,
@@ -308,21 +374,24 @@ describe("ReceiptNoteForm - Over-Received Quantity Validation", () => {
         },
       ];
 
-      const wrapper = mountForm({}, receiptItems);
+      const wrapper = await mountForm({}, receiptItems);
       const vm = wrapper.vm as any;
 
+      // With no previous receipts, leftover = ordered = 10, received = 15, so should be detected
       expect(vm.overReceivedItems.length).toBe(1);
       expect(vm.overReceivedItems[0].item_name).toBe("Item 1");
-      expect(vm.overReceivedItems[0].ordered_quantity).toBe(10);
+      expect(vm.overReceivedItems[0].leftover_quantity).toBe(10);
       expect(vm.overReceivedItems[0].received_quantity).toBe(15);
       expect(vm.overReceivedItems[0].over_received_quantity).toBe(5);
       expect(vm.hasOverReceivedItems).toBe(true);
     });
 
-    it("should detect multiple items with over-received quantities", () => {
+    it("should detect multiple items with over-received quantities", async () => {
       const receiptItems = [
         {
           id: "item-1",
+          uuid: "item-uuid-1",
+          base_item_uuid: "item-uuid-1",
           ordered_quantity: 10,
           po_quantity: 10,
           received_quantity: 15,
@@ -330,6 +399,8 @@ describe("ReceiptNoteForm - Over-Received Quantity Validation", () => {
         },
         {
           id: "item-2",
+          uuid: "item-uuid-2",
+          base_item_uuid: "item-uuid-2",
           ordered_quantity: 8,
           po_quantity: 8,
           received_quantity: 12,
@@ -337,34 +408,38 @@ describe("ReceiptNoteForm - Over-Received Quantity Validation", () => {
         },
       ];
 
-      const wrapper = mountForm({}, receiptItems);
+      const wrapper = await mountForm({}, receiptItems);
       const vm = wrapper.vm as any;
 
       expect(vm.overReceivedItems.length).toBe(2);
       expect(vm.hasOverReceivedItems).toBe(true);
     });
 
-    it("should use po_quantity when ordered_quantity is not available", () => {
+    it("should use po_quantity when ordered_quantity is not available", async () => {
       const receiptItems = [
         {
           id: "item-1",
+          uuid: "item-uuid-1",
+          base_item_uuid: "item-uuid-1",
           po_quantity: 10,
           received_quantity: 15,
           item_name: "Item 1",
         },
       ];
 
-      const wrapper = mountForm({}, receiptItems);
+      const wrapper = await mountForm({}, receiptItems);
       const vm = wrapper.vm as any;
 
       expect(vm.overReceivedItems.length).toBe(1);
-      expect(vm.overReceivedItems[0].ordered_quantity).toBe(10);
+      expect(vm.overReceivedItems[0].leftover_quantity).toBe(10);
     });
 
-    it("should handle items with zero ordered quantity", () => {
+    it("should handle items with zero leftover quantity", async () => {
       const receiptItems = [
         {
           id: "item-1",
+          uuid: "item-uuid-1",
+          base_item_uuid: "item-uuid-1",
           ordered_quantity: 0,
           po_quantity: 0,
           received_quantity: 5,
@@ -372,17 +447,19 @@ describe("ReceiptNoteForm - Over-Received Quantity Validation", () => {
         },
       ];
 
-      const wrapper = mountForm({}, receiptItems);
+      const wrapper = await mountForm({}, receiptItems);
       const vm = wrapper.vm as any;
 
-      // Items with zero ordered quantity should not be considered over-received
+      // Items with zero leftover quantity should not be considered over-received
       expect(vm.overReceivedItems.length).toBe(0);
     });
 
-    it("should handle null or undefined quantities", () => {
+    it("should handle null or undefined quantities", async () => {
       const receiptItems = [
         {
           id: "item-1",
+          uuid: "item-uuid-1",
+          base_item_uuid: "item-uuid-1",
           ordered_quantity: null,
           po_quantity: null,
           received_quantity: 5,
@@ -390,23 +467,27 @@ describe("ReceiptNoteForm - Over-Received Quantity Validation", () => {
         },
         {
           id: "item-2",
+          uuid: "item-uuid-2",
+          base_item_uuid: "item-uuid-2",
           ordered_quantity: 10,
           received_quantity: null,
           item_name: "Item 2",
         },
       ];
 
-      const wrapper = mountForm({}, receiptItems);
+      const wrapper = await mountForm({}, receiptItems);
       const vm = wrapper.vm as any;
 
       // Should handle null values gracefully
       expect(vm.overReceivedItems.length).toBe(0);
     });
 
-    it("should handle string quantities and convert them to numbers", () => {
+    it("should handle string quantities and convert them to numbers", async () => {
       const receiptItems = [
         {
           id: "item-1",
+          uuid: "item-uuid-1",
+          base_item_uuid: "item-uuid-1",
           ordered_quantity: "10",
           po_quantity: "10",
           received_quantity: "15",
@@ -414,18 +495,20 @@ describe("ReceiptNoteForm - Over-Received Quantity Validation", () => {
         },
       ];
 
-      const wrapper = mountForm({}, receiptItems);
+      const wrapper = await mountForm({}, receiptItems);
       const vm = wrapper.vm as any;
 
       expect(vm.overReceivedItems.length).toBe(1);
-      expect(vm.overReceivedItems[0].ordered_quantity).toBe(10);
+      expect(vm.overReceivedItems[0].leftover_quantity).toBe(10);
       expect(vm.overReceivedItems[0].received_quantity).toBe(15);
     });
 
-    it("should handle decimal quantities", () => {
+    it("should handle decimal quantities", async () => {
       const receiptItems = [
         {
           id: "item-1",
+          uuid: "item-uuid-1",
+          base_item_uuid: "item-uuid-1",
           ordered_quantity: 10.5,
           po_quantity: 10.5,
           received_quantity: 12.8,
@@ -433,15 +516,15 @@ describe("ReceiptNoteForm - Over-Received Quantity Validation", () => {
         },
       ];
 
-      const wrapper = mountForm({}, receiptItems);
+      const wrapper = await mountForm({}, receiptItems);
       const vm = wrapper.vm as any;
 
       expect(vm.overReceivedItems.length).toBe(1);
       expect(vm.overReceivedItems[0].over_received_quantity).toBeCloseTo(2.3, 1);
     });
 
-    it("should handle empty receipt items array", () => {
-      const wrapper = mountForm({}, []);
+    it("should handle empty receipt items array", async () => {
+      const wrapper = await mountForm({}, []);
       const vm = wrapper.vm as any;
 
       expect(vm.overReceivedItems).toEqual([]);
@@ -450,110 +533,128 @@ describe("ReceiptNoteForm - Over-Received Quantity Validation", () => {
   });
 
   describe("overReceivedValidationError computed property", () => {
-    it("should return null when there are no over-received items", () => {
+    it("should return null when there are no over-received items", async () => {
       const receiptItems = [
         {
           id: "item-1",
+          uuid: "item-uuid-1",
+          base_item_uuid: "item-uuid-1",
           ordered_quantity: 10,
           received_quantity: 5,
           item_name: "Item 1",
         },
       ];
 
-      const wrapper = mountForm({}, receiptItems);
+      const wrapper = await mountForm({}, receiptItems);
       const vm = wrapper.vm as any;
 
       expect(vm.overReceivedValidationError).toBeNull();
     });
 
-    it("should return error message with single item details", () => {
+    it("should return error message with single item details", async () => {
       const receiptItems = [
         {
           id: "item-1",
+          uuid: "item-uuid-1",
+          base_item_uuid: "item-uuid-1",
           ordered_quantity: 10,
           received_quantity: 15,
           item_name: "Item 1",
         },
       ];
 
-      const wrapper = mountForm({}, receiptItems);
+      const wrapper = await mountForm({}, receiptItems);
       const vm = wrapper.vm as any;
 
+      expect(vm.overReceivedValidationError).not.toBeNull();
       expect(vm.overReceivedValidationError).toContain("Cannot save receipt note");
       expect(vm.overReceivedValidationError).toContain("1 item(s)");
       expect(vm.overReceivedValidationError).toContain("Item 1");
-      expect(vm.overReceivedValidationError).toContain("Ordered: 10");
+      expect(vm.overReceivedValidationError).toContain("Leftover: 10");
       expect(vm.overReceivedValidationError).toContain("Received: 15");
     });
 
-    it("should return error message with multiple items details", () => {
+    it("should return error message with multiple items details", async () => {
       const receiptItems = [
         {
           id: "item-1",
+          uuid: "item-uuid-1",
+          base_item_uuid: "item-uuid-1",
           ordered_quantity: 10,
           received_quantity: 15,
           item_name: "Item 1",
         },
         {
           id: "item-2",
+          uuid: "item-uuid-2",
+          base_item_uuid: "item-uuid-2",
           ordered_quantity: 8,
           received_quantity: 12,
           item_name: "Item 2",
         },
       ];
 
-      const wrapper = mountForm({}, receiptItems);
+      const wrapper = await mountForm({}, receiptItems);
       const vm = wrapper.vm as any;
 
+      expect(vm.overReceivedValidationError).not.toBeNull();
       expect(vm.overReceivedValidationError).toContain("2 item(s)");
       expect(vm.overReceivedValidationError).toContain("Item 1");
       expect(vm.overReceivedValidationError).toContain("Item 2");
     });
 
-    it("should use description when item_name is not available", () => {
+    it("should use description when item_name is not available", async () => {
       const receiptItems = [
         {
           id: "item-1",
+          uuid: "item-uuid-1",
+          base_item_uuid: "item-uuid-1",
           ordered_quantity: 10,
           received_quantity: 15,
           description: "Test Description",
         },
       ];
 
-      const wrapper = mountForm({}, receiptItems);
+      const wrapper = await mountForm({}, receiptItems);
       const vm = wrapper.vm as any;
 
+      expect(vm.overReceivedValidationError).not.toBeNull();
       expect(vm.overReceivedValidationError).toContain("Test Description");
     });
 
-    it("should use fallback name when neither item_name nor description is available", () => {
+    it("should use fallback name when neither item_name nor description is available", async () => {
       const receiptItems = [
         {
           id: "item-1",
+          uuid: "item-uuid-1",
+          base_item_uuid: "item-uuid-1",
           ordered_quantity: 10,
           received_quantity: 15,
         },
       ];
 
-      const wrapper = mountForm({}, receiptItems);
+      const wrapper = await mountForm({}, receiptItems);
       const vm = wrapper.vm as any;
 
+      expect(vm.overReceivedValidationError).not.toBeNull();
       expect(vm.overReceivedValidationError).toContain("Item 1");
     });
   });
 
   describe("defineExpose - exposed properties", () => {
-    it("should expose overReceivedItems", () => {
+    it("should expose overReceivedItems", async () => {
       const receiptItems = [
         {
           id: "item-1",
+          uuid: "item-uuid-1",
+          base_item_uuid: "item-uuid-1",
           ordered_quantity: 10,
           received_quantity: 15,
           item_name: "Item 1",
         },
       ];
 
-      const wrapper = mountForm({}, receiptItems);
+      const wrapper = await mountForm({}, receiptItems);
       const vm = wrapper.vm as any;
 
       // Check that the property is accessible (exposed)
@@ -561,17 +662,19 @@ describe("ReceiptNoteForm - Over-Received Quantity Validation", () => {
       expect(Array.isArray(vm.overReceivedItems)).toBe(true);
     });
 
-    it("should expose hasOverReceivedItems", () => {
+    it("should expose hasOverReceivedItems", async () => {
       const receiptItems = [
         {
           id: "item-1",
+          uuid: "item-uuid-1",
+          base_item_uuid: "item-uuid-1",
           ordered_quantity: 10,
           received_quantity: 15,
           item_name: "Item 1",
         },
       ];
 
-      const wrapper = mountForm({}, receiptItems);
+      const wrapper = await mountForm({}, receiptItems);
       const vm = wrapper.vm as any;
 
       expect(vm.hasOverReceivedItems).toBeDefined();
@@ -579,17 +682,19 @@ describe("ReceiptNoteForm - Over-Received Quantity Validation", () => {
       expect(vm.hasOverReceivedItems).toBe(true);
     });
 
-    it("should expose overReceivedValidationError", () => {
+    it("should expose overReceivedValidationError", async () => {
       const receiptItems = [
         {
           id: "item-1",
+          uuid: "item-uuid-1",
+          base_item_uuid: "item-uuid-1",
           ordered_quantity: 10,
           received_quantity: 15,
           item_name: "Item 1",
         },
       ];
 
-      const wrapper = mountForm({}, receiptItems);
+      const wrapper = await mountForm({}, receiptItems);
       const vm = wrapper.vm as any;
 
       expect(vm.overReceivedValidationError).toBeDefined();
@@ -598,10 +703,12 @@ describe("ReceiptNoteForm - Over-Received Quantity Validation", () => {
   });
 
   describe("Change Order items", () => {
-    it("should detect over-received quantities for change order items", () => {
+    it("should detect over-received quantities for change order items", async () => {
       const receiptItems = [
         {
           id: "item-1",
+          uuid: "item-uuid-1",
+          base_item_uuid: "item-uuid-1",
           ordered_quantity: 10,
           co_quantity: 10,
           received_quantity: 15,
@@ -609,7 +716,7 @@ describe("ReceiptNoteForm - Over-Received Quantity Validation", () => {
         },
       ];
 
-      const wrapper = mountForm(
+      const wrapper = await mountForm(
         {
           receipt_type: "change_order",
           change_order_uuid: "co-1",

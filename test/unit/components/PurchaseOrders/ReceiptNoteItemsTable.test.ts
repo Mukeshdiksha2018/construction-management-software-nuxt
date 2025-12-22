@@ -561,17 +561,19 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
   });
 
   describe("Row Total Calculations", () => {
-    it("should calculate total from received_total if available", () => {
+    it("should calculate total from unit_price * received_quantity (not received_total)", () => {
       const itemsWithTotal = [
         {
           ...mockItems[0],
-          received_total: 300,
+          received_total: 300, // This is ignored - we calculate from unit_price * received_quantity
           received_quantity: 5,
+          unit_price: 50, // 50 * 5 = 250
         },
       ];
       const wrapper = mountTable({ items: itemsWithTotal });
 
-      expect(wrapper.text()).toContain("300.00");
+      // Should calculate from unit_price * received_quantity: 50 * 5 = 250, not use received_total of 300
+      expect(wrapper.text()).toContain("250.00");
     });
 
     it("should calculate total from received_quantity * unit_price if received_total not available", () => {
