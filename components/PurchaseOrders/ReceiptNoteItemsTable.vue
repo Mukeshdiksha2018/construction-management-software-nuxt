@@ -436,18 +436,8 @@ const computeRowTotal = (item: ReceiptNoteItemDisplay, index: number) => {
     return roundCurrency(unit * quantityFromDraft)
   }
 
-  // Priority: Use grn_total_with_charges_taxes if available (this includes charges/taxes proportionally allocated)
-  // This is the actual GRN total per item, not just received_total
-  if (typeof (item as any).grn_total_with_charges_taxes === 'number' && Number.isFinite((item as any).grn_total_with_charges_taxes)) {
-    return roundCurrency((item as any).grn_total_with_charges_taxes)
-  }
-
-  // Fallback: Use received_total if GRN total is not yet calculated
-  if (typeof item.received_total === 'number' && Number.isFinite(item.received_total)) {
-    return roundCurrency(item.received_total)
-  }
-
-  // Final fallback: Calculate from unit price * quantity
+  // Always calculate from unit price * received quantity
+  // Do not use grn_total_with_charges_taxes or received_total as they may include distributed charges/taxes
   const quantity = parseNumericInput(item.received_quantity)
   return roundCurrency(unit * quantity)
 }
