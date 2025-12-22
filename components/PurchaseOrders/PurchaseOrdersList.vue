@@ -105,68 +105,84 @@
     </div>
 
     <!-- Filters -->
-    <div v-if="isReady && !loading" class="mb-3 px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-center">
-        <!-- Project Filter -->
-        <div class="flex items-center gap-2">
-          <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Project</label>
-          <ProjectSelect
-            v-model="filterProject"
-            :corporation-uuid="selectedCorporationId || undefined"
-            placeholder="All Projects"
-            size="sm"
-            class="flex-1"
-          />
+    <div v-if="isReady && !loading" class="mb-3 px-4 py-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+      <div class="flex flex-col sm:flex-row gap-4 items-end">
+        <!-- Filters Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[2fr_2fr_2fr_2fr_1fr] xl:grid-cols-[2fr_2fr_2fr_2fr_1fr] gap-4 flex-1 items-end">
+          <!-- Corporation Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Corporation</label>
+            <CorporationSelect
+              v-model="filterCorporation"
+              placeholder="All Corporations"
+              size="sm"
+              class="w-full"
+            />
+          </div>
+          
+          <!-- Project Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Project</label>
+            <ProjectSelect
+              v-model="filterProject"
+              :corporation-uuid="filterCorporation || undefined"
+              placeholder="All Projects"
+              size="sm"
+              class="w-full"
+              :disabled="!filterCorporation"
+            />
+          </div>
+          
+          <!-- Vendor Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Vendor</label>
+            <VendorSelect
+              v-model="filterVendor"
+              :corporation-uuid="filterCorporation || selectedCorporationId || undefined"
+              placeholder="All Vendors"
+              size="sm"
+              class="w-full"
+              :disabled="!filterCorporation && !selectedCorporationId"
+            />
+          </div>
+          
+          <!-- Location Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Location</label>
+            <USelect
+              v-model="filterLocation"
+              :items="uniqueLocations.map(loc => ({ label: loc, value: loc }))"
+              placeholder="All Locations"
+              size="sm"
+              variant="outline"
+              clearable
+              class="w-full"
+            />
+          </div>
+          
+          <!-- Status Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Status</label>
+            <USelect
+              v-model="filterStatus"
+              :items="statusOptions"
+              placeholder="All Statuses"
+              size="sm"
+              variant="outline"
+              clearable
+              class="w-full"
+            />
+          </div>
         </div>
         
-        <!-- Vendor Filter -->
-        <div class="flex items-center gap-2">
-          <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Vendor</label>
-          <VendorSelect
-            v-model="filterVendor"
-            :corporation-uuid="selectedCorporationId || undefined"
-            placeholder="All Vendors"
-            size="sm"
-            class="flex-1"
-          />
-        </div>
-        
-        <!-- Location Filter -->
-        <div class="flex items-center gap-2">
-          <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Location</label>
-          <USelect
-            v-model="filterLocation"
-            :items="uniqueLocations.map(loc => ({ label: loc, value: loc }))"
-            placeholder="All Locations"
-            size="sm"
-            variant="outline"
-            clearable
-            class="flex-1"
-          />
-        </div>
-        
-        <!-- Status Filter -->
-        <div class="flex items-center gap-2">
-          <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Status</label>
-          <USelect
-            v-model="filterStatus"
-            :items="statusOptions"
-            placeholder="All Statuses"
-            size="sm"
-            variant="outline"
-            clearable
-            class="flex-1"
-          />
-        </div>
-        
-        <!-- Show Results Button -->
-        <div>
+        <!-- Show Button -->
+        <div class="flex-shrink-0">
           <UButton
             color="primary"
             size="sm"
             @click="handleShowResults"
           >
-            Show Results
+            Show
           </UButton>
         </div>
       </div>
@@ -315,11 +331,11 @@
     <!-- To be Raised Table - Separate from Purchase Orders Table -->
     <div v-if="selectedStatusFilter === 'ToBeRaised' && isReady && hasPermission('po_view')" class="mb-6">
       <UCard variant="soft" class="mb-4">
-        <div v-if="!appliedFilters.project || !appliedFilters.vendor" class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-4">
+        <div v-if="!appliedFilters.corporation || !appliedFilters.project || !appliedFilters.vendor" class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-4">
           <div class="flex items-center gap-2">
             <UIcon name="i-heroicons-information-circle" class="w-5 h-5 text-amber-600 dark:text-amber-400" />
             <p class="text-sm text-amber-800 dark:text-amber-200">
-              Please select both <strong>Project</strong> and <strong>Vendor</strong> from the filters above and click "Show Results" to view items to be raised.
+              Please select <strong>Corporation</strong>, <strong>Project</strong>, and <strong>Vendor</strong> from the filters above and click "Show Results" to view items to be raised.
             </p>
           </div>
         </div>
@@ -677,7 +693,9 @@ import { useShipViaStore } from '@/stores/freight'
 import { useProjectAddressesStore } from '@/stores/projectAddresses'
 import ProjectSelect from '@/components/Shared/ProjectSelect.vue'
 import VendorSelect from '@/components/Shared/VendorSelect.vue'
+import CorporationSelect from '@/components/Shared/CorporationSelect.vue'
 import POBreakdown from '@/components/PurchaseOrders/POBreakdown.vue'
+import { usePurchaseOrderListResourcesStore } from '@/stores/purchaseOrderListResources'
 
 // Resolve components for table columns
 const UButton = resolveComponent('UButton')
@@ -704,6 +722,7 @@ const { toUTCString, getCurrentLocal } = useUTCDateFormat()
 // Use permissions composable
 const { hasPermission, isReady } = usePermissions()
 const purchaseOrderResourcesStore = usePurchaseOrderResourcesStore()
+const purchaseOrderListResourcesStore = usePurchaseOrderListResourcesStore()
 const { openPurchaseOrderPrint } = usePurchaseOrderPrint()
 
 // Table functionality
@@ -721,12 +740,14 @@ const {
 const selectedPurchaseOrders = ref<any[]>([])
 const selectedStatusFilter = ref<string | null>(null)
 // Filter state (temporary - not applied until Show Results is clicked)
+const filterCorporation = ref<string | undefined>(undefined)
 const filterProject = ref<string | undefined>(undefined)
 const filterVendor = ref<string | undefined>(undefined)
 const filterLocation = ref<string | undefined>(undefined)
 const filterStatus = ref<string | undefined>(undefined)
 // Applied filters (only applied when Show Results is clicked)
 const appliedFilters = ref({
+  corporation: undefined as string | undefined,
   project: undefined as string | undefined,
   vendor: undefined as string | undefined,
   location: undefined as string | undefined,
@@ -1033,6 +1054,10 @@ const filteredPurchaseOrders = computed(() => {
   }
   
   // Apply filter panel filters (only when Show Results is clicked)
+  if (appliedFilters.value.corporation) {
+    filtered = filtered.filter(p => p.corporation_uuid === appliedFilters.value.corporation)
+  }
+  
   if (appliedFilters.value.project) {
     filtered = filtered.filter(p => p.project_uuid === appliedFilters.value.project)
   }
@@ -1060,23 +1085,32 @@ const filteredPurchaseOrders = computed(() => {
 })
 
 // Show Results button handler
-const handleShowResults = () => {
+const handleShowResults = async () => {
   appliedFilters.value = {
+    corporation: filterCorporation.value,
     project: filterProject.value,
     vendor: filterVendor.value,
     location: filterLocation.value,
     status: filterStatus.value
   }
   
-  // If ToBeRaised is selected and both project and vendor are set, fetch items
-  if (selectedStatusFilter.value === 'ToBeRaised' && appliedFilters.value.project && appliedFilters.value.vendor) {
+  // Fetch projects for the selected corporation if not already loaded
+  if (appliedFilters.value.corporation) {
+    await purchaseOrderListResourcesStore.ensureProjects({
+      corporationUuid: appliedFilters.value.corporation,
+      force: false
+    })
+  }
+  
+  // If ToBeRaised is selected and corporation, project, and vendor are set, fetch items
+  if (selectedStatusFilter.value === 'ToBeRaised' && appliedFilters.value.corporation && appliedFilters.value.project && appliedFilters.value.vendor) {
     fetchToBeRaisedItems()
   }
 }
 
-// Fetch items to be raised based on project and vendor
+// Fetch items to be raised based on corporation, project and vendor
 const fetchToBeRaisedItems = async () => {
-  if (!appliedFilters.value.project || !appliedFilters.value.vendor) {
+  if (!appliedFilters.value.corporation || !appliedFilters.value.project || !appliedFilters.value.vendor) {
     toBeRaisedItems.value = []
     return
   }
@@ -1086,10 +1120,11 @@ const fetchToBeRaisedItems = async () => {
     // TODO: Replace with actual API endpoint for fetching items to be raised
     // This is a placeholder - you'll need to implement the actual API call
     // based on your business logic for what "items to be raised" means
+    const corporationUuid = appliedFilters.value.corporation || selectedCorporationId.value
     const response: any = await $fetch('/api/items-to-be-raised', {
       method: 'GET',
       query: {
-        corporation_uuid: selectedCorporationId.value,
+        corporation_uuid: corporationUuid,
         project_uuid: appliedFilters.value.project,
         vendor_uuid: appliedFilters.value.vendor
       }
@@ -1443,8 +1478,8 @@ const toggleStatusFilter = (status: string) => {
     selectedStatusFilter.value = null
   } else {
     selectedStatusFilter.value = status
-    // If switching to ToBeRaised, fetch items when project and vendor are selected
-    if (status === 'ToBeRaised' && appliedFilters.value.project && appliedFilters.value.vendor) {
+    // If switching to ToBeRaised, fetch items when corporation, project and vendor are selected
+    if (status === 'ToBeRaised' && appliedFilters.value.corporation && appliedFilters.value.project && appliedFilters.value.vendor) {
       fetchToBeRaisedItems()
     }
   }
@@ -2822,6 +2857,22 @@ watch(showFormModal, (isOpen, wasOpen) => {
     isFormValid.value = false
   }
 });
+
+// Watch for corporation filter changes to fetch projects
+watch(() => filterCorporation.value, async (newCorpUuid, oldCorpUuid) => {
+  // Clear project filter when corporation changes
+  if (newCorpUuid !== oldCorpUuid && oldCorpUuid) {
+    filterProject.value = undefined
+  }
+  
+  // Fetch projects for the new corporation
+  if (newCorpUuid) {
+    await purchaseOrderListResourcesStore.ensureProjects({
+      corporationUuid: newCorpUuid,
+      force: false
+    })
+  }
+}, { immediate: false })
 
 // Load ship via data on mount
 onMounted(async () => {
