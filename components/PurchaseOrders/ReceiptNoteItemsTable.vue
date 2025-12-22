@@ -52,7 +52,7 @@
               :class="[
                 'align-middle transition-colors duration-150',
                 activeRowIndex === index ? 'bg-primary-50/40 dark:bg-primary-900/20' : '',
-                isOverReceived(item) ? 'bg-error-50/50 dark:bg-error-900/20 border-l-4 border-error-500' : ''
+                isOverReceived(item, index) ? 'bg-error-50/50 dark:bg-error-900/20 border-l-4 border-error-500' : ''
               ]"
             >
               <td class="px-3 py-2 align-middle">
@@ -460,23 +460,16 @@ const emitReceivedQuantityChange = (index: number, value: string | number | null
   draft.touched = true
 
   const numericValue = parseNumericInput(draft.receivedInput)
-  const leftoverQty = getLeftoverQuantity(item as ReceiptNoteItemDisplay, index)
   
-  // Validate: received quantity should not exceed leftover quantity
-  const validatedNumericValue = numericValue > leftoverQty ? leftoverQty : numericValue
-  
-  // Update draft if value was clamped
-  if (numericValue > leftoverQty) {
-    draft.receivedInput = toInputString(validatedNumericValue)
-  }
-  
+  // Allow user to enter any value - don't clamp to leftover quantity
+  // Validation will be handled by parent component to disable save/approve buttons
   const unitNumeric = parseNumericInput(item?.unit_price)
-  const computedTotal = roundCurrency(unitNumeric * validatedNumericValue)
+  const computedTotal = roundCurrency(unitNumeric * numericValue)
 
   emit('received-quantity-change', {
     index,
-    value: toInputString(validatedNumericValue), // Emit the validated value as string
-    numericValue: validatedNumericValue,
+    value: toInputString(numericValue), // Emit the actual value entered by user
+    numericValue: numericValue,
     computedTotal,
   })
 }
@@ -491,11 +484,10 @@ const clearActiveRow = (index: number) => {
   }
 }
 
-// Check if an item has received quantity greater than ordered quantity
-const isOverReceived = (item: ReceiptNoteItemDisplay): boolean => {
-  const orderedQty = parseNumericInput(item.ordered_quantity ?? item.po_quantity ?? 0)
-  const receivedQty = parseNumericInput(item.received_quantity ?? 0)
-  return receivedQty > orderedQty && orderedQty > 0
+// Check if an item has received quantity greater than leftover quantity
+// This is used for row highlighting - should check against leftover, not ordered quantity
+const isOverReceived = (item: ReceiptNoteItemDisplay, index: number): boolean => {
+  return isOverLeftover(item, index)
 }
 
 // Map to store total received quantities for each item (keyed by item_uuid or base_item_uuid)

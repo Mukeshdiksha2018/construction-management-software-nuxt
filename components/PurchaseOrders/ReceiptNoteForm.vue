@@ -2695,7 +2695,7 @@ const shortfallItems = computed(() => {
 
 const hasShortfallItems = computed(() => shortfallItems.value.length > 0);
 
-// Check for items with received quantity greater than PO/CO quantity
+// Check for items with received quantity greater than leftover quantity
 const overReceivedItems = computed(() => {
   if (!Array.isArray(receiptItems.value) || receiptItems.value.length === 0) {
     return [];
@@ -2703,16 +2703,18 @@ const overReceivedItems = computed(() => {
 
   return receiptItems.value
     .map((item, index) => {
-      const orderedQty = parseNumericValue(item.ordered_quantity ?? item.po_quantity ?? 0);
+      const leftoverQty = getLeftoverQuantity(item);
       const receivedQty = parseNumericValue(item.received_quantity ?? 0);
       
-      if (receivedQty > orderedQty && orderedQty > 0) {
+      // Check if received quantity exceeds leftover quantity
+      if (receivedQty > leftoverQty && leftoverQty > 0) {
         return {
           ...item,
           index,
-          ordered_quantity: orderedQty,
+          ordered_quantity: parseNumericValue(item.ordered_quantity ?? item.po_quantity ?? 0),
+          leftover_quantity: leftoverQty,
           received_quantity: receivedQty,
-          over_received_quantity: receivedQty - orderedQty,
+          over_received_quantity: receivedQty - leftoverQty,
         };
       }
       return null;
@@ -2729,13 +2731,13 @@ const overReceivedValidationError = computed(() => {
   const itemsList = overReceivedItems.value
     .map((item, idx) => {
       const itemName = item.item_name || item.description || `Item ${idx + 1}`;
-      const orderedQty = item.ordered_quantity ?? 0;
+      const leftoverQty = item.leftover_quantity ?? 0;
       const receivedQty = item.received_quantity ?? 0;
-      return `"${itemName}" (Ordered: ${orderedQty}, Received: ${receivedQty})`;
+      return `"${itemName}" (Leftover: ${leftoverQty}, Received: ${receivedQty})`;
     })
     .join('; ');
   
-  return `Cannot save receipt note: ${itemCount} item(s) have received quantity greater than ordered quantity. ${itemsList}`;
+  return `Cannot save receipt note: ${itemCount} item(s) have received quantity greater than leftover quantity. ${itemsList}`;
 });
 
 // Combined validation error (for consistency with ReturnNoteForm)
