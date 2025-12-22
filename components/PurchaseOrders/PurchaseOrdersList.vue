@@ -364,8 +364,21 @@
       </UCard>
     </div>
 
-    <!-- Purchase Orders Table - Only show when ToBeRaised is NOT selected -->
-    <div v-if="selectedStatusFilter !== 'ToBeRaised' && purchaseOrders.length && hasPermission('po_view') && isReady">
+    <!-- Items Table - Show when filters are applied (not for ToBeRaised status) -->
+    <div v-if="selectedStatusFilter !== 'ToBeRaised' && itemsTableData.length > 0 && hasPermission('po_view') && isReady" class="mb-6">
+      <UCard variant="soft" class="mb-4">
+        <UTable
+          :data="itemsTableData"
+          :columns="itemsTableColumns"
+          :loading="loadingItemsTable"
+          v-model:selected="selectedItemsTableRows"
+          :selectable="true"
+        />
+      </UCard>
+    </div>
+
+    <!-- Purchase Orders Table - Only show when ToBeRaised is NOT selected and no items table is shown -->
+    <div v-if="selectedStatusFilter !== 'ToBeRaised' && purchaseOrders.length && hasPermission('po_view') && isReady && itemsTableData.length === 0 && (!appliedFilters.corporation || !appliedFilters.project)">
       <UTable 
         ref="table"
         sticky
@@ -394,14 +407,17 @@
       <p class="text-gray-400 text-sm">You don't have permission to view purchase orders</p>
     </div>
 
-    <div v-else-if="selectedStatusFilter !== 'ToBeRaised' && isReady" class="text-center py-12">
+    <div v-else-if="selectedStatusFilter !== 'ToBeRaised' && isReady && (!appliedFilters.corporation || !appliedFilters.project || itemsTableData.length === 0)" class="text-center py-12">
       <div class="text-gray-400 mb-4">
         <UIcon name="i-heroicons-shopping-cart" class="w-12 h-12 mx-auto" />
       </div>
-      <p class="text-gray-500 text-lg">No purchase orders found</p>
-      <p class="text-gray-400 text-sm mb-6">Create your first purchase order to get started</p>
+      <p v-if="!appliedFilters.corporation || !appliedFilters.project" class="text-gray-500 text-lg">Please select Corporation and Project from the filters above and click "Show" to view items</p>
+      <template v-else>
+        <p class="text-gray-500 text-lg">No items found</p>
+        <p class="text-gray-400 text-sm mb-6">No items match the selected filters</p>
+      </template>
       <UButton 
-        v-if="hasPermission('po_create')"
+        v-if="hasPermission('po_create') && (!appliedFilters.corporation || !appliedFilters.project)"
         icon="i-heroicons-plus" 
         @click="openCreateModal"
       >
@@ -696,6 +712,7 @@ import VendorSelect from '@/components/Shared/VendorSelect.vue'
 import CorporationSelect from '@/components/Shared/CorporationSelect.vue'
 import POBreakdown from '@/components/PurchaseOrders/POBreakdown.vue'
 import { usePurchaseOrderListResourcesStore } from '@/stores/purchaseOrderListResources'
+import { useProjectItemsSummary } from '@/composables/useProjectItemsSummary'
 
 // Resolve components for table columns
 const UButton = resolveComponent('UButton')
@@ -1084,6 +1101,18 @@ const filteredPurchaseOrders = computed(() => {
   return filtered
 })
 
+// Items table data (for the main Show button functionality)
+const selectedItemsTableRows = ref<any[]>([])
+
+// To be Raised items state
+const toBeRaisedItems = ref<any[]>([])
+const loadingToBeRaisedItems = ref(false)
+
+// Project Items Summary composable
+const projectItemsSummary = useProjectItemsSummary()
+const itemsTableData = computed(() => projectItemsSummary.data.value?.items || [])
+const loadingItemsTable = computed(() => projectItemsSummary.loading.value)
+
 // Show Results button handler
 const handleShowResults = async () => {
   appliedFilters.value = {
@@ -1105,6 +1134,12 @@ const handleShowResults = async () => {
   // If ToBeRaised is selected and corporation, project, and vendor are set, fetch items
   if (selectedStatusFilter.value === 'ToBeRaised' && appliedFilters.value.corporation && appliedFilters.value.project && appliedFilters.value.vendor) {
     fetchToBeRaisedItems()
+  }
+  
+  // Fetch items table data when filters are applied (for main table view)
+  // Always fetch when corporation and project are set (regardless of status filter)
+  if (appliedFilters.value.corporation && appliedFilters.value.project) {
+    await fetchItemsTableData()
   }
 }
 
@@ -1201,6 +1236,156 @@ const toBeRaisedColumns: TableColumn<any>[] = [
     cell: ({ row }: { row: { original: any } }) => {
       const total = row.original.total || 0
       return h('div', { class: 'text-right font-mono text-sm font-semibold' }, formatCurrency(total))
+    }
+  }
+]
+
+// Fetch items table data (estimate items with PO quantities)
+const fetchItemsTableData = async () => {
+  if (!appliedFilters.value.corporation || !appliedFilters.value.project) {
+    console.log('fetchItemsTableData: Missing filters', { corporation: appliedFilters.value.corporation, project: appliedFilters.value.project })
+    return
+  }
+  
+  try {
+    // Use the composable's fetch method which will update the reactive data
+    const result = await projectItemsSummary.fetchProjectItemsSummary(
+      appliedFilters.value.corporation,
+      appliedFilters.value.project,
+      appliedFilters.value.vendor || undefined,
+      appliedFilters.value.location || undefined
+    )
+    console.log('fetchItemsTableData: Result', { result, itemsCount: result?.items?.length || 0, dataValue: projectItemsSummary.data.value })
+  } catch (error: any) {
+    console.error('Error fetching items table data:', error)
+    try {
+      const toast = useToast()
+      toast.add({
+        title: 'Error',
+        description: error.data?.statusMessage || error.message || 'Failed to load items data',
+        color: 'error'
+      })
+    } catch (e) {
+      // Toast not available
+    }
+  }
+}
+
+// Items Table columns (for the main Show button functionality)
+const itemsTableColumns: TableColumn<any>[] = [
+  {
+    id: 'select',
+    header: '',
+    enableSorting: false,
+    meta: { class: { th: 'w-12', td: 'w-12' } },
+    cell: () => h('div') // Checkbox handled by UTable selectable
+  },
+  {
+    accessorKey: 'corporation_name',
+    header: 'Corporation',
+    enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
+    cell: ({ row }: { row: { original: any } }) => h('div', row.original.corporation_name || 'N/A')
+  },
+  {
+    accessorKey: 'project_name',
+    header: 'Project',
+    enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
+    cell: ({ row }: { row: { original: any } }) => h('div', row.original.project_name || 'N/A')
+  },
+  {
+    accessorKey: 'cost_code_label',
+    header: 'Cost Code',
+    enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
+    cell: ({ row }: { row: { original: any } }) => h('div', row.original.cost_code_label || 'N/A')
+  },
+  {
+    accessorKey: 'vendor_name',
+    header: 'Vendor',
+    enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
+    cell: ({ row }: { row: { original: any } }) => h('div', row.original.vendor_name || 'N/A')
+  },
+  {
+    accessorKey: 'sequence',
+    header: 'Sequence',
+    enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
+    cell: ({ row }: { row: { original: any } }) => h('div', row.original.sequence || 'N/A')
+  },
+  {
+    accessorKey: 'item_type_label',
+    header: 'Type',
+    enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
+    cell: ({ row }: { row: { original: any } }) => h('div', row.original.item_type_label || 'N/A')
+  },
+  {
+    accessorKey: 'item_name',
+    header: 'Item',
+    enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
+    cell: ({ row }: { row: { original: any } }) => h('div', row.original.item_name || row.original.description || 'N/A')
+  },
+  {
+    accessorKey: 'description',
+    header: 'Description',
+    enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
+    cell: ({ row }: { row: { original: any } }) => h('div', row.original.description || 'N/A')
+  },
+  {
+    accessorKey: 'location',
+    header: 'Location',
+    enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
+    cell: ({ row }: { row: { original: any } }) => h('div', row.original.location || 'N/A')
+  },
+  {
+    accessorKey: 'budget_qty',
+    header: 'Budget Qty',
+    enableSorting: false,
+    meta: { class: { th: 'text-right', td: 'text-right' } },
+    cell: ({ row }: { row: { original: any } }) => {
+      const qty = row.original.budget_qty || 0
+      return h('div', { class: 'text-right' }, String(qty))
+    }
+  },
+  {
+    accessorKey: 'po_qty',
+    header: 'PO Qty',
+    enableSorting: false,
+    meta: { class: { th: 'text-right', td: 'text-right' } },
+    cell: ({ row }: { row: { original: any } }) => {
+      const qty = row.original.po_qty || 0
+      return h('div', { class: 'text-right' }, String(qty))
+    }
+  },
+  {
+    accessorKey: 'pending_qty',
+    header: 'Pending Qty',
+    enableSorting: false,
+    meta: { class: { th: 'text-right', td: 'text-right' } },
+    cell: ({ row }: { row: { original: any } }) => {
+      const qty = row.original.pending_qty || 0
+      return h('div', { class: 'text-right' }, String(qty))
+    }
+  },
+  {
+    accessorKey: 'status',
+    header: 'Status',
+    enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
+    cell: ({ row }: { row: { original: any } }) => {
+      const status = row.original.status || 'Pending'
+      const isPartial = status === 'Partial'
+      return h(UBadge, {
+        color: isPartial ? 'warning' : 'orange',
+        variant: 'solid',
+        size: 'sm'
+      }, () => status)
     }
   }
 ]
