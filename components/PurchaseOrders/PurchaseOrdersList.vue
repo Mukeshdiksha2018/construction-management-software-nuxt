@@ -329,7 +329,8 @@
     />
 
     <!-- To be Raised Table - Separate from Purchase Orders Table -->
-    <div v-if="selectedStatusFilter === 'ToBeRaised' && isReady && hasPermission('po_view')" class="mb-6">
+    <!-- Only show this section if items table doesn't have data, or if ToBeRaised items exist -->
+    <div v-if="selectedStatusFilter === 'ToBeRaised' && isReady && hasPermission('po_view') && (itemsTableData.length === 0 || toBeRaisedItems.length > 0)" class="mb-6">
       <UCard variant="soft" class="mb-4">
         <div v-if="!appliedFilters.corporation || !appliedFilters.project || !appliedFilters.vendor" class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-4">
           <div class="flex items-center gap-2">
@@ -347,14 +348,14 @@
             :columns="toBeRaisedColumns"
             :loading="loadingToBeRaisedItems"
           />
-          <div v-else-if="!loadingToBeRaisedItems" class="text-center py-12">
+          <div v-else-if="!loadingToBeRaisedItems && itemsTableData.length === 0" class="text-center py-12">
             <div class="text-gray-400 mb-4">
               <UIcon name="i-heroicons-document-text" class="w-12 h-12 mx-auto" />
             </div>
             <p class="text-gray-500 text-lg">No items to be raised</p>
             <p class="text-gray-400 text-sm">No items found for the selected project and vendor</p>
           </div>
-          <div v-else class="text-center py-12">
+          <div v-else-if="loadingToBeRaisedItems" class="text-center py-12">
             <div class="text-gray-400 mb-4">
               <UIcon name="i-heroicons-arrow-path" class="w-12 h-12 mx-auto animate-spin" />
             </div>
@@ -364,8 +365,9 @@
       </UCard>
     </div>
 
-    <!-- Items Table - Show when filters are applied (not for ToBeRaised status) -->
-    <div v-if="selectedStatusFilter !== 'ToBeRaised' && itemsTableData.length > 0 && hasPermission('po_view') && isReady" class="mb-6">
+    <!-- Items Table - Show when filters are applied and data exists -->
+    <!-- Always show this table when data exists, regardless of status filter -->
+    <div v-if="itemsTableData.length > 0 && hasPermission('po_view') && isReady" class="mb-6">
       <UCard variant="soft" class="mb-4">
         <UTable
           :data="itemsTableData"
@@ -1110,7 +1112,14 @@ const loadingToBeRaisedItems = ref(false)
 
 // Project Items Summary composable
 const projectItemsSummary = useProjectItemsSummary()
-const itemsTableData = computed(() => projectItemsSummary.data.value?.items || [])
+const itemsTableData = computed(() => {
+  const items = projectItemsSummary.data.value?.items || []
+  // Debug: Log to see if data is available
+  if (items.length > 0) {
+    console.log('itemsTableData has data:', items.length, 'items')
+  }
+  return items
+})
 const loadingItemsTable = computed(() => projectItemsSummary.loading.value)
 
 // Show Results button handler
