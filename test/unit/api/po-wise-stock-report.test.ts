@@ -776,14 +776,14 @@ describe("server/api/reports/po-wise-stock-report", () => {
     )
   })
 
-  it("should only include approved purchase orders", async () => {
+  it("should include approved, completed, and partially received purchase orders", async () => {
     const globals = stubGlobals()
     globals.mockGetQuery.mockReturnValue({
       corporation_uuid: "corp-1",
       project_uuid: "proj-1",
     })
 
-    // Mix of approved, draft, and pending purchase orders
+    // Mix of approved, completed, partially_received, draft, and pending purchase orders
     const purchaseOrders = [
       {
         uuid: "po-approved-1",
@@ -795,9 +795,27 @@ describe("server/api/reports/po-wise-stock-report", () => {
         status: "Approved", // Should be included
       },
       {
+        uuid: "po-completed-1",
+        po_number: "PO-COMPLETED-001",
+        entry_date: "2024-01-02",
+        vendor_uuid: "vendor-1",
+        po_type: "MATERIAL",
+        po_type_uuid: null,
+        status: "Completed", // Should be included
+      },
+      {
+        uuid: "po-partially-received-1",
+        po_number: "PO-PARTIALLY-001",
+        entry_date: "2024-01-03",
+        vendor_uuid: "vendor-2",
+        po_type: "MATERIAL",
+        po_type_uuid: null,
+        status: "Partially_Received", // Should be included
+      },
+      {
         uuid: "po-draft-1",
         po_number: "PO-DRAFT-001",
-        entry_date: "2024-01-02",
+        entry_date: "2024-01-04",
         vendor_uuid: "vendor-1",
         po_type: "MATERIAL",
         po_type_uuid: null,
@@ -806,7 +824,7 @@ describe("server/api/reports/po-wise-stock-report", () => {
       {
         uuid: "po-pending-1",
         po_number: "PO-PENDING-001",
-        entry_date: "2024-01-03",
+        entry_date: "2024-01-05",
         vendor_uuid: "vendor-1",
         po_type: "MATERIAL",
         po_type_uuid: null,
@@ -815,7 +833,7 @@ describe("server/api/reports/po-wise-stock-report", () => {
       {
         uuid: "po-approved-2",
         po_number: "PO-APPROVED-002",
-        entry_date: "2024-01-04",
+        entry_date: "2024-01-06",
         vendor_uuid: "vendor-2",
         po_type: "MATERIAL",
         po_type_uuid: null,
@@ -836,11 +854,31 @@ describe("server/api/reports/po-wise-stock-report", () => {
       },
       {
         uuid: "po-item-2",
-        purchase_order_uuid: "po-approved-2",
+        purchase_order_uuid: "po-completed-1",
         item_uuid: "item-2",
         item_name: "Item 2",
         quantity: 200,
         unit_price: 20.00,
+        cost_code_uuid: "cc-2",
+        order_index: 0,
+      },
+      {
+        uuid: "po-item-3",
+        purchase_order_uuid: "po-partially-received-1",
+        item_uuid: "item-3",
+        item_name: "Item 3",
+        quantity: 150,
+        unit_price: 15.00,
+        cost_code_uuid: "cc-1",
+        order_index: 0,
+      },
+      {
+        uuid: "po-item-4",
+        purchase_order_uuid: "po-approved-2",
+        item_uuid: "item-4",
+        item_name: "Item 4",
+        quantity: 300,
+        unit_price: 25.00,
         cost_code_uuid: "cc-2",
         order_index: 0,
       },
@@ -868,11 +906,12 @@ describe("server/api/reports/po-wise-stock-report", () => {
                   eq: vi.fn(function (this: any, ...args: any[]) {
                     if (args[0] === "is_active") {
                       return {
-                        eq: vi.fn(function (this: any, ...args: any[]) {
+                        in: vi.fn(function (this: any, ...args: any[]) {
                           if (args[0] === "status") {
-                            // Return only approved POs
-                            const approvedPOs = purchaseOrders.filter((po: any) => po.status === "Approved")
-                            return Promise.resolve({ data: approvedPOs, error: null })
+                            // Return approved, completed, and partially_received POs
+                            const allowedStatuses = ["Approved", "Completed", "Partially_Received"]
+                            const filteredPOs = purchaseOrders.filter((po: any) => allowedStatuses.includes(po.status))
+                            return Promise.resolve({ data: filteredPOs, error: null })
                           }
                           return this
                         }),
@@ -970,15 +1009,17 @@ describe("server/api/reports/po-wise-stock-report", () => {
 
     expect(result).toBeDefined()
     expect(result.data).toBeDefined()
-    // Should only include approved purchase orders (2), not draft or pending (2)
-    expect(result.data.length).toBe(2)
-    expect(result.data[0].po_number).toBe("PO-APPROVED-001")
-    expect(result.data[0].uuid).toBe("po-approved-1")
-    expect(result.data[1].po_number).toBe("PO-APPROVED-002")
-    expect(result.data[1].uuid).toBe("po-approved-2")
+    // Should include approved, completed, and partially_received purchase orders (4), not draft or pending
+    expect(result.data.length).toBe(4)
+    
+    const poNumbers = result.data.map((po: any) => po.po_number)
+    // Verify included statuses
+    expect(poNumbers).toContain("PO-APPROVED-001")
+    expect(poNumbers).toContain("PO-COMPLETED-001")
+    expect(poNumbers).toContain("PO-PARTIALLY-001")
+    expect(poNumbers).toContain("PO-APPROVED-002")
     
     // Verify draft and pending POs are not included
-    const poNumbers = result.data.map((po: any) => po.po_number)
     expect(poNumbers).not.toContain("PO-DRAFT-001")
     expect(poNumbers).not.toContain("PO-PENDING-001")
   })

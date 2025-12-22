@@ -24,14 +24,14 @@ export default defineEventHandler(async (event) => {
 
   try {
     // Step 1: Fetch all purchase order items for the project
-    // First, get all POs for the project (excluding labor POs, only Approved status)
+    // First, get all POs for the project (excluding labor POs, including Approved, Completed, and Partially_Received statuses)
     const { data: purchaseOrders, error: poError } = await supabase
       .from('purchase_order_forms')
       .select('uuid, po_number, entry_date, vendor_uuid, po_type, po_type_uuid')
       .eq('corporation_uuid', corporationUuid)
       .eq('project_uuid', projectUuid)
       .eq('is_active', true)
-      .eq('status', 'Approved') // Only include approved purchase orders
+      .in('status', ['Approved', 'Completed', 'Partially_Received']) // Include approved, completed, and partially received purchase orders
 
     if (poError) {
       throw createError({
