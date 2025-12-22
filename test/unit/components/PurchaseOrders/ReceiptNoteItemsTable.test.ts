@@ -275,7 +275,7 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
       const html = wrapper.html();
       const itemIndex = html.indexOf("Test Item 1");
       const receivedAtIndex = html.indexOf("Warehouse A");
-      
+
       // Received At should appear after Item in the HTML structure
       expect(receivedAtIndex).toBeGreaterThan(itemIndex);
     });
@@ -316,9 +316,9 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
       const inputs = wrapper.findAll("input.u-input-stub");
       expect(inputs.length).toBeGreaterThan(0);
       const receivedInput = inputs.find((input) => {
-        const vm = input.vm as any;
-        const modelValue = vm?.modelValue ?? input.element.value;
-        return modelValue === "5" || modelValue === 5 || String(modelValue) === "5";
+        const element = input.element as HTMLInputElement;
+        const modelValue = element?.value;
+        return modelValue === "5" || String(modelValue) === "5";
       });
       expect(receivedInput).toBeTruthy();
     });
@@ -408,6 +408,9 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
 
       const inputs = wrapper.findAll("input.u-input-stub");
       const receivedInput = inputs[inputs.length - 2]; // Second to last is received quantity
+      if (!receivedInput) {
+        throw new Error("Received input not found");
+      }
 
       await receivedInput.setValue("8");
       await receivedInput.trigger("input");
@@ -433,7 +436,7 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
         },
         ...mockItems.slice(1),
       ];
-      const wrapper = mountTable({ 
+      const wrapper = mountTable({
         items: itemsWithHigherOrderedQty,
         projectUuid: "project-1",
         purchaseOrderUuid: "po-1",
@@ -444,13 +447,17 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
 
       const inputs = wrapper.findAll("input.u-input-stub");
       const receivedInput = inputs[inputs.length - 2];
+      if (!receivedInput) {
+        throw new Error("Received input not found");
+      }
 
       await receivedInput.setValue("12");
       await receivedInput.trigger("input");
       await flushPromises();
 
       const emissions = wrapper.emitted("received-quantity-change");
-      expect(emissions?.[0]?.[0].computedTotal).toBe(600); // 12 * 50
+      const emissionData = emissions?.[0]?.[0] as { computedTotal: number };
+      expect(emissionData?.computedTotal).toBe(600); // 12 * 50
     });
 
     it("should handle decimal quantities", async () => {
@@ -458,14 +465,21 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
 
       const inputs = wrapper.findAll("input.u-input-stub");
       const receivedInput = inputs[inputs.length - 2];
+      if (!receivedInput) {
+        throw new Error("Received input not found");
+      }
 
       await receivedInput.setValue("7.5");
       await receivedInput.trigger("input");
       await flushPromises();
 
       const emissions = wrapper.emitted("received-quantity-change");
-      expect(emissions?.[0]?.[0].numericValue).toBe(7.5);
-      expect(emissions?.[0]?.[0].computedTotal).toBe(375); // 7.5 * 50
+      const emissionData = emissions?.[0]?.[0] as {
+        numericValue: number;
+        computedTotal: number;
+      };
+      expect(emissionData?.numericValue).toBe(7.5);
+      expect(emissionData?.computedTotal).toBe(375); // 7.5 * 50
     });
 
     it("should handle empty quantity input", async () => {
@@ -473,14 +487,21 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
 
       const inputs = wrapper.findAll("input.u-input-stub");
       const receivedInput = inputs[inputs.length - 2];
+      if (!receivedInput) {
+        throw new Error("Received input not found");
+      }
 
       await receivedInput.setValue("");
       await receivedInput.trigger("input");
       await flushPromises();
 
       const emissions = wrapper.emitted("received-quantity-change");
-      expect(emissions?.[0]?.[0].numericValue).toBe(0);
-      expect(emissions?.[0]?.[0].computedTotal).toBe(0);
+      const emissionData = emissions?.[0]?.[0] as {
+        numericValue: number;
+        computedTotal: number;
+      };
+      expect(emissionData?.numericValue).toBe(0);
+      expect(emissionData?.computedTotal).toBe(0);
     });
 
     it("should handle invalid quantity input", async () => {
@@ -488,13 +509,17 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
 
       const inputs = wrapper.findAll("input.u-input-stub");
       const receivedInput = inputs[inputs.length - 2];
+      if (!receivedInput) {
+        throw new Error("Received input not found");
+      }
 
       await receivedInput.setValue("abc");
       await receivedInput.trigger("input");
       await flushPromises();
 
       const emissions = wrapper.emitted("received-quantity-change");
-      expect(emissions?.[0]?.[0].numericValue).toBe(0);
+      const emissionData = emissions?.[0]?.[0] as { numericValue: number };
+      expect(emissionData?.numericValue).toBe(0);
     });
 
     it("should round currency values correctly", async () => {
@@ -502,13 +527,17 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
 
       const inputs = wrapper.findAll("input.u-input-stub");
       const receivedInput = inputs[inputs.length - 2];
+      if (!receivedInput) {
+        throw new Error("Received input not found");
+      }
 
       await receivedInput.setValue("7.777");
       await receivedInput.trigger("input");
       await flushPromises();
 
       const emissions = wrapper.emitted("received-quantity-change");
-      const total = emissions?.[0]?.[0].computedTotal;
+      const emissionData = emissions?.[0]?.[0] as { computedTotal: number };
+      const total = emissionData?.computedTotal;
       expect(total).toBeCloseTo(388.85, 2);
     });
 
@@ -518,6 +547,9 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
       const inputs = wrapper.findAll("input.u-input-stub");
       const firstReceivedInput = inputs[inputs.length - 4]; // First item's received qty
       const secondReceivedInput = inputs[inputs.length - 2]; // Second item's received qty
+      if (!firstReceivedInput || !secondReceivedInput) {
+        throw new Error("Received inputs not found");
+      }
 
       await firstReceivedInput.setValue("6");
       await firstReceivedInput.trigger("input");
@@ -533,24 +565,48 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
       // Find the emissions for the two items we updated
       // The emissions might have different structures, so check more flexibly
       const firstEmission = emissions?.find((e) => {
-        const data = e[0];
-        return (data.index === 0 || data.index === "0") && (data.numericValue === 6 || data.value === "6" || data.value === 6);
+        const data = e[0] as {
+          index: number | string;
+          numericValue?: number;
+          value?: string | number;
+        };
+        return (
+          (data.index === 0 || data.index === "0") &&
+          (data.numericValue === 6 || data.value === "6" || data.value === 6)
+        );
       });
       const secondEmission = emissions?.find((e) => {
-        const data = e[0];
-        return (data.index === 1 || data.index === "1") && (data.numericValue === 3 || data.value === "3" || data.value === 3);
+        const data = e[0] as {
+          index: number | string;
+          numericValue?: number;
+          value?: string | number;
+        };
+        return (
+          (data.index === 1 || data.index === "1") &&
+          (data.numericValue === 3 || data.value === "3" || data.value === 3)
+        );
       });
       // If we can't find exact matches, at least verify emissions were made
       if (!firstEmission || !secondEmission) {
         // Verify that emissions were made (component is working)
         // Check if any emissions have the values we set
         const hasValue6 = emissions?.some((e) => {
-          const data = e[0];
-          return data.numericValue === 6 || data.value === "6" || data.value === 6;
+          const data = e[0] as {
+            numericValue?: number;
+            value?: string | number;
+          };
+          return (
+            data.numericValue === 6 || data.value === "6" || data.value === 6
+          );
         });
         const hasValue3 = emissions?.some((e) => {
-          const data = e[0];
-          return data.numericValue === 3 || data.value === "3" || data.value === 3;
+          const data = e[0] as {
+            numericValue?: number;
+            value?: string | number;
+          };
+          return (
+            data.numericValue === 3 || data.value === "3" || data.value === 3
+          );
         });
         expect(hasValue6 || hasValue3).toBe(true);
       } else {
@@ -595,6 +651,9 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
 
       const inputs = wrapper.findAll("input.u-input-stub");
       const receivedInput = inputs[inputs.length - 2];
+      if (!receivedInput) {
+        throw new Error("Received input not found");
+      }
 
       await receivedInput.setValue("9");
       await receivedInput.trigger("input");
@@ -603,7 +662,8 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
 
       // Total should reflect the draft value (9 * 50 = 450)
       const emissions = wrapper.emitted("received-quantity-change");
-      expect(emissions?.[0]?.[0].computedTotal).toBe(450);
+      const emissionData = emissions?.[0]?.[0] as { computedTotal: number };
+      expect(emissionData?.computedTotal).toBe(450);
     });
   });
 
@@ -613,13 +673,17 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
 
       const inputs = wrapper.findAll("input.u-input-stub");
       const receivedInput = inputs[inputs.length - 2];
+      if (!receivedInput) {
+        throw new Error("Received input not found");
+      }
 
       await receivedInput.trigger("focus");
       await flushPromises();
 
       // Check if row has active class (implementation specific)
       // In stubs, closest might not work, so just verify the input exists
-      const row = receivedInput.element.closest("tr");
+      const element = receivedInput.element as HTMLElement;
+      const row = element?.closest("tr");
       // If row exists, verify it; otherwise just verify the input exists
       if (row) {
         expect(row).toBeTruthy();
@@ -634,6 +698,9 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
 
       const inputs = wrapper.findAll("input.u-input-stub");
       const receivedInput = inputs[inputs.length - 2];
+      if (!receivedInput) {
+        throw new Error("Received input not found");
+      }
 
       await receivedInput.trigger("focus");
       await flushPromises();
@@ -642,7 +709,8 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
 
       // Row should no longer be highlighted
       // In stubs, closest might not work, so just verify the input exists
-      const row = receivedInput.element.closest("tr");
+      const element = receivedInput.element as HTMLElement;
+      const row = element?.closest("tr");
       if (row) {
         expect(row).toBeTruthy();
       } else {
@@ -754,7 +822,7 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
         },
         ...mockItems.slice(1),
       ];
-      const wrapper = mountTable({ 
+      const wrapper = mountTable({
         items: itemsWithLargeOrderedQty,
         projectUuid: "project-1",
         purchaseOrderUuid: "po-1",
@@ -765,14 +833,21 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
 
       const inputs = wrapper.findAll("input.u-input-stub");
       const receivedInput = inputs[inputs.length - 2];
+      if (!receivedInput) {
+        throw new Error("Received input not found");
+      }
 
       await receivedInput.setValue("999999");
       await receivedInput.trigger("input");
       await flushPromises();
 
       const emissions = wrapper.emitted("received-quantity-change");
-      expect(emissions?.[0]?.[0].numericValue).toBe(999999);
-      expect(emissions?.[0]?.[0].computedTotal).toBe(49999950);
+      const emissionData = emissions?.[0]?.[0] as {
+        numericValue: number;
+        computedTotal: number;
+      };
+      expect(emissionData?.numericValue).toBe(999999);
+      expect(emissionData?.computedTotal).toBe(49999950);
     });
 
     it("should handle items with very small quantities", async () => {
@@ -780,13 +855,17 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
 
       const inputs = wrapper.findAll("input.u-input-stub");
       const receivedInput = inputs[inputs.length - 2];
+      if (!receivedInput) {
+        throw new Error("Received input not found");
+      }
 
       await receivedInput.setValue("0.0001");
       await receivedInput.trigger("input");
       await flushPromises();
 
       const emissions = wrapper.emitted("received-quantity-change");
-      expect(emissions?.[0]?.[0].numericValue).toBe(0.0001);
+      const emissionData = emissions?.[0]?.[0] as { numericValue: number };
+      expect(emissionData?.numericValue).toBe(0.0001);
     });
 
     it("should handle items array changes", async () => {
@@ -866,6 +945,9 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
 
       const inputs = wrapper.findAll("input.u-input-stub");
       const receivedInput = inputs[inputs.length - 2];
+      if (!receivedInput) {
+        throw new Error("Received input not found");
+      }
 
       // Start editing
       await receivedInput.setValue("7");
@@ -887,10 +969,16 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
       const updatedInputs = wrapper.findAll("input.u-input-stub");
       if (updatedInputs.length > 0) {
         const updatedInput = updatedInputs[0];
-        const vm = updatedInput.vm as any;
-        const modelValue = vm?.modelValue ?? updatedInput.element.value;
-        // The draft value should be "7" or the component should handle it
-        expect(modelValue === "7" || String(modelValue) === "7" || updatedInput.exists()).toBe(true);
+        if (updatedInput) {
+          const element = updatedInput.element as HTMLInputElement;
+          const modelValue = element?.value;
+          // The draft value should be "7" or the component should handle it
+          expect(
+            modelValue === "7" ||
+              String(modelValue) === "7" ||
+              updatedInput.exists()
+          ).toBe(true);
+        }
       }
     });
 
@@ -899,6 +987,9 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
 
       const inputs = wrapper.findAll("input.u-input-stub");
       const receivedInput = inputs[inputs.length - 2];
+      if (!receivedInput) {
+        throw new Error("Received input not found");
+      }
 
       await receivedInput.setValue("7");
       await receivedInput.trigger("input");
@@ -920,8 +1011,11 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
       const updatedInputs = wrapper.findAll("input.u-input-stub");
       if (updatedInputs.length > 0) {
         const updatedInput = updatedInputs[0];
-        const modelValue = (updatedInput.vm as any)?.modelValue ?? updatedInput.element.value;
-        expect(modelValue).toBe("3");
+        if (updatedInput) {
+          const element = updatedInput.element as HTMLInputElement;
+          const modelValue = element?.value;
+          expect(modelValue).toBe("3");
+        }
       }
     });
   });

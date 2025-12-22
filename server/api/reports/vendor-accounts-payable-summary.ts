@@ -104,6 +104,7 @@ export default defineEventHandler(async (event) => {
     }
 
     // Fetch all invoices for this project (filtered by date range)
+    // We need all invoices for holdback and tax calculations
     const { data: invoices, error: invoicesError } = await supabase
       .from('vendor_invoices')
       .select('uuid, vendor_uuid, invoice_type, purchase_order_uuid, change_order_uuid, status, amount, holdback, financial_breakdown')
@@ -224,20 +225,14 @@ export default defineEventHandler(async (event) => {
           holdbackAmount = totalAmount * (holdbackPercentage / 100)
         }
 
-        // Only count invoices with status 'Paid' for total invoice value and paid to date
-        const invoiceStatus = String(invoice.status || '').toLowerCase()
-        const isPaid = invoiceStatus === 'paid'
+        // Total Invoice Value: sum of all invoices regardless of status or type
+        vendorData.totalInvoiceValue += parseFloat(String(invoiceAmount)) || 0
 
+        // Paid to Date: only include invoices with status 'Paid'
+        // Check status case-insensitively to handle 'Paid', 'paid', 'PAID', etc.
+        const invoiceStatus = String(invoice.status || '').trim()
+        const isPaid = invoiceStatus.toLowerCase() === 'paid'
         if (isPaid) {
-          // Total Invoice Value: sum of paid status invoices (advance + PO + CO)
-          const invoiceType = String(invoice.invoice_type || '').toUpperCase()
-          if (invoiceType === 'AGAINST_ADVANCE_PAYMENT' || 
-              invoiceType === 'AGAINST_PO' || 
-              invoiceType === 'AGAINST_CO') {
-            vendorData.totalInvoiceValue += parseFloat(String(invoiceAmount)) || 0
-          }
-
-          // Paid to Date: all paid invoices totals
           vendorData.paidToDate += parseFloat(String(invoiceAmount)) || 0
         }
 
