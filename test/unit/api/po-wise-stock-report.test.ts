@@ -63,12 +63,8 @@ describe("server/api/reports/po-wise-stock-report", () => {
           eq: vi.fn(() => ({
             eq: vi.fn(() => ({
               eq: vi.fn(() => ({
-                eq: vi.fn(() => ({
-                  eq: vi.fn(() => ({
-                    in: vi.fn(() => ({
-                      eq: vi.fn(() => Promise.resolve({ data: [], error: null })),
-                    })),
-                  })),
+                in: vi.fn(() => ({
+                  eq: vi.fn(() => Promise.resolve({ data: [], error: null })),
                 })),
               })),
             })),
@@ -160,7 +156,7 @@ describe("server/api/reports/po-wise-stock-report", () => {
                   eq: vi.fn(function (this: any, ...args: any[]) {
                     if (args[0] === "is_active") {
                       return {
-                        eq: vi.fn(function (this: any, ...args: any[]) {
+                        in: vi.fn(function (this: any, ...args: any[]) {
                           if (args[0] === "status") {
                             return Promise.resolve({ data: purchaseOrders, error: null })
                           }
@@ -283,7 +279,7 @@ describe("server/api/reports/po-wise-stock-report", () => {
                   eq: vi.fn(function (this: any, ...args: any[]) {
                     if (args[0] === "is_active") {
                       return {
-                        eq: vi.fn(function (this: any, ...args: any[]) {
+                        in: vi.fn(function (this: any, ...args: any[]) {
                           if (args[0] === "status") {
                             return Promise.resolve({ data: [], error: null })
                           }
@@ -399,7 +395,7 @@ describe("server/api/reports/po-wise-stock-report", () => {
                   eq: vi.fn(function (this: any, ...args: any[]) {
                     if (args[0] === "is_active") {
                       return {
-                        eq: vi.fn(function (this: any, ...args: any[]) {
+                        in: vi.fn(function (this: any, ...args: any[]) {
                           if (args[0] === "status") {
                             return Promise.resolve({
                               data: purchaseOrders,
@@ -609,7 +605,7 @@ describe("server/api/reports/po-wise-stock-report", () => {
                   eq: vi.fn(function (this: any, ...args: any[]) {
                     if (args[0] === "is_active") {
                       return {
-                        eq: vi.fn(function (this: any, ...args: any[]) {
+                        in: vi.fn(function (this: any, ...args: any[]) {
                           if (args[0] === "status") {
                             return Promise.resolve({
                               data: purchaseOrders,
@@ -740,7 +736,7 @@ describe("server/api/reports/po-wise-stock-report", () => {
                   eq: vi.fn(function (this: any, ...args: any[]) {
                     if (args[0] === "is_active") {
                       return {
-                        eq: vi.fn(function (this: any, ...args: any[]) {
+                        in: vi.fn(function (this: any, ...args: any[]) {
                           if (args[0] === "status") {
                             return Promise.resolve({ data: null, error: { message: "Database error" } })
                           }
@@ -1130,7 +1126,7 @@ describe("server/api/reports/po-wise-stock-report", () => {
                   eq: vi.fn(function (this: any, ...args: any[]) {
                     if (args[0] === "is_active") {
                       return {
-                        eq: vi.fn(function (this: any, ...args: any[]) {
+                        in: vi.fn(function (this: any, ...args: any[]) {
                           if (args[0] === "status") {
                             return Promise.resolve({
                               data: purchaseOrders,
@@ -1355,7 +1351,7 @@ describe("server/api/reports/po-wise-stock-report", () => {
                   eq: vi.fn(function (this: any, ...args: any[]) {
                     if (args[0] === "is_active") {
                       return {
-                        eq: vi.fn(function (this: any, ...args: any[]) {
+                        in: vi.fn(function (this: any, ...args: any[]) {
                           if (args[0] === "status") {
                             return Promise.resolve({
                               data: purchaseOrders,
@@ -1575,7 +1571,7 @@ describe("server/api/reports/po-wise-stock-report", () => {
                   eq: vi.fn(function (this: any, ...args: any[]) {
                     if (args[0] === "is_active") {
                       return {
-                        eq: vi.fn(function (this: any, ...args: any[]) {
+                        in: vi.fn(function (this: any, ...args: any[]) {
                           if (args[0] === "status") {
                             return Promise.resolve({
                               data: purchaseOrders,
