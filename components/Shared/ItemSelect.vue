@@ -238,7 +238,12 @@ const itemOptions = computed<ItemOption[]>(() => {
     }
   })
   
-  const source = mergedItems
+  // Filter out inactive items - only show items with status 'Active'
+  const source = mergedItems.filter((item: any) => {
+    const status = String(item.status || '').trim()
+    // Show item if status is 'Active' or if status is not set (for backward compatibility)
+    return status === '' || status.toLowerCase() === 'active'
+  })
 
   const normalized = source
     .map((item) => {
