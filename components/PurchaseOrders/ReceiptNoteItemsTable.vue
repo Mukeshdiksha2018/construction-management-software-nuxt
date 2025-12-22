@@ -485,7 +485,7 @@ const emitReceivedQuantityChange = (index: number, value: string | number | null
 
   emit('received-quantity-change', {
     index,
-    value: validatedNumericValue > leftoverQty ? leftoverQty : value,
+    value: toInputString(validatedNumericValue), // Emit the validated value as string
     numericValue: validatedNumericValue,
     computedTotal,
   })
@@ -600,8 +600,10 @@ const fetchTotalReceivedQuantities = async () => {
 const getLeftoverQuantity = (item: ReceiptNoteItemDisplay, index: number): number => {
   const orderedQty = parseNumericInput(item.ordered_quantity ?? item.po_quantity ?? 0)
   
-  // Get the item identifier
-  const itemUuid = item.item_uuid || item.base_item_uuid
+  // Get the item identifier - use uuid or base_item_uuid (PO/CO item UUID)
+  // NOT item_uuid which is the master item UUID
+  // The receipt_note_items.item_uuid references purchase_order_items_list.uuid or change_order_items_list.uuid
+  const itemUuid = (item as any).uuid || item.base_item_uuid
   if (!itemUuid) {
     return orderedQty // If no item UUID, assume no previous receipts
   }

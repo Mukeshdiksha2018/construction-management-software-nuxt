@@ -393,7 +393,7 @@ export default defineEventHandler(async (event: H3Event) => {
 
   try {
     if (method === "GET") {
-      const { corporation_uuid, uuid } = query;
+      const { corporation_uuid, uuid, purchase_order_uuid, change_order_uuid, project_uuid } = query;
 
       if (uuid) {
         const { data, error } = await supabaseServer
@@ -421,12 +421,39 @@ export default defineEventHandler(async (event: H3Event) => {
       const pageSize = parseInt(query.page_size as string) || 100;
       const offset = (page - 1) * pageSize;
 
-      // Get total count for pagination metadata
-      const { count, error: countError } = await supabaseServer
+      // Build query with filters
+      let countQuery = supabaseServer
         .from("stock_receipt_notes")
         .select("*", { count: "exact", head: true })
         .eq("corporation_uuid", corpUuid)
         .eq("is_active", true);
+
+      let dataQuery = supabaseServer
+        .from("stock_receipt_notes")
+        .select("*")
+        .eq("corporation_uuid", corpUuid)
+        .eq("is_active", true);
+
+      // Filter by purchase_order_uuid if provided
+      if (purchase_order_uuid) {
+        countQuery = countQuery.eq("purchase_order_uuid", purchase_order_uuid as string);
+        dataQuery = dataQuery.eq("purchase_order_uuid", purchase_order_uuid as string);
+      }
+
+      // Filter by change_order_uuid if provided
+      if (change_order_uuid) {
+        countQuery = countQuery.eq("change_order_uuid", change_order_uuid as string);
+        dataQuery = dataQuery.eq("change_order_uuid", change_order_uuid as string);
+      }
+
+      // Filter by project_uuid if provided
+      if (project_uuid) {
+        countQuery = countQuery.eq("project_uuid", project_uuid as string);
+        dataQuery = dataQuery.eq("project_uuid", project_uuid as string);
+      }
+
+      // Get total count for pagination metadata
+      const { count, error: countError } = await countQuery;
 
       if (countError) {
         console.error("[StockReceiptNotes] GET count error:", countError);
@@ -440,11 +467,7 @@ export default defineEventHandler(async (event: H3Event) => {
       const totalPages = Math.ceil(totalRecords / pageSize);
 
       // Fetch paginated data
-      const { data, error } = await supabaseServer
-        .from("stock_receipt_notes")
-        .select("*")
-        .eq("corporation_uuid", corpUuid)
-        .eq("is_active", true)
+      const { data, error } = await dataQuery
         .order("entry_date", { ascending: false })
         .order("created_at", { ascending: false })
         .range(offset, offset + pageSize - 1);
