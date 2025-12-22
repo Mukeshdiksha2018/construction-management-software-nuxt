@@ -384,7 +384,7 @@
                 <UInput
                   v-model="itemForm.unit_price"
                   type="number"
-                  step="0.01"
+                  step="1"
                   placeholder="0.00"
                   size="sm"
                   class="w-full pl-6"
@@ -460,7 +460,7 @@
                 <UInput
                   v-model="itemForm.initial_quantity"
                   type="number"
-                  step="0.01"
+                  step="1"
                   placeholder="0.00"
                   size="sm"
                   class="w-full"
@@ -499,7 +499,7 @@
                 <UInput
                   v-model="itemForm.reorder_point"
                   type="number"
-                  step="0.01"
+                  step="1"
                   placeholder="0.00"
                   size="sm"
                   class="w-full"
@@ -513,7 +513,7 @@
                 <UInput
                   v-model="itemForm.maximum_limit"
                   type="number"
-                  step="0.01"
+                  step="1"
                   placeholder="0.00"
                   size="sm"
                   class="w-full"
