@@ -473,9 +473,15 @@ const loadReport = async () => {
     
     const purchaseOrders = poResponse?.data || []
     
-    // Filter by project and date range (using entry_date in UTC)
+    // Filter by project, exclude labor POs, and date range (using entry_date in UTC)
     let filteredPOs = purchaseOrders.filter((po: any) => {
       return po.project_uuid === selectedProjectId.value
+    })
+    
+    // Exclude labor type purchase orders
+    filteredPOs = filteredPOs.filter((po: any) => {
+      const poType = String(po.po_type || '').toUpperCase()
+      return poType !== 'LABOR'
     })
     
     // Filter by date range if provided (using entry_date in UTC)
@@ -574,32 +580,18 @@ const loadReport = async () => {
             return sum
           }, 0)
           
-          // Calculate item_total from items if not available
+          // Calculate item_total from items if not available (labor POs are excluded)
           let itemTotal = po.item_total
           if (!itemTotal || itemTotal === 0) {
             // Fetch items to calculate item_total
             try {
-              const poType = (po.po_type || '').toUpperCase()
-              const isLaborPO = poType === 'LABOR'
-              
-              let items: any[] = []
-              if (isLaborPO) {
-                const laborItemsResponse: any = await $fetch('/api/labor-purchase-order-items', {
-                  method: 'GET',
-                  params: {
-                    purchase_order_uuid: po.uuid
-                  }
-                })
-                items = laborItemsResponse?.data || []
-              } else {
-                const itemsResponse: any = await $fetch('/api/purchase-order-items', {
-                  method: 'GET',
-                  params: {
-                    purchase_order_uuid: po.uuid
-                  }
-                })
-                items = itemsResponse?.data || []
-              }
+              const itemsResponse: any = await $fetch('/api/purchase-order-items', {
+                method: 'GET',
+                params: {
+                  purchase_order_uuid: po.uuid
+                }
+              })
+              const items = itemsResponse?.data || []
               
               // Calculate item_total from items
               if (items.length > 0) {
