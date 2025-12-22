@@ -525,6 +525,7 @@ import VendorSelect from "@/components/Shared/VendorSelect.vue";
 import ReceiptNoteItemsTable from "@/components/PurchaseOrders/ReceiptNoteItemsTable.vue";
 import { useUserProfilesStore } from "@/stores/userProfiles";
 import { useItemTypesStore } from "@/stores/itemTypes";
+import { useStockReceiptNotesStore } from "@/stores/stockReceiptNotes";
 import FinancialBreakdown from "@/components/PurchaseOrders/FinancialBreakdown.vue";
 import FilePreview from "@/components/Shared/FilePreview.vue";
 import ReceiptNoteItemsSelectionModal from "@/components/PurchaseOrders/ReceiptNoteItemsSelectionModal.vue";
@@ -551,6 +552,7 @@ const changeOrdersStore = useChangeOrdersStore();
 const vendorStore = useVendorStore();
 const userProfilesStore = useUserProfilesStore();
 const itemTypesStore = useItemTypesStore();
+const stockReceiptNotesStore = useStockReceiptNotesStore();
 const { users: allUsers, hasData: hasUsersData } = storeToRefs(userProfilesStore);
 const { toUTCString, fromUTCString } = useUTCDateFormat();
 const { formatCurrency } = useCurrencyFormat();
@@ -1289,6 +1291,13 @@ watch(
       shouldSkip: isInitialMount && props.editingReceiptNote && props.form.uuid,
     });
     
+    // Fetch stock receipt notes when corporation is available
+    if (corpUuid) {
+      await Promise.allSettled([
+        stockReceiptNotesStore.fetchStockReceiptNotes(String(corpUuid), { force: false }),
+      ]);
+    }
+    
     // Only fetch when both vendor and project are selected
     if (vendorUuid && projectUuid && corpUuid) {
       // Skip if this is initial mount and we're editing (onMounted will handle it)
@@ -1351,6 +1360,7 @@ onMounted(async () => {
     await Promise.allSettled([
       ensureVendorsLoaded(),
       fetchLocalVendors(String(corpUuid)),
+      stockReceiptNotesStore.fetchStockReceiptNotes(String(corpUuid), { force: false }),
     ]);
     
     // If editing existing receipt note
@@ -2560,6 +2570,102 @@ const parseNumericValue = (value: any): number => {
   return Number.isFinite(numeric) ? numeric : 0;
 };
 
+// Calculate total received quantities from other receipt notes (excluding current one)
+// Note: This is a ref that will be populated asynchronously
+const totalReceivedQuantitiesMap = ref<Map<string, number>>(new Map());
+
+// Fetch receipt note items and populate the map
+const updateTotalReceivedQuantitiesMap = async () => {
+  const map = new Map<string, number>();
+  const currentReceiptNoteId = props.form.uuid;
+  const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
+  const projectUuid = props.form.project_uuid;
+  const poUuid = props.form.purchase_order_uuid;
+  const coUuid = props.form.change_order_uuid;
+  const currentReceiptType = receiptType.value;
+
+  if (!corpUuid || !projectUuid || (!poUuid && !coUuid)) {
+    totalReceivedQuantitiesMap.value = map;
+    return;
+  }
+
+  // Filter receipt notes that match the current PO/CO and exclude the current receipt note
+  const matchingReceiptNotes = stockReceiptNotesStore.stockReceiptNotes.filter((note) => {
+    if (note.is_active === false || note.uuid === currentReceiptNoteId) return false;
+    const isMatchingPO = currentReceiptType === 'purchase_order' && note.purchase_order_uuid === poUuid;
+    const isMatchingCO = currentReceiptType === 'change_order' && note.change_order_uuid === coUuid;
+    return isMatchingPO || isMatchingCO;
+  });
+
+  // Fetch receipt note items for all matching receipt notes
+  for (const note of matchingReceiptNotes) {
+    try {
+      const response: any = await $fetch("/api/receipt-note-items", {
+        method: "GET",
+        query: {
+          corporation_uuid: corpUuid,
+          project_uuid: projectUuid,
+          receipt_note_uuid: note.uuid,
+          item_type: currentReceiptType,
+        },
+      });
+      
+      const receiptNoteItems = Array.isArray(response?.data) ? response.data : Array.isArray(response) ? response : [];
+      
+      receiptNoteItems.forEach((rni: any) => {
+        if (rni.is_active === false) return;
+        const itemUuid = rni.item_uuid || rni.base_item_uuid;
+        if (itemUuid) {
+          const key = String(itemUuid).trim().toLowerCase();
+          const existingQty = map.get(key) || 0;
+          const receivedQty = parseNumericValue(rni.received_quantity || 0);
+          map.set(key, existingQty + receivedQty);
+        }
+      });
+    } catch (error) {
+      console.error(`[ReceiptNoteForm] Failed to fetch receipt note items for ${note.uuid}:`, error);
+    }
+  }
+
+  totalReceivedQuantitiesMap.value = map;
+};
+
+// Watch for changes that require updating the total received quantities map
+watch(
+  [
+    () => props.form.corporation_uuid,
+    () => props.form.project_uuid,
+    () => props.form.purchase_order_uuid,
+    () => props.form.change_order_uuid,
+    () => receiptType.value,
+    () => props.form.uuid,
+    () => stockReceiptNotesStore.stockReceiptNotes,
+  ],
+  () => {
+    updateTotalReceivedQuantitiesMap();
+  },
+  { immediate: true }
+);
+
+// Calculate leftover quantity for an item
+const getLeftoverQuantity = (item: any): number => {
+  const orderedQty = parseNumericValue(item.ordered_quantity ?? item.po_quantity ?? 0);
+  
+  // Get the item identifier - use uuid or base_item_uuid (PO/CO item UUID)
+  const itemUuid = item.uuid || item.base_item_uuid;
+  if (!itemUuid) {
+    return orderedQty; // If no item UUID, assume no previous receipts
+  }
+  
+  const key = String(itemUuid).trim().toLowerCase();
+  const totalReceived = totalReceivedQuantitiesMap.value.get(key) || 0;
+  
+  // Calculate leftover: ordered quantity - total received (excluding current input)
+  const leftover = orderedQty - totalReceived;
+  
+  return Math.max(0, leftover); // Don't return negative values
+};
+
 const shortfallItems = computed(() => {
   if (!Array.isArray(receiptItems.value) || receiptItems.value.length === 0) {
     return [];
@@ -2567,16 +2673,19 @@ const shortfallItems = computed(() => {
 
   return receiptItems.value
     .map((item, index) => {
-      const orderedQty = parseNumericValue(item.ordered_quantity ?? item.po_quantity ?? 0);
+      const leftoverQty = getLeftoverQuantity(item);
       const receivedQty = parseNumericValue(item.received_quantity ?? 0);
       
-      if (receivedQty < orderedQty && orderedQty > 0) {
+      // Shortfall is the difference between leftover quantity and received quantity
+      // If received quantity is less than leftover quantity, there's a shortfall
+      if (receivedQty < leftoverQty && leftoverQty > 0) {
         return {
           ...item,
           index,
-          ordered_quantity: orderedQty,
+          ordered_quantity: parseNumericValue(item.ordered_quantity ?? item.po_quantity ?? 0),
           received_quantity: receivedQty,
-          shortfall_quantity: orderedQty - receivedQty,
+          leftover_quantity: leftoverQty,
+          shortfall_quantity: leftoverQty - receivedQty,
         };
       }
       return null;
