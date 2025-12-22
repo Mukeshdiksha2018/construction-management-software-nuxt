@@ -433,8 +433,14 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
         },
         ...mockItems.slice(1),
       ];
-      const wrapper = mountTable({ items: itemsWithHigherOrderedQty });
+      const wrapper = mountTable({ 
+        items: itemsWithHigherOrderedQty,
+        projectUuid: "project-1",
+        purchaseOrderUuid: "po-1",
+        receiptType: "purchase_order",
+      });
       await flushPromises();
+      await wrapper.vm.$nextTick();
 
       const inputs = wrapper.findAll("input.u-input-stub");
       const receivedInput = inputs[inputs.length - 2];
@@ -746,8 +752,14 @@ describe("ReceiptNoteItemsTable - Comprehensive Tests", () => {
         },
         ...mockItems.slice(1),
       ];
-      const wrapper = mountTable({ items: itemsWithLargeOrderedQty });
+      const wrapper = mountTable({ 
+        items: itemsWithLargeOrderedQty,
+        projectUuid: "project-1",
+        purchaseOrderUuid: "po-1",
+        receiptType: "purchase_order",
+      });
       await flushPromises();
+      await wrapper.vm.$nextTick();
 
       const inputs = wrapper.findAll("input.u-input-stub");
       const receivedInput = inputs[inputs.length - 2];
