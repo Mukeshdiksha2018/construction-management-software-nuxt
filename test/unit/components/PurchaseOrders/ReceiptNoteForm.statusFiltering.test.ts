@@ -224,6 +224,21 @@ vi.mock("@/composables/useCurrencyFormat", () => ({
   }),
 }));
 
+// Mock useLocalPOCOData composable
+const mockLocalPurchaseOrders = ref<any[]>([]);
+const mockLocalChangeOrders = ref<any[]>([]);
+const mockFetchLocalPurchaseOrders = vi.fn();
+const mockFetchLocalChangeOrders = vi.fn();
+
+vi.mock("@/composables/useLocalPOCOData", () => ({
+  useLocalPOCOData: () => ({
+    localPurchaseOrders: mockLocalPurchaseOrders,
+    localChangeOrders: mockLocalChangeOrders,
+    fetchLocalPurchaseOrders: mockFetchLocalPurchaseOrders,
+    fetchLocalChangeOrders: mockFetchLocalChangeOrders,
+  }),
+}));
+
 const uiStubs = {
   UCard: { template: "<div><slot /></div>" },
   UInput: {
@@ -379,6 +394,10 @@ describe("ReceiptNoteForm - Status Filtering", () => {
     users.value = [];
     hasData.value = false;
     
+    // Reset local PO/CO refs
+    mockLocalPurchaseOrders.value = [];
+    mockLocalChangeOrders.value = [];
+    
     // Reset mock to return purchase orders and change orders
     mockFetch.mockImplementation((url: string) => {
       if (url.includes("/api/purchase-order-forms")) {
@@ -407,12 +426,13 @@ describe("ReceiptNoteForm - Status Filtering", () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
       await flushPromises();
 
-      // Access the component instance to check poOptions
-      const vm = wrapper.vm as any;
-      // Manually set localPurchaseOrders since the watcher fetches them
-      vm.localPurchaseOrders = purchaseOrders.value;
+      // Set the local purchase orders ref that the component uses
+      mockLocalPurchaseOrders.value = purchaseOrders.value;
+      await flushPromises();
       await wrapper.vm.$nextTick();
       
+      // Access the component instance to check poOptions
+      const vm = wrapper.vm as any;
       const poOptions = vm.poOptions;
 
       // Should only include Approved and Partially_Received
@@ -427,7 +447,7 @@ describe("ReceiptNoteForm - Status Filtering", () => {
       expect(poOptions.map((opt: any) => opt.value)).not.toContain("po-rejected");
     });
 
-    it("should show all three statuses (Approved, Partially_Received, Completed) when editing existing receipt note", async () => {
+    it("should only show Approved and Partially_Received POs when editing existing receipt note (Completed is excluded)", async () => {
       const wrapper = mountForm({
         uuid: "receipt-note-1", // Existing receipt note
         vendor_uuid: "vendor-1",
@@ -438,21 +458,22 @@ describe("ReceiptNoteForm - Status Filtering", () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
       await flushPromises();
 
-      // Access the component instance to check poOptions
-      const vm = wrapper.vm as any;
-      // Manually set localPurchaseOrders since the watcher fetches them
-      vm.localPurchaseOrders = purchaseOrders.value;
+      // Set the local purchase orders ref that the component uses
+      mockLocalPurchaseOrders.value = purchaseOrders.value;
+      await flushPromises();
       await wrapper.vm.$nextTick();
       
+      // Access the component instance to check poOptions
+      const vm = wrapper.vm as any;
       const poOptions = vm.poOptions;
 
-      // Should include Approved, Partially_Received, and Completed
-      expect(poOptions).toHaveLength(3);
+      // Should only include Approved and Partially_Received (Completed is excluded)
+      expect(poOptions).toHaveLength(2);
       expect(poOptions.map((opt: any) => opt.value)).toContain("po-approved");
       expect(poOptions.map((opt: any) => opt.value)).toContain("po-partially-received");
-      expect(poOptions.map((opt: any) => opt.value)).toContain("po-completed");
       
-      // Should NOT include Draft, Ready, or Rejected
+      // Should NOT include Completed, Draft, Ready, or Rejected
+      expect(poOptions.map((opt: any) => opt.value)).not.toContain("po-completed");
       expect(poOptions.map((opt: any) => opt.value)).not.toContain("po-draft");
       expect(poOptions.map((opt: any) => opt.value)).not.toContain("po-ready");
       expect(poOptions.map((opt: any) => opt.value)).not.toContain("po-rejected");
@@ -483,18 +504,20 @@ describe("ReceiptNoteForm - Status Filtering", () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
       await flushPromises();
 
-      const vm = wrapper.vm as any;
-      // Manually set localPurchaseOrders since the watcher fetches them
-      vm.localPurchaseOrders = purchaseOrders.value;
+      // Set the local purchase orders ref that the component uses
+      mockLocalPurchaseOrders.value = purchaseOrders.value;
+      await flushPromises();
       await wrapper.vm.$nextTick();
       
+      // Access the component instance to check poOptions
+      const vm = wrapper.vm as any;
       const poOptions = vm.poOptions;
 
-      // Should still match despite case differences
-      expect(poOptions).toHaveLength(3);
+      // Should still match despite case differences, but Completed is excluded
+      expect(poOptions).toHaveLength(2);
       expect(poOptions.map((opt: any) => opt.value)).toContain("po-approved");
       expect(poOptions.map((opt: any) => opt.value)).toContain("po-partially-received");
-      expect(poOptions.map((opt: any) => opt.value)).toContain("po-completed");
+      expect(poOptions.map((opt: any) => opt.value)).not.toContain("po-completed");
     });
   });
 
@@ -511,12 +534,13 @@ describe("ReceiptNoteForm - Status Filtering", () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
       await flushPromises();
 
-      // Access the component instance to check coOptions
-      const vm = wrapper.vm as any;
-      // Manually set localChangeOrders since the watcher fetches them
-      vm.localChangeOrders = changeOrders.value;
+      // Set the local change orders ref that the component uses
+      mockLocalChangeOrders.value = changeOrders.value;
+      await flushPromises();
       await wrapper.vm.$nextTick();
       
+      // Access the component instance to check coOptions
+      const vm = wrapper.vm as any;
       const coOptions = vm.coOptions;
 
       // Should only include Approved and Partially_Received
@@ -531,7 +555,7 @@ describe("ReceiptNoteForm - Status Filtering", () => {
       expect(coOptions.map((opt: any) => opt.value)).not.toContain("co-rejected");
     });
 
-    it("should show all three statuses (Approved, Partially_Received, Completed) when editing existing receipt note", async () => {
+    it("should only show Approved and Partially_Received COs when editing existing receipt note (Completed is excluded)", async () => {
       const wrapper = mountForm({
         uuid: "receipt-note-1", // Existing receipt note
         vendor_uuid: "vendor-1",
@@ -543,21 +567,22 @@ describe("ReceiptNoteForm - Status Filtering", () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
       await flushPromises();
 
-      // Access the component instance to check coOptions
-      const vm = wrapper.vm as any;
-      // Manually set localChangeOrders since the watcher fetches them
-      vm.localChangeOrders = changeOrders.value;
+      // Set the local change orders ref that the component uses
+      mockLocalChangeOrders.value = changeOrders.value;
+      await flushPromises();
       await wrapper.vm.$nextTick();
       
+      // Access the component instance to check coOptions
+      const vm = wrapper.vm as any;
       const coOptions = vm.coOptions;
 
-      // Should include Approved, Partially_Received, and Completed
-      expect(coOptions).toHaveLength(3);
+      // Should only include Approved and Partially_Received (Completed is excluded)
+      expect(coOptions).toHaveLength(2);
       expect(coOptions.map((opt: any) => opt.value)).toContain("co-approved");
       expect(coOptions.map((opt: any) => opt.value)).toContain("co-partially-received");
-      expect(coOptions.map((opt: any) => opt.value)).toContain("co-completed");
       
-      // Should NOT include Draft, Ready, or Rejected
+      // Should NOT include Completed, Draft, Ready, or Rejected
+      expect(coOptions.map((opt: any) => opt.value)).not.toContain("co-completed");
       expect(coOptions.map((opt: any) => opt.value)).not.toContain("co-draft");
       expect(coOptions.map((opt: any) => opt.value)).not.toContain("co-ready");
       expect(coOptions.map((opt: any) => opt.value)).not.toContain("co-rejected");
@@ -589,18 +614,20 @@ describe("ReceiptNoteForm - Status Filtering", () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
       await flushPromises();
 
-      const vm = wrapper.vm as any;
-      // Manually set localChangeOrders since the watcher fetches them
-      vm.localChangeOrders = changeOrders.value;
+      // Set the local change orders ref that the component uses
+      mockLocalChangeOrders.value = changeOrders.value;
+      await flushPromises();
       await wrapper.vm.$nextTick();
       
+      // Access the component instance to check coOptions
+      const vm = wrapper.vm as any;
       const coOptions = vm.coOptions;
 
-      // Should still match despite case differences
-      expect(coOptions).toHaveLength(3);
+      // Should still match despite case differences, but Completed is excluded
+      expect(coOptions).toHaveLength(2);
       expect(coOptions.map((opt: any) => opt.value)).toContain("co-approved");
       expect(coOptions.map((opt: any) => opt.value)).toContain("co-partially-received");
-      expect(coOptions.map((opt: any) => opt.value)).toContain("co-completed");
+      expect(coOptions.map((opt: any) => opt.value)).not.toContain("co-completed");
     });
   });
 
@@ -627,11 +654,13 @@ describe("ReceiptNoteForm - Status Filtering", () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
       await flushPromises();
 
-      const vm = wrapper.vm as any;
-      // Manually set localPurchaseOrders since the watcher fetches them
-      vm.localPurchaseOrders = purchaseOrders.value;
+      // Set the local purchase orders ref that the component uses
+      mockLocalPurchaseOrders.value = purchaseOrders.value;
+      await flushPromises();
       await wrapper.vm.$nextTick();
       
+      // Access the component instance to check poOptions
+      const vm = wrapper.vm as any;
       const poOptions = vm.poOptions;
 
       // Should not include PO with empty status
@@ -660,18 +689,20 @@ describe("ReceiptNoteForm - Status Filtering", () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
       await flushPromises();
 
-      const vm = wrapper.vm as any;
-      // Manually set localPurchaseOrders since the watcher fetches them
-      vm.localPurchaseOrders = purchaseOrders.value;
+      // Set the local purchase orders ref that the component uses
+      mockLocalPurchaseOrders.value = purchaseOrders.value;
+      await flushPromises();
       await wrapper.vm.$nextTick();
       
+      // Access the component instance to check poOptions
+      const vm = wrapper.vm as any;
       const poOptions = vm.poOptions;
 
       // Should not include PO from different project
       expect(poOptions.map((opt: any) => opt.value)).not.toContain("po-other-project");
     });
 
-    it("should update options when switching between new and edit mode", async () => {
+    it("should maintain same options when switching between new and edit mode (Completed always excluded)", async () => {
       // Start with new receipt note
       const wrapper = mountForm({
         uuid: null,
@@ -683,15 +714,18 @@ describe("ReceiptNoteForm - Status Filtering", () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
       await flushPromises();
 
-      let vm = wrapper.vm as any;
-      // Manually set localPurchaseOrders since the watcher fetches them
-      vm.localPurchaseOrders = purchaseOrders.value;
+      // Set the local purchase orders ref that the component uses
+      mockLocalPurchaseOrders.value = purchaseOrders.value;
+      await flushPromises();
       await wrapper.vm.$nextTick();
       
+      // Access the component instance to check poOptions
+      let vm = wrapper.vm as any;
       let poOptions = vm.poOptions;
 
       // Should have 2 options (Approved, Partially_Received)
       expect(poOptions).toHaveLength(2);
+      expect(poOptions.map((opt: any) => opt.value)).not.toContain("po-completed");
 
       // Switch to edit mode
       await wrapper.setProps({
@@ -705,16 +739,17 @@ describe("ReceiptNoteForm - Status Filtering", () => {
       await flushPromises();
       await wrapper.vm.$nextTick();
 
-      vm = wrapper.vm as any;
       // Ensure localPurchaseOrders is still set
-      vm.localPurchaseOrders = purchaseOrders.value;
+      mockLocalPurchaseOrders.value = purchaseOrders.value;
+      await flushPromises();
       await wrapper.vm.$nextTick();
       
+      vm = wrapper.vm as any;
       poOptions = vm.poOptions;
 
-      // Should now have 3 options (Approved, Partially_Received, Completed)
-      expect(poOptions).toHaveLength(3);
-      expect(poOptions.map((opt: any) => opt.value)).toContain("po-completed");
+      // Should still have 2 options (Approved, Partially_Received) - Completed is excluded even when editing
+      expect(poOptions).toHaveLength(2);
+      expect(poOptions.map((opt: any) => opt.value)).not.toContain("po-completed");
     });
   });
 });
