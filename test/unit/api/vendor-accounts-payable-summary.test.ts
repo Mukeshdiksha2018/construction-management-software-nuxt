@@ -405,7 +405,7 @@ describe("server/api/reports/vendor-accounts-payable-summary", () => {
     expect(result.totals.changeOrderAmount).toBeCloseTo(3729.79, 2)
   })
 
-  it("should calculate invoice values correctly for paid invoices only", async () => {
+  it("should calculate invoice values correctly - totalInvoiceValue includes all invoices, paidToDate only paid", async () => {
     const globals = stubGlobals()
     globals.mockGetQuery.mockReturnValue({
       corporation_uuid: "corp-1",
@@ -460,7 +460,7 @@ describe("server/api/reports/vendor-accounts-payable-summary", () => {
         uuid: "inv-3",
         vendor_uuid: "vendor-1",
         invoice_type: "AGAINST_PO",
-        status: "Draft", // Should not be included
+        status: "Draft", // Should be included in totalInvoiceValue but not in paidToDate
         amount: 3000,
         holdback: null,
         financial_breakdown: JSON.stringify({
@@ -552,10 +552,10 @@ describe("server/api/reports/vendor-accounts-payable-summary", () => {
 
     const result = await handler.default(event)
 
-    expect(result.vendors[0].totalInvoiceValue).toBe(15000) // Only paid invoices: 10000 + 5000
-    expect(result.vendors[0].paidToDate).toBe(15000) // All paid invoices
+    expect(result.vendors[0].totalInvoiceValue).toBe(18000) // All invoices regardless of status: 10000 + 5000 + 3000
+    expect(result.vendors[0].paidToDate).toBe(15000) // Only paid invoices: 10000 + 5000
     expect(result.vendors[0].tax).toBe(1800) // Tax from all invoices (paid + draft): 1000 + 500 + 300
-    expect(result.totals.totalInvoiceValue).toBe(15000)
+    expect(result.totals.totalInvoiceValue).toBe(18000)
     expect(result.totals.paidToDate).toBe(15000)
     expect(result.totals.tax).toBe(1800)
   })

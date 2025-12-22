@@ -1389,7 +1389,7 @@ describe('PurchaseOrderDetailsInvoiceSummary.vue', () => {
       wrapper.unmount()
     })
 
-    it('handles labor PO items correctly', async () => {
+    it('excludes labor PO from the report', async () => {
       const { pinia } = setupStores()
 
       const currentYear = new Date().getFullYear()
@@ -1400,20 +1400,10 @@ describe('PurchaseOrderDetailsInvoiceSummary.vue', () => {
         entry_date: `${currentYear}-06-15T00:00:00.000Z`,
       }
 
-      const laborItems = [
-        {
-          uuid: 'labor-item-1',
-          purchase_order_uuid: 'po-1',
-          po_amount: 53592.54,
-        },
-      ]
-
       mockFetch
         .mockResolvedValueOnce({ data: [laborPO] })
         .mockResolvedValueOnce({ data: [] })
         .mockResolvedValueOnce({ data: mockVendors })
-        .mockResolvedValueOnce({ data: laborItems })
-        .mockResolvedValueOnce({ data: [] })
 
       const wrapper = mount(PurchaseOrderDetailsInvoiceSummary, {
         global: {
@@ -1432,7 +1422,12 @@ describe('PurchaseOrderDetailsInvoiceSummary.vue', () => {
       await (wrapper.vm as any).loadReport()
       await flushPromises()
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/labor-purchase-order-items', expect.any(Object))
+      // Verify that labor-purchase-order-items API was NOT called
+      expect(mockFetch).not.toHaveBeenCalledWith('/api/labor-purchase-order-items', expect.any(Object))
+
+      // Verify that labor PO is excluded from report
+      const reportData = (wrapper.vm as any).reportData
+      expect(reportData.length).toBe(0)
 
       wrapper.unmount()
     })

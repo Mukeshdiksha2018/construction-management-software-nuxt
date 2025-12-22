@@ -670,14 +670,13 @@ describe("PurchaseOrderBreakout.vue", () => {
       wrapper.unmount();
     });
 
-    it("filters only approved purchase orders", async () => {
+    it("filters only approved purchase orders and excludes labor POs", async () => {
       const { pinia } = setupStores();
 
       mockFetch
         .mockResolvedValueOnce({ data: mockPurchaseOrders })
         .mockResolvedValueOnce({ data: mockVendors })
-        .mockResolvedValueOnce({ data: mockItems })
-        .mockResolvedValueOnce({ data: mockLaborItems });
+        .mockResolvedValueOnce({ data: mockItems });
 
       const wrapper = mount(PurchaseOrderBreakout, {
         global: {
@@ -696,15 +695,21 @@ describe("PurchaseOrderBreakout.vue", () => {
       await (wrapper.vm as any).loadReport();
       await flushPromises();
 
-      // Should only include approved POs (po-1 and po-2), not po-3 (Draft)
+      // Should only include approved non-labor POs (po-1), not po-2 (LABOR) or po-3 (Draft)
       const reportData = (wrapper.vm as any).reportData;
-      expect(reportData.length).toBe(2);
+      expect(reportData.length).toBe(1);
       expect(reportData.every((po: any) => po.status === "Approved")).toBe(
         true
       );
+      expect(reportData.every((po: any) => po.po_type !== "LABOR")).toBe(
+        true
+      );
+      expect(
+        reportData.find((po: any) => po.po_number === "PO-002")
+      ).toBeUndefined(); // LABOR PO should be excluded
       expect(
         reportData.find((po: any) => po.po_number === "PO-003")
-      ).toBeUndefined();
+      ).toBeUndefined(); // Draft PO should be excluded
 
       wrapper.unmount();
     });
@@ -820,17 +825,16 @@ describe("PurchaseOrderBreakout.vue", () => {
       wrapper.unmount();
     });
 
-    it("handles labor purchase orders correctly", async () => {
+    it("excludes labor purchase orders from the report", async () => {
       const { pinia } = setupStores();
 
       // Set up mocks in the order they will be called:
       // 1. purchase-order-forms
       // 2. vendors
-      // 3. labor-purchase-order-items (for LABOR PO)
+      // Note: labor-purchase-order-items should NOT be called since labor POs are excluded
       mockFetch
         .mockResolvedValueOnce({ data: [mockPurchaseOrders[1]] }) // LABOR PO
-        .mockResolvedValueOnce({ data: mockVendors }) // Vendors fetch
-        .mockResolvedValueOnce({ data: mockLaborItems }); // Labor items fetch
+        .mockResolvedValueOnce({ data: mockVendors }); // Vendors fetch
 
       const wrapper = mount(PurchaseOrderBreakout, {
         global: {
@@ -851,25 +855,18 @@ describe("PurchaseOrderBreakout.vue", () => {
       await nextTick();
       await flushPromises();
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        "/api/labor-purchase-order-items",
-        expect.objectContaining({
-          method: "GET",
-          params: { purchase_order_uuid: "po-2" },
-        })
-      );
-
-      // Verify that labor items API was called
-      expect(mockFetch).toHaveBeenCalledWith(
+      // Verify that labor items API was NOT called
+      expect(mockFetch).not.toHaveBeenCalledWith(
         "/api/labor-purchase-order-items",
         expect.any(Object)
       );
 
+      // Verify that labor PO is excluded from report
       const reportData = (wrapper.vm as any).reportData;
-      expect(reportData.length).toBeGreaterThan(0);
-      // Verify items property exists (value may vary based on async timing)
-      expect(reportData[0]).toHaveProperty("items");
-      expect(Array.isArray(reportData[0].items)).toBe(true);
+      expect(reportData.length).toBe(0);
+      expect(
+        reportData.find((po: any) => po.po_number === "PO-002")
+      ).toBeUndefined();
 
       wrapper.unmount();
     });
