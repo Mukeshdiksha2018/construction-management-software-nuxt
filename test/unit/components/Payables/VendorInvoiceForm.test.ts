@@ -2065,6 +2065,423 @@ describe("VendorInvoiceForm.vue", () => {
         }
       }
     });
+
+    it("updates amount to match exact value from financial_breakdown.totals.amount for direct invoice", async () => {
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form: {
+            ...baseForm,
+            project_uuid: "project-1",
+            invoice_type: "ENTER_DIRECT_INVOICE",
+            vendor_uuid: "vendor-1",
+            line_items: [{ id: "item-1", unit_price: 100, quantity: 1, total: 100 }],
+            amount: 100,
+          },
+          editingInvoice: false,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      const financialBreakdowns = wrapper.findAllComponents({ name: "FinancialBreakdown" });
+      if (financialBreakdowns.length > 0 && financialBreakdowns[0]) {
+        // FinancialBreakdown emits updates with financial_breakdown.totals.amount = 90
+        await financialBreakdowns[0].vm.$emit("update", {
+          item_total: 80,
+          charges_total: 5,
+          tax_total: 5,
+          amount: 90, // This is what FinancialBreakdown displays
+          financial_breakdown: {
+            charges: {},
+            sales_taxes: {},
+            totals: {
+              item_total: 80,
+              charges_total: 5,
+              tax_total: 5,
+              amount: 90, // This is the displayed value in FinancialBreakdown
+            },
+          },
+        });
+
+        await flushPromises();
+
+        const emittedForms = wrapper.emitted("update:form") as VendorInvoiceFormData[][] | undefined;
+        expect(emittedForms).toBeTruthy();
+        if (emittedForms && emittedForms.length > 0) {
+          const lastForm = emittedForms[emittedForms.length - 1]?.[0] as VendorInvoiceFormData | undefined;
+          if (lastForm) {
+            // The amount should match exactly what's in financial_breakdown.totals.amount (90)
+            expect(lastForm.amount).toBe(90);
+            expect(lastForm.financial_breakdown?.totals?.amount).toBe(90);
+          }
+        }
+      }
+    });
+
+    it("updates amount to match exact value from financial_breakdown.totals.amount for advance payment invoice", async () => {
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form: {
+            ...baseForm,
+            project_uuid: "project-1",
+            invoice_type: "AGAINST_ADVANCE_PAYMENT",
+            vendor_uuid: "vendor-1",
+            po_co_uuid: "PO:po-1",
+            advance_payment_cost_codes: [
+              {
+                id: "row-1",
+                cost_code_uuid: "cc-1",
+                totalAmount: 100,
+                advanceAmount: 50,
+                gl_account_uuid: "gl-1",
+              },
+            ],
+            amount: 50,
+          },
+          editingInvoice: false,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      const financialBreakdowns = wrapper.findAllComponents({ name: "FinancialBreakdown" });
+      if (financialBreakdowns.length > 0 && financialBreakdowns[0]) {
+        // FinancialBreakdown emits updates with financial_breakdown.totals.amount = 90
+        await financialBreakdowns[0].vm.$emit("update", {
+          item_total: 50,
+          charges_total: 0,
+          tax_total: 0,
+          amount: 90, // This is what FinancialBreakdown displays
+          financial_breakdown: {
+            charges: {},
+            sales_taxes: {},
+            totals: {
+              item_total: 50,
+              charges_total: 0,
+              tax_total: 0,
+              amount: 90, // This is the displayed value in FinancialBreakdown
+            },
+          },
+        });
+
+        await flushPromises();
+
+        const emittedForms = wrapper.emitted("update:form") as VendorInvoiceFormData[][] | undefined;
+        expect(emittedForms).toBeTruthy();
+        if (emittedForms && emittedForms.length > 0) {
+          const lastForm = emittedForms[emittedForms.length - 1]?.[0] as VendorInvoiceFormData | undefined;
+          if (lastForm) {
+            // The amount should match exactly what's in financial_breakdown.totals.amount (90)
+            expect(lastForm.amount).toBe(90);
+            expect(lastForm.financial_breakdown?.totals?.amount).toBe(90);
+          }
+        }
+      }
+    });
+
+    it("updates amount to match exact value from financial_breakdown.totals.amount for against PO invoice", async () => {
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form: {
+            ...baseForm,
+            project_uuid: "project-1",
+            invoice_type: "AGAINST_PO",
+            vendor_uuid: "vendor-1",
+            purchase_order_uuid: "po-1",
+            po_number: "PO-001",
+            amount: 100,
+          },
+          editingInvoice: false,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      const financialBreakdowns = wrapper.findAllComponents({ name: "FinancialBreakdown" });
+      if (financialBreakdowns.length > 0 && financialBreakdowns[0]) {
+        // FinancialBreakdown emits updates with financial_breakdown.totals.amount = 90
+        await financialBreakdowns[0].vm.$emit("update", {
+          item_total: 80,
+          charges_total: 5,
+          tax_total: 5,
+          amount: 90, // This is what FinancialBreakdown displays
+          financial_breakdown: {
+            charges: {},
+            sales_taxes: {},
+            totals: {
+              item_total: 80,
+              charges_total: 5,
+              tax_total: 5,
+              amount: 90, // This is the displayed value in FinancialBreakdown
+            },
+          },
+        });
+
+        await flushPromises();
+
+        const emittedForms = wrapper.emitted("update:form") as VendorInvoiceFormData[][] | undefined;
+        expect(emittedForms).toBeTruthy();
+        if (emittedForms && emittedForms.length > 0) {
+          const lastForm = emittedForms[emittedForms.length - 1]?.[0] as VendorInvoiceFormData | undefined;
+          if (lastForm) {
+            // The amount should match exactly what's in financial_breakdown.totals.amount (90)
+            expect(lastForm.amount).toBe(90);
+            expect(lastForm.financial_breakdown?.totals?.amount).toBe(90);
+          }
+        }
+      }
+    });
+
+    it("updates amount to match exact value from financial_breakdown.totals.amount for against CO invoice", async () => {
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form: {
+            ...baseForm,
+            project_uuid: "project-1",
+            invoice_type: "AGAINST_CO",
+            vendor_uuid: "vendor-1",
+            change_order_uuid: "co-1",
+            co_number: "CO-001",
+            amount: 100,
+          },
+          editingInvoice: false,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      const financialBreakdowns = wrapper.findAllComponents({ name: "FinancialBreakdown" });
+      if (financialBreakdowns.length > 0 && financialBreakdowns[0]) {
+        // FinancialBreakdown emits updates with financial_breakdown.totals.amount = 90
+        await financialBreakdowns[0].vm.$emit("update", {
+          item_total: 80,
+          charges_total: 5,
+          tax_total: 5,
+          amount: 90, // This is what FinancialBreakdown displays
+          financial_breakdown: {
+            charges: {},
+            sales_taxes: {},
+            totals: {
+              item_total: 80,
+              charges_total: 5,
+              tax_total: 5,
+              amount: 90, // This is the displayed value in FinancialBreakdown
+            },
+          },
+        });
+
+        await flushPromises();
+
+        const emittedForms = wrapper.emitted("update:form") as VendorInvoiceFormData[][] | undefined;
+        expect(emittedForms).toBeTruthy();
+        if (emittedForms && emittedForms.length > 0) {
+          const lastForm = emittedForms[emittedForms.length - 1]?.[0] as VendorInvoiceFormData | undefined;
+          if (lastForm) {
+            // The amount should match exactly what's in financial_breakdown.totals.amount (90)
+            expect(lastForm.amount).toBe(90);
+            expect(lastForm.financial_breakdown?.totals?.amount).toBe(90);
+          }
+        }
+      }
+    });
+
+    it("updates amount to match exact value from financial_breakdown.totals.amount for against holdback invoice", async () => {
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form: {
+            ...baseForm,
+            project_uuid: "project-1",
+            invoice_type: "AGAINST_HOLDBACK_AMOUNT",
+            vendor_uuid: "vendor-1",
+            holdback_invoice_uuid: "holdback-invoice-1",
+            purchase_order_uuid: "po-1",
+            amount: 100,
+          },
+          editingInvoice: false,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      const financialBreakdowns = wrapper.findAllComponents({ name: "FinancialBreakdown" });
+      if (financialBreakdowns.length > 0 && financialBreakdowns[0]) {
+        // FinancialBreakdown emits updates with financial_breakdown.totals.amount = 90
+        await financialBreakdowns[0].vm.$emit("update", {
+          item_total: 80,
+          charges_total: 5,
+          tax_total: 5,
+          amount: 90, // This is what FinancialBreakdown displays
+          financial_breakdown: {
+            charges: {},
+            sales_taxes: {},
+            totals: {
+              item_total: 80,
+              charges_total: 5,
+              tax_total: 5,
+              amount: 90, // This is the displayed value in FinancialBreakdown
+            },
+          },
+        });
+
+        await flushPromises();
+
+        const emittedForms = wrapper.emitted("update:form") as VendorInvoiceFormData[][] | undefined;
+        expect(emittedForms).toBeTruthy();
+        if (emittedForms && emittedForms.length > 0) {
+          const lastForm = emittedForms[emittedForms.length - 1]?.[0] as VendorInvoiceFormData | undefined;
+          if (lastForm) {
+            // The amount should match exactly what's in financial_breakdown.totals.amount (90)
+            expect(lastForm.amount).toBe(90);
+            expect(lastForm.financial_breakdown?.totals?.amount).toBe(90);
+          }
+        }
+      }
+    });
+
+    it("uses financial_breakdown.totals.amount when updates.amount is missing", async () => {
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form: {
+            ...baseForm,
+            project_uuid: "project-1",
+            invoice_type: "ENTER_DIRECT_INVOICE",
+            vendor_uuid: "vendor-1",
+            line_items: [{ id: "item-1", unit_price: 100, quantity: 1, total: 100 }],
+            amount: 100,
+          },
+          editingInvoice: false,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      const financialBreakdowns = wrapper.findAllComponents({ name: "FinancialBreakdown" });
+      if (financialBreakdowns.length > 0 && financialBreakdowns[0]) {
+        // Emit update without updates.amount, but with financial_breakdown.totals.amount
+        await financialBreakdowns[0].vm.$emit("update", {
+          item_total: 80,
+          charges_total: 5,
+          tax_total: 5,
+          // No updates.amount field
+          financial_breakdown: {
+            charges: {},
+            sales_taxes: {},
+            totals: {
+              item_total: 80,
+              charges_total: 5,
+              tax_total: 5,
+              amount: 90, // This should be used as fallback
+            },
+          },
+        });
+
+        await flushPromises();
+
+        const emittedForms = wrapper.emitted("update:form") as VendorInvoiceFormData[][] | undefined;
+        expect(emittedForms).toBeTruthy();
+        if (emittedForms && emittedForms.length > 0) {
+          const lastForm = emittedForms[emittedForms.length - 1]?.[0] as VendorInvoiceFormData | undefined;
+          if (lastForm) {
+            // The amount should match financial_breakdown.totals.amount (90)
+            expect(lastForm.amount).toBe(90);
+          }
+        }
+      }
+    });
+
+    it("does not modify amount when it already matches financial_breakdown.totals.amount", async () => {
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form: {
+            ...baseForm,
+            project_uuid: "project-1",
+            invoice_type: "ENTER_DIRECT_INVOICE",
+            vendor_uuid: "vendor-1",
+            line_items: [{ id: "item-1", unit_price: 100, quantity: 1, total: 100 }],
+            amount: 90, // Already matches
+          },
+          editingInvoice: false,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      const financialBreakdowns = wrapper.findAllComponents({ name: "FinancialBreakdown" });
+      if (financialBreakdowns.length > 0 && financialBreakdowns[0]) {
+        // Emit update with same amount (90)
+        await financialBreakdowns[0].vm.$emit("update", {
+          item_total: 80,
+          charges_total: 5,
+          tax_total: 5,
+          amount: 90,
+          financial_breakdown: {
+            charges: {},
+            sales_taxes: {},
+            totals: {
+              item_total: 80,
+              charges_total: 5,
+              tax_total: 5,
+              amount: 90, // Same as current amount
+            },
+          },
+        });
+
+        await flushPromises();
+
+        const emittedForms = wrapper.emitted("update:form") as VendorInvoiceFormData[][] | undefined;
+        expect(emittedForms).toBeTruthy();
+        if (emittedForms && emittedForms.length > 0) {
+          const lastForm = emittedForms[emittedForms.length - 1]?.[0] as VendorInvoiceFormData | undefined;
+          if (lastForm) {
+            // The amount should still be 90 (exact match)
+            expect(lastForm.amount).toBe(90);
+            expect(lastForm.financial_breakdown?.totals?.amount).toBe(90);
+          }
+        }
+      }
+    });
   });
 
   describe("Advance Payment Financial Breakdown Integration", () => {
