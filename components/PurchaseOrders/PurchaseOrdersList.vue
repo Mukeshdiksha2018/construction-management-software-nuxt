@@ -68,6 +68,29 @@
           </div>
         </div>
       </div>
+      
+      <!-- Divider -->
+      <div class="w-px bg-gray-200 dark:bg-gray-700"></div>
+      
+      <!-- To be Raised Section -->
+      <div
+        @click="toggleStatusFilter('ToBeRaised')"
+        :class="[
+          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
+          selectedStatusFilter === 'ToBeRaised'
+            ? 'bg-gray-100 dark:bg-gray-700'
+            : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
+        ]"
+      >
+        <div class="flex flex-col items-center text-center">
+          <div class="text-sm text-gray-700 dark:text-gray-300">
+            To be raised ({{ toBeRaisedStats.count }})
+          </div>
+          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
+            {{ formatCurrency(toBeRaisedStats.totalValue) }}
+          </div>
+        </div>
+      </div>
       </div>
       
       <!-- Add New Button -->
@@ -289,7 +312,53 @@
       class="mb-4"
     />
 
-    <div v-if="purchaseOrders.length && hasPermission('po_view') && isReady">
+    <!-- To be Raised Table - Separate from Purchase Orders Table -->
+    <div v-if="selectedStatusFilter === 'ToBeRaised' && isReady && hasPermission('po_view')" class="mb-6">
+      <UCard variant="soft" class="mb-4">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Items To Be Raised</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Items based on selected project and vendor filters
+            </p>
+          </div>
+        </div>
+        
+        <div v-if="!appliedFilters.project || !appliedFilters.vendor" class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-4">
+          <div class="flex items-center gap-2">
+            <UIcon name="i-heroicons-information-circle" class="w-5 h-5 text-amber-600 dark:text-amber-400" />
+            <p class="text-sm text-amber-800 dark:text-amber-200">
+              Please select both <strong>Project</strong> and <strong>Vendor</strong> from the filters above and click "Show Results" to view items to be raised.
+            </p>
+          </div>
+        </div>
+        
+        <div v-else>
+          <UTable
+            v-if="toBeRaisedItems.length > 0"
+            :data="toBeRaisedItems"
+            :columns="toBeRaisedColumns"
+            :loading="loadingToBeRaisedItems"
+          />
+          <div v-else-if="!loadingToBeRaisedItems" class="text-center py-12">
+            <div class="text-gray-400 mb-4">
+              <UIcon name="i-heroicons-document-text" class="w-12 h-12 mx-auto" />
+            </div>
+            <p class="text-gray-500 text-lg">No items to be raised</p>
+            <p class="text-gray-400 text-sm">No items found for the selected project and vendor</p>
+          </div>
+          <div v-else class="text-center py-12">
+            <div class="text-gray-400 mb-4">
+              <UIcon name="i-heroicons-arrow-path" class="w-12 h-12 mx-auto animate-spin" />
+            </div>
+            <p class="text-gray-500 text-lg">Loading items...</p>
+          </div>
+        </div>
+      </UCard>
+    </div>
+
+    <!-- Purchase Orders Table - Only show when ToBeRaised is NOT selected -->
+    <div v-if="selectedStatusFilter !== 'ToBeRaised' && purchaseOrders.length && hasPermission('po_view') && isReady">
       <UTable 
         ref="table"
         sticky
@@ -886,6 +955,15 @@ const readyStats = computed(() => {
   }
 })
 
+const toBeRaisedStats = computed(() => {
+  // To be raised = Draft status POs that need to be raised to Ready
+  const toBeRaisedPOs = purchaseOrders.value.filter(p => (p.status || 'Draft') === 'Draft')
+  return {
+    count: toBeRaisedPOs.length,
+    totalValue: toBeRaisedPOs.reduce((sum, p) => sum + (Number(p.total_po_amount) || 0), 0)
+  }
+})
+
 const approvedStats = computed(() => {
   const approvedPOs = purchaseOrders.value.filter(p => p.status === 'Approved')
   return {
@@ -955,7 +1033,12 @@ const filteredPurchaseOrders = computed(() => {
   
   // Apply status filter from stats cards if selected
   if (selectedStatusFilter.value) {
-    filtered = filtered.filter(p => p.status === selectedStatusFilter.value)
+    if (selectedStatusFilter.value === 'ToBeRaised') {
+      // To be raised = Draft status POs
+      filtered = filtered.filter(p => (p.status || 'Draft') === 'Draft')
+    } else {
+      filtered = filtered.filter(p => p.status === selectedStatusFilter.value)
+    }
   }
   
   // Apply filter panel filters (only when Show Results is clicked)
@@ -993,7 +1076,108 @@ const handleShowResults = () => {
     location: filterLocation.value,
     status: filterStatus.value
   }
+  
+  // If ToBeRaised is selected and both project and vendor are set, fetch items
+  if (selectedStatusFilter.value === 'ToBeRaised' && appliedFilters.value.project && appliedFilters.value.vendor) {
+    fetchToBeRaisedItems()
+  }
 }
+
+// Fetch items to be raised based on project and vendor
+const fetchToBeRaisedItems = async () => {
+  if (!appliedFilters.value.project || !appliedFilters.value.vendor) {
+    toBeRaisedItems.value = []
+    return
+  }
+  
+  loadingToBeRaisedItems.value = true
+  try {
+    // TODO: Replace with actual API endpoint for fetching items to be raised
+    // This is a placeholder - you'll need to implement the actual API call
+    // based on your business logic for what "items to be raised" means
+    const response: any = await $fetch('/api/items-to-be-raised', {
+      method: 'GET',
+      query: {
+        corporation_uuid: selectedCorporationId.value,
+        project_uuid: appliedFilters.value.project,
+        vendor_uuid: appliedFilters.value.vendor
+      }
+    })
+    
+    toBeRaisedItems.value = Array.isArray(response?.data) ? response.data : []
+  } catch (error: any) {
+    console.error('Error fetching items to be raised:', error)
+    toBeRaisedItems.value = []
+    // Optionally show error toast
+    try {
+      const toast = useToast()
+      toast.add({
+        title: 'Error',
+        description: 'Failed to load items to be raised',
+        color: 'error'
+      })
+    } catch (e) {
+      // Toast not available
+    }
+  } finally {
+    loadingToBeRaisedItems.value = false
+  }
+}
+
+// To be Raised table columns
+const toBeRaisedColumns: TableColumn<any>[] = [
+  {
+    accessorKey: 'cost_code_label',
+    header: 'Cost Code',
+    enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
+    cell: ({ row }: { row: { original: any } }) => h('div', row.original.cost_code_label || 'N/A')
+  },
+  {
+    accessorKey: 'item_name',
+    header: 'Item Name',
+    enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
+    cell: ({ row }: { row: { original: any } }) => h('div', row.original.item_name || row.original.description || 'N/A')
+  },
+  {
+    accessorKey: 'description',
+    header: 'Description',
+    enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
+    cell: ({ row }: { row: { original: any } }) => h('div', row.original.description || 'N/A')
+  },
+  {
+    accessorKey: 'quantity',
+    header: 'Quantity',
+    enableSorting: false,
+    meta: { class: { th: 'text-right', td: 'text-right' } },
+    cell: ({ row }: { row: { original: any } }) => {
+      const qty = row.original.quantity || 0
+      return h('div', { class: 'text-right' }, String(qty))
+    }
+  },
+  {
+    accessorKey: 'unit_price',
+    header: 'Unit Price',
+    enableSorting: false,
+    meta: { class: { th: 'text-right', td: 'text-right' } },
+    cell: ({ row }: { row: { original: any } }) => {
+      const price = row.original.unit_price || 0
+      return h('div', { class: 'text-right font-mono text-sm' }, formatCurrency(price))
+    }
+  },
+  {
+    accessorKey: 'total',
+    header: 'Total',
+    enableSorting: false,
+    meta: { class: { th: 'text-right', td: 'text-right' } },
+    cell: ({ row }: { row: { original: any } }) => {
+      const total = row.original.total || 0
+      return h('div', { class: 'text-right font-mono text-sm font-semibold' }, formatCurrency(total))
+    }
+  }
+]
 
 // Table columns configuration
 const columns: TableColumn<any>[] = [
@@ -1268,6 +1452,10 @@ const toggleStatusFilter = (status: string) => {
     selectedStatusFilter.value = null
   } else {
     selectedStatusFilter.value = status
+    // If switching to ToBeRaised, fetch items when project and vendor are selected
+    if (status === 'ToBeRaised' && appliedFilters.value.project && appliedFilters.value.vendor) {
+      fetchToBeRaisedItems()
+    }
   }
 }
 
