@@ -315,15 +315,6 @@
     <!-- To be Raised Table - Separate from Purchase Orders Table -->
     <div v-if="selectedStatusFilter === 'ToBeRaised' && isReady && hasPermission('po_view')" class="mb-6">
       <UCard variant="soft" class="mb-4">
-        <div class="flex items-center justify-between mb-4">
-          <div>
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Items To Be Raised</h3>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Items based on selected project and vendor filters
-            </p>
-          </div>
-        </div>
-        
         <div v-if="!appliedFilters.project || !appliedFilters.vendor" class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-4">
           <div class="flex items-center gap-2">
             <UIcon name="i-heroicons-information-circle" class="w-5 h-5 text-amber-600 dark:text-amber-400" />
@@ -387,7 +378,7 @@
       <p class="text-gray-400 text-sm">You don't have permission to view purchase orders</p>
     </div>
 
-    <div v-else-if="isReady" class="text-center py-12">
+    <div v-else-if="selectedStatusFilter !== 'ToBeRaised' && isReady" class="text-center py-12">
       <div class="text-gray-400 mb-4">
         <UIcon name="i-heroicons-shopping-cart" class="w-12 h-12 mx-auto" />
       </div>
