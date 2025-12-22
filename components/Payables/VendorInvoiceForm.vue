@@ -395,6 +395,7 @@
         :readonly="props.readonly"
         :adjusted-amounts="adjustedAdvancePaymentAmounts"
         :previously-adjusted-cost-codes="previouslyAdjustedCostCodes"
+        :is-invoice-saved="!!(form.uuid && props.editingInvoice)"
         @adjusted-amount-change="handleAdjustedAmountChange"
         @adjusted-amounts-update="handleAdjustedAmountsUpdate"
       />
@@ -426,6 +427,7 @@
         :readonly="props.readonly"
         :adjusted-amounts="adjustedAdvancePaymentAmounts"
         :previously-adjusted-cost-codes="previouslyAdjustedCostCodes"
+        :is-invoice-saved="!!(form.uuid && props.editingInvoice)"
         @adjusted-amount-change="handleAdjustedAmountChange"
         @adjusted-amounts-update="handleAdjustedAmountsUpdate"
       />

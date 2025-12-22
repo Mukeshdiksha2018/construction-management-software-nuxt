@@ -175,7 +175,7 @@
                     placeholder="0.00"
                     size="xs"
                     class="w-24"
-                    :disabled="readonly"
+                    :disabled="readonly || isInvoiceSaved"
                     @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab') e.preventDefault(); }"
                     @update:model-value="handleAdjustedAmountChange(payment.uuid, costCode, $event)"
                   />
@@ -248,6 +248,7 @@ interface Props {
   readonly?: boolean
   adjustedAmounts?: Record<string, Record<string, number>> // Map of advancePaymentUuid -> costCodeUuid -> adjustedAmount
   previouslyAdjustedCostCodes?: PreviouslyAdjustedCostCode[] // Cost codes that were previously adjusted for this invoice
+  isInvoiceSaved?: boolean // Whether the invoice is saved (has UUID and is being edited)
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -257,7 +258,8 @@ const props = withDefaults(defineProps<Props>(), {
   showAdjustmentInputs: false,
   readonly: false,
   adjustedAmounts: () => ({}),
-  previouslyAdjustedCostCodes: () => []
+  previouslyAdjustedCostCodes: () => [],
+  isInvoiceSaved: false
 })
 
 const emit = defineEmits<{
@@ -336,6 +338,8 @@ const footerColspan = computed(() => {
 const hasOverAdjustedAmount = (payment: any): boolean => {
   if (!payment.costCodes || payment.costCodes.length === 0) return false
   if (!props.showAdjustmentInputs) return false
+  // Skip validation if invoice is saved (already adjusted amounts should not be validated)
+  if (props.isInvoiceSaved) return false
   
   return payment.costCodes.some((costCode: any) => {
     const costCodeUuid = costCode.cost_code_uuid || costCode.uuid
@@ -465,6 +469,10 @@ const getAdjustedAmount = (advancePaymentUuid: string, costCodeUuid: string): st
 
 // Handle adjusted amount change
 const handleAdjustedAmountChange = (advancePaymentUuid: string, costCode: any, value: string | null) => {
+  // Prevent changes if invoice is saved (already adjusted amounts should not be changed)
+  if (props.isInvoiceSaved) {
+    return
+  }
   // IMPORTANT: Prioritize cost_code_uuid over uuid to match the database storage
   // cost_code_uuid is the foreign key to cost_code_configurations
   // uuid is the row ID of advance_payment_cost_codes table
