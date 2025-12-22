@@ -821,10 +821,9 @@ const poOptions = computed(() => {
     : null;
 
   // Determine allowed statuses based on whether we're editing an existing receipt note
+  // Note: 'Completed' status is excluded because receipt notes should not be created for completed POs/COs
   const isEditing = props.editingReceiptNote || !!props.form.uuid;
-  const allowedStatuses = isEditing
-    ? ['Approved', 'Partially_Received', 'Completed']
-    : ['Approved', 'Partially_Received'];
+  const allowedStatuses = ['Approved', 'Partially_Received'];
 
   // Get current PO UUID if editing (for fallback when vendor is not set)
   const currentPoUuid = props.form.purchase_order_uuid || null;
@@ -943,10 +942,9 @@ const coOptions = computed(() => {
     : null;
 
   // Determine allowed statuses based on whether we're editing an existing receipt note
+  // Note: 'Completed' status is excluded because receipt notes should not be created for completed POs/COs
   const isEditing = props.editingReceiptNote || !!props.form.uuid;
-  const allowedStatuses = isEditing
-    ? ['Approved', 'Partially_Received', 'Completed']
-    : ['Approved', 'Partially_Received'];
+  const allowedStatuses = ['Approved', 'Partially_Received'];
 
   // Get current CO UUID if editing (for fallback when vendor/project is not set)
   const currentCoUuid = props.form.change_order_uuid || null;
