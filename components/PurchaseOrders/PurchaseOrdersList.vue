@@ -373,7 +373,7 @@
     <!-- Items Table - Show when filters are applied and data exists or is loading -->
     <!-- Always show this table when data exists or is loading, regardless of status filter -->
     <div v-if="(itemsTableData.length > 0 || loadingItemsTable) && hasPermission('po_view') && isReady && appliedFilters.corporation && appliedFilters.project" class="mb-6">
-      <div class="bg-gray-50 dark:bg-gray-800 rounded-lg overflow-hidden">
+      <div class="bg-gray-50 dark:bg-gray-800 rounded-lg overflow-x-auto">
         <!-- Loading State -->
         <div v-if="loadingItemsTable && itemsTableData.length === 0" class="text-center py-12">
           <div class="text-gray-400 mb-4">
@@ -385,11 +385,18 @@
         <!-- Table with Data -->
         <UTable
           v-else-if="itemsTableData.length > 0"
+          sticky
+          v-model:column-pinning="itemsTableColumnPinning"
           :data="itemsTableData"
           :columns="itemsTableColumns"
           :loading="loadingItemsTable"
           v-model:selected="selectedItemsTableRows"
           :selectable="true"
+          class="w-full overflow-x-auto"
+          :ui="{
+            td: 'p-4 text-sm text-muted whitespace-normal break-words',
+            tr: 'h-auto'
+          }"
         />
       </div>
     </div>
@@ -1121,6 +1128,13 @@ const filteredPurchaseOrders = computed(() => {
 // Items table data (for the main Show button functionality)
 const selectedItemsTableRows = ref<any[]>([])
 
+// Column pinning for items table (pin quantity columns to the right)
+// Order matters: columns are pinned from left to right in the array
+const itemsTableColumnPinning = ref({
+  left: [],
+  right: ['budget_qty', 'po_qty', 'pending_qty']
+})
+
 // To be Raised items state
 const toBeRaisedItems = ref<any[]>([])
 const loadingToBeRaisedItems = ref(false)
@@ -1343,15 +1357,33 @@ const itemsTableColumns: TableColumn<any>[] = [
     accessorKey: 'item_type_label',
     header: 'Type',
     enableSorting: false,
-    meta: { class: { th: 'text-left', td: 'text-left' } },
-    cell: ({ row }: { row: { original: any } }) => h('div', row.original.item_type_label || 'N/A')
+    size: 100,
+    meta: { 
+      class: { 
+        th: 'text-left', 
+        td: 'text-left break-words' 
+      } 
+    },
+    cell: ({ row }: { row: { original: any } }) => h('div', { 
+      class: 'break-words',
+      style: { minWidth: '80px', maxWidth: '100px' }
+    }, row.original.item_type_label || 'N/A')
   },
   {
     accessorKey: 'item_name',
     header: 'Item',
     enableSorting: false,
-    meta: { class: { th: 'text-left', td: 'text-left' } },
-    cell: ({ row }: { row: { original: any } }) => h('div', row.original.item_name || row.original.description || 'N/A')
+    size: 150,
+    meta: { 
+      class: { 
+        th: 'text-left', 
+        td: 'text-left break-words' 
+      } 
+    },
+    cell: ({ row }: { row: { original: any } }) => h('div', { 
+      class: 'break-words',
+      style: { minWidth: '120px', maxWidth: '150px' }
+    }, row.original.item_name || row.original.description || 'N/A')
   },
   {
     accessorKey: 'description',
@@ -1368,40 +1400,56 @@ const itemsTableColumns: TableColumn<any>[] = [
     cell: ({ row }: { row: { original: any } }) => h('div', row.original.location || 'N/A')
   },
   {
+    id: 'budget_qty',
     accessorKey: 'budget_qty',
     header: 'Budget Qty',
     enableSorting: false,
-    meta: { class: { th: 'text-right', td: 'text-right' } },
+    size: 120,
+    meta: { 
+      class: { th: 'text-right whitespace-nowrap', td: 'text-right whitespace-nowrap' }
+    },
     cell: ({ row }: { row: { original: any } }) => {
       const qty = row.original.budget_qty || 0
       return h('div', { class: 'text-right' }, String(qty))
     }
   },
   {
+    id: 'po_qty',
     accessorKey: 'po_qty',
     header: 'PO Qty',
     enableSorting: false,
-    meta: { class: { th: 'text-right', td: 'text-right' } },
+    size: 120,
+    meta: { 
+      class: { th: 'text-right whitespace-nowrap', td: 'text-right whitespace-nowrap' }
+    },
     cell: ({ row }: { row: { original: any } }) => {
       const qty = row.original.po_qty || 0
       return h('div', { class: 'text-right' }, String(qty))
     }
   },
   {
+    id: 'pending_qty',
     accessorKey: 'pending_qty',
     header: 'Pending Qty',
     enableSorting: false,
-    meta: { class: { th: 'text-right', td: 'text-right' } },
+    size: 120,
+    meta: { 
+      class: { th: 'text-right whitespace-nowrap', td: 'text-right whitespace-nowrap' }
+    },
     cell: ({ row }: { row: { original: any } }) => {
       const qty = row.original.pending_qty || 0
       return h('div', { class: 'text-right' }, String(qty))
     }
   },
   {
+    id: 'status',
     accessorKey: 'status',
     header: 'Status',
     enableSorting: false,
-    meta: { class: { th: 'text-left', td: 'text-left' } },
+    size: 100,
+    meta: { 
+      class: { th: 'text-left whitespace-nowrap', td: 'text-left whitespace-nowrap' }
+    },
     cell: ({ row }: { row: { original: any } }) => {
       const status = row.original.status || 'Pending'
       const isPartial = status === 'Partial'
