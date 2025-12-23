@@ -275,6 +275,8 @@ import ProjectSelect from '@/components/Shared/ProjectSelect.vue';
 interface CustomerFormProps {
   modelValue: boolean;
   customer?: any;
+  initialCorporationUuid?: string | null;
+  initialProjectUuid?: string | null;
 }
 
 interface CustomerFormEmits {
@@ -283,7 +285,9 @@ interface CustomerFormEmits {
 }
 
 const props = withDefaults(defineProps<CustomerFormProps>(), {
-  customer: null
+  customer: null,
+  initialCorporationUuid: null,
+  initialProjectUuid: null
 });
 
 const emit = defineEmits<CustomerFormEmits>();
@@ -340,8 +344,8 @@ const form = ref({
 // Methods
 function resetForm() {
   form.value = {
-    corporation_uuid: corpStore.selectedCorporation?.uuid || "",
-    project_uuid: null,
+    corporation_uuid: props.initialCorporationUuid || corpStore.selectedCorporation?.uuid || "",
+    project_uuid: props.initialProjectUuid || null,
     customer_address: "",
     customer_city: "",
     customer_state: "",

@@ -1026,6 +1026,8 @@
     <CustomerForm 
       v-model="showCustomerModal" 
       :customer="null"
+      :initial-corporation-uuid="form.corporation_uuid || corpStore.selectedCorporation?.uuid || null"
+      :initial-project-uuid="form.uuid || form.id || null"
       @customer-saved="handleCustomerSaved"
     />
   </div>
