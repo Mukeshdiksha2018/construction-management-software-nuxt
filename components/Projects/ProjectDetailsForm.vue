@@ -134,15 +134,29 @@
                     <label class="block text-xs font-medium text-default mb-1">
                       Customer
                     </label>
-                    <CustomerSelect
-                      :model-value="form.customer_uuid"
-                      :corporation-uuid="form.corporation_uuid"
-                      :project-uuid="form.uuid || form.id || null"
-                      placeholder="Select customer"
-                      size="sm"
-                      class="w-full"
-                      @update:model-value="(value) => handleFormUpdate('customer_uuid', value)"
-                    />
+                    <div class="flex items-stretch gap-0 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 overflow-hidden focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/40 transition-colors">
+                      <div class="flex-1 [&>div]:border-0 [&>div]:rounded-none [&_button]:border-0 [&_button]:rounded-none [&_button]:bg-transparent">
+                        <CustomerSelect
+                          :model-value="form.customer_uuid"
+                          :corporation-uuid="form.corporation_uuid"
+                          :project-uuid="form.uuid || form.id || null"
+                          placeholder="Select customer"
+                          size="sm"
+                          class="w-full"
+                          @update:model-value="(value) => handleFormUpdate('customer_uuid', value)"
+                        />
+                      </div>
+                      <UButton
+                        icon="i-heroicons-plus"
+                        size="xs"
+                        color="primary"
+                        variant="soft"
+                        class="shrink-0 rounded-none border-l border-gray-300 dark:border-gray-600 h-auto m-0"
+                        :disabled="!form.corporation_uuid && !corpStore.selectedCorporation"
+                        @click="openCustomerModal"
+                        title="Add new customer"
+                      />
+                    </div>
                   </div>
 
                   <!-- Project Type -->
@@ -1009,6 +1023,13 @@
       @error="onAuditLogError"
       @export="onExportAuditLogs"
     />
+
+    <!-- Customer Form Modal -->
+    <CustomerForm 
+      v-model="showCustomerModal" 
+      :customer="null"
+      @customer-saved="handleCustomerSaved"
+    />
   </div>
 </template>
 
@@ -1020,6 +1041,7 @@ import { useProjectTypesStore } from "@/stores/projectTypes";
 import { useServiceTypesStore } from "@/stores/serviceTypes";
 import { useProjectAddressesStore, type ProjectAddress } from "@/stores/projectAddresses";
 import { useProjectsStore } from "@/stores/projects";
+import { useCustomerStore } from '@/stores/customers';
 import { useAuditLog } from '@/composables/useAuditLog';
 import { useUTCDateFormat } from '@/composables/useUTCDateFormat';
 import { useCurrencyFormat } from '@/composables/useCurrencyFormat';
@@ -1029,6 +1051,7 @@ import ProjectTypeSelect from '@/components/Shared/ProjectTypeSelect.vue';
 import ServiceTypeSelect from '@/components/Shared/ServiceTypeSelect.vue';
 import CorporationSelect from '@/components/Shared/CorporationSelect.vue';
 import CustomerSelect from '@/components/Shared/CustomerSelect.vue';
+import CustomerForm from '@/components/Customers/CustomerForm.vue';
 
 // Props
 interface Props {
@@ -1061,6 +1084,7 @@ const projectTypesStore = useProjectTypesStore();
 const serviceTypesStore = useServiceTypesStore();
 const projectAddressesStore = useProjectAddressesStore();
 const projectsStore = useProjectsStore();
+const customerStore = useCustomerStore();
 
 // Currency formatting
 const { formatCurrency } = useCurrencyFormat();
@@ -1106,6 +1130,9 @@ const editingAddress = ref(false);
 const editingAddressUuid = ref<string | null>(null);
 const editingAddressIndex = ref<number | null>(null);
 const isSavingAddress = ref(false);
+
+// Customer management functionality
+const showCustomerModal = ref(false);
 const addressForm = ref({
   address_type: null as string | null,
   contact_person: '',
@@ -2121,6 +2148,36 @@ watch(() => hasAreaOrRooms.value, (isValid) => {
 
 // Note: Existing project documents are now loaded in the parent component (ProjectDetails.vue)
 // when editing a project, so we don't need to load them here
+
+// Customer management methods
+const openCustomerModal = () => {
+  const corporationUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
+  if (!corporationUuid) {
+    const toast = useToast();
+    toast.add({
+      title: 'Error',
+      description: 'Please select a corporation first before adding customers.',
+      icon: 'i-heroicons-exclamation-triangle',
+      color: 'error'
+    });
+    return;
+  }
+  showCustomerModal.value = true;
+};
+
+const handleCustomerSaved = async () => {
+  const corporationUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
+  const projectUuid = props.form.uuid || props.form.id || null;
+  
+  if (corporationUuid) {
+    // Refresh customers list to include the newly created customer
+    await customerStore.fetchCustomers(corporationUuid, projectUuid, false);
+    
+    // Optionally, you could auto-select the newly created customer here
+    // by finding the most recently created customer and setting it
+    // For now, we'll just refresh the list and let the user select manually
+  }
+};
 
 // Address management methods
 const openAddressModal = () => {
