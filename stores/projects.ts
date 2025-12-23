@@ -731,6 +731,63 @@ export const useProjectsStore = defineStore(
       }
     };
 
+    // Local customers for ProjectDetailsForm (doesn't affect global customer store)
+    const localCustomers = ref<any[]>([]);
+    const customersLoading = ref(false);
+    const customersError = ref<string | null>(null);
+    const lastFetchedCustomersCorporation = ref<string | null>(null);
+
+    /**
+     * Fetch customers for a specific corporation (local, doesn't affect global store)
+     * Used by ProjectDetailsForm when working with a different corporation than TopBar
+     */
+    const fetchLocalCustomers = async (
+      corporationUUID: string,
+      projectUUID?: string | null,
+      forceRefresh = false
+    ) => {
+      // Skip fetch if we already have data for this corporation and not forcing refresh
+      if (!forceRefresh && lastFetchedCustomersCorporation.value === corporationUUID && localCustomers.value.length > 0) {
+        return;
+      }
+
+      // Only fetch on client side to avoid SSR issues
+      if (process.server) {
+        return;
+      }
+
+      customersLoading.value = true;
+      customersError.value = null;
+      try {
+        const { apiFetch } = useApiClient();
+        let url = `/api/customers?corporation_uuid=${corporationUUID}`;
+        if (projectUUID) {
+          url += `&project_uuid=${projectUUID}`;
+        }
+        const response = await apiFetch(url);
+        if (response?.error) throw new Error(response.error);
+
+        const customersData = response?.data || [];
+        localCustomers.value = customersData;
+        lastFetchedCustomersCorporation.value = corporationUUID;
+      } catch (err: any) {
+        console.error("Error fetching local customers:", err);
+        customersError.value = err.message || "Failed to fetch customers";
+        localCustomers.value = [];
+      } finally {
+        customersLoading.value = false;
+      }
+    };
+
+    /**
+     * Clear local customers cache
+     */
+    const clearLocalCustomers = () => {
+      localCustomers.value = [];
+      lastFetchedCustomersCorporation.value = null;
+      customersError.value = null;
+    };
+
     return {
       // State - HYBRID APPROACH
       projects: readonly(projects), // For backward compatibility (returns metadata)
@@ -768,6 +825,13 @@ export const useProjectsStore = defineStore(
       getTotalEstimatedAmount,
       getProjectCountByStatus,
       getAverageProjectAmount,
+
+      // Local customers (for ProjectDetailsForm)
+      localCustomers: readonly(localCustomers),
+      customersLoading: readonly(customersLoading),
+      customersError: readonly(customersError),
+      fetchLocalCustomers,
+      clearLocalCustomers,
     };
   },
   {

@@ -150,6 +150,7 @@
                       :model-value="form.customer_uuid"
                       :corporation-uuid="form.corporation_uuid"
                       :project-uuid="form.uuid || form.id || null"
+                      :local-customers="projectsStore.localCustomers"
                       placeholder="Select customer"
                       size="sm"
                       class="w-full"
@@ -1041,7 +1042,6 @@ import { useProjectTypesStore } from "@/stores/projectTypes";
 import { useServiceTypesStore } from "@/stores/serviceTypes";
 import { useProjectAddressesStore, type ProjectAddress } from "@/stores/projectAddresses";
 import { useProjectsStore } from "@/stores/projects";
-import { useCustomerStore } from '@/stores/customers';
 import { useAuditLog } from '@/composables/useAuditLog';
 import { useUTCDateFormat } from '@/composables/useUTCDateFormat';
 import { useCurrencyFormat } from '@/composables/useCurrencyFormat';
@@ -1084,7 +1084,6 @@ const projectTypesStore = useProjectTypesStore();
 const serviceTypesStore = useServiceTypesStore();
 const projectAddressesStore = useProjectAddressesStore();
 const projectsStore = useProjectsStore();
-const customerStore = useCustomerStore();
 
 // Currency formatting
 const { formatCurrency } = useCurrencyFormat();
@@ -2170,8 +2169,9 @@ const handleCustomerSaved = async () => {
   const projectUuid = props.form.uuid || props.form.id || null;
   
   if (corporationUuid) {
-    // Refresh customers list to include the newly created customer
-    await customerStore.fetchCustomers(corporationUuid, projectUuid, false);
+    // Refresh local customers list to include the newly created customer
+    // This uses the projects store's local customers, not the global store
+    await projectsStore.fetchLocalCustomers(corporationUuid, projectUuid, true);
     
     // Optionally, you could auto-select the newly created customer here
     // by finding the most recently created customer and setting it
@@ -2655,13 +2655,23 @@ watch(() => projectAddresses.value, (newAddresses) => {
   }
 }, { deep: true });
 
-// Watch for corporation_uuid changes to generate project ID
+// Watch for corporation_uuid changes to generate project ID and fetch local customers
 watch(() => props.form.corporation_uuid, async (newCorpUuid) => {
-  if (newCorpUuid && !props.editingProject) {
+  if (newCorpUuid) {
     // Ensure projects metadata is loaded for the corporation
     await projectsStore.fetchProjectsMetadata(newCorpUuid);
-    // Only generate if creating new project and corporation is set
-    generateProjectId();
+    
+    // Fetch local customers for this corporation (doesn't affect global store)
+    const projectUuid = props.form.uuid || props.form.id || null;
+    await projectsStore.fetchLocalCustomers(newCorpUuid, projectUuid, false);
+    
+    if (!props.editingProject) {
+      // Only generate if creating new project and corporation is set
+      generateProjectId();
+    }
+  } else {
+    // Clear local customers when corporation is cleared
+    projectsStore.clearLocalCustomers();
   }
 });
 
@@ -2671,6 +2681,10 @@ onMounted(async () => {
   if (corpUuid) {
     // Ensure projects metadata is loaded for the corporation
     await projectsStore.fetchProjectsMetadata(corpUuid);
+    
+    // Fetch local customers for this corporation (doesn't affect global store)
+    const projectUuid = props.form.uuid || props.form.id || null;
+    await projectsStore.fetchLocalCustomers(corpUuid, projectUuid, false);
   }
   // If creating new project and project_id is empty, generate initial ID
   if (!props.editingProject && (!props.form.project_id || String(props.form.project_id).trim() === '')) {

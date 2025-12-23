@@ -60,6 +60,7 @@ interface Props {
   disabled?: boolean
   corporationUuid?: string
   projectUuid?: string
+  localCustomers?: any[] // Optional local customers array (takes precedence over store)
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -137,6 +138,23 @@ const computeInitials = (customer: any) => {
 const fetchCustomersFromAPI = async (corporationUuid: string, projectUuid?: string) => {
   if (!corporationUuid) {
     customers.value = []
+    return
+  }
+  
+  // If local customers are provided, use them instead of fetching from store
+  if (props.localCustomers !== undefined && Array.isArray(props.localCustomers)) {
+    let filteredCustomers = props.localCustomers.filter(customer => 
+      customer.corporation_uuid === corporationUuid
+    )
+    
+    // If project is specified, show customers for this project OR customers with no project (global)
+    if (projectUuid) {
+      filteredCustomers = filteredCustomers.filter(customer =>
+        !customer.project_uuid || customer.project_uuid === projectUuid
+      )
+    }
+    
+    customers.value = filteredCustomers
     return
   }
   
@@ -303,6 +321,53 @@ watch(
     }
   },
   { immediate: true }
+)
+
+// Watch customerStore for changes and update local customers list (only if not using localCustomers)
+// This ensures the dropdown refreshes when a new customer is added without another API call
+watch(
+  () => customerStore.customers,
+  () => {
+    // Only watch store if localCustomers prop is not provided
+    if (props.localCustomers === undefined && props.corporationUuid) {
+      // Filter customers from store when it updates (no need to fetch again)
+      let filteredCustomers = customerStore.customers.filter(customer => 
+        customer.corporation_uuid === props.corporationUuid
+      )
+      
+      // If project is specified, show customers for this project OR customers with no project (global)
+      if (props.projectUuid) {
+        filteredCustomers = filteredCustomers.filter(customer =>
+          !customer.project_uuid || customer.project_uuid === props.projectUuid
+        )
+      }
+      
+      customers.value = filteredCustomers
+    }
+  },
+  { deep: true }
+)
+
+// Watch localCustomers prop for changes (when using local customers instead of store)
+watch(
+  () => props.localCustomers,
+  () => {
+    if (props.localCustomers !== undefined && Array.isArray(props.localCustomers) && props.corporationUuid) {
+      let filteredCustomers = props.localCustomers.filter(customer => 
+        customer.corporation_uuid === props.corporationUuid
+      )
+      
+      // If project is specified, show customers for this project OR customers with no project (global)
+      if (props.projectUuid) {
+        filteredCustomers = filteredCustomers.filter(customer =>
+          !customer.project_uuid || customer.project_uuid === props.projectUuid
+        )
+      }
+      
+      customers.value = filteredCustomers
+    }
+  },
+  { deep: true, immediate: true }
 )
 
 // Load data if needed on mount
