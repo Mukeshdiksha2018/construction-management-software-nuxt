@@ -3,13 +3,25 @@ import { ref, readonly } from 'vue'
 export interface ProjectItemsSummaryItem {
   corporation_name: string
   project_name: string
+  cost_code_uuid?: string | null
+  cost_code_number?: string
+  cost_code_name?: string
   cost_code_label: string
+  division_name?: string
   vendor_name: string
+  vendor_uuid?: string | null
   sequence: string
+  sequence_uuid?: string | null
+  item_type_uuid?: string | null
   item_type_label: string
+  item_uuid?: string | null
   item_name: string
   description: string
   location: string
+  location_uuid?: string | null
+  unit_price?: number
+  unit_uuid?: string | null
+  unit_label?: string
   budget_qty: number
   po_qty: number
   pending_qty: number

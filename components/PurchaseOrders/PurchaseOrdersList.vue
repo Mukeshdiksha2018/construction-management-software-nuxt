@@ -1347,6 +1347,59 @@ const fetchItemsTableData = async () => {
   }
 }
 
+// Transform selected items to PO items format
+const transformSelectedItemsToPoItems = (selectedItems: any[]): any[] => {
+  return selectedItems.map((item: any, index: number) => {
+    const pendingQty = parseFloat(item.pending_qty || 0) || 0
+    const unitPrice = parseFloat(item.unit_price || 0) || 0
+    const poTotal = pendingQty > 0 && unitPrice > 0 ? Math.round((pendingQty * unitPrice + Number.EPSILON) * 100) / 100 : null
+    
+    return {
+      id: `pending-${index}-${item.item_uuid || item.cost_code_uuid || index}`,
+      cost_code_uuid: item.cost_code_uuid || null,
+      cost_code_number: item.cost_code_number || "",
+      cost_code_name: item.cost_code_name || "",
+      cost_code_label: item.cost_code_label || "",
+      division_name: item.division_name || "",
+      item_type_uuid: item.item_type_uuid || null,
+      item_type_label: item.item_type_label || "",
+      sequence: item.sequence || "",
+      item_sequence: item.sequence || "",
+      sequence_uuid: item.sequence_uuid || null,
+      item_uuid: item.item_uuid || null,
+      name: item.item_name || "",
+      description: item.description || "",
+      location: item.location || "",
+      location_uuid: item.location_uuid || null,
+      // Estimate values (for display in greyed out section)
+      unit_price: unitPrice,
+      quantity: parseFloat(item.budget_qty || 0) || 0,
+      total: unitPrice * parseFloat(item.budget_qty || 0) || 0,
+      // PO values (editable, initialized with pending_qty)
+      po_unit_price: unitPrice > 0 ? unitPrice : null,
+      po_quantity: pendingQty > 0 ? pendingQty : null,
+      po_total: poTotal,
+      uom_uuid: item.unit_uuid || null,
+      uom_label: item.unit_label || "",
+      unit_label: item.unit_label || "",
+      uom: item.unit_label || "",
+      approval_checks: null,
+      model_number: "",
+      display_metadata: {
+        cost_code_label: item.cost_code_label || "",
+        cost_code_number: item.cost_code_number || "",
+        cost_code_name: item.cost_code_name || "",
+        division_name: item.division_name || "",
+        item_type_label: item.item_type_label || "",
+        sequence: item.sequence || "",
+        location_display: item.location || "",
+        unit_uuid: item.unit_uuid || null,
+        unit_label: item.unit_label || "",
+      },
+    }
+  })
+}
+
 // Handle raising purchase order for selected items with pending quantity
 const handleRaisePurchaseOrderForPendingQty = () => {
   if (selectedItemsTableRowsCount.value === 0) {
@@ -1371,26 +1424,84 @@ const handleRaisePurchaseOrderForPendingQty = () => {
     )
   }
   
-  console.log('Selected items for PO creation:', selectedItems)
-  console.log('Selected rows count:', selectedItemsTableRowsCount.value)
-  
-  // TODO: Implement the logic to create purchase orders for selected items
-  // This could involve:
-  // 1. Opening a modal/form to create PO
-  // 2. Pre-filling the form with selected items
-  // 3. Using the pending_qty for each selected item
-  
-  // For now, show a toast notification
-  try {
-    const toast = useToast()
-    toast.add({
-      title: 'Raise Purchase Order',
-      description: `${selectedItems.length} item(s) selected for purchase order creation`,
-      color: 'primary'
-    })
-  } catch (e) {
-    // Toast not available
+  if (selectedItems.length === 0) {
+    return
   }
+  
+  // Get vendor UUID from filters or first selected item
+  const vendorUuid = appliedFilters.value.vendor || selectedItems[0]?.vendor_uuid || null
+  
+  // Validate required filters
+  if (!appliedFilters.value.corporation || !appliedFilters.value.project) {
+    try {
+      const toast = useToast()
+      toast.add({
+        title: 'Error',
+        description: 'Please select corporation and project before creating a purchase order',
+        color: 'error'
+      })
+    } catch (e) {
+      // Toast not available
+    }
+    return
+  }
+  
+  // Transform selected items to PO items format
+  const poItems = transformSelectedItemsToPoItems(selectedItems)
+  
+  // Clear previous PO resources before opening new form
+  purchaseOrderResourcesStore.clear()
+  
+  // Initialize form with pre-filled data
+  poForm.value = {
+    corporation_uuid: appliedFilters.value.corporation,
+    project_uuid: appliedFilters.value.project,
+    vendor_uuid: vendorUuid,
+    entry_date: toUTCString(getCurrentLocal()),
+    po_type: 'MATERIAL',
+    po_type_uuid: 'MATERIAL',
+    credit_days: '',
+    ship_via: '',
+    freight: '',
+    shipping_instructions: '',
+    estimated_delivery_date: '',
+    include_items: 'CUSTOM', // Set to CUSTOM since we're pre-populating items
+    terms_and_conditions: 'Not Required',
+    status: 'Draft',
+    item_total: 0,
+    freight_charges_percentage: 0,
+    freight_charges_amount: 0,
+    freight_charges_taxable: false,
+    packing_charges_percentage: 0,
+    packing_charges_amount: 0,
+    packing_charges_taxable: false,
+    custom_duties_percentage: 0,
+    custom_duties_amount: 0,
+    custom_duties_taxable: false,
+    other_charges_percentage: 0,
+    other_charges_amount: 0,
+    other_charges_taxable: false,
+    charges_total: 0,
+    sales_tax_1_percentage: 0,
+    sales_tax_1_amount: 0,
+    sales_tax_2_percentage: 0,
+    sales_tax_2_amount: 0,
+    tax_total: 0,
+    total_po_amount: 0,
+    po_items: poItems, // Pre-populate with selected items
+    attachments: [],
+    removed_po_items: []
+  }
+  
+  // Reset validation state
+  isFormValid.value = false
+  isViewMode.value = false
+  
+  // Open the form modal
+  showFormModal.value = true
+  
+  // Clear selected rows after opening the form
+  selectedItemsTableRows.value = {}
 }
 
 // Items Table columns (for the main Show button functionality)
