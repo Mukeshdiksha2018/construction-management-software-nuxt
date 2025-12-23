@@ -131,32 +131,30 @@
 
                   <!-- Customer -->
                   <div>
-                    <label class="block text-xs font-medium text-default mb-1">
-                      Customer
-                    </label>
-                    <div class="flex items-stretch gap-0 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 overflow-hidden focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/40 transition-colors">
-                      <div class="flex-1 [&>div]:border-0 [&>div]:rounded-none [&_button]:border-0 [&_button]:rounded-none [&_button]:bg-transparent">
-                        <CustomerSelect
-                          :model-value="form.customer_uuid"
-                          :corporation-uuid="form.corporation_uuid"
-                          :project-uuid="form.uuid || form.id || null"
-                          placeholder="Select customer"
-                          size="sm"
-                          class="w-full"
-                          @update:model-value="(value) => handleFormUpdate('customer_uuid', value)"
-                        />
-                      </div>
-                      <UButton
-                        icon="i-heroicons-plus"
-                        size="xs"
+                    <label class="block text-xs font-medium text-default mb-1 flex items-center gap-2">
+                      <span>Customer</span>
+                      <UBadge
+                        v-if="form.corporation_uuid || corpStore.selectedCorporation"
                         color="primary"
-                        variant="soft"
-                        class="shrink-0 rounded-none border-l border-gray-300 dark:border-gray-600 h-auto m-0"
-                        :disabled="!form.corporation_uuid && !corpStore.selectedCorporation"
+                        variant="solid"
+                        size="xs"
+                        class="cursor-pointer hover:opacity-80 transition-opacity"
                         @click="openCustomerModal"
                         title="Add new customer"
-                      />
-                    </div>
+                      >
+                        <UIcon name="i-heroicons-plus" class="w-3 h-3" />
+                        Add new customer
+                      </UBadge>
+                    </label>
+                    <CustomerSelect
+                      :model-value="form.customer_uuid"
+                      :corporation-uuid="form.corporation_uuid"
+                      :project-uuid="form.uuid || form.id || null"
+                      placeholder="Select customer"
+                      size="sm"
+                      class="w-full"
+                      @update:model-value="(value) => handleFormUpdate('customer_uuid', value)"
+                    />
                   </div>
 
                   <!-- Project Type -->
