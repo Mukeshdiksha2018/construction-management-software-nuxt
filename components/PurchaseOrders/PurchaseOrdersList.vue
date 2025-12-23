@@ -384,6 +384,7 @@
         </div>
         <!-- Table with Data -->
         <UTable
+          ref="itemsTable"
           v-else-if="itemsTableData.length > 0"
           sticky
           v-model:column-pinning="itemsTableColumnPinning"
@@ -824,6 +825,8 @@ const columnPinning = ref({
 
 // Table ref for accessing table API
 const table = useTemplateRef<any>('table');
+// Items table ref for accessing items table API
+const itemsTable = useTemplateRef<any>('itemsTable');
 
 // Use purchase orders from store
 const purchaseOrders = computed(() => purchaseOrdersStore.purchaseOrders)
@@ -1313,10 +1316,31 @@ const fetchItemsTableData = async () => {
 const itemsTableColumns: TableColumn<any>[] = [
   {
     id: 'select',
-    header: '',
+    header: ({ table }: { table: any }) => {
+      const UCheckbox = resolveComponent('UCheckbox')
+      const isAllSelected = table.getIsAllPageRowsSelected()
+      const isSomeSelected = table.getIsSomePageRowsSelected()
+      return h(UCheckbox, {
+        modelValue: isAllSelected ? true : isSomeSelected ? 'indeterminate' : false,
+        'onUpdate:modelValue': (value: boolean | 'indeterminate') => {
+          table.toggleAllPageRowsSelected(!!value)
+        },
+        'aria-label': 'Select all'
+      })
+    },
     enableSorting: false,
+    enableHiding: false,
     meta: { class: { th: 'w-12', td: 'w-12' } },
-    cell: () => h('div') // Checkbox handled by UTable selectable
+    cell: ({ row }: { row: any }) => {
+      const UCheckbox = resolveComponent('UCheckbox')
+      return h(UCheckbox, {
+        modelValue: row.getIsSelected(),
+        'onUpdate:modelValue': (value: boolean | 'indeterminate') => {
+          row.toggleSelected(!!value)
+        },
+        'aria-label': 'Select row'
+      })
+    }
   },
   {
     accessorKey: 'corporation_name',
