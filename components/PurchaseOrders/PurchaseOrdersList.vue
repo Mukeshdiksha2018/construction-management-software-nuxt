@@ -710,6 +710,32 @@
     </UModal>
 
     <!-- Change Order Form Modal (for exceeded quantities) -->
+    
+    <!-- Floating Action Button - Show when rows are selected -->
+    <!-- Positioned outside all conditional divs to ensure it's always visible regardless of scrolling -->
+    <Transition
+      enter-active-class="transition ease-out duration-200"
+      enter-from-class="opacity-0 translate-y-2"
+      enter-to-class="opacity-100 translate-y-0"
+      leave-active-class="transition ease-in duration-150"
+      leave-from-class="opacity-100 translate-y-0"
+      leave-to-class="opacity-0 translate-y-2"
+    >
+      <div
+        v-if="selectedItemsTableRowsCount > 0"
+        class="fixed bottom-6 right-6 z-[9999]"
+        style="position: fixed !important; bottom: 1.5rem !important; right: 1.5rem !important;"
+      >
+        <UButton
+          color="primary"
+          size="lg"
+          icon="i-heroicons-plus-circle"
+          @click="handleRaisePurchaseOrderForPendingQty"
+        >
+          Raise purchase order for pending QTY
+        </UButton>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -1129,7 +1155,16 @@ const filteredPurchaseOrders = computed(() => {
 })
 
 // Items table data (for the main Show button functionality)
-const selectedItemsTableRows = ref<any[]>([])
+const selectedItemsTableRows = ref<Record<string, boolean>>({})
+
+// Computed property to get the count of selected rows
+const selectedItemsTableRowsCount = computed(() => {
+  if (!itemsTable.value?.tableApi) {
+    return Object.keys(selectedItemsTableRows.value).filter(key => selectedItemsTableRows.value[key]).length
+  }
+  // Use table API if available
+  return itemsTable.value.tableApi.getFilteredSelectedRowModel().rows.length
+})
 
 // Column pinning for items table (pin quantity columns to the right)
 // Order matters: columns are pinned from left to right in the array
@@ -1309,6 +1344,52 @@ const fetchItemsTableData = async () => {
     } catch (e) {
       // Toast not available
     }
+  }
+}
+
+// Handle raising purchase order for selected items with pending quantity
+const handleRaisePurchaseOrderForPendingQty = () => {
+  if (selectedItemsTableRowsCount.value === 0) {
+    return
+  }
+  
+  // Get the selected items using the table API if available
+  let selectedItems: any[] = []
+  
+  if (itemsTable.value?.tableApi) {
+    // Use table API to get selected rows
+    const selectedRows = itemsTable.value.tableApi.getFilteredSelectedRowModel().rows
+    selectedItems = selectedRows.map((row: any) => row.original)
+  } else {
+    // Fallback: use the selection state object
+    const selectedIndices = Object.keys(selectedItemsTableRows.value)
+      .filter(key => selectedItemsTableRows.value[key])
+      .map(key => parseInt(key))
+    
+    selectedItems = itemsTableData.value.filter((item: any, index: number) => 
+      selectedIndices.includes(index)
+    )
+  }
+  
+  console.log('Selected items for PO creation:', selectedItems)
+  console.log('Selected rows count:', selectedItemsTableRowsCount.value)
+  
+  // TODO: Implement the logic to create purchase orders for selected items
+  // This could involve:
+  // 1. Opening a modal/form to create PO
+  // 2. Pre-filling the form with selected items
+  // 3. Using the pending_qty for each selected item
+  
+  // For now, show a toast notification
+  try {
+    const toast = useToast()
+    toast.add({
+      title: 'Raise Purchase Order',
+      description: `${selectedItems.length} item(s) selected for purchase order creation`,
+      color: 'primary'
+    })
+  } catch (e) {
+    // Toast not available
   }
 }
 
