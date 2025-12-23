@@ -141,16 +141,54 @@ vi.mock("@/stores/purchaseOrderListResources", () => ({
 
 // Mock purchaseOrderResources store
 const clearResourcesSpy = { current: vi.fn() };
+const mockPurchaseOrderResourcesStore = {
+  clear: vi.fn(),
+  ensureEstimates: vi.fn().mockResolvedValue([]),
+  ensureEstimateItems: vi.fn().mockResolvedValue([]),
+  getEstimatesByProject: vi.fn(() => [
+    {
+      uuid: "estimate-1",
+      status: "Approved",
+      is_active: true,
+      estimate_date: "2025-01-01",
+    },
+  ]),
+  getLatestEstimateByProject: vi.fn(() => ({
+    uuid: "estimate-1",
+    status: "Approved",
+    is_active: true,
+    estimate_date: "2025-01-01",
+  })),
+};
+
 vi.mock("@/stores/purchaseOrderResources", () => {
   return {
-    usePurchaseOrderResourcesStore: defineStore(
-      "purchaseOrderResources",
-      () => ({
-        clear: (...args: any[]) => clearResourcesSpy.current?.(...args),
-      })
-    ),
+    usePurchaseOrderResourcesStore: () => mockPurchaseOrderResourcesStore,
   };
 });
+
+// Mock vendor store
+const mockVendorStore = {
+  vendors: ref([
+    { uuid: "vendor-1", vendor_name: "Test Vendor" },
+    { uuid: "vendor-2", vendor_name: "Another Vendor" },
+  ]),
+  fetchVendors: vi.fn().mockResolvedValue([]),
+};
+
+vi.mock("@/stores/vendors", () => ({
+  useVendorStore: () => mockVendorStore,
+}));
+
+// Mock project addresses store
+const mockProjectAddressesStore = {
+  fetchAddresses: vi.fn().mockResolvedValue([]),
+  getAddresses: vi.fn(() => []),
+};
+
+vi.mock("@/stores/projectAddresses", () => ({
+  useProjectAddressesStore: () => mockProjectAddressesStore,
+}));
 
 // Mock $fetch for API calls
 global.$fetch = vi.fn() as any
@@ -693,6 +731,594 @@ describe("PurchaseOrdersList.vue - To Be Raised Functionality", () => {
         undefined,
         undefined
       );
+    });
+  });
+
+  describe("Purchase Order Creation from To Be Raised Screen", () => {
+    beforeEach(() => {
+      // Reset mocks
+      mockPurchaseOrderResourcesStore.clear.mockClear();
+      mockPurchaseOrderResourcesStore.ensureEstimates.mockClear();
+      mockPurchaseOrderResourcesStore.ensureEstimateItems.mockClear();
+      mockPurchaseOrderResourcesStore.getEstimatesByProject.mockClear();
+      mockVendorStore.fetchVendors.mockClear();
+      mockProjectAddressesStore.fetchAddresses.mockClear();
+    });
+
+    it("should transform selected items to PO items format correctly", async () => {
+      const wrapper = mountList();
+      const vm: any = wrapper.vm;
+
+      const selectedItems = [
+        {
+          corporation_name: "Test Corp",
+          project_name: "Test Project",
+          cost_code_uuid: "cc-1",
+          cost_code_number: "001",
+          cost_code_name: "Concrete",
+          cost_code_label: "001 Concrete",
+          division_name: "Division 1",
+          vendor_name: "Test Vendor",
+          vendor_uuid: "vendor-1",
+          sequence: "SEQ-001",
+          sequence_uuid: "seq-uuid-1",
+          item_type_uuid: "type-1",
+          item_type_label: "Material",
+          item_uuid: "item-1",
+          item_name: "Test Item",
+          description: "Test Description",
+          location: "Location 1",
+          location_uuid: "loc-uuid-1",
+          unit_price: 100,
+          unit_uuid: "uom-1",
+          unit_label: "EA",
+          budget_qty: 10,
+          po_qty: 5,
+          pending_qty: 5,
+          status: "Partial",
+        },
+      ];
+
+      // Call the function directly (it's defined in the component)
+      const poItems = vm.transformSelectedItemsToPoItems(selectedItems);
+
+      expect(poItems).toHaveLength(1);
+      expect(poItems[0]).toMatchObject({
+        cost_code_uuid: "cc-1",
+        cost_code_number: "001",
+        cost_code_name: "Concrete",
+        cost_code_label: "001 Concrete",
+        item_uuid: "item-1",
+        name: "Test Item",
+        description: "Test Description",
+        location: "Location 1",
+        location_uuid: "loc-uuid-1",
+        unit_price: 100,
+        po_unit_price: 100,
+        po_quantity: 5, // Should use pending_qty
+        uom_uuid: "uom-1",
+        unit_label: "EA",
+      });
+
+      // Verify po_total is calculated correctly (rounded to 2 decimals)
+      expect(poItems[0].po_total).toBe(500); // 100 * 5
+    });
+
+    it("should open form modal with pre-filled data when items are selected", async () => {
+      // Set up items table data BEFORE mounting so the computed picks it up
+      mockProjectItemsSummaryData.value = {
+        items: [
+          {
+            corporation_name: "Test Corp",
+            project_name: "Test Project",
+            cost_code_uuid: "cc-1",
+            cost_code_number: "001",
+            cost_code_name: "Concrete",
+            cost_code_label: "001 Concrete",
+            vendor_name: "Test Vendor",
+            vendor_uuid: "vendor-1",
+            sequence: "SEQ-001",
+            item_type_uuid: "type-1",
+            item_type_label: "Material",
+            item_uuid: "item-1",
+            item_name: "Test Item",
+            description: "Test Description",
+            location: "Location 1",
+            location_uuid: "loc-uuid-1",
+            unit_price: 100,
+            unit_uuid: "uom-1",
+            unit_label: "EA",
+            budget_qty: 10,
+            po_qty: 5,
+            pending_qty: 5,
+            status: "Partial",
+          },
+        ],
+      };
+
+      const wrapper = mountList();
+      const vm: any = wrapper.vm;
+
+      // Set up applied filters - appliedFilters is a ref, access via .value
+      if (
+        vm.appliedFilters &&
+        typeof vm.appliedFilters === "object" &&
+        "value" in vm.appliedFilters
+      ) {
+        vm.appliedFilters.value = {
+          corporation: "corp-1",
+          project: "proj-1",
+          vendor: "vendor-1",
+          location: undefined,
+          status: undefined,
+        };
+      } else {
+        vm.appliedFilters = {
+          corporation: "corp-1",
+          project: "proj-1",
+          vendor: "vendor-1",
+          location: undefined,
+          status: undefined,
+        };
+      }
+
+      // Mock table API for selection
+      const mockTableApi = {
+        getFilteredSelectedRowModel: vi.fn(() => ({
+          rows: [
+            {
+              original: mockProjectItemsSummaryData.value.items[0],
+            },
+          ],
+        })),
+      };
+
+      // itemsTable is a template ref created with useTemplateRef
+      // In tests, template refs might not be reactive, so we'll use the fallback path
+      // Ensure itemsTable is undefined/null so the function uses the fallback path
+      vm.itemsTable = undefined;
+
+      // Set selectedItemsTableRows so the computed property can use that path
+      vm.selectedItemsTableRows = { "0": true };
+
+      // Wait for computed to update and ensure reactivity
+      await nextTick();
+      await wrapper.vm.$nextTick();
+
+      // Force update to ensure computed properties are recalculated
+      wrapper.vm.$forceUpdate();
+      await nextTick();
+
+      // Verify that selectedItemsTableRowsCount is > 0 before calling the function
+      expect(vm.selectedItemsTableRowsCount).toBeGreaterThan(0);
+
+      // Verify that itemsTableData has data (needed for the fallback path)
+      // Access the computed multiple times to ensure it's reactive
+      const itemsData1 = vm.itemsTableData;
+      const itemsData2 = vm.itemsTableData;
+      expect(itemsData1.length).toBeGreaterThan(0);
+      expect(itemsData2.length).toBeGreaterThan(0);
+      expect(itemsData1[0]).toBeDefined();
+      expect(itemsData2[0]).toBeDefined();
+
+      // Verify the selected indices logic matches what the function will use
+      const selectedIndices = Object.keys(vm.selectedItemsTableRows)
+        .filter((key) => vm.selectedItemsTableRows[key])
+        .map((key) => parseInt(key));
+      expect(selectedIndices).toEqual([0]);
+      expect(itemsData1[0]).toBeDefined();
+
+      // Clear mocks before calling
+      mockVendorStore.fetchVendors.mockClear();
+      mockProjectAddressesStore.fetchAddresses.mockClear();
+
+      await vm.handleRaisePurchaseOrderForPendingQty();
+      await flushPromises();
+      await nextTick(); // Wait for all async operations to complete
+
+      // Verify form modal is opened
+      expect(vm.showFormModal).toBe(true);
+
+      // Verify form is initialized with correct data (refs are auto-unwrapped)
+      expect(vm.poForm.corporation_uuid).toBe("corp-1");
+      expect(vm.poForm.project_uuid).toBe("proj-1");
+      expect(vm.poForm.vendor_uuid).toBe("vendor-1");
+      expect(vm.poForm.po_type).toBe("MATERIAL");
+      expect(vm.poForm.include_items).toBe("IMPORT_ITEMS_FROM_ESTIMATE");
+      expect(vm.poForm.status).toBe("Draft");
+
+      // Verify PO items are pre-populated
+      expect(Array.isArray(vm.poForm.po_items)).toBe(true);
+      expect(vm.poForm.po_items.length).toBe(1);
+      expect(vm.poForm.po_items[0].po_quantity).toBe(5); // Should use pending_qty
+      expect(vm.poForm.po_items[0].po_unit_price).toBe(100);
+      expect(vm.poForm.po_items[0].po_total).toBe(500);
+
+      // Verify vendors were fetched
+      expect(mockVendorStore.fetchVendors).toHaveBeenCalledWith("corp-1");
+    });
+
+    it("should fetch vendors and estimates before opening modal", async () => {
+      // Set up items table data BEFORE mounting so the computed picks it up
+      mockProjectItemsSummaryData.value = {
+        items: [
+          {
+            cost_code_uuid: "cc-1",
+            item_uuid: "item-1",
+            pending_qty: 5,
+            unit_price: 100,
+            vendor_uuid: "vendor-1",
+          },
+        ],
+      };
+
+      const wrapper = mountList();
+      const vm: any = wrapper.vm;
+
+      // Set up applied filters - appliedFilters is a ref, access via .value
+      if (
+        vm.appliedFilters &&
+        typeof vm.appliedFilters === "object" &&
+        "value" in vm.appliedFilters
+      ) {
+        vm.appliedFilters.value = {
+          corporation: "corp-1",
+          project: "proj-1",
+          vendor: "vendor-1",
+          location: undefined,
+          status: undefined,
+        };
+      } else {
+        vm.appliedFilters = {
+          corporation: "corp-1",
+          project: "proj-1",
+          vendor: "vendor-1",
+          location: undefined,
+          status: undefined,
+        };
+      }
+
+      // Ensure itemsTable is undefined/null so the function uses the fallback path
+      vm.itemsTable = undefined;
+
+      // Set selectedItemsTableRows so the computed property uses the fallback path
+      vm.selectedItemsTableRows = { "0": true };
+
+      // Wait for computed to update and ensure reactivity
+      await nextTick();
+      await wrapper.vm.$nextTick();
+
+      // Verify that selectedItemsTableRowsCount is > 0
+      expect(vm.selectedItemsTableRowsCount).toBeGreaterThan(0);
+
+      // Verify that itemsTableData has data (needed for the fallback path)
+      // Force the computed to recalculate by accessing it
+      const itemsData = vm.itemsTableData;
+      expect(itemsData.length).toBeGreaterThan(0);
+      expect(itemsData[0]).toBeDefined();
+
+      // Clear mocks before calling
+      mockVendorStore.fetchVendors.mockClear();
+      mockProjectAddressesStore.fetchAddresses.mockClear();
+      mockPurchaseOrderResourcesStore.ensureEstimates.mockClear();
+
+      await vm.handleRaisePurchaseOrderForPendingQty();
+      await flushPromises();
+      await nextTick(); // Wait for all async operations to complete
+
+      // Verify vendors were fetched
+      expect(mockVendorStore.fetchVendors).toHaveBeenCalledWith("corp-1");
+
+      // Verify project addresses were fetched
+      expect(mockProjectAddressesStore.fetchAddresses).toHaveBeenCalledWith(
+        "proj-1"
+      );
+
+      // Verify estimates were fetched
+      expect(
+        mockPurchaseOrderResourcesStore.ensureEstimates
+      ).toHaveBeenCalledWith({
+        corporationUuid: "corp-1",
+        force: true,
+      });
+    });
+
+    it("should not open modal if no items are selected", async () => {
+      const wrapper = mountList();
+      const vm: any = wrapper.vm;
+
+      vm.selectedItemsTableRowsCount = 0;
+
+      await vm.handleRaisePurchaseOrderForPendingQty();
+      await flushPromises();
+
+      expect(vm.showFormModal).toBe(false);
+    });
+
+    it("should not open modal if corporation or project is missing", async () => {
+      // Set up items table data BEFORE mounting so the computed picks it up
+      mockProjectItemsSummaryData.value = {
+        items: [
+          {
+            cost_code_uuid: "cc-1",
+            item_uuid: "item-1",
+            pending_qty: 5,
+            unit_price: 100,
+          },
+        ],
+      };
+
+      const wrapper = mountList();
+      const vm: any = wrapper.vm;
+
+      // Set incomplete filters - appliedFilters is a ref
+      // The component uses appliedFilters.value internally, so we need to ensure the ref is updated
+      // Try to access the ref directly - Vue Test Utils may auto-unwrap, but we need the actual ref
+      const appliedFiltersRef = vm.appliedFilters;
+      if (
+        appliedFiltersRef &&
+        typeof appliedFiltersRef === "object" &&
+        "value" in appliedFiltersRef
+      ) {
+        // It's a ref object, update via .value
+        appliedFiltersRef.value = {
+          corporation: "corp-1",
+          project: undefined, // Missing project - this should trigger the toast
+          vendor: "vendor-1",
+          location: undefined,
+          status: undefined,
+        };
+      } else {
+        // Vue Test Utils auto-unwrapped it - set directly
+        // But the component uses .value internally, so we need to ensure reactivity
+        vm.appliedFilters = {
+          corporation: "corp-1",
+          project: undefined, // Missing project
+          vendor: "vendor-1",
+          location: undefined,
+          status: undefined,
+        };
+        // Force update to ensure reactivity
+        await nextTick();
+      }
+
+      // Set selectedItemsTableRows so the computed property uses the fallback path
+      // Don't set itemsTable so the computed uses the fallback path
+      vm.selectedItemsTableRows = { "0": true };
+
+      // Wait for computed to update
+      await nextTick();
+
+      // Verify that selectedItemsTableRowsCount is > 0
+      expect(vm.selectedItemsTableRowsCount).toBeGreaterThan(0);
+
+      // Verify that itemsTableData has data (needed for the fallback path)
+      expect(vm.itemsTableData.length).toBeGreaterThan(0);
+
+      mockToastAdd.mockClear();
+
+      // Verify filters are set correctly before calling
+      // The component uses appliedFilters.value, so we need to ensure the ref is updated
+      // Vue Test Utils may auto-unwrap refs, but the component still uses .value internally
+      let filters = vm.appliedFilters;
+      if (filters && typeof filters === "object" && "value" in filters) {
+        filters = filters.value;
+        // Ensure project is undefined
+        filters.project = undefined;
+      } else {
+        // If auto-unwrapped, the component still accesses via .value internally
+        // So we need to ensure the actual ref is updated
+        // Try to access the ref directly through the component's setup context
+        const setupState = (vm as any).$;
+        if (setupState && setupState.setupState) {
+          const setupStateRefs = setupState.setupState;
+          if (
+            setupStateRefs.appliedFilters &&
+            typeof setupStateRefs.appliedFilters === "object" &&
+            "value" in setupStateRefs.appliedFilters
+          ) {
+            setupStateRefs.appliedFilters.value.project = undefined;
+          }
+        }
+      }
+      expect(filters.corporation).toBe("corp-1");
+      expect(filters.project).toBeUndefined();
+
+      await vm.handleRaisePurchaseOrderForPendingQty();
+      await flushPromises();
+      await nextTick(); // Wait for toast to be called
+      await new Promise((resolve) => setTimeout(resolve, 100)); // Additional wait for async toast
+
+      // Should show error toast - the function should call toast when project is missing
+      // If toast wasn't called, the function might have returned early or the check didn't pass
+      expect(mockToastAdd).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Error",
+          description: expect.stringContaining("corporation and project"),
+          color: "error",
+        })
+      );
+
+      // Modal should not open
+      expect(vm.showFormModal).toBe(false);
+    });
+
+    it("should clear selected rows after opening form", async () => {
+      const wrapper = mountList();
+      const vm: any = wrapper.vm;
+
+      // Set up filters (refs are auto-unwrapped in Vue 3)
+      vm.appliedFilters = {
+        corporation: "corp-1",
+        project: "proj-1",
+        vendor: "vendor-1",
+        location: undefined,
+        status: undefined,
+      };
+
+      // Set up items table data
+      mockProjectItemsSummaryData.value = {
+        items: [
+          {
+            cost_code_uuid: "cc-1",
+            item_uuid: "item-1",
+            pending_qty: 5,
+            unit_price: 100,
+            vendor_uuid: "vendor-1",
+          },
+        ],
+      };
+
+      // Mock table API
+      const mockTableApi = {
+        getFilteredSelectedRowModel: vi.fn(() => ({
+          rows: [{ original: mockProjectItemsSummaryData.value.items[0] }],
+        })),
+      };
+
+      // itemsTable is a template ref created with useTemplateRef
+      vm.itemsTable = {
+        value: {
+          tableApi: mockTableApi,
+        },
+      };
+
+      // Set some selected rows (refs are auto-unwrapped)
+      vm.selectedItemsTableRows = { "0": true };
+
+      await vm.handleRaisePurchaseOrderForPendingQty();
+      await flushPromises();
+
+      // Selected rows should be cleared
+      expect(vm.selectedItemsTableRows).toEqual({});
+    });
+
+    it("should use vendor from filters if available, otherwise from first selected item", async () => {
+      const wrapper = mountList();
+      const vm: any = wrapper.vm;
+
+      // Set up filters with vendor (refs are auto-unwrapped in Vue 3)
+      vm.appliedFilters = {
+        corporation: "corp-1",
+        project: "proj-1",
+        vendor: "vendor-from-filter",
+        location: undefined,
+        status: undefined,
+      };
+
+      // Set up items table data with different vendor
+      mockProjectItemsSummaryData.value = {
+        items: [
+          {
+            cost_code_uuid: "cc-1",
+            item_uuid: "item-1",
+            pending_qty: 5,
+            unit_price: 100,
+            vendor_uuid: "vendor-from-item",
+          },
+        ],
+      };
+
+      // Set selected rows count to simulate selection (refs are auto-unwrapped)
+      vm.selectedItemsTableRows = { "0": true };
+
+      // Mock table API
+      const mockTableApi = {
+        getFilteredSelectedRowModel: vi.fn(() => ({
+          rows: [{ original: mockProjectItemsSummaryData.value.items[0] }],
+        })),
+      };
+
+      // itemsTable is a template ref created with useTemplateRef
+      vm.itemsTable = {
+        value: {
+          tableApi: mockTableApi,
+        },
+      };
+
+      await vm.handleRaisePurchaseOrderForPendingQty();
+      await flushPromises();
+
+      // Should use vendor from filters (priority)
+      expect(vm.poForm.vendor_uuid).toBe("vendor-from-filter");
+    });
+
+    it("should use vendor from first selected item if not in filters", async () => {
+      // Set up items table data BEFORE mounting so the computed picks it up
+      mockProjectItemsSummaryData.value = {
+        items: [
+          {
+            cost_code_uuid: "cc-1",
+            item_uuid: "item-1",
+            pending_qty: 5,
+            unit_price: 100,
+            vendor_uuid: "vendor-from-item",
+          },
+        ],
+      };
+
+      const wrapper = mountList();
+      const vm: any = wrapper.vm;
+
+      // Set up filters without vendor - appliedFilters is a ref, access via .value
+      if (
+        vm.appliedFilters &&
+        typeof vm.appliedFilters === "object" &&
+        "value" in vm.appliedFilters
+      ) {
+        vm.appliedFilters.value = {
+          corporation: "corp-1",
+          project: "proj-1",
+          vendor: undefined,
+          location: undefined,
+          status: undefined,
+        };
+      } else {
+        vm.appliedFilters = {
+          corporation: "corp-1",
+          project: "proj-1",
+          vendor: undefined,
+          location: undefined,
+          status: undefined,
+        };
+      }
+
+      // Set selected rows count to simulate selection (refs are auto-unwrapped)
+      vm.selectedItemsTableRows = { "0": true };
+
+      // Mock table API
+      const mockTableApi = {
+        getFilteredSelectedRowModel: vi.fn(() => ({
+          rows: [{ original: mockProjectItemsSummaryData.value.items[0] }],
+        })),
+      };
+
+      // Ensure itemsTable is undefined/null so the function uses the fallback path
+      vm.itemsTable = undefined;
+
+      // Set selectedItemsTableRows so the computed property uses the fallback path
+      vm.selectedItemsTableRows = { "0": true };
+
+      // Wait for computed to update and ensure reactivity
+      await nextTick();
+      await wrapper.vm.$nextTick();
+
+      // Verify that selectedItemsTableRowsCount is > 0
+      expect(vm.selectedItemsTableRowsCount).toBeGreaterThan(0);
+
+      // Verify that itemsTableData has data (needed for the fallback path)
+      // Force the computed to recalculate by accessing it
+      const itemsData = vm.itemsTableData;
+      expect(itemsData.length).toBeGreaterThan(0);
+      expect(itemsData[0]).toBeDefined();
+      expect(itemsData[0].vendor_uuid).toBe("vendor-from-item");
+
+      await vm.handleRaisePurchaseOrderForPendingQty();
+      await flushPromises();
+      await nextTick(); // Wait for all async operations to complete
+
+      // Should use vendor from first selected item
+      expect(vm.poForm.vendor_uuid).toBe("vendor-from-item");
     });
   });
 });
