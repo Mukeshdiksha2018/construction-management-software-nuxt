@@ -580,7 +580,7 @@
                   :class="attachment.uuid || attachment.isUploaded ? 'text-success-600' : 'text-warning-500'"
                 />
                 <span class="truncate flex-1 text-default">
-                  {{ attachment.document_name || attachment.name || `File ${index + 1}` }}
+                  {{ attachment.document_name || attachment.name || `File ${Number(index) + 1}` }}
                 </span>
                 <span class="text-[11px] text-muted">
                   {{ formatFileSize(attachment.size || attachment.file_size) }}
@@ -601,7 +601,7 @@
                     size="xs"
                     class="p-1 h-auto text-xs"
                     :disabled="props.readonly"
-                    @click.stop="removeFile(index)"
+                    @click.stop="removeFile(Number(index))"
                   />
                 </div>
               </div>
@@ -718,7 +718,7 @@
                   :class="attachment.uuid || attachment.isUploaded ? 'text-success-600' : 'text-warning-500'"
                 />
                 <span class="truncate flex-1 text-default">
-                  {{ attachment.document_name || attachment.name || `File ${index + 1}` }}
+                  {{ attachment.document_name || attachment.name || `File ${Number(index) + 1}` }}
                 </span>
                 <span class="text-[11px] text-muted">
                   {{ formatFileSize(attachment.size || attachment.file_size) }}
@@ -739,7 +739,7 @@
                     size="xs"
                     class="p-1 h-auto text-xs"
                     :disabled="props.readonly"
-                    @click.stop="removeFile(index)"
+                    @click.stop="removeFile(Number(index))"
                   />
                 </div>
               </div>
@@ -855,7 +855,7 @@
                   :class="attachment.uuid || attachment.isUploaded ? 'text-success-600' : 'text-warning-500'"
                 />
                 <span class="truncate flex-1 text-default">
-                  {{ attachment.document_name || attachment.name || `File ${index + 1}` }}
+                  {{ attachment.document_name || attachment.name || `File ${Number(index) + 1}` }}
                 </span>
                 <span class="text-[11px] text-muted">
                   {{ formatFileSize(attachment.size || attachment.file_size) }}
@@ -876,7 +876,7 @@
                     size="xs"
                     class="p-1 h-auto text-xs"
                     :disabled="props.readonly"
-                    @click.stop="removeFile(index)"
+                    @click.stop="removeFile(Number(index))"
                   />
                 </div>
               </div>
@@ -997,7 +997,7 @@
                   :class="attachment.uuid || attachment.isUploaded ? 'text-success-600' : 'text-warning-500'"
                 />
                 <span class="truncate flex-1 text-default">
-                  {{ attachment.document_name || attachment.name || `File ${index + 1}` }}
+                  {{ attachment.document_name || attachment.name || `File ${Number(index) + 1}` }}
                 </span>
                 <span class="text-[11px] text-muted">
                   {{ formatFileSize(attachment.size || attachment.file_size) }}
@@ -1018,7 +1018,7 @@
                     size="xs"
                     class="p-1 h-auto text-xs"
                     :disabled="props.readonly"
-                    @click.stop="removeFile(index)"
+                    @click.stop="removeFile(Number(index))"
                   />
                 </div>
               </div>
@@ -1168,7 +1168,7 @@
                   :class="attachment.uuid || attachment.isUploaded ? 'text-success-600' : 'text-warning-500'"
                 />
                 <span class="truncate flex-1 text-default">
-                  {{ attachment.document_name || attachment.name || `File ${index + 1}` }}
+                  {{ attachment.document_name || attachment.name || `File ${Number(index) + 1}` }}
                 </span>
                 <span class="text-[11px] text-muted">
                   {{ formatFileSize(attachment.size || attachment.file_size) }}
@@ -1189,7 +1189,7 @@
                     size="xs"
                     class="p-1 h-auto text-xs"
                     :disabled="props.readonly"
-                    @click.stop="removeFile(index)"
+                    @click.stop="removeFile(Number(index))"
                   />
                 </div>
               </div>
