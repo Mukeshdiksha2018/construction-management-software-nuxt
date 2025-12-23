@@ -105,6 +105,17 @@ vi.mock("@/stores/estimates", () => ({
   useEstimatesStore: () => mockEstimatesStore,
 }));
 
+const mockCustomerStore = {
+  customers: [] as any[],
+  loading: false,
+  error: null,
+  fetchCustomers: vi.fn(),
+};
+
+vi.mock('@/stores/customers', () => ({
+  useCustomerStore: () => mockCustomerStore
+}))
+
 // Mock permissions
 const mockHasPermission = vi.fn()
 const mockUsePermissions = {
@@ -250,6 +261,7 @@ describe('ProjectDetails Component', () => {
     mockProjectsStore.fetchProjects.mockClear();
     mockProjectsStore.deleteProject.mockClear();
     mockEstimatesStore.fetchEstimates.mockClear();
+    mockCustomerStore.fetchCustomers.mockClear();
     mockFetch.mockClear();
 
     // Reset projects to original state
@@ -257,6 +269,9 @@ describe('ProjectDetails Component', () => {
 
     // Reset estimates to empty
     mockEstimatesStore.estimates = [];
+
+    // Reset customers to empty
+    mockCustomerStore.customers = [];
 
     // Reset permissions mock
     mockHasPermission.mockReturnValue(true);
@@ -337,7 +352,7 @@ describe('ProjectDetails Component', () => {
 
       const columns = wrapper.vm.columns;
 
-      expect(columns).toHaveLength(13);
+      expect(columns).toHaveLength(14);
       expect(columns[0].accessorKey).toBe("corporation_uuid");
       expect(columns[1].accessorKey).toBe("project_id");
       expect(columns[2].accessorKey).toBe("project_name");
@@ -345,14 +360,15 @@ describe('ProjectDetails Component', () => {
       expect(columns[4].accessorKey).toBe("project_status");
       expect(columns[5].accessorKey).toBe("service_type_uuid");
       expect(columns[6].accessorKey).toBe("addresses");
-      expect(columns[7].accessorKey).toBe("project_start_date");
-      expect(columns[8].accessorKey).toBe("project_estimated_completion_date");
-      expect(columns[9].accessorKey).toBe("estimated_amount");
-      expect(columns[10].accessorKey).toBe("billed_to_date");
-      expect(columns[11].accessorKey).toBe("estimate_status");
+      expect(columns[7].accessorKey).toBe("customer_uuid");
+      expect(columns[8].accessorKey).toBe("project_start_date");
+      expect(columns[9].accessorKey).toBe("project_estimated_completion_date");
+      expect(columns[10].accessorKey).toBe("estimated_amount");
+      expect(columns[11].accessorKey).toBe("billed_to_date");
+      expect(columns[12].accessorKey).toBe("estimate_status");
       // Actions column doesn't have accessorKey, it uses id instead (matching ItemsList.vue)
-      expect(columns[12].id).toBe("actions");
-      expect(columns[12].accessorKey).toBeUndefined();
+      expect(columns[13].id).toBe("actions");
+      expect(columns[13].accessorKey).toBeUndefined();
     })
   })
 
