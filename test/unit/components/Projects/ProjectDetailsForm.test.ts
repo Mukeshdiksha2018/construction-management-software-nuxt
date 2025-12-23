@@ -97,6 +97,7 @@ describe('ProjectDetailsForm Logic', () => {
     only_total: false,
     enable_labor: false,
     enable_material: false,
+    customer_uuid: null,
     attachments: [],
     address_type: '',
     contact_person: '',
@@ -141,7 +142,7 @@ describe('ProjectDetailsForm Logic', () => {
 
     it('should include customer_uuid in default form', () => {
       expect(defaultForm).toHaveProperty('customer_uuid')
-      expect(defaultForm.customer_uuid).toBeUndefined()
+      expect(defaultForm.customer_uuid).toBeNull()
     })
 
     it('should handle customer_uuid in form updates', () => {
