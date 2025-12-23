@@ -74,7 +74,12 @@ const mockProjectsStore = {
   loading: ref(false),
   fetchProjects: vi.fn(),
   fetchProjectsMetadata: vi.fn(() => Promise.resolve()),
-  loadCurrentProject: vi.fn()
+  loadCurrentProject: vi.fn(),
+  localCustomers: ref([]),
+  customersLoading: ref(false),
+  customersError: ref(null),
+  fetchLocalCustomers: vi.fn(() => Promise.resolve()),
+  clearLocalCustomers: vi.fn()
 }
 
 // Mock the stores
@@ -130,7 +135,7 @@ global.$fetch = vi.fn()
 // Mock CustomerSelect component
 const CustomerSelectStub = {
   name: 'CustomerSelect',
-  props: ['modelValue', 'corporationUuid', 'projectUuid', 'placeholder', 'size', 'class', 'disabled'],
+  props: ['modelValue', 'corporationUuid', 'projectUuid', 'placeholder', 'size', 'class', 'disabled', 'localCustomers'],
   emits: ['update:modelValue'],
   template: `
     <select 
@@ -296,6 +301,8 @@ describe('ProjectDetailsForm - CustomerSelect Integration', () => {
       expect(customerSelect.props('projectUuid')).toBe('project-1')
       expect(customerSelect.props('placeholder')).toBe('Select customer')
       expect(customerSelect.props('size')).toBe('sm')
+      // localCustomers prop is passed (may be an empty array from the mock store)
+      expect(customerSelect.props()).toHaveProperty('localCustomers')
     })
 
     it('should pass project uuid when form has uuid', () => {
