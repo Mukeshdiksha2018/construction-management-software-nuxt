@@ -2381,7 +2381,20 @@ const savePurchaseOrder = async (skipModalClose = false): Promise<any | null> =>
       if (result && !skipModalClose) {
         const toast = useToast();
         toast.add({ title: 'Created', description: 'Purchase order created', color: 'success' })
+        
+        // Refetch items table data if filters are applied (items table is visible)
+        // This updates the pending quantities after creating a PO from the items table
+        if (appliedFilters.value.corporation && appliedFilters.value.project) {
+          await fetchItemsTableData()
+        }
+        
         closeFormModal()
+      } else if (result) {
+        // Even if skipModalClose is true, we should still refetch items table data
+        // This handles the case when creating a CO (which calls savePurchaseOrder with skipModalClose=true)
+        if (appliedFilters.value.corporation && appliedFilters.value.project) {
+          await fetchItemsTableData()
+        }
       }
     }
     
