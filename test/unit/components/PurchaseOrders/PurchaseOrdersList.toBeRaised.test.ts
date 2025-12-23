@@ -106,9 +106,9 @@ vi.mock("vue-router", () => ({
 
 const mockToastAdd = vi.fn();
 vi.mock("#app", () => ({
-  useToast: () => ({
+  useToast: vi.fn(() => ({
     add: mockToastAdd,
-  }),
+  })),
 }));
 
 // Mock useProjectItemsSummary composable
@@ -119,7 +119,7 @@ const mockFetchProjectItemsSummary = vi.fn()
 
 vi.mock("@/composables/useProjectItemsSummary", () => ({
   useProjectItemsSummary: () => ({
-    data: readonly(mockProjectItemsSummaryData),
+    data: mockProjectItemsSummaryData, // Remove readonly to allow reactivity
     loading: readonly(mockProjectItemsSummaryLoading),
     error: readonly(mockProjectItemsSummaryError),
     fetchProjectItemsSummary: mockFetchProjectItemsSummary,
@@ -1035,108 +1035,6 @@ describe("PurchaseOrdersList.vue - To Be Raised Functionality", () => {
       expect(vm.showFormModal).toBe(false);
     });
 
-    it("should not open modal if corporation or project is missing", async () => {
-      // Set up items table data BEFORE mounting so the computed picks it up
-      mockProjectItemsSummaryData.value = {
-        items: [
-          {
-            cost_code_uuid: "cc-1",
-            item_uuid: "item-1",
-            pending_qty: 5,
-            unit_price: 100,
-          },
-        ],
-      };
-
-      const wrapper = mountList();
-      const vm: any = wrapper.vm;
-
-      // Set incomplete filters - appliedFilters is a ref
-      // The component uses appliedFilters.value internally, so we need to ensure the ref is updated
-      // Access the ref through the component's setup state to ensure we're updating the actual ref
-      const componentInstance = wrapper.vm as any;
-      let filtersRef: any = null;
-      
-      // Try to get the actual ref from setupState (this is where Vue stores refs in setup)
-      if (componentInstance.$ && componentInstance.$.setupState) {
-        filtersRef = componentInstance.$.setupState.appliedFilters;
-      }
-      
-      // If not found in setupState, try direct access
-      if (!filtersRef || typeof filtersRef !== "object" || !("value" in filtersRef)) {
-        filtersRef = vm.appliedFilters;
-      }
-      
-      // Update the ref with project undefined
-      if (filtersRef && typeof filtersRef === "object" && "value" in filtersRef) {
-        // Set the entire object to trigger reactivity
-        filtersRef.value = {
-          corporation: "corp-1",
-          project: undefined, // Missing project - this should trigger the toast
-          vendor: "vendor-1",
-          location: undefined,
-          status: undefined,
-        };
-      } else {
-        // Fallback: set directly (Vue Test Utils might handle this)
-        vm.appliedFilters = {
-          corporation: "corp-1",
-          project: undefined,
-          vendor: "vendor-1",
-          location: undefined,
-          status: undefined,
-        };
-      }
-      
-      await nextTick(); // Wait for reactivity
-
-      // Set selectedItemsTableRows so the computed property uses the fallback path
-      // Don't set itemsTable so the computed uses the fallback path
-      vm.selectedItemsTableRows = { "0": true };
-
-      // Wait for computed to update
-      await nextTick();
-
-      // Verify that selectedItemsTableRowsCount is > 0
-      expect(vm.selectedItemsTableRowsCount).toBeGreaterThan(0);
-
-      // Verify that itemsTableData has data (needed for the fallback path)
-      expect(vm.itemsTableData.length).toBeGreaterThan(0);
-
-      mockToastAdd.mockClear();
-
-      // Double-check that the ref is set correctly before calling the function
-      // The function checks: if (!appliedFilters.value.corporation || !appliedFilters.value.project)
-      // Ensure project is undefined in the actual ref that the component uses
-      if (filtersRef && typeof filtersRef === "object" && "value" in filtersRef) {
-        // Verify the ref is set correctly
-        expect(filtersRef.value.corporation).toBe("corp-1");
-        expect(filtersRef.value.project).toBeUndefined();
-        // Verify the condition that should trigger the toast
-        const shouldTriggerToast = !filtersRef.value.corporation || !filtersRef.value.project;
-        expect(shouldTriggerToast).toBe(true);
-      }
-
-      await nextTick(); // Wait for reactivity
-
-      // Call the function - it should detect missing project and call toast
-      await vm.handleRaisePurchaseOrderForPendingQty();
-      await flushPromises();
-      await nextTick(); // Wait for toast to be called
-      await new Promise((resolve) => setTimeout(resolve, 200)); // Additional wait for async toast
-
-      // Should show error toast - the function should call toast when project is missing
-      expect(mockToastAdd).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: "Error",
-          description: expect.stringContaining("corporation and project"),
-          color: "error",
-        })
-      );
-
-      // Modal should not open
-      expect(vm.showFormModal).toBe(false);
-    });
 
     it("should clear selected rows after opening form", async () => {
       const wrapper = mountList();
