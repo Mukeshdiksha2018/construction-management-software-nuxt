@@ -418,6 +418,49 @@ describe('Projects Store', () => {
       );
     });
 
+    it("should create project with customer_uuid successfully", async () => {
+      const newProject = {
+        corporation_uuid: "corp-1",
+        project_name: "New Project",
+        project_id: "P003",
+        project_type_uuid: "pt-1",
+        service_type_uuid: "st-1",
+        estimated_amount: 150000,
+        project_status: "Pending",
+        customer_uuid: "customer-1",
+        project_start_date: "2023-01-01",
+      };
+
+      const createdProject = {
+        id: 3,
+        uuid: "project-3",
+        ...newProject,
+        created_at: "2023-01-03T00:00:00Z",
+        updated_at: "2023-01-03T00:00:00Z",
+        is_active: true,
+        attachments: [],
+        only_total: false,
+        enable_labor: false,
+        enable_material: false,
+      };
+
+      mockFetch.mockResolvedValueOnce({ data: createdProject });
+      mockDbHelpers.addProject.mockResolvedValueOnce(undefined);
+
+      const result = await store.createProject(newProject);
+
+      expect(result).toEqual(createdProject);
+      expect(result?.customer_uuid).toBe("customer-1");
+      expect(mockFetch).toHaveBeenCalledWith("/api/projects", {
+        method: "POST",
+        body: newProject,
+      });
+      expect(mockDbHelpers.addProject).toHaveBeenCalledWith(
+        "corp-1",
+        createdProject
+      );
+    });
+
     it("should handle create project error", async () => {
       const newProject = {
         corporation_uuid: "corp-1",
@@ -512,6 +555,108 @@ describe('Projects Store', () => {
         projectUuid,
         updatedProject
       );
+    });
+
+    it("should update project customer_uuid successfully", async () => {
+      // First, add a project to the store
+      const existingProject = {
+        id: 1,
+        uuid: "project-1",
+        project_name: "Test Project",
+        project_id: "P001",
+        estimated_amount: 100000,
+        corporation_uuid: "corp-1",
+        project_type_uuid: "pt-1",
+        service_type_uuid: "st-1",
+        project_status: "Pending",
+        project_start_date: "2023-01-01",
+        customer_uuid: "customer-1",
+        created_at: "2023-01-01T00:00:00Z",
+        is_active: true,
+      };
+      store.setProjects([existingProject]);
+
+      const projectUuid = "project-1";
+      const updateData = {
+        customer_uuid: "customer-2",
+      };
+
+      const updatedProject = {
+        id: 1,
+        uuid: projectUuid,
+        ...existingProject,
+        ...updateData,
+        updated_at: "2023-01-03T00:00:00Z",
+      };
+
+      mockFetch.mockResolvedValueOnce({ data: updatedProject });
+      mockDbHelpers.updateProject.mockResolvedValueOnce(undefined);
+
+      const result = await store.updateProject({
+        uuid: projectUuid,
+        ...updateData,
+      });
+
+      expect(result).toEqual(updatedProject);
+      expect(result?.customer_uuid).toBe("customer-2");
+      expect(mockFetch).toHaveBeenCalledWith("/api/projects", {
+        method: "PUT",
+        body: {
+          uuid: projectUuid,
+          ...updateData,
+        },
+      });
+    });
+
+    it("should update project customer_uuid to null successfully", async () => {
+      // First, add a project to the store
+      const existingProject = {
+        id: 1,
+        uuid: "project-1",
+        project_name: "Test Project",
+        project_id: "P001",
+        estimated_amount: 100000,
+        corporation_uuid: "corp-1",
+        project_type_uuid: "pt-1",
+        service_type_uuid: "st-1",
+        project_status: "Pending",
+        project_start_date: "2023-01-01",
+        customer_uuid: "customer-1",
+        created_at: "2023-01-01T00:00:00Z",
+        is_active: true,
+      };
+      store.setProjects([existingProject]);
+
+      const projectUuid = "project-1";
+      const updateData = {
+        customer_uuid: null,
+      };
+
+      const updatedProject = {
+        id: 1,
+        uuid: projectUuid,
+        ...existingProject,
+        ...updateData,
+        updated_at: "2023-01-03T00:00:00Z",
+      };
+
+      mockFetch.mockResolvedValueOnce({ data: updatedProject });
+      mockDbHelpers.updateProject.mockResolvedValueOnce(undefined);
+
+      const result = await store.updateProject({
+        uuid: projectUuid,
+        ...updateData,
+      });
+
+      expect(result).toEqual(updatedProject);
+      expect(result?.customer_uuid).toBeNull();
+      expect(mockFetch).toHaveBeenCalledWith("/api/projects", {
+        method: "PUT",
+        body: {
+          uuid: projectUuid,
+          ...updateData,
+        },
+      });
     });
 
     it("should handle update project error", async () => {

@@ -139,6 +139,22 @@ describe('ProjectDetailsForm Logic', () => {
       expect(hasAreaOrRooms).toBe(false)
     })
 
+    it('should include customer_uuid in default form', () => {
+      expect(defaultForm).toHaveProperty('customer_uuid')
+      expect(defaultForm.customer_uuid).toBeUndefined()
+    })
+
+    it('should handle customer_uuid in form updates', () => {
+      const form = { ...defaultForm, customer_uuid: null }
+      expect(form.customer_uuid).toBeNull()
+      
+      form.customer_uuid = 'customer-1'
+      expect(form.customer_uuid).toBe('customer-1')
+      
+      form.customer_uuid = null
+      expect(form.customer_uuid).toBeNull()
+    })
+
     it('should clear one field when the other is filled', () => {
       const form = { ...defaultForm }
       

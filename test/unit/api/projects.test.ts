@@ -183,6 +183,68 @@ describe('Projects API', () => {
       expect(result.error).toBe(null)
     })
 
+    it('should create project with customer_uuid successfully', async () => {
+      const newProject = {
+        corporation_uuid: 'corp-1',
+        project_name: 'New Project',
+        project_id: 'P003',
+        project_type_uuid: 'pt-1',
+        service_type_uuid: 'st-1',
+        estimated_amount: 150000,
+        project_status: 'Pending',
+        customer_uuid: 'customer-1'
+      }
+
+      const createdProject = {
+        id: 3,
+        uuid: 'project-3',
+        ...newProject,
+        created_at: '2023-01-03T00:00:00Z'
+      }
+
+      mockSupabaseClient.setMockData(createdProject)
+
+      const result = await mockSupabaseClient.from('projects')
+        .insert(newProject)
+        .select()
+        .single()
+
+      expect(result.data).toEqual(createdProject)
+      expect(result.data.customer_uuid).toBe('customer-1')
+      expect(result.error).toBe(null)
+    })
+
+    it('should create project with null customer_uuid when not provided', async () => {
+      const newProject = {
+        corporation_uuid: 'corp-1',
+        project_name: 'New Project',
+        project_id: 'P003',
+        project_type_uuid: 'pt-1',
+        service_type_uuid: 'st-1',
+        estimated_amount: 150000,
+        project_status: 'Pending'
+      }
+
+      const createdProject = {
+        id: 3,
+        uuid: 'project-3',
+        ...newProject,
+        customer_uuid: null,
+        created_at: '2023-01-03T00:00:00Z'
+      }
+
+      mockSupabaseClient.setMockData(createdProject)
+
+      const result = await mockSupabaseClient.from('projects')
+        .insert(newProject)
+        .select()
+        .single()
+
+      expect(result.data).toEqual(createdProject)
+      expect(result.data.customer_uuid).toBeNull()
+      expect(result.error).toBe(null)
+    })
+
     it('should handle create project error', async () => {
       const errorMessage = 'Failed to create project'
       mockSupabaseClient.setMockError({ message: errorMessage })
@@ -237,6 +299,70 @@ describe('Projects API', () => {
         .single()
 
       expect(result.data).toEqual(updatedProject)
+      expect(result.error).toBe(null)
+    })
+
+    it('should update project customer_uuid successfully', async () => {
+      const updateData = {
+        customer_uuid: 'customer-2'
+      }
+
+      const updatedProject = {
+        id: 1,
+        uuid: 'project-1',
+        project_name: 'Test Project',
+        project_id: 'P001',
+        project_type_uuid: 'pt-1',
+        service_type_uuid: 'st-1',
+        project_status: 'Pending',
+        corporation_uuid: 'corp-1',
+        customer_uuid: 'customer-2',
+        created_at: '2023-01-01T00:00:00Z',
+        updated_at: '2023-01-03T00:00:00Z'
+      }
+
+      mockSupabaseClient.setMockData(updatedProject)
+
+      const result = await mockSupabaseClient.from('projects')
+        .update(updateData)
+        .eq('uuid', 'project-1')
+        .select()
+        .single()
+
+      expect(result.data).toEqual(updatedProject)
+      expect(result.data.customer_uuid).toBe('customer-2')
+      expect(result.error).toBe(null)
+    })
+
+    it('should update project customer_uuid to null successfully', async () => {
+      const updateData = {
+        customer_uuid: null
+      }
+
+      const updatedProject = {
+        id: 1,
+        uuid: 'project-1',
+        project_name: 'Test Project',
+        project_id: 'P001',
+        project_type_uuid: 'pt-1',
+        service_type_uuid: 'st-1',
+        project_status: 'Pending',
+        corporation_uuid: 'corp-1',
+        customer_uuid: null,
+        created_at: '2023-01-01T00:00:00Z',
+        updated_at: '2023-01-03T00:00:00Z'
+      }
+
+      mockSupabaseClient.setMockData(updatedProject)
+
+      const result = await mockSupabaseClient.from('projects')
+        .update(updateData)
+        .eq('uuid', 'project-1')
+        .select()
+        .single()
+
+      expect(result.data).toEqual(updatedProject)
+      expect(result.data.customer_uuid).toBeNull()
       expect(result.error).toBe(null)
     })
 
