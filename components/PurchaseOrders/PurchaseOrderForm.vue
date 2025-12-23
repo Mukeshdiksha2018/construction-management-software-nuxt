@@ -2763,10 +2763,14 @@ watch(
 );
 
 const lastAppliedEstimateItemsKey = ref<string | null>(null);
-// Track if we should skip auto-import for editing mode
+// Track if we should skip auto-import for editing mode or when items are pre-populated
 // This prevents auto-importing estimate items when loading an existing PO with saved items
-// Use a ref that gets set once on mount to remember if we started in editing mode with items
-const hasInitialPoItems = ref(props.editingPurchaseOrder && Array.isArray(props.form.po_items) && props.form.po_items.length > 0);
+// OR when items are already pre-populated (e.g., from "To be raised" screen)
+// Use a ref that gets set once on mount to remember if we started with items
+const hasInitialPoItems = ref(
+  (props.editingPurchaseOrder && Array.isArray(props.form.po_items) && props.form.po_items.length > 0) ||
+  (!props.editingPurchaseOrder && Array.isArray(props.form.po_items) && props.form.po_items.length > 0 && props.form.include_items === 'IMPORT_ITEMS_FROM_ESTIMATE')
+);
 const shouldSkipEstimateAutoImport = computed(() => hasInitialPoItems.value);
 const lastAppliedPreferredItemsSignature = ref<string | null>(null);
 

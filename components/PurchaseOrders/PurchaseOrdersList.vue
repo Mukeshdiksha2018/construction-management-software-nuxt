@@ -1452,17 +1452,48 @@ const handleRaisePurchaseOrderForPendingQty = async () => {
   // Clear previous PO resources before opening new form
   purchaseOrderResourcesStore.clear()
   
-  // Fetch vendors and other required data BEFORE opening the modal
-  // This ensures the vendor name loads immediately when the form opens
+  // Fetch vendors, estimates, and estimate items BEFORE opening the modal
+  // This ensures the vendor name loads immediately and estimate items are available
   try {
     await Promise.allSettled([
       vendorStore.fetchVendors(appliedFilters.value.corporation),
       // Also fetch project addresses if needed
       projectAddressesStore.fetchAddresses(appliedFilters.value.project),
+      // Fetch estimates for the project (required for IMPORT_ITEMS_FROM_ESTIMATE mode)
+      purchaseOrderResourcesStore.ensureEstimates({
+        corporationUuid: appliedFilters.value.corporation,
+        force: true,
+      }),
     ])
+    
+    // After estimates are loaded, fetch estimate items if we have an estimate UUID
+    // This ensures the form doesn't try to fetch them again when it opens
+    const estimates = purchaseOrderResourcesStore.getEstimatesByProject(
+      appliedFilters.value.corporation,
+      appliedFilters.value.project
+    ) || []
+    
+    // Get the latest approved estimate
+    const latestEstimate = estimates
+      .filter((est: any) => est.status === 'Approved' && est.is_active !== false)
+      .sort((a: any, b: any) => {
+        const dateA = a.estimate_date ? new Date(a.estimate_date).getTime() : 0
+        const dateB = b.estimate_date ? new Date(b.estimate_date).getTime() : 0
+        return dateB - dateA
+      })[0]
+    
+    if (latestEstimate?.uuid) {
+      // Pre-fetch estimate items so they're available when the form opens
+      await purchaseOrderResourcesStore.ensureEstimateItems({
+        corporationUuid: appliedFilters.value.corporation,
+        projectUuid: appliedFilters.value.project,
+        estimateUuid: latestEstimate.uuid,
+        force: true,
+      })
+    }
   } catch (error) {
-    console.error('Error fetching vendors or project addresses:', error)
-    // Continue anyway - the form will handle loading vendors in onMounted
+    console.error('Error fetching vendors, addresses, or estimates:', error)
+    // Continue anyway - the form will handle loading in onMounted
   }
   
   // Initialize form with pre-filled data
@@ -1478,7 +1509,7 @@ const handleRaisePurchaseOrderForPendingQty = async () => {
     freight: '',
     shipping_instructions: '',
     estimated_delivery_date: '',
-    include_items: 'CUSTOM', // Set to CUSTOM since we're pre-populating items
+    include_items: 'IMPORT_ITEMS_FROM_ESTIMATE', // Set to IMPORT_ITEMS_FROM_ESTIMATE since items are from estimates
     terms_and_conditions: 'Not Required',
     status: 'Draft',
     item_total: 0,
