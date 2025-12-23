@@ -529,6 +529,15 @@ describe("PurchaseOrdersList.vue - To Be Raised Functionality", () => {
       vm.selectedStatusFilter = 'ToBeRaised';
       vm.toBeRaisedItems = [];
       
+      // Set required filters for items table to show
+      vm.appliedFilters = {
+        corporation: "corp-1",
+        project: "proj-1",
+        vendor: undefined,
+        location: undefined,
+        status: undefined
+      };
+      
       // Set items table data
       mockProjectItemsSummaryData.value = {
         items: [
