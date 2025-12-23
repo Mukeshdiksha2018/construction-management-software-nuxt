@@ -1401,7 +1401,7 @@ const transformSelectedItemsToPoItems = (selectedItems: any[]): any[] => {
 }
 
 // Handle raising purchase order for selected items with pending quantity
-const handleRaisePurchaseOrderForPendingQty = () => {
+const handleRaisePurchaseOrderForPendingQty = async () => {
   if (selectedItemsTableRowsCount.value === 0) {
     return
   }
@@ -1451,6 +1451,19 @@ const handleRaisePurchaseOrderForPendingQty = () => {
   
   // Clear previous PO resources before opening new form
   purchaseOrderResourcesStore.clear()
+  
+  // Fetch vendors and other required data BEFORE opening the modal
+  // This ensures the vendor name loads immediately when the form opens
+  try {
+    await Promise.allSettled([
+      vendorStore.fetchVendors(appliedFilters.value.corporation),
+      // Also fetch project addresses if needed
+      projectAddressesStore.fetchAddresses(appliedFilters.value.project),
+    ])
+  } catch (error) {
+    console.error('Error fetching vendors or project addresses:', error)
+    // Continue anyway - the form will handle loading vendors in onMounted
+  }
   
   // Initialize form with pre-filled data
   poForm.value = {
