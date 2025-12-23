@@ -105,7 +105,7 @@ describe('Projects Store', () => {
 
       expect(store.loading).toBe(false);
       expect(store.error).toBe(null);
-      // Projects computed returns metadata (only 9 fields)
+      // Projects computed returns metadata (only 10 fields)
       expect(store.projects).toHaveLength(2);
       expect(store.projects[0]).toEqual({
         uuid: "project-1",
@@ -114,6 +114,7 @@ describe('Projects Store', () => {
         project_status: "Pending",
         project_start_date: "2023-01-01",
         estimated_amount: 100000,
+        customer_uuid: null,
         project_type_uuid: "pt-1",
         service_type_uuid: "st-1",
         corporation_uuid: "corp-1",
@@ -171,6 +172,7 @@ describe('Projects Store', () => {
           project_status: "Pending",
           project_start_date: "2023-01-01",
           created_at: "2023-01-01T00:00:00Z",
+          customer_uuid: null,
           is_active: true,
         },
       ];
@@ -194,6 +196,7 @@ describe('Projects Store', () => {
         project_status: "Pending",
         project_start_date: "2023-01-01",
         estimated_amount: 100000,
+        customer_uuid: null,
         project_type_uuid: "pt-1",
         service_type_uuid: "st-1",
         corporation_uuid: "corp-1",
@@ -401,6 +404,7 @@ describe('Projects Store', () => {
         project_status: "Pending",
         project_start_date: "2023-01-01",
         estimated_amount: 150000,
+        customer_uuid: null,
         project_type_uuid: "pt-1",
         service_type_uuid: "st-1",
         corporation_uuid: "corp-1",
@@ -538,6 +542,7 @@ describe('Projects Store', () => {
         project_status: "Pending",
         project_start_date: "2023-01-01",
         estimated_amount: 175000,
+        customer_uuid: null,
         project_type_uuid: "pt-1",
         service_type_uuid: "st-1",
         corporation_uuid: "corp-1",
@@ -599,6 +604,11 @@ describe('Projects Store', () => {
 
       expect(result).toEqual(updatedProject);
       expect(result?.customer_uuid).toBe("customer-2");
+      // Should update metadata in store
+      const projectMetadata = store.projects.find(
+        (p) => p.uuid === projectUuid
+      );
+      expect(projectMetadata?.customer_uuid).toBe("customer-2");
       expect(mockFetch).toHaveBeenCalledWith("/api/projects", {
         method: "PUT",
         body: {
@@ -650,6 +660,11 @@ describe('Projects Store', () => {
 
       expect(result).toEqual(updatedProject);
       expect(result?.customer_uuid).toBeNull();
+      // Should update metadata in store
+      const projectMetadata = store.projects.find(
+        (p) => p.uuid === projectUuid
+      );
+      expect(projectMetadata?.customer_uuid).toBeNull();
       expect(mockFetch).toHaveBeenCalledWith("/api/projects", {
         method: "PUT",
         body: {
@@ -700,6 +715,7 @@ describe('Projects Store', () => {
         project_status: "Pending",
         project_start_date: "2023-01-01",
         estimated_amount: 100000,
+        customer_uuid: null,
         project_type_uuid: "pt-1",
         service_type_uuid: "st-1",
         corporation_uuid: "corp-1",
@@ -772,6 +788,7 @@ describe('Projects Store', () => {
         service_type_uuid: "st-1",
         project_status: "Pending",
         project_start_date: "2023-01-01",
+        customer_uuid: null,
         created_at: "2023-01-01T00:00:00Z",
         is_active: true,
       };
@@ -798,6 +815,7 @@ describe('Projects Store', () => {
         project_status: "Pending",
         project_start_date: "2023-01-01",
         estimated_amount: 100000,
+        customer_uuid: null,
         project_type_uuid: "pt-1",
         service_type_uuid: "st-1",
         corporation_uuid: "corp-1",
@@ -910,6 +928,7 @@ describe('Projects Store', () => {
         project_id: "P001",
         project_status: "Pending",
         project_start_date: "2023-01-01",
+        customer_uuid: null,
         project_type_uuid: "pt-1",
         service_type_uuid: "st-1",
         corporation_uuid: "corp-1",

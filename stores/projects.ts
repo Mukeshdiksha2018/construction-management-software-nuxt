@@ -683,6 +683,7 @@ export const useProjectsStore = defineStore(
         project_estimated_completion_date:
           project.project_estimated_completion_date,
         estimated_amount: project.estimated_amount,
+        customer_uuid: project.customer_uuid || null,
         project_type_uuid: project.project_type_uuid,
         service_type_uuid: project.service_type_uuid,
         corporation_uuid: project.corporation_uuid,
