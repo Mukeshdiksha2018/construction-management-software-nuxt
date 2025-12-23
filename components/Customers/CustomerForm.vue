@@ -21,23 +21,13 @@
             >
               Corporation <span class="text-red-500">*</span>
             </label>
-            <USelectMenu
-              v-model="form.corporation_uuid"
-              :options="corporationOptions"
-              option-attribute="label"
-              value-attribute="value"
+            <CorporationSelect
+              :model-value="form.corporation_uuid"
               placeholder="Select Corporation"
               size="sm"
               class="w-full"
               @update:model-value="handleCorporationChange"
-            >
-              <template #label>
-                <span v-if="selectedCorporationName">
-                  {{ selectedCorporationName }}
-                </span>
-                <span v-else class="text-gray-400">Select Corporation</span>
-              </template>
-            </USelectMenu>
+            />
           </div>
 
           <!-- Project Selection -->
@@ -48,23 +38,15 @@
             >
               Project
             </label>
-            <USelectMenu
-              v-model="form.project_uuid"
-              :options="projectOptions"
-              option-attribute="label"
-              value-attribute="value"
+            <ProjectSelect
+              :model-value="form.project_uuid"
+              :corporation-uuid="form.corporation_uuid"
               placeholder="Select Project (Optional)"
               size="sm"
               class="w-full"
-              :disabled="!form.corporation_uuid || loadingProjects"
-            >
-              <template #label>
-                <span v-if="selectedProjectName">
-                  {{ selectedProjectName }}
-                </span>
-                <span v-else class="text-gray-400">Select Project (Optional)</span>
-              </template>
-            </USelectMenu>
+              :disabled="!form.corporation_uuid"
+              @update:model-value="handleProjectChange"
+            />
             <p v-if="!form.corporation_uuid" class="text-xs text-gray-500 mt-1">
               Please select a corporation first
             </p>
@@ -315,6 +297,8 @@ import { ref, computed, watch } from "vue";
 import { useCustomerStore } from "@/stores/customers";
 import { useCorporationStore } from "@/stores/corporations";
 import { useProjectsStore } from "@/stores/projects";
+import CorporationSelect from '@/components/Shared/CorporationSelect.vue';
+import ProjectSelect from '@/components/Shared/ProjectSelect.vue';
 
 interface CustomerFormProps {
   modelValue: boolean;
@@ -338,7 +322,6 @@ const projectsStore = useProjectsStore();
 const toast = useToast();
 
 const submitting = ref(false);
-const loadingProjects = ref(false);
 const fileInput = ref<HTMLInputElement | null>(null);
 const profileImagePreview = ref<string | null>(null);
 const profileImageFile = ref<File | null>(null);
@@ -350,40 +333,6 @@ const showModal = computed({
 });
 
 const editingCustomer = computed(() => props.customer !== null);
-
-// Corporation options
-const corporationOptions = computed(() => {
-  return (corpStore.corporations || []).map((corp: any) => ({
-    label: corp.corporation_name || corp.uuid,
-    value: corp.uuid
-  }));
-});
-
-// Selected corporation name
-const selectedCorporationName = computed(() => {
-  if (!form.value.corporation_uuid) return null;
-  const corp = corpStore.corporations.find((c: any) => c.uuid === form.value.corporation_uuid);
-  return corp?.corporation_name || null;
-});
-
-// Project options (filtered by selected corporation)
-const projectOptions = computed(() => {
-  if (!form.value.corporation_uuid) return [];
-  const projects = projectsStore.projects.filter(
-    (p: any) => p.corporation_uuid === form.value.corporation_uuid && p.is_active
-  );
-  return projects.map((project: any) => ({
-    label: `${project.project_id} - ${project.project_name}`,
-    value: project.uuid
-  }));
-});
-
-// Selected project name
-const selectedProjectName = computed(() => {
-  if (!form.value.project_uuid) return null;
-  const project = projectsStore.projects.find((p: any) => p.uuid === form.value.project_uuid);
-  return project ? `${project.project_id} - ${project.project_name}` : null;
-});
 
 // Salutation options
 const salutationOptions = [
@@ -448,28 +397,19 @@ function closeModal() {
   resetForm();
 }
 
-// Handle corporation change - fetch projects for the selected corporation
-async function handleCorporationChange(corporationUuid: string | null) {
-  if (!corporationUuid) {
+// Handle corporation change - clear project selection when corporation changes
+function handleCorporationChange(corporationUuid: string | null | undefined) {
+  const oldCorporationUuid = form.value.corporation_uuid;
+  form.value.corporation_uuid = corporationUuid || "";
+  // Clear project selection when corporation changes
+  if (oldCorporationUuid !== form.value.corporation_uuid) {
     form.value.project_uuid = null;
-    return;
   }
+}
 
-  loadingProjects.value = true;
-  try {
-    await projectsStore.fetchProjectsMetadata(corporationUuid);
-    // Clear project selection when corporation changes
-    form.value.project_uuid = null;
-  } catch (error) {
-    console.error("Error fetching projects:", error);
-    toast.add({
-      title: 'Error',
-      description: 'Failed to load projects for the selected corporation',
-      icon: 'i-heroicons-exclamation-triangle',
-    });
-  } finally {
-    loadingProjects.value = false;
-  }
+// Handle project change
+function handleProjectChange(projectUuid: string | null | undefined) {
+  form.value.project_uuid = projectUuid || null;
 }
 
 // Handle image selection
@@ -596,10 +536,7 @@ watch(() => props.modelValue, async (isOpen) => {
         profileImagePreview.value = props.customer.profile_image_url;
       }
       
-      // Fetch projects for the selected corporation
-      if (form.value.corporation_uuid) {
-        await handleCorporationChange(form.value.corporation_uuid);
-      }
+      // Projects will be automatically loaded by ProjectSelect component
     } else {
       // Add mode - reset form
       resetForm();
