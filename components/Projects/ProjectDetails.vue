@@ -191,7 +191,7 @@
       <div class="relative overflow-auto rounded-2xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         <!-- Loading skeleton -->
         <div class="bg-gray-50 dark:bg-gray-700">
-          <div class="grid gap-4 px-2 py-2 text-sm font-bold text-gray-800 dark:text-gray-200 tracking-wider border-b border-gray-200 dark:border-gray-600" style="grid-template-columns: repeat(13, minmax(0, 1fr));">
+          <div class="grid gap-4 px-2 py-2 text-sm font-bold text-gray-800 dark:text-gray-200 tracking-wider border-b border-gray-200 dark:border-gray-600" style="grid-template-columns: repeat(14, minmax(0, 1fr));">
             <div class="flex items-center gap-2">
               <USkeleton class="h-4 w-4 rounded" />
               <USkeleton class="h-4 w-8" />
@@ -221,7 +221,15 @@
             </div>
             <div class="flex items-center gap-2">
               <USkeleton class="h-4 w-4 rounded" />
+              <USkeleton class="h-4 w-20" />
+            </div>
+            <div class="flex items-center gap-2">
+              <USkeleton class="h-4 w-4 rounded" />
               <USkeleton class="h-4 w-24" />
+            </div>
+            <div class="flex items-center gap-2">
+              <USkeleton class="h-4 w-4 rounded" />
+              <USkeleton class="h-4 w-20" />
             </div>
             <div class="flex items-center gap-2">
               <USkeleton class="h-4 w-4 rounded" />
@@ -248,7 +256,7 @@
         <!-- Table Body -->
         <div class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
           <div v-for="i in 8" :key="i" class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150">
-            <div class="grid gap-4 px-2 py-1 text-xs text-gray-900 dark:text-gray-100 border-gray-100 dark:border-gray-700" style="grid-template-columns: repeat(13, minmax(0, 1fr));">
+            <div class="grid gap-4 px-2 py-1 text-xs text-gray-900 dark:text-gray-100 border-gray-100 dark:border-gray-700" style="grid-template-columns: repeat(14, minmax(0, 1fr));">
               <div class="flex items-center">
                 <USkeleton class="h-4 w-20" />
               </div>
@@ -269,6 +277,10 @@
               </div>
               <div class="flex items-center justify-center">
                 <USkeleton class="h-4 w-4 rounded" />
+              </div>
+              <div class="flex items-center gap-2">
+                <USkeleton class="h-4 w-4 rounded-full" />
+                <USkeleton class="h-4 w-20" />
               </div>
               <div class="flex items-center">
                 <USkeleton class="h-4 w-24" />
@@ -516,6 +528,7 @@ import { useProjectTypesStore } from '@/stores/projectTypes'
 import { useServiceTypesStore } from '@/stores/serviceTypes'
 import { useEstimatesStore } from '@/stores/estimates'
 import { useDateRangeStore } from '@/stores/dateRange'
+import { useCustomerStore } from '@/stores/customers'
 import { useTableStandard } from '@/composables/useTableStandard'
 import { useDateFormat } from '@/composables/useDateFormat'
 import { useCurrencyFormat } from '@/composables/useCurrencyFormat'
@@ -529,6 +542,7 @@ const UButton = resolveComponent('UButton')
 const UTooltip = resolveComponent('UTooltip')
 const UPopover = resolveComponent('UPopover')
 const UIcon = resolveComponent('UIcon')
+const UAvatar = resolveComponent('UAvatar')
 
 // Router
 const router = useRouter()
@@ -541,6 +555,7 @@ const projectTypesStore = useProjectTypesStore()
 const serviceTypesStore = useServiceTypesStore()
 const estimatesStore = useEstimatesStore()
 const dateRangeStore = useDateRangeStore()
+const customerStore = useCustomerStore()
 
 // Address popover state - track which project's popover is open
 const addressPopoverOpen = ref<Record<string, boolean>>({})
@@ -647,6 +662,48 @@ const corporationNameByUuid = computed<Record<string, string>>(() => {
   })
   return map
 })
+
+// Map of customer UUID to customer object for quick lookup
+const customerByUuid = computed<Map<string, any>>(() => {
+  const map = new Map<string, any>()
+  const customers = customerStore.customers || []
+  customers.forEach((customer: any) => {
+    if (customer?.uuid) {
+      map.set(customer.uuid, customer)
+    }
+  })
+  return map
+})
+
+// Helper function to compute customer initials
+const computeCustomerInitials = (customer: any) => {
+  const segments = [
+    customer.first_name,
+    customer.last_name
+  ]
+    .filter((value: any) => typeof value === 'string' && value.trim().length > 0)
+    .map((value: string) => value.trim()[0]?.toUpperCase())
+    .join('')
+
+  if (segments.length) return segments
+
+  // Fallback to company name or email
+  if (customer.company_name) {
+    return customer.company_name.trim()[0]?.toUpperCase() || 'C'
+  }
+
+  if (customer.customer_email) {
+    return customer.customer_email.trim()[0]?.toUpperCase() || 'C'
+  }
+
+  return 'C' // Default fallback
+}
+
+// Helper function to get customer full name
+const getCustomerFullName = (customer: any) => {
+  const fullName = [customer.first_name, customer.last_name].filter(Boolean).join(' ')
+  return fullName || customer.company_name || customer.customer_email || 'Unnamed Customer'
+}
 
 // Status stats computed properties
 const allProjectsStats = computed(() => {
@@ -838,6 +895,41 @@ const columns: TableColumn<any>[] = [
           }),
           content: () => renderAddressPopover(projectUuid)
         })
+      ])
+    }
+  },
+  {
+    accessorKey: 'customer_uuid',
+    header: 'Customer',
+    enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
+    cell: ({ row }: { row: { original: any } }) => {
+      const customerUuid = row.original.customer_uuid
+      if (!customerUuid) {
+        return h('div', { class: 'text-muted text-sm' }, 'N/A')
+      }
+      
+      const customer = customerByUuid.value.get(customerUuid)
+      if (!customer) {
+        return h('div', { class: 'text-muted text-sm' }, 'Unknown')
+      }
+      
+      const fullName = getCustomerFullName(customer)
+      const avatarProps = customer.profile_image_url
+        ? {
+            src: customer.profile_image_url,
+            alt: fullName,
+            size: 'xs' as const
+          }
+        : {
+            alt: fullName,
+            text: computeCustomerInitials(customer),
+            size: 'xs' as const
+          }
+      
+      return h('div', { class: 'flex items-center gap-2' }, [
+        h(UAvatar, avatarProps),
+        h('div', { class: 'text-sm text-default' }, fullName)
       ])
     }
   },
@@ -1053,6 +1145,7 @@ const fetchProjects = async () => {
       projectTypesStore.fetchProjectTypes(),
       serviceTypesStore.fetchServiceTypes(),
       estimatesStore.fetchEstimates(selectedCorporationId.value),
+      customerStore.fetchCustomers(selectedCorporationId.value, null, false),
       fetchBilledAmounts()
     ])
     console.log('Successfully fetched projects data')

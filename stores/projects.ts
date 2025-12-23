@@ -87,6 +87,7 @@ export interface ProjectMetadata {
   project_start_date?: string;
   project_estimated_completion_date?: string;
   estimated_amount: number;
+  customer_uuid?: string | null;
   project_type_uuid: string;
   service_type_uuid: string;
   corporation_uuid: string;
@@ -158,6 +159,7 @@ export const useProjectsStore = defineStore(
           project_estimated_completion_date:
             project.project_estimated_completion_date,
           estimated_amount: project.estimated_amount,
+          customer_uuid: project.customer_uuid || null,
           project_type_uuid: project.project_type_uuid,
           service_type_uuid: project.service_type_uuid,
           corporation_uuid: project.corporation_uuid,
@@ -236,6 +238,7 @@ export const useProjectsStore = defineStore(
           project_estimated_completion_date:
             project.project_estimated_completion_date,
           estimated_amount: project.estimated_amount,
+          customer_uuid: project.customer_uuid || null,
           project_type_uuid: project.project_type_uuid,
           service_type_uuid: project.service_type_uuid,
           corporation_uuid: project.corporation_uuid,
@@ -365,6 +368,7 @@ export const useProjectsStore = defineStore(
             project_estimated_completion_date:
               newProject.project_estimated_completion_date,
             estimated_amount: newProject.estimated_amount,
+            customer_uuid: newProject.customer_uuid || null,
             project_type_uuid: newProject.project_type_uuid,
             service_type_uuid: newProject.service_type_uuid,
             corporation_uuid: newProject.corporation_uuid,
@@ -429,6 +433,7 @@ export const useProjectsStore = defineStore(
               project_estimated_completion_date:
                 updatedProject.project_estimated_completion_date,
               estimated_amount: updatedProject.estimated_amount,
+              customer_uuid: updatedProject.customer_uuid || null,
               project_type_uuid: updatedProject.project_type_uuid,
               service_type_uuid: updatedProject.service_type_uuid,
               corporation_uuid: updatedProject.corporation_uuid,
