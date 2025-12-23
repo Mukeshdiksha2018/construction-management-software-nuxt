@@ -129,6 +129,22 @@
                     />
                   </div>
 
+                  <!-- Customer -->
+                  <div>
+                    <label class="block text-xs font-medium text-default mb-1">
+                      Customer
+                    </label>
+                    <CustomerSelect
+                      :model-value="form.customer_uuid"
+                      :corporation-uuid="form.corporation_uuid"
+                      :project-uuid="form.uuid || form.id || null"
+                      placeholder="Select customer"
+                      size="sm"
+                      class="w-full"
+                      @update:model-value="(value) => handleFormUpdate('customer_uuid', value)"
+                    />
+                  </div>
+
                   <!-- Project Type -->
                   <div>
                     <label class="block text-xs font-medium text-default mb-1 flex items-center gap-1">
@@ -1012,6 +1028,7 @@ import FilePreview from '@/components/Shared/FilePreview.vue';
 import ProjectTypeSelect from '@/components/Shared/ProjectTypeSelect.vue';
 import ServiceTypeSelect from '@/components/Shared/ServiceTypeSelect.vue';
 import CorporationSelect from '@/components/Shared/CorporationSelect.vue';
+import CustomerSelect from '@/components/Shared/CustomerSelect.vue';
 
 // Props
 interface Props {
