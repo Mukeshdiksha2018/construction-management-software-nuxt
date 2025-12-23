@@ -8,8 +8,6 @@ CREATE TABLE IF NOT EXISTS public.customers (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   corporation_uuid UUID NOT NULL REFERENCES public.properties(uuid) ON DELETE CASCADE,
   project_uuid UUID REFERENCES public.projects(uuid) ON DELETE SET NULL,
-  customer_name VARCHAR(255) NOT NULL,
-  customer_type VARCHAR(100) DEFAULT '',
   customer_address TEXT DEFAULT '',
   customer_city VARCHAR(100) DEFAULT '',
   customer_state VARCHAR(50) DEFAULT '',
@@ -19,9 +17,9 @@ CREATE TABLE IF NOT EXISTS public.customers (
   customer_email VARCHAR(255) DEFAULT '',
   company_name VARCHAR(255) DEFAULT '',
   salutation VARCHAR(20) DEFAULT 'Mr.',
-  first_name VARCHAR(100) DEFAULT '',
+  first_name VARCHAR(100) NOT NULL,
   middle_name VARCHAR(100) DEFAULT '',
-  last_name VARCHAR(100) DEFAULT '',
+  last_name VARCHAR(100) NOT NULL,
   profile_image_url TEXT DEFAULT '',
   is_active BOOLEAN DEFAULT true,
   created_by UUID REFERENCES public.user_profiles(id) ON DELETE SET NULL,
@@ -32,12 +30,11 @@ CREATE TABLE IF NOT EXISTS public.customers (
 CREATE INDEX IF NOT EXISTS idx_customers_corporation_uuid ON public.customers(corporation_uuid);
 CREATE INDEX IF NOT EXISTS idx_customers_project_uuid ON public.customers(project_uuid);
 CREATE INDEX IF NOT EXISTS idx_customers_uuid ON public.customers(uuid);
-CREATE INDEX IF NOT EXISTS idx_customers_customer_name ON public.customers(customer_name);
+-- Index removed: customer_name field removed, using first_name and last_name instead
 CREATE INDEX IF NOT EXISTS idx_customers_is_active ON public.customers(is_active);
 CREATE INDEX IF NOT EXISTS idx_customers_created_at ON public.customers(created_at);
 
--- Create unique constraint for corporation_uuid + customer_name combination
-CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_corporation_name_unique ON public.customers(corporation_uuid, customer_name) WHERE is_active = true;
+-- Note: No unique constraint on customer name since we use first_name and last_name instead
 
 -- Create trigger to automatically update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_customers_updated_at()
@@ -117,8 +114,6 @@ COMMENT ON COLUMN public.customers.id IS 'Primary key';
 COMMENT ON COLUMN public.customers.uuid IS 'Unique identifier for external references';
 COMMENT ON COLUMN public.customers.corporation_uuid IS 'Reference to the corporation this customer belongs to';
 COMMENT ON COLUMN public.customers.project_uuid IS 'Reference to the project this customer is associated with';
-COMMENT ON COLUMN public.customers.customer_name IS 'Name of the customer (required)';
-COMMENT ON COLUMN public.customers.customer_type IS 'Type of customer (e.g., Individual, Business, etc.)';
 COMMENT ON COLUMN public.customers.customer_address IS 'Street address of the customer';
 COMMENT ON COLUMN public.customers.customer_city IS 'City of the customer';
 COMMENT ON COLUMN public.customers.customer_state IS 'State/Province of the customer';

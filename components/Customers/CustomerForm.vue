@@ -39,8 +39,8 @@
               Project
             </label>
             <ProjectSelect
-              :model-value="form.project_uuid"
-              :corporation-uuid="form.corporation_uuid"
+              :model-value="form.project_uuid || undefined"
+              :corporation-uuid="form.corporation_uuid || undefined"
               placeholder="Select Project (Optional)"
               size="sm"
               class="w-full"
@@ -89,34 +89,6 @@
                 </p>
               </div>
             </div>
-          </div>
-          
-          <!-- Customer Name - Required Field -->
-          <div>
-            <label class="block text-xs font-medium text-gray-700 mb-1">
-              Customer Name <span class="text-red-500">*</span>
-            </label>
-            <UInput
-              v-model="form.customer_name"
-              variant="subtle"
-              placeholder="Customer Name"
-              size="sm"
-              class="w-full"
-            />
-          </div>
-
-          <!-- Customer Type -->
-          <div>
-            <label class="block text-xs font-medium text-gray-700 mb-1">
-              Customer Type
-            </label>
-            <UInput
-              v-model="form.customer_type"
-              variant="subtle"
-              placeholder="e.g., Individual, Business"
-              size="sm"
-              class="w-full"
-            />
           </div>
 
           <!-- Company Name -->
@@ -350,8 +322,6 @@ const salutationOptions = [
 const form = ref({
   corporation_uuid: "",
   project_uuid: null as string | null,
-  customer_name: "",
-  customer_type: "",
   customer_address: "",
   customer_city: "",
   customer_state: "",
@@ -372,8 +342,6 @@ function resetForm() {
   form.value = {
     corporation_uuid: corpStore.selectedCorporation?.uuid || "",
     project_uuid: null,
-    customer_name: "",
-    customer_type: "",
     customer_address: "",
     customer_city: "",
     customer_state: "",
@@ -487,8 +455,8 @@ async function uploadProfileImage(): Promise<string | null> {
       body: {
         imageData,
         fileName,
-        customerUuid: editingCustomer.value?.uuid || null,
-        oldImageUrl: editingCustomer.value?.profile_image_url || form.value.profile_image_url || null,
+        customerUuid: props.customer?.uuid || null,
+        oldImageUrl: props.customer?.profile_image_url || form.value.profile_image_url || null,
       },
     });
 
@@ -514,8 +482,6 @@ watch(() => props.modelValue, async (isOpen) => {
       form.value = {
         corporation_uuid: props.customer.corporation_uuid || "",
         project_uuid: props.customer.project_uuid || null,
-        customer_name: props.customer.customer_name || "",
-        customer_type: props.customer.customer_type || "",
         customer_address: props.customer.customer_address || "",
         customer_city: props.customer.customer_city || "",
         customer_state: props.customer.customer_state || "",
@@ -555,10 +521,20 @@ async function submitCustomer() {
     return;
   }
 
-  if (!form.value.customer_name || form.value.customer_name.trim() === '') {
+  // Validate required name fields
+  if (!form.value.first_name || form.value.first_name.trim() === '') {
     toast.add({
       title: 'Validation Error',
-      description: 'Please enter a customer name',
+      description: 'Please enter a first name',
+      icon: 'i-heroicons-exclamation-triangle',
+    });
+    return;
+  }
+
+  if (!form.value.last_name || form.value.last_name.trim() === '') {
+    toast.add({
+      title: 'Validation Error',
+      description: 'Please enter a last name',
       icon: 'i-heroicons-exclamation-triangle',
     });
     return;
@@ -581,19 +557,18 @@ async function submitCustomer() {
 
   try {
     // Upload profile image if a new one was selected
-    let profileImageUrl = form.value.profile_image_url;
+    let profileImageUrl: string | null = form.value.profile_image_url || null;
     if (profileImageFile.value) {
-      profileImageUrl = await uploadProfileImage();
-      if (!profileImageUrl) {
+      const uploadedUrl = await uploadProfileImage();
+      if (!uploadedUrl) {
         throw new Error('Failed to upload profile image');
       }
+      profileImageUrl = uploadedUrl;
     }
 
     const payload = {
       corporation_uuid: form.value.corporation_uuid,
       project_uuid: form.value.project_uuid || null,
-      customer_name: form.value.customer_name.trim(),
-      customer_type: form.value.customer_type?.trim() || "",
       customer_address: form.value.customer_address?.trim() || "",
       customer_city: form.value.customer_city?.trim() || "",
       customer_state: form.value.customer_state?.trim() || "",

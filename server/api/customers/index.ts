@@ -40,8 +40,6 @@ export default defineEventHandler(async (event) => {
       const {
         corporation_uuid,
         project_uuid,
-        customer_name,
-        customer_type,
         customer_address,
         customer_city,
         customer_state,
@@ -58,11 +56,19 @@ export default defineEventHandler(async (event) => {
       } = body;
 
       // Validate required fields
-      if (!corporation_uuid || !customer_name) {
+      if (!corporation_uuid) {
+        throw createError({
+          statusCode: 400,
+          statusMessage: "Missing required field: corporation_uuid is required",
+        });
+      }
+
+      // Validate name fields
+      if (!first_name || !last_name) {
         throw createError({
           statusCode: 400,
           statusMessage:
-            "Missing required fields: corporation_uuid and customer_name are required",
+            "Missing required fields: first_name and last_name are required",
         });
       }
 
@@ -122,8 +128,6 @@ export default defineEventHandler(async (event) => {
       const customerData = {
         corporation_uuid,
         project_uuid: project_uuid || null,
-        customer_name: customer_name.trim(),
-        customer_type: customer_type?.trim() || "",
         customer_address: customer_address?.trim() || "",
         customer_city: customer_city?.trim() || "",
         customer_state: customer_state?.trim() || "",
@@ -244,8 +248,6 @@ export default defineEventHandler(async (event) => {
       const customerUpdateData = {
         ...updateData,
         // Trim string fields
-        customer_name: updateData.customer_name?.trim(),
-        customer_type: updateData.customer_type?.trim(),
         customer_address: updateData.customer_address?.trim(),
         customer_city: updateData.customer_city?.trim(),
         customer_state: updateData.customer_state?.trim(),

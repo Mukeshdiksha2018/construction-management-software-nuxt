@@ -29,7 +29,7 @@
       <div class="relative overflow-auto rounded-2xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         <!-- Table Header -->
         <div class="bg-gray-50 dark:bg-gray-700">
-          <div class="grid grid-cols-10 gap-4 px-2 py-2 text-sm font-bold text-gray-800 dark:text-gray-200 tracking-wider border-b border-gray-200 dark:border-gray-600">
+          <div class="grid grid-cols-9 gap-4 px-2 py-2 text-sm font-bold text-gray-800 dark:text-gray-200 tracking-wider border-b border-gray-200 dark:border-gray-600">
             <!-- Profile Image Column -->
             <div class="flex items-center gap-2">
               <USkeleton class="h-4 w-4 rounded" />
@@ -49,11 +49,6 @@
             <div class="flex items-center gap-2">
               <USkeleton class="h-4 w-4 rounded" />
               <USkeleton class="h-4 w-24" />
-            </div>
-            <!-- Type Column -->
-            <div class="flex items-center gap-2">
-              <USkeleton class="h-4 w-4 rounded" />
-              <USkeleton class="h-4 w-12" />
             </div>
             <!-- Address Column -->
             <div class="flex items-center gap-2">
@@ -85,7 +80,7 @@
         <!-- Table Body -->
         <div class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
           <div v-for="i in 8" :key="i" class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150">
-            <div class="grid grid-cols-10 gap-4 px-2 py-1 text-xs text-gray-900 dark:text-gray-100 border-gray-100 dark:border-gray-700">
+            <div class="grid grid-cols-9 gap-4 px-2 py-1 text-xs text-gray-900 dark:text-gray-100 border-gray-100 dark:border-gray-700">
               <!-- Profile Image Cell -->
               <div class="flex items-center">
                 <USkeleton class="h-10 w-10 rounded-full" />
@@ -101,10 +96,6 @@
               <!-- Project Cell -->
               <div class="flex items-center">
                 <USkeleton class="h-4 w-24" />
-              </div>
-              <!-- Type Cell -->
-              <div class="flex items-center">
-                <USkeleton class="h-5 w-16 rounded-full" />
               </div>
               <!-- Address Cell -->
               <div class="flex items-center">
@@ -286,7 +277,7 @@ const pagination = ref({
 
 // Column pinning state
 const columnPinning = ref({
-  left: ['profile_image', 'customer_name'],
+  left: ['profile_image', 'customer_full_name'],
   right: ['actions']
 });
 
@@ -309,8 +300,8 @@ const filteredCustomers = computed(() => {
   return customerStore.customers.filter(customer => {
     // Search across all relevant fields
     const searchableFields = [
-      customer.customer_name || '',
-      customer.customer_type || '',
+      customer.first_name || '',
+      customer.last_name || '',
       customer.customer_address || '',
       customer.customer_city || '',
       customer.customer_state || '',
@@ -370,11 +361,16 @@ const columns: TableColumn<any>[] = [
     }
   },
   {
-    accessorKey: 'customer_name',
+    accessorKey: 'customer_full_name',
     header: 'Customer Name',
     enableSorting: false,
     meta: { class: { th: 'text-left', td: 'text-left' } },
-    cell: ({ row }: { row: { original: any } }) => h('div', { class: 'font-medium text-default' }, row.original.customer_name)
+    cell: ({ row }: { row: { original: any } }) => {
+      const firstName = row.original.first_name || '';
+      const lastName = row.original.last_name || '';
+      const fullName = [firstName, lastName].filter(Boolean).join(' ') || 'N/A';
+      return h('div', { class: 'font-medium text-default' }, fullName);
+    }
   },
   {
     accessorKey: 'project_uuid',
@@ -385,19 +381,6 @@ const columns: TableColumn<any>[] = [
       const uuid = row.original.project_uuid
       const label = uuid ? (projectNameByUuid.value[uuid] || 'N/A') : 'N/A'
       return h('div', { class: 'text-muted' }, label)
-    }
-  },
-  {
-    accessorKey: 'customer_type',
-    header: 'Type',
-    enableSorting: false,
-    meta: { class: { th: 'text-left', td: 'text-left' } },
-    cell: ({ row }: { row: { original: any } }) => {
-      const type = row.original.customer_type;
-      if (!type) return h('div', { class: 'text-muted' }, 'N/A');
-      return h('span', { 
-        class: 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800' 
-      }, type);
     }
   },
   {

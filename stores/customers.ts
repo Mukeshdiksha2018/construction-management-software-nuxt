@@ -8,8 +8,6 @@ type Customer = {
   created_at: string;
   corporation_uuid: string;
   project_uuid?: string | null;
-  customer_name: string;
-  customer_type: string;
   customer_address: string;
   customer_city?: string;
   customer_state?: string;
@@ -30,8 +28,6 @@ type Customer = {
 type CreateCustomerPayload = {
   corporation_uuid: string;
   project_uuid?: string | null;
-  customer_name: string;
-  customer_type?: string;
   customer_address?: string;
   customer_city?: string;
   customer_state?: string;
