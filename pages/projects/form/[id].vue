@@ -229,6 +229,7 @@ const form = ref({
   only_total: false,
   enable_labor: false,
   enable_material: false,
+  customer_uuid: null as string | null,
   attachments: [] as any[],
   tempAddresses: [] as any[],
   // Address fields
@@ -269,6 +270,7 @@ const resetForm = () => {
     only_total: false,
     enable_labor: false,
     enable_material: false,
+    customer_uuid: null,
     attachments: [],
     tempAddresses: [],
     // Address fields
@@ -374,6 +376,7 @@ const loadProjectData = async () => {
       only_total: projectToEdit.only_total || false,
       enable_labor: projectToEdit.enable_labor || false,
       enable_material: projectToEdit.enable_material || false,
+      customer_uuid: projectToEdit.customer_uuid || null,
       attachments: existingAttachments,
       tempAddresses: [],
       // Address fields (not used in edit mode, but required for form type)

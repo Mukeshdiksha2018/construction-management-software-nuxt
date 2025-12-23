@@ -18,6 +18,7 @@ export interface Project {
   no_of_rooms?: number;
   contingency_percentage: number;
   customer_name?: string;
+  customer_uuid?: string | null;
   project_status: "Pending" | "In Progress" | "Completed" | "On Hold";
 
   // Project dates
@@ -51,6 +52,7 @@ export interface CreateProjectPayload {
   no_of_rooms?: number;
   contingency_percentage?: number;
   customer_name?: string;
+  customer_uuid?: string | null;
   project_status?: "Pending" | "In Progress" | "Completed" | "On Hold";
   project_start_date?: string;
   project_estimated_completion_date?: string;

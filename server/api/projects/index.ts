@@ -131,6 +131,7 @@ export default defineEventHandler(async (event) => {
           ? parseFloat(body.contingency_percentage)
           : 0.0,
         customer_name: body.customer_name || null,
+        customer_uuid: body.customer_uuid || null,
         project_status: body.project_status || "Pending",
         project_start_date: normalizeUTC(body.project_start_date),
         project_estimated_completion_date: normalizeUTC(
@@ -229,6 +230,7 @@ export default defineEventHandler(async (event) => {
         "no_of_rooms",
         "contingency_percentage",
         "customer_name",
+        "customer_uuid",
         "project_status",
         "project_start_date",
         "project_estimated_completion_date",
