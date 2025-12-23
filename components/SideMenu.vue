@@ -112,6 +112,12 @@ const baseMenuItems = [
     class: "",
   },
   {
+    label: "Customers",
+    to: "/customers",
+    icon: "i-heroicons-user-circle-solid",
+    class: "",
+  },
+  {
     label: "Purchase Orders",
     to: "/purchase-orders",
     icon: "i-heroicons-shopping-cart-solid",
