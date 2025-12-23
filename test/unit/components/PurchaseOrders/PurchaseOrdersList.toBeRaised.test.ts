@@ -1053,15 +1053,24 @@ describe("PurchaseOrdersList.vue - To Be Raised Functionality", () => {
 
       // Set incomplete filters - appliedFilters is a ref
       // The component uses appliedFilters.value internally, so we need to ensure the ref is updated
-      // Try to access the ref directly - Vue Test Utils may auto-unwrap, but we need the actual ref
-      const appliedFiltersRef = vm.appliedFilters;
-      if (
-        appliedFiltersRef &&
-        typeof appliedFiltersRef === "object" &&
-        "value" in appliedFiltersRef
-      ) {
-        // It's a ref object, update via .value
-        appliedFiltersRef.value = {
+      // Access the ref through the component's setup state to ensure we're updating the actual ref
+      const componentInstance = wrapper.vm as any;
+      let filtersRef: any = null;
+      
+      // Try to get the actual ref from setupState (this is where Vue stores refs in setup)
+      if (componentInstance.$ && componentInstance.$.setupState) {
+        filtersRef = componentInstance.$.setupState.appliedFilters;
+      }
+      
+      // If not found in setupState, try direct access
+      if (!filtersRef || typeof filtersRef !== "object" || !("value" in filtersRef)) {
+        filtersRef = vm.appliedFilters;
+      }
+      
+      // Update the ref with project undefined
+      if (filtersRef && typeof filtersRef === "object" && "value" in filtersRef) {
+        // Set the entire object to trigger reactivity
+        filtersRef.value = {
           corporation: "corp-1",
           project: undefined, // Missing project - this should trigger the toast
           vendor: "vendor-1",
@@ -1069,18 +1078,17 @@ describe("PurchaseOrdersList.vue - To Be Raised Functionality", () => {
           status: undefined,
         };
       } else {
-        // Vue Test Utils auto-unwrapped it - set directly
-        // But the component uses .value internally, so we need to ensure reactivity
+        // Fallback: set directly (Vue Test Utils might handle this)
         vm.appliedFilters = {
           corporation: "corp-1",
-          project: undefined, // Missing project
+          project: undefined,
           vendor: "vendor-1",
           location: undefined,
           status: undefined,
         };
-        // Force update to ensure reactivity
-        await nextTick();
       }
+      
+      await nextTick(); // Wait for reactivity
 
       // Set selectedItemsTableRows so the computed property uses the fallback path
       // Don't set itemsTable so the computed uses the fallback path
@@ -1097,40 +1105,27 @@ describe("PurchaseOrdersList.vue - To Be Raised Functionality", () => {
 
       mockToastAdd.mockClear();
 
-      // Verify filters are set correctly before calling
-      // The component uses appliedFilters.value, so we need to ensure the ref is updated
-      // Vue Test Utils may auto-unwrap refs, but the component still uses .value internally
-      let filters = vm.appliedFilters;
-      if (filters && typeof filters === "object" && "value" in filters) {
-        filters = filters.value;
-        // Ensure project is undefined
-        filters.project = undefined;
-      } else {
-        // If auto-unwrapped, the component still accesses via .value internally
-        // So we need to ensure the actual ref is updated
-        // Try to access the ref directly through the component's setup context
-        const setupState = (vm as any).$;
-        if (setupState && setupState.setupState) {
-          const setupStateRefs = setupState.setupState;
-          if (
-            setupStateRefs.appliedFilters &&
-            typeof setupStateRefs.appliedFilters === "object" &&
-            "value" in setupStateRefs.appliedFilters
-          ) {
-            setupStateRefs.appliedFilters.value.project = undefined;
-          }
-        }
+      // Double-check that the ref is set correctly before calling the function
+      // The function checks: if (!appliedFilters.value.corporation || !appliedFilters.value.project)
+      // Ensure project is undefined in the actual ref that the component uses
+      if (filtersRef && typeof filtersRef === "object" && "value" in filtersRef) {
+        // Verify the ref is set correctly
+        expect(filtersRef.value.corporation).toBe("corp-1");
+        expect(filtersRef.value.project).toBeUndefined();
+        // Verify the condition that should trigger the toast
+        const shouldTriggerToast = !filtersRef.value.corporation || !filtersRef.value.project;
+        expect(shouldTriggerToast).toBe(true);
       }
-      expect(filters.corporation).toBe("corp-1");
-      expect(filters.project).toBeUndefined();
 
+      await nextTick(); // Wait for reactivity
+
+      // Call the function - it should detect missing project and call toast
       await vm.handleRaisePurchaseOrderForPendingQty();
       await flushPromises();
       await nextTick(); // Wait for toast to be called
-      await new Promise((resolve) => setTimeout(resolve, 100)); // Additional wait for async toast
+      await new Promise((resolve) => setTimeout(resolve, 200)); // Additional wait for async toast
 
       // Should show error toast - the function should call toast when project is missing
-      // If toast wasn't called, the function might have returned early or the check didn't pass
       expect(mockToastAdd).toHaveBeenCalledWith(
         expect.objectContaining({
           title: "Error",
