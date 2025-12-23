@@ -330,7 +330,8 @@
 
     <!-- To be Raised Table - Separate from Purchase Orders Table -->
     <!-- Only show this section if items table doesn't have data, or if ToBeRaised items exist -->
-    <div v-if="selectedStatusFilter === 'ToBeRaised' && isReady && hasPermission('po_view') && (itemsTableData.length === 0 || toBeRaisedItems.length > 0)" class="mb-6">
+    <!-- Hide when items table is loading to avoid duplicate loading spinners -->
+    <div v-if="selectedStatusFilter === 'ToBeRaised' && isReady && hasPermission('po_view') && (itemsTableData.length === 0 || toBeRaisedItems.length > 0) && !loadingItemsTable" class="mb-6">
       <UCard variant="soft" class="mb-4">
         <div v-if="!appliedFilters.corporation || !appliedFilters.project || !appliedFilters.vendor" class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-4">
           <div class="flex items-center gap-2">
@@ -342,34 +343,48 @@
         </div>
         
         <div v-else>
+          <!-- Loading state - only show when toBeRaisedItems is loading (not itemsTableData) -->
+          <div v-if="loadingToBeRaisedItems" class="text-center py-12">
+            <div class="text-gray-400 mb-4">
+              <UIcon name="i-heroicons-arrow-path" class="w-12 h-12 mx-auto animate-spin" />
+            </div>
+            <p class="text-gray-500 text-lg">Loading items...</p>
+            <p class="text-gray-400 text-sm">Fetching items to be raised</p>
+          </div>
+          <!-- Table with data -->
           <UTable
-            v-if="toBeRaisedItems.length > 0"
+            v-else-if="toBeRaisedItems.length > 0"
             :data="toBeRaisedItems"
             :columns="toBeRaisedColumns"
-            :loading="loadingToBeRaisedItems"
+            :loading="false"
           />
-          <div v-else-if="!loadingToBeRaisedItems && itemsTableData.length === 0" class="text-center py-12">
+          <!-- Empty state - only show when not loading and no data -->
+          <div v-else-if="itemsTableData.length === 0" class="text-center py-12">
             <div class="text-gray-400 mb-4">
               <UIcon name="i-heroicons-document-text" class="w-12 h-12 mx-auto" />
             </div>
             <p class="text-gray-500 text-lg">No items to be raised</p>
             <p class="text-gray-400 text-sm">No items found for the selected project and vendor</p>
           </div>
-          <div v-else-if="loadingToBeRaisedItems" class="text-center py-12">
-            <div class="text-gray-400 mb-4">
-              <UIcon name="i-heroicons-arrow-path" class="w-12 h-12 mx-auto animate-spin" />
-            </div>
-            <p class="text-gray-500 text-lg">Loading items...</p>
-          </div>
         </div>
       </UCard>
     </div>
 
-    <!-- Items Table - Show when filters are applied and data exists -->
-    <!-- Always show this table when data exists, regardless of status filter -->
-    <div v-if="itemsTableData.length > 0 && hasPermission('po_view') && isReady" class="mb-6">
+    <!-- Items Table - Show when filters are applied and data exists or is loading -->
+    <!-- Always show this table when data exists or is loading, regardless of status filter -->
+    <div v-if="(itemsTableData.length > 0 || loadingItemsTable) && hasPermission('po_view') && isReady && appliedFilters.corporation && appliedFilters.project" class="mb-6">
       <div class="bg-gray-50 dark:bg-gray-800 rounded-lg overflow-hidden">
+        <!-- Loading State -->
+        <div v-if="loadingItemsTable && itemsTableData.length === 0" class="text-center py-12">
+          <div class="text-gray-400 mb-4">
+            <UIcon name="i-heroicons-arrow-path" class="w-12 h-12 mx-auto animate-spin" />
+          </div>
+          <p class="text-gray-500 text-lg">Loading items...</p>
+          <p class="text-gray-400 text-sm">Fetching project items summary</p>
+        </div>
+        <!-- Table with Data -->
         <UTable
+          v-else-if="itemsTableData.length > 0"
           :data="itemsTableData"
           :columns="itemsTableColumns"
           :loading="loadingItemsTable"
