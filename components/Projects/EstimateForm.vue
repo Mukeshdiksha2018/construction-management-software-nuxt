@@ -329,10 +329,12 @@ import { useCostCodeConfigurationsStore } from '@/stores/costCodeConfigurations'
 interface Props {
   form: any;
   editingEstimate: boolean;
+  readonly?: boolean;
   loading?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  readonly: false,
   loading: false,
 });
 
@@ -555,7 +557,7 @@ const statusChipClass = computed(() => {
 });
 
 const isReadOnlyEstimate = computed(() => {
-  return props.editingEstimate && props.form?.status === 'Approved'
+  return props.readonly || (props.editingEstimate && props.form?.status === 'Approved')
 })
 
 // Calculated final amount

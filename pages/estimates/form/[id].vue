@@ -13,7 +13,7 @@
         </UButton>
         
         <h1 class="text-xl font-bold text-gray-900 dark:text-white">
-          {{ editingEstimate ? 'Edit Estimate' : 'Create New Estimate' }}
+          {{ isViewMode ? 'View Estimate' : editingEstimate ? 'Edit Estimate' : 'Create New Estimate' }}
         </h1>
       </div>
       
@@ -95,7 +95,7 @@
           </UButton>
         </template>
 
-        <template v-else-if="showAnySaveButtons">
+        <template v-else-if="!isViewMode && showAnySaveButtons">
           <UTooltip
             v-if="editingEstimate && form.status === 'Approved' && hasApprovedPurchaseOrders"
             text="This estimate cannot be unapproved because there are approved purchase orders for this project."
@@ -138,6 +138,15 @@
             Send for Approval
           </UButton>
         </template>
+        
+        <UButton
+          v-if="isViewMode && hasPermission('project_estimates_edit')"
+          color="primary"
+          icon="tdesign:edit-filled"
+          @click="switchToEditMode"
+        >
+          Edit Estimate
+        </UButton>
       </div>
     </div>
 
@@ -156,6 +165,7 @@
       v-else
       :form="form"
       :editing-estimate="editingEstimate"
+      :readonly="isViewMode"
       :loading="loading"
       @update:form="updateForm"
       @validation-change="onValidationChange"
@@ -333,6 +343,7 @@ const form = ref<any>({
 // Computed
 const estimateId = computed(() => route.params.id as string)
 const editingEstimate = computed(() => estimateId.value !== 'new')
+const isViewMode = computed(() => route.query.mode === 'view')
 const fromProjectId = computed(() => {
   const value = route.query?.fromProjectId
   return typeof value === 'string' && value.length > 0 ? value : undefined
@@ -509,6 +520,11 @@ const goBack = () => {
     return
   }
   router.push('/projects?tab=estimates')
+}
+
+const switchToEditMode = () => {
+  // Remove the view mode query parameter to switch to edit mode
+  router.push(`/estimates/form/${estimateId.value}`)
 }
 
 const loadEstimate = async () => {

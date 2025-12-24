@@ -884,8 +884,8 @@ const previewEstimateDetails = (estimate: any) => {
     return;
   }
   
-  previewEstimate.value = estimate;
-  showPreviewModal.value = true;
+  // Navigate to the form page in view mode instead of opening a modal
+  router.push(`/estimates/form/${estimate.uuid}?mode=view`)
 }
 
 const editEstimateFromPreview = () => {
