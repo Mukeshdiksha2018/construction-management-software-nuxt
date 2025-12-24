@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
+import { ref } from 'vue'
 import { CalendarDate } from '@internationalized/date'
 import ProjectDetailsForm from '@/components/Projects/ProjectDetailsForm.vue'
 import dayjs from "dayjs";
@@ -27,7 +28,12 @@ vi.mock('@/stores/projects', () => ({
     currentProject: null, 
     updateProject: vi.fn(),
     fetchProjectsMetadata: vi.fn().mockResolvedValue(undefined),
-    projectsMetadata: []
+    projectsMetadata: [],
+    localCustomers: ref([]),
+    customersLoading: ref(false),
+    customersError: ref(null),
+    fetchLocalCustomers: vi.fn(() => Promise.resolve()),
+    clearLocalCustomers: vi.fn()
   })
 }))
 

@@ -34,6 +34,26 @@ const mockServiceTypesStore = {
   fetchServiceTypes: vi.fn()
 }
 
+const mockCustomerStore = {
+  customers: ref([]),
+  fetchCustomers: vi.fn(),
+  loading: ref(false)
+}
+
+const mockProjectsStore = {
+  projects: [],
+  currentProject: null,
+  loading: ref(false),
+  fetchProjects: vi.fn(),
+  fetchProjectsMetadata: vi.fn(() => Promise.resolve()),
+  loadCurrentProject: vi.fn(),
+  localCustomers: ref([]),
+  customersLoading: ref(false),
+  customersError: ref(null),
+  fetchLocalCustomers: vi.fn(() => Promise.resolve()),
+  clearLocalCustomers: vi.fn()
+}
+
 // Mock the composables
 vi.mock('@/stores/corporations', () => ({
   useCorporationStore: () => mockCorpStore
@@ -45,6 +65,14 @@ vi.mock('@/stores/projectTypes', () => ({
 
 vi.mock('@/stores/serviceTypes', () => ({
   useServiceTypesStore: () => mockServiceTypesStore
+}))
+
+vi.mock('@/stores/customers', () => ({
+  useCustomerStore: () => mockCustomerStore
+}))
+
+vi.mock('@/stores/projects', () => ({
+  useProjectsStore: () => mockProjectsStore
 }))
 
 vi.mock('@/composables/useResizablePanels', () => ({

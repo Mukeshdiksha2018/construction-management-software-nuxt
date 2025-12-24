@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
+import { ref } from 'vue'
 import ProjectDetailsForm from '@/components/Projects/ProjectDetailsForm.vue'
 
 // Mock stores
@@ -17,7 +18,12 @@ const mockProjectsStore = {
   currentProject: null,
   updateProject: vi.fn(),
   fetchProjectsMetadata: vi.fn().mockResolvedValue(undefined),
-  projectsMetadata: []
+  projectsMetadata: [],
+  localCustomers: ref([]),
+  customersLoading: ref(false),
+  customersError: ref(null),
+  fetchLocalCustomers: vi.fn(() => Promise.resolve()),
+  clearLocalCustomers: vi.fn()
 }
 
 vi.mock('@/stores/corporations', () => ({
