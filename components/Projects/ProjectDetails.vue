@@ -1366,8 +1366,8 @@ const previewProjectDetails = (project: any) => {
     return;
   }
   
-  previewProject.value = project;
-  showPreviewModal.value = true;
+  // Navigate to the form page in view mode instead of opening a modal
+  router.push(`/projects/form/${project.uuid}?mode=view`)
 }
 
 const editProjectFromPreview = () => {

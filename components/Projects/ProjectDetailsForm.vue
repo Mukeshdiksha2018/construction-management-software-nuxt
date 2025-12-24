@@ -93,7 +93,7 @@
                         placeholder="Select corporation"
                         size="sm"
                         class="w-full"
-                        :disabled="isCorporationDisabled"
+                        :disabled="isCorporationDisabled || readonly"
                         @update:model-value="(value) => handleFormUpdate('corporation_uuid', value)"
                         @change="handleCorporationChange"
                       />
@@ -110,6 +110,7 @@
                       placeholder="Project Name"
                       size="sm"
                       class="w-full"
+                      :disabled="readonly"
                       @update:model-value="(value) => handleFormUpdate('project_name', value)"
                     />
                   </div>
@@ -124,7 +125,7 @@
                       placeholder="Project ID"
                       size="sm"
                       class="w-full"
-                      disabled
+                      :disabled="true"
                       icon="i-heroicons-hashtag"
                     />
                   </div>
@@ -134,7 +135,7 @@
                     <label class="block text-xs font-medium text-default mb-1 flex items-center gap-2">
                       <span>Customer</span>
                       <UBadge
-                        v-if="form.corporation_uuid || corpStore.selectedCorporation"
+                        v-if="!readonly && (form.corporation_uuid || corpStore.selectedCorporation)"
                         color="primary"
                         variant="solid"
                         size="xs"
@@ -154,6 +155,7 @@
                       placeholder="Select customer"
                       size="sm"
                       class="w-full"
+                      :disabled="readonly"
                       @update:model-value="(value) => handleFormUpdate('customer_uuid', value)"
                     />
                   </div>
@@ -168,6 +170,7 @@
                       placeholder="Select project type"
                       size="sm"
                       class="w-full"
+                      :disabled="readonly"
                       @update:model-value="handleProjectTypeValueUpdate"
                       @update:modelValue="handleProjectTypeValueUpdate"
                       @change="handleProjectTypeChange"
@@ -184,6 +187,7 @@
                       placeholder="Select service type"
                       size="sm"
                       class="w-full"
+                      :disabled="readonly"
                       @update:model-value="handleServiceTypeValueUpdate"
                       @update:modelValue="handleServiceTypeValueUpdate"
                       @change="handleServiceTypeChange"
@@ -203,6 +207,7 @@
                       class="w-full"
                       value-key="value"
                       label-key="label"
+                      :disabled="readonly"
                       @update:model-value="(value) => handleFormUpdate('project_status', value)"
                     />
                   </div>
@@ -212,18 +217,19 @@
                     <label class="block text-xs font-medium text-default mb-1 flex items-center gap-1">
                       Start Date <span class="text-red-500">*</span>
                     </label>
-                    <UPopover v-model:open="startDatePopoverOpen">
+                    <UPopover v-model:open="startDatePopoverOpen" :disabled="readonly">
                       <UButton 
                         color="neutral" 
                         variant="outline" 
                         icon="i-heroicons-calendar-days"
                         class="w-full justify-start"
                         size="sm"
+                        :disabled="readonly"
                       >
                         {{ startDateDisplayText }}
                       </UButton>
                       <template #content>
-                        <UCalendar v-model="startDateValue" class="p-2" @update:model-value="startDatePopoverOpen = false" />
+                        <UCalendar v-model="startDateValue" class="p-2" :disabled="readonly" @update:model-value="startDatePopoverOpen = false" />
                       </template>
                     </UPopover>
                   </div>
@@ -233,18 +239,19 @@
                     <label class="block text-xs font-medium text-default mb-1 flex items-center gap-1">
                       Estimated Completion <span class="text-red-500">*</span>
                     </label>
-                    <UPopover v-model:open="estimatedCompletionDatePopoverOpen">
+                    <UPopover v-model:open="estimatedCompletionDatePopoverOpen" :disabled="readonly">
                       <UButton 
                         color="neutral" 
                         variant="outline" 
                         icon="i-heroicons-calendar-days"
                         class="w-full justify-start"
                         size="sm"
+                        :disabled="readonly"
                       >
                         {{ estimatedCompletionDateDisplayText }}
                       </UButton>
                       <template #content>
-                        <UCalendar v-model="estimatedCompletionDateValue" class="p-2" @update:model-value="estimatedCompletionDatePopoverOpen = false" />
+                        <UCalendar v-model="estimatedCompletionDateValue" class="p-2" :disabled="readonly" @update:model-value="estimatedCompletionDatePopoverOpen = false" />
                       </template>
                     </UPopover>
                   </div>
@@ -277,6 +284,7 @@
                       placeholder="%"
                       size="sm"
                       class="w-full"
+                      :disabled="readonly"
                       @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"
                       @update:model-value="(value) => handleFormUpdate('contingency_percentage', value)"
                     />
@@ -297,6 +305,7 @@
                             placeholder="Area"
                             size="sm"
                             class="w-full"
+                            :disabled="readonly"
                             @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"
                             @update:model-value="(value) => handleFormUpdate('area_sq_ft', value)"
                           />
@@ -318,6 +327,7 @@
                             placeholder="Rooms"
                             size="sm"
                             class="w-full"
+                            :disabled="readonly"
                             @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"
                             @update:model-value="(value) => handleFormUpdate('no_of_rooms', value)"
                           />
@@ -368,6 +378,7 @@
                       v-model="form.only_total"
                       label="Only Total"
                       class="text-sm"
+                      :disabled="readonly"
                       @update:model-value="(value) => handleOnlyTotalChange(value)"
                     />
                   </div>
@@ -383,12 +394,14 @@
                       v-model="form.enable_labor"
                       label="Labor"
                       class="text-sm"
+                      :disabled="readonly"
                       @update:model-value="(value) => handleLaborChange(value)"
                     />
                     <UCheckbox
                       v-model="form.enable_material"
                       label="Material"
                       class="text-sm"
+                      :disabled="readonly"
                       @update:model-value="(value) => handleMaterialChange(value)"
                     />
                   </div>
@@ -423,7 +436,7 @@
                     icon="i-heroicons-plus"
                     size="xs"
                     color="primary"
-                    :disabled="!canManageAddresses"
+                    :disabled="!canManageAddresses || readonly"
                     @click="openAddressModal"
                   >
                     Add Contact / Address
@@ -443,11 +456,14 @@
                       <div
                         v-for="address in shipmentAddresses"
                         :key="address.uuid || address.tempId"
-                        class="relative p-3 rounded-md border-2 transition-all duration-200 cursor-pointer"
-                        :class="address.is_primary 
-                          ? 'bg-gradient-to-br from-brand-50 to-brand-100 border-brand-300 shadow-sm dark:from-brand-900/20 dark:to-brand-900/20 dark:border-brand-400' 
-                          : 'bg-elevated border-default hover:border-accented hover:shadow-sm'"
-                        @click="setPrimaryAddress(address)"
+                        class="relative p-3 rounded-md border-2 transition-all duration-200"
+                        :class="[
+                          address.is_primary 
+                            ? 'bg-gradient-to-br from-brand-50 to-brand-100 border-brand-300 shadow-sm dark:from-brand-900/20 dark:to-brand-900/20 dark:border-brand-400' 
+                            : 'bg-elevated border-default hover:border-accented hover:shadow-sm',
+                          { 'cursor-pointer': !readonly, 'cursor-default': readonly }
+                        ]"
+                        @click="readonly ? null : setPrimaryAddress(address)"
                       >
                         <!-- Radio button for primary selection -->
                         <div class="absolute top-2 right-2">
@@ -456,7 +472,8 @@
                             :id="`primary-${address.uuid || address.tempId}`"
                             name="primary-address-shipment"
                             :checked="address.is_primary"
-                            @change="setPrimaryAddress(address)"
+                            :disabled="readonly"
+                            @change="readonly ? null : setPrimaryAddress(address)"
                             class="w-3 h-3 text-brand-600 bg-elevated border-default focus:ring-brand-500 focus:ring-1"
                           />
                         </div>
@@ -502,7 +519,8 @@
                             color="secondary"
                             variant="soft"
                             class="p-1 h-6 w-6"
-                            @click.stop="editAddress(address)"
+                            :disabled="readonly"
+                            @click.stop="readonly ? null : editAddress(address)"
                           />
                           <UButton
                             icon="mingcute:delete-fill"
@@ -510,7 +528,8 @@
                             variant="soft"
                             color="error"
                             class="p-1 h-6 w-6"
-                            @click.stop="deleteAddress(address)"
+                            :disabled="readonly"
+                            @click.stop="readonly ? null : deleteAddress(address)"
                           />
                         </div>
                       </div>
@@ -528,11 +547,14 @@
                       <div
                         v-for="address in billingAddresses"
                         :key="address.uuid || address.tempId"
-                        class="relative p-3 rounded-md border-2 transition-all duration-200 cursor-pointer"
-                        :class="address.is_primary 
-                          ? 'bg-gradient-to-br from-brand-50 to-brand-100 border-brand-300 shadow-sm dark:from-brand-900/20 dark:to-brand-900/20 dark:border-brand-400' 
-                          : 'bg-elevated border-default hover:border-accented hover:shadow-sm'"
-                        @click="setPrimaryAddress(address)"
+                        class="relative p-3 rounded-md border-2 transition-all duration-200"
+                        :class="[
+                          address.is_primary 
+                            ? 'bg-gradient-to-br from-brand-50 to-brand-100 border-brand-300 shadow-sm dark:from-brand-900/20 dark:to-brand-900/20 dark:border-brand-400' 
+                            : 'bg-elevated border-default hover:border-accented hover:shadow-sm',
+                          { 'cursor-pointer': !readonly, 'cursor-default': readonly }
+                        ]"
+                        @click="readonly ? null : setPrimaryAddress(address)"
                       >
                         <!-- Radio button for primary selection -->
                         <div class="absolute top-2 right-2">
@@ -541,7 +563,8 @@
                             :id="`primary-${address.uuid || address.tempId}`"
                             name="primary-address-bill"
                             :checked="address.is_primary"
-                            @change="setPrimaryAddress(address)"
+                            :disabled="readonly"
+                            @change="readonly ? null : setPrimaryAddress(address)"
                             class="w-3 h-3 text-brand-600 bg-elevated border-default focus:ring-brand-500 focus:ring-1"
                           />
                         </div>
@@ -587,7 +610,8 @@
                             color="secondary"
                             variant="soft"
                             class="p-1 h-6 w-6"
-                            @click.stop="editAddress(address)"
+                            :disabled="readonly"
+                            @click.stop="readonly ? null : editAddress(address)"
                           />
                           <UButton
                             icon="mingcute:delete-fill"
@@ -595,7 +619,8 @@
                             variant="soft"
                             color="error"
                             class="p-1 h-6 w-6"
-                            @click.stop="deleteAddress(address)"
+                            :disabled="readonly"
+                            @click.stop="readonly ? null : deleteAddress(address)"
                           />
                         </div>
                       </div>
@@ -613,11 +638,14 @@
                       <div
                         v-for="address in finalDestinationAddresses"
                         :key="address.uuid || address.tempId"
-                        class="relative p-3 rounded-md border-2 transition-all duration-200 cursor-pointer"
-                        :class="address.is_primary 
-                          ? 'bg-gradient-to-br from-brand-50 to-brand-100 border-brand-300 shadow-sm dark:from-brand-900/20 dark:to-brand-900/20 dark:border-brand-400' 
-                          : 'bg-elevated border-default hover:border-accented hover:shadow-sm'"
-                        @click="setPrimaryAddress(address)"
+                        class="relative p-3 rounded-md border-2 transition-all duration-200"
+                        :class="[
+                          address.is_primary 
+                            ? 'bg-gradient-to-br from-brand-50 to-brand-100 border-brand-300 shadow-sm dark:from-brand-900/20 dark:to-brand-900/20 dark:border-brand-400' 
+                            : 'bg-elevated border-default hover:border-accented hover:shadow-sm',
+                          { 'cursor-pointer': !readonly, 'cursor-default': readonly }
+                        ]"
+                        @click="readonly ? null : setPrimaryAddress(address)"
                       >
                         <!-- Radio button for primary selection -->
                         <div class="absolute top-2 right-2">
@@ -626,7 +654,8 @@
                             :id="`primary-${address.uuid || address.tempId}`"
                             name="primary-address-final-destination"
                             :checked="address.is_primary"
-                            @change="setPrimaryAddress(address)"
+                            :disabled="readonly"
+                            @change="readonly ? null : setPrimaryAddress(address)"
                             class="w-3 h-3 text-brand-600 bg-elevated border-default focus:ring-brand-500 focus:ring-1"
                           />
                         </div>
@@ -672,7 +701,8 @@
                             color="secondary"
                             variant="soft"
                             class="p-1 h-6 w-6"
-                            @click.stop="editAddress(address)"
+                            :disabled="readonly"
+                            @click.stop="readonly ? null : editAddress(address)"
                           />
                           <UButton
                             icon="mingcute:delete-fill"
@@ -680,7 +710,8 @@
                             variant="soft"
                             color="error"
                             class="p-1 h-6 w-6"
-                            @click.stop="deleteAddress(address)"
+                            :disabled="readonly"
+                            @click.stop="readonly ? null : deleteAddress(address)"
                           />
                         </div>
                       </div>
@@ -750,7 +781,8 @@
                 variant="solid"
                 size="sm"
                 icon="i-heroicons-document-plus"
-                @click="open()"
+                :disabled="readonly"
+                @click="readonly ? null : open()"
               />
               
               <p v-if="fileUploadErrorMessage" class="text-xs text-red-600 flex items-center gap-1 p-2 bg-red-50 rounded border border-red-200">
@@ -820,7 +852,8 @@
                       variant="soft"
                       size="xs"
                       class="p-1 h-auto text-xs"
-                      @click="removeFile(index)"
+                      :disabled="readonly"
+                      @click="readonly ? null : removeFile(index)"
                     />
                   </div>
                 </div>
@@ -1057,6 +1090,7 @@ import CustomerForm from '@/components/Customers/CustomerForm.vue';
 interface Props {
   form: any;
   editingProject: boolean;
+  readonly?: boolean;
   fileUploadError?: string | null;
   latestEstimate?: any | null;
   loading?: boolean;
@@ -1064,6 +1098,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  readonly: false,
   fileUploadError: null,
   latestEstimate: null,
   loading: false,
@@ -1481,6 +1516,7 @@ const isCorporationDisabled = computed(() => {
 
 // Method to set primary address (one per address type)
 const setPrimaryAddress = async (selectedAddress: any) => {
+  if (props.readonly) return; // Don't allow changing primary address in readonly mode
   try {
     if (props.form.id) {
       // Project is saved, update via API
@@ -2150,6 +2186,7 @@ watch(() => hasAreaOrRooms.value, (isValid) => {
 
 // Customer management methods
 const openCustomerModal = () => {
+  if (props.readonly) return; // Don't open modal in readonly mode
   const corporationUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
   if (!corporationUuid) {
     const toast = useToast();
@@ -2181,6 +2218,7 @@ const handleCustomerSaved = async () => {
 
 // Address management methods
 const openAddressModal = () => {
+  if (props.readonly) return; // Don't open modal in readonly mode
   editingAddress.value = false;
   editingAddressUuid.value = null;
   editingAddressIndex.value = null;
@@ -2189,6 +2227,7 @@ const openAddressModal = () => {
 };
 
 const editAddress = (address: any) => {
+  if (props.readonly) return; // Don't allow editing in readonly mode
   editingAddress.value = true;
 
   // Check if it's a saved address (has uuid) or temporary address

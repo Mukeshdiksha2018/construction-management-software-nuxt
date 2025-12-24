@@ -13,14 +13,14 @@
         </UButton>
         <div>
           <h1 class="text-xl font-semibold text-default">
-            {{ isEditMode ? 'Edit Project' : 'Add New Project' }}
+            {{ isViewMode ? 'View Project' : isEditMode ? 'Edit Project' : 'Add New Project' }}
           </h1>
         </div>
       </div>
       
       <div class="flex items-center gap-2">
         <UButton
-          v-if="isEditMode && hasPermission('project_estimates_view') && hasProjectEstimates"
+          v-if="!isViewMode && isEditMode && hasPermission('project_estimates_view') && hasProjectEstimates"
           color="neutral"
           variant="solid"
           icon="tdesign:edit-filled"
@@ -29,7 +29,7 @@
           Edit Estimate
         </UButton>
         <UButton
-          v-else-if="isEditMode && form.id && hasPermission('project_estimates_create')"
+          v-else-if="!isViewMode && isEditMode && form.id && hasPermission('project_estimates_create')"
           color="secondary"
           variant="solid"
           icon="i-heroicons-calculator"
@@ -38,12 +38,20 @@
           Create Estimate
         </UButton>
         <UButton 
-          v-if="isEditMode ? hasPermission('project_edit') : hasPermission('project_create')"
+          v-if="!isViewMode && (isEditMode ? hasPermission('project_edit') : hasPermission('project_create'))"
           color="primary" 
           @click="submitProject"
           :loading="isSubmitting"
         >
           {{ isEditMode ? "Update" : "Create" }} Project
+        </UButton>
+        <UButton
+          v-if="isViewMode && hasPermission('project_edit')"
+          color="primary"
+          icon="tdesign:edit-filled"
+          @click="switchToEditMode"
+        >
+          Edit Project
         </UButton>
       </div>
     </div>
@@ -54,6 +62,7 @@
         :key="form.id || 'new'"
         v-model:form="form"
         :editing-project="isEditMode"
+        :readonly="isViewMode"
         :file-upload-error="fileUploadError"
         :latest-estimate="latestEstimate"
         :loading="loading"
@@ -131,6 +140,7 @@ const loading = ref(false)
 
 // Computed properties
 const isEditMode = computed(() => route.params.id !== 'new')
+const isViewMode = computed(() => route.query.mode === 'view')
 const projectEstimates = computed(() => {
   if (!form.value.id) return [] as any[]
   return estimatesStore.getEstimatesByProject(form.value.id) || []
@@ -249,6 +259,11 @@ const form = ref({
 const goBack = () => {
   projectsStore.clearCurrentProject() // Clear memory before navigating away
   router.push('/projects')
+}
+
+const switchToEditMode = () => {
+  // Remove the view mode query parameter to switch to edit mode
+  router.push(`/projects/form/${projectId.value}`)
 }
 
 const resetForm = () => {
