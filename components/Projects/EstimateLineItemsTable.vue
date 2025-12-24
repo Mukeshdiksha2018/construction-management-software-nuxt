@@ -1822,7 +1822,8 @@ const getMaterialItemOptionsForItem = (currentItem: any) => {
       unit: currentItem.unit_label,
       unit_uuid: currentItem.unit_uuid,
       unit_price: currentItem.unit_price,
-      description: currentItem.description
+      description: currentItem.description,
+      model_number: currentItem.model_number
     }]
   }
   return []
@@ -1842,7 +1843,8 @@ const getMaterialItemOptionsForSequence = (currentItem: any) => {
       unit: currentItem.unit_label,
       unit_uuid: currentItem.unit_uuid,
       unit_price: currentItem.unit_price,
-      description: currentItem.description
+      description: currentItem.description,
+      model_number: currentItem.model_number
     }]
   }
   return []
@@ -1954,7 +1956,7 @@ const loadPreferredItems = () => {
         sequence: item.item_sequence || '', // Load sequence from preferred item
         name: item.item_name || '',
         description: item.description || '',
-        model_number: '',
+        model_number: item.model_number || '',
         unit_price: parseFloat(item.unit_price) || 0,
         unit_uuid: resolvedUnit?.value || '',
         unit_label: resolvedUnit?.label || '',
@@ -2012,6 +2014,17 @@ const handleItemUuidChange = (index: number, itemUuid: string | undefined, optio
       // Update description if available
       if (rawItem.description) {
         item.description = rawItem.description
+      }
+      
+      // Update model_number if available (check multiple possible field names)
+      if (rawItem.model_number !== null && rawItem.model_number !== undefined) {
+        item.model_number = String(rawItem.model_number)
+      } else if (rawItem.modelNumber !== null && rawItem.modelNumber !== undefined) {
+        item.model_number = String(rawItem.modelNumber)
+      } else if (rawItem.model !== null && rawItem.model !== undefined) {
+        item.model_number = String(rawItem.model)
+      } else if (rawItem.item_model_number !== null && rawItem.item_model_number !== undefined) {
+        item.model_number = String(rawItem.item_model_number)
       }
       
       // Update unit_price if available
