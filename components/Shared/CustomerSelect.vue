@@ -1,8 +1,8 @@
 <template>
   <div class="flex items-center gap-2">
     <UAvatar
-      v-if="selectedCustomerOption?.avatar"
-      v-bind="selectedCustomerOption.avatar"
+      v-if="selectedCustomerOption?.avatarData"
+      v-bind="selectedCustomerOption.avatarData"
       size="xs"
       class="flex-shrink-0"
     />
@@ -26,8 +26,8 @@
       <template #item-label="{ item }">
         <div class="flex items-center gap-2 w-full">
           <UAvatar
-            v-if="item.avatar"
-            v-bind="item.avatar"
+            v-if="item.avatarData"
+            v-bind="item.avatarData"
             size="xs"
             class="flex-shrink-0"
           />
@@ -204,9 +204,9 @@ const customerOptions = computed(() => {
     // Build description (company name or email)
     const description = customer.company_name || customer.customer_email || null
     
-    // Build avatar
+    // Build avatar (using avatarData to avoid USelectMenu auto-rendering)
     const alt = label
-    const avatar = customer.profile_image_url
+    const avatarData = customer.profile_image_url
       ? {
           src: customer.profile_image_url,
           alt,
@@ -224,7 +224,7 @@ const customerOptions = computed(() => {
       id: customer.id,
       customer: customer,
       description,
-      avatar,
+      avatarData, // Use avatarData instead of avatar to prevent USelectMenu auto-rendering
       searchText: `${fullName} ${customer.company_name || ''} ${customer.customer_email || ''} ${customer.uuid}`.toLowerCase()
     }
   })
