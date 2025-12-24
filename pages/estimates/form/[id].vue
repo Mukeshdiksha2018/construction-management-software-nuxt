@@ -21,11 +21,16 @@
       <div v-if="!loading && selectedProject" class="flex-1 flex justify-center">
         <UCard variant="soft" class="w-auto min-w-[400px]" :ui="{ body: 'px-1 sm:py-1 py-1' }">
           <div class="flex items-center gap-3 px-1">
-            <!-- Number of Rooms -->
+            <!-- Number of Rooms or Area -->
             <div class="flex items-center gap-1">
-              <span class="text-[10px] font-medium text-muted">Rooms:</span>
+              <span class="text-[10px] font-medium text-muted">
+                {{ hasArea ? 'Area:' : 'Rooms:' }}
+              </span>
               <span class="text-xs font-bold text-brand-600 dark:text-brand-400">
-                {{ selectedProject.no_of_rooms || 'N/A' }}
+                {{ hasArea 
+                  ? (selectedProject.area_sq_ft ? `${selectedProject.area_sq_ft} sqft` : 'N/A')
+                  : (selectedProject.no_of_rooms || 'N/A')
+                }}
               </span>
             </div>
             
@@ -37,11 +42,13 @@
               </span>
             </div>
             
-            <!-- Per Room Estimate -->
+            <!-- Per Room or Per Sqft Estimate -->
             <div class="flex items-center gap-1">
-              <span class="text-[10px] font-medium text-muted">Per Room:</span>
+              <span class="text-[10px] font-medium text-muted">
+                {{ hasArea ? 'Per Sqft:' : 'Per Room:' }}
+              </span>
               <span class="text-xs font-bold text-success-600 dark:text-success-400">
-                {{ formatCurrencyInline(perRoomEstimate) }}
+                {{ formatCurrencyInline(perUnitEstimate) }}
               </span>
             </div>
           </div>
@@ -374,14 +381,36 @@ const selectedProject = computed(() => {
   return project || null;
 });
 
-// Calculate per room estimate
-const perRoomEstimate = computed(() => {
-  const total = parseFloat(form.value.total_amount) || 0;
-  const rooms = selectedProject.value?.no_of_rooms;
-  
-  if (!rooms || rooms === 0) return 0;
-  return total / rooms;
+// Check if project has area instead of rooms
+const hasArea = computed(() => {
+  const project = selectedProject.value;
+  if (!project) return false;
+  // If area_sq_ft exists and is greater than 0, use area
+  // Otherwise, use rooms
+  const area = parseFloat(project.area_sq_ft) || 0;
+  return area > 0;
 });
+
+// Calculate per room or per sqft estimate
+const perUnitEstimate = computed(() => {
+  const total = parseFloat(form.value.total_amount) || 0;
+  const project = selectedProject.value;
+  
+  if (!project) return 0;
+  
+  if (hasArea.value) {
+    const area = parseFloat(project.area_sq_ft) || 0;
+    if (area === 0) return 0;
+    return total / area;
+  } else {
+    const rooms = parseFloat(project.no_of_rooms) || 0;
+    if (rooms === 0) return 0;
+    return total / rooms;
+  }
+});
+
+// Legacy computed for backward compatibility (if used elsewhere)
+const perRoomEstimate = computed(() => perUnitEstimate.value);
 
 // Check if there are approved purchase orders for this project
 const hasApprovedPurchaseOrders = computed(() => {
