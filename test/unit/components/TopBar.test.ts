@@ -81,13 +81,29 @@ const setupStores = (options?: { multipleCorporations?: boolean }) => {
 
   const corporations = options?.multipleCorporations
     ? [
-        { uuid: "corp-1", corporation_name: "Corp One", legal_name: "CorpOne LLC" },
-        { uuid: "corp-2", corporation_name: "Tech Solutions Inc", legal_name: "Tech Solutions Incorporated" },
-        { uuid: "corp-3", corporation_name: "Building Masters", legal_name: "Building Masters Ltd" },
+        {
+          uuid: "corp-1",
+          corporation_name: "Corp One",
+          legal_name: "CorpOne LLC",
+        },
+        {
+          uuid: "corp-2",
+          corporation_name: "Tech Solutions Inc",
+          legal_name: "Tech Solutions Incorporated",
+        },
+        {
+          uuid: "corp-3",
+          corporation_name: "Building Masters",
+          legal_name: "Building Masters Ltd",
+        },
       ]
     : [
-    { uuid: "corp-1", corporation_name: "Corp One", legal_name: "CorpOne LLC" },
-  ];
+        {
+          uuid: "corp-1",
+          corporation_name: "Corp One",
+          legal_name: "CorpOne LLC",
+        },
+      ];
 
   const user = {
     id: 1,
@@ -102,12 +118,13 @@ const setupStores = (options?: { multipleCorporations?: boolean }) => {
 
   const authStore = useAuthStore();
   authStore.user = user as any;
-  authStore.isAuthenticated = true;
   authStore.logout = vi.fn();
 
   const corpStore = useCorporationStore();
   corpStore.corporations = corporations as any;
-  corpStore.selectedCorporation = corporations[0] as any;
+  if (corporations[0]) {
+    corpStore.setSelectedCorporation(corporations[0].uuid);
+  }
   corpStore.fetchCorporations = vi.fn(() => Promise.resolve());
   corpStore.setSelectedCorporationAndFetchData = vi.fn(() => Promise.resolve());
   corpStore.setSelectedCorporation = vi.fn();
@@ -137,7 +154,9 @@ const setupStores = (options?: { multipleCorporations?: boolean }) => {
   changeOrdersStore.fetchChangeOrders = vi.fn(() => Promise.resolve());
 
   const stockReceiptNotesStore = useStockReceiptNotesStore();
-  stockReceiptNotesStore.fetchStockReceiptNotes = vi.fn(() => Promise.resolve());
+  stockReceiptNotesStore.fetchStockReceiptNotes = vi.fn(() =>
+    Promise.resolve()
+  );
 
   const vendorInvoicesStore = useVendorInvoicesStore();
   vendorInvoicesStore.fetchVendorInvoices = vi.fn(() => Promise.resolve());
@@ -183,14 +202,14 @@ describe("TopBar.vue", () => {
   it("fetches item types when corporation data is synchronized", async () => {
     const { pinia, stores } = setupStores();
 
-      const wrapper = mount(TopBar, {
-        global: {
-          plugins: [pinia],
-          stubs: {
-            ...createStubs(),
-          },
+    const wrapper = mount(TopBar, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          ...createStubs(),
         },
-      });
+      },
+    });
 
     await flushPromises();
 
@@ -219,10 +238,15 @@ describe("TopBar.vue", () => {
     await flushPromises();
 
     // Simulate corporation context refresh
-    await wrapper.vm.refreshCorporationContext("corp-1", { force: true });
+    await(wrapper.vm as any).refreshCorporationContext("corp-1", {
+      force: true,
+    });
     await flushPromises();
 
-    expect(stores.vendorInvoices.fetchVendorInvoices).toHaveBeenCalledWith("corp-1", true);
+    expect(stores.vendorInvoices.fetchVendorInvoices).toHaveBeenCalledWith(
+      "corp-1",
+      true
+    );
 
     wrapper.unmount();
   });
@@ -235,8 +259,7 @@ describe("TopBar.vue", () => {
         plugins: [pinia],
         stubs: {
           UPopover: {
-            template:
-              "<div><slot /><slot name='content'></slot></div>",
+            template: "<div><slot /><slot name='content'></slot></div>",
           },
           UButton: {
             template: "<button><slot /></button>",
@@ -258,7 +281,17 @@ describe("TopBar.vue", () => {
                 </div>
               </div>
             `,
-            props: ["modelValue", "items", "searchable", "searchablePlaceholder", "filterFields", "valueKey", "placeholder", "disabled", "ui"],
+            props: [
+              "modelValue",
+              "items",
+              "searchable",
+              "searchablePlaceholder",
+              "filterFields",
+              "valueKey",
+              "placeholder",
+              "disabled",
+              "ui",
+            ],
           },
           UDropdownMenu: {
             template: "<div><slot /></div>",
@@ -276,19 +309,20 @@ describe("TopBar.vue", () => {
     await flushPromises();
 
     (stores.itemTypes.fetchItemTypes as any).mockClear();
-    await wrapper.vm.onCorporationChange("corp-1");
+    await(wrapper.vm as any).onCorporationChange("corp-1");
     await flushPromises();
 
     expect(
       stores.corporations.setSelectedCorporationAndFetchData
     ).toHaveBeenCalledWith("corp-1");
-    expect(
-      stores.itemTypes.fetchItemTypes
-    ).toHaveBeenCalledWith("corp-1", undefined, true);
+    expect(stores.itemTypes.fetchItemTypes).toHaveBeenCalledWith(
+      "corp-1",
+      undefined,
+      true
+    );
 
     wrapper.unmount();
   });
-
 
   it("fetches estimates when corporation context is refreshed", async () => {
     const { pinia, stores } = setupStores();
@@ -305,17 +339,21 @@ describe("TopBar.vue", () => {
     await flushPromises();
 
     // Simulate corporation context refresh
-    await wrapper.vm.refreshCorporationContext("corp-1", { force: true });
+    await(wrapper.vm as any).refreshCorporationContext("corp-1", {
+      force: true,
+    });
     await flushPromises();
 
     // Should use refreshEstimatesFromAPI to update store reactively
     // The function is called with pagination parameters (page=1, pageSize=100)
-    expect(stores.estimates.refreshEstimatesFromAPI).toHaveBeenCalledWith("corp-1", 1, 100);
+    expect(stores.estimates.refreshEstimatesFromAPI).toHaveBeenCalledWith(
+      "corp-1",
+      1,
+      100
+    );
 
     wrapper.unmount();
   });
-
-
 
   describe("Searchable Corporation Selector", () => {
     const createStubs = () => ({
@@ -343,7 +381,17 @@ describe("TopBar.vue", () => {
             </div>
           </div>
         `,
-        props: ["modelValue", "items", "searchable", "searchablePlaceholder", "filterFields", "valueKey", "placeholder", "disabled", "ui"],
+        props: [
+          "modelValue",
+          "items",
+          "searchable",
+          "searchablePlaceholder",
+          "filterFields",
+          "valueKey",
+          "placeholder",
+          "disabled",
+          "ui",
+        ],
       },
       UDropdownMenu: {
         name: "UDropdownMenu",
@@ -375,7 +423,9 @@ describe("TopBar.vue", () => {
       expect(selectMenu.exists()).toBe(true);
       // Check that searchable prop is defined (Vue treats '' and true equally for boolean props)
       expect(selectMenu.props("searchable")).toBeDefined();
-      expect(selectMenu.props("searchablePlaceholder")).toBe("Type to search corporations...");
+      expect(selectMenu.props("searchablePlaceholder")).toBe(
+        "Type to search corporations..."
+      );
 
       wrapper.unmount();
     });
@@ -389,9 +439,14 @@ describe("TopBar.vue", () => {
           stubs: {
             ...createStubs(),
             CorporationSelect: {
-              name: 'CorporationSelect',
+              name: "CorporationSelect",
               template: '<div class="corporation-select"><slot /></div>',
-              props: ['modelValue', 'size', 'class', 'restrictToCorporationAccess'],
+              props: [
+                "modelValue",
+                "size",
+                "class",
+                "restrictToCorporationAccess",
+              ],
             },
           },
         },
@@ -399,7 +454,9 @@ describe("TopBar.vue", () => {
 
       await flushPromises();
 
-      const corporationSelect = wrapper.findComponent({ name: "CorporationSelect" });
+      const corporationSelect = wrapper.findComponent({
+        name: "CorporationSelect",
+      });
       expect(corporationSelect.exists()).toBe(true);
 
       wrapper.unmount();
@@ -415,10 +472,15 @@ describe("TopBar.vue", () => {
           stubs: {
             ...createStubs(),
             CorporationSelect: {
-              name: 'CorporationSelect',
+              name: "CorporationSelect",
               template: '<div class="corporation-select"><slot /></div>',
-              props: ['modelValue', 'size', 'class', 'restrictToCorporationAccess'],
-              emits: ['update:modelValue', 'change'],
+              props: [
+                "modelValue",
+                "size",
+                "class",
+                "restrictToCorporationAccess",
+              ],
+              emits: ["update:modelValue", "change"],
             },
           },
         },
@@ -426,7 +488,9 @@ describe("TopBar.vue", () => {
 
       await flushPromises();
 
-      const corporationSelect = wrapper.findComponent({ name: "CorporationSelect" });
+      const corporationSelect = wrapper.findComponent({
+        name: "CorporationSelect",
+      });
       expect(corporationSelect.exists()).toBe(true);
 
       wrapper.unmount();
@@ -442,9 +506,14 @@ describe("TopBar.vue", () => {
           stubs: {
             ...createStubs(),
             CorporationSelect: {
-              name: 'CorporationSelect',
+              name: "CorporationSelect",
               template: '<div class="corporation-select"><slot /></div>',
-              props: ['modelValue', 'size', 'class', 'restrictToCorporationAccess'],
+              props: [
+                "modelValue",
+                "size",
+                "class",
+                "restrictToCorporationAccess",
+              ],
             },
           },
         },
@@ -452,7 +521,9 @@ describe("TopBar.vue", () => {
 
       await flushPromises();
 
-      const corporationSelect = wrapper.findComponent({ name: "CorporationSelect" });
+      const corporationSelect = wrapper.findComponent({
+        name: "CorporationSelect",
+      });
       expect(corporationSelect.props("size")).toBe("sm");
 
       wrapper.unmount();
@@ -476,16 +547,18 @@ describe("TopBar.vue", () => {
       const corpItem = items.find((item: any) => item.value === "corp-1");
 
       // Clear previous calls
-      (stores.corporations.setSelectedCorporationAndFetchData as any).mockClear();
+      (
+        stores.corporations.setSelectedCorporationAndFetchData as any
+      ).mockClear();
       (stores.itemTypes.fetchItemTypes as any).mockClear();
 
       // Simulate selection
-      await wrapper.vm.handleCorporationSelection(corpItem);
+      await(wrapper.vm as any).handleCorporationSelection(corpItem);
       await flushPromises();
 
-      expect(stores.corporations.setSelectedCorporationAndFetchData).toHaveBeenCalledWith(
-        "corp-1"
-      );
+      expect(
+        stores.corporations.setSelectedCorporationAndFetchData
+      ).toHaveBeenCalledWith("corp-1");
 
       wrapper.unmount();
     });
@@ -500,10 +573,10 @@ describe("TopBar.vue", () => {
           stubs: {
             ...createStubs(),
             CorporationSelect: {
-              name: 'CorporationSelect',
+              name: "CorporationSelect",
               template: '<div class="corporation-select"><slot /></div>',
-              props: ['modelValue', 'size', 'class'],
-              emits: ['update:modelValue', 'change'],
+              props: ["modelValue", "size", "class"],
+              emits: ["update:modelValue", "change"],
             },
           },
         },
@@ -512,7 +585,7 @@ describe("TopBar.vue", () => {
       await flushPromises();
 
       // Initial value should be from user's recentProperty
-      expect(wrapper.vm.value).toBe("corp-1");
+      expect((wrapper.vm as any).value).toBe("corp-1");
 
       wrapper.unmount();
     });
@@ -527,9 +600,14 @@ describe("TopBar.vue", () => {
           stubs: {
             ...createStubs(),
             CorporationSelect: {
-              name: 'CorporationSelect',
+              name: "CorporationSelect",
               template: '<div class="corporation-select"><slot /></div>',
-              props: ['modelValue', 'size', 'class', 'restrictToCorporationAccess'],
+              props: [
+                "modelValue",
+                "size",
+                "class",
+                "restrictToCorporationAccess",
+              ],
             },
           },
         },
@@ -537,7 +615,9 @@ describe("TopBar.vue", () => {
 
       await flushPromises();
 
-      const corporationSelect = wrapper.findComponent({ name: "CorporationSelect" });
+      const corporationSelect = wrapper.findComponent({
+        name: "CorporationSelect",
+      });
       expect(corporationSelect.props("class")).toContain("w-full");
 
       wrapper.unmount();
@@ -556,9 +636,14 @@ describe("TopBar.vue", () => {
           stubs: {
             ...createStubs(),
             CorporationSelect: {
-              name: 'CorporationSelect',
+              name: "CorporationSelect",
               template: '<div class="corporation-select"><slot /></div>',
-              props: ['modelValue', 'size', 'class', 'restrictToCorporationAccess'],
+              props: [
+                "modelValue",
+                "size",
+                "class",
+                "restrictToCorporationAccess",
+              ],
             },
           },
         },
@@ -566,7 +651,7 @@ describe("TopBar.vue", () => {
 
       await flushPromises();
 
-      expect(wrapper.vm.value).toBeFalsy();
+      expect((wrapper.vm as any).value).toBeFalsy();
 
       wrapper.unmount();
     });
@@ -585,9 +670,14 @@ describe("TopBar.vue", () => {
           stubs: {
             ...createStubs(),
             CorporationSelect: {
-              name: 'CorporationSelect',
+              name: "CorporationSelect",
               template: '<div class="corporation-select"><slot /></div>',
-              props: ['modelValue', 'size', 'class', 'restrictToCorporationAccess'],
+              props: [
+                "modelValue",
+                "size",
+                "class",
+                "restrictToCorporationAccess",
+              ],
             },
           },
         },
@@ -595,7 +685,9 @@ describe("TopBar.vue", () => {
 
       await flushPromises();
 
-      const corporationSelect = wrapper.findComponent({ name: "CorporationSelect" });
+      const corporationSelect = wrapper.findComponent({
+        name: "CorporationSelect",
+      });
       expect(corporationSelect.exists()).toBe(true);
 
       wrapper.unmount();
@@ -611,9 +703,14 @@ describe("TopBar.vue", () => {
           stubs: {
             ...createStubs(),
             CorporationSelect: {
-              name: 'CorporationSelect',
+              name: "CorporationSelect",
               template: '<div class="corporation-select"><slot /></div>',
-              props: ['modelValue', 'size', 'class', 'restrictToCorporationAccess'],
+              props: [
+                "modelValue",
+                "size",
+                "class",
+                "restrictToCorporationAccess",
+              ],
             },
           },
         },
@@ -621,11 +718,13 @@ describe("TopBar.vue", () => {
 
       await flushPromises();
 
-      const corporationSelect = wrapper.findComponent({ name: "CorporationSelect" });
+      const corporationSelect = wrapper.findComponent({
+        name: "CorporationSelect",
+      });
       expect(corporationSelect.exists()).toBe(true);
       expect(corporationSelect.props()).toMatchObject({
-        size: 'sm',
-        class: 'w-full',
+        size: "sm",
+        class: "w-full",
         restrictToCorporationAccess: true,
       });
 
@@ -644,15 +743,20 @@ describe("TopBar.vue", () => {
 
       await flushPromises();
 
-      (stores.corporations.setSelectedCorporationAndFetchData as any).mockClear();
+      (
+        stores.corporations.setSelectedCorporationAndFetchData as any
+      ).mockClear();
 
       // Simulate selection with corporation object
-      await wrapper.vm.handleCorporationSelection({ value: "corp-3", uuid: "corp-3" });
+      await(wrapper.vm as any).handleCorporationSelection({
+        value: "corp-3",
+        uuid: "corp-3",
+      });
       await flushPromises();
 
-      expect(stores.corporations.setSelectedCorporationAndFetchData).toHaveBeenCalledWith(
-        "corp-3"
-      );
+      expect(
+        stores.corporations.setSelectedCorporationAndFetchData
+      ).toHaveBeenCalledWith("corp-3");
 
       wrapper.unmount();
     });
@@ -672,7 +776,7 @@ describe("TopBar.vue", () => {
       (stores.userProfiles.updateUser as any).mockClear();
 
       // Simulate clearing selection
-      await wrapper.vm.handleCorporationSelection(undefined);
+      await(wrapper.vm as any).handleCorporationSelection(undefined);
       await flushPromises();
 
       // Verify that preferences were updated
@@ -696,8 +800,12 @@ describe("TopBar.vue", () => {
       (stores.userProfiles.updateUser as any).mockClear();
 
       // Simulate selection of corp-2
-      const corp2Item = { value: "corp-2", uuid: "corp-2", corporation_name: "Tech Solutions Inc" };
-      await wrapper.vm.handleCorporationSelection(corp2Item);
+      const corp2Item = {
+        value: "corp-2",
+        uuid: "corp-2",
+        corporation_name: "Tech Solutions Inc",
+      };
+      await(wrapper.vm as any).handleCorporationSelection(corp2Item);
       await flushPromises();
 
       expect(stores.userProfiles.updateUser).toHaveBeenCalled();
@@ -716,9 +824,9 @@ describe("TopBar.vue", () => {
           stubs: {
             ...createStubs(),
             CorporationSelect: {
-              name: 'CorporationSelect',
+              name: "CorporationSelect",
               template: '<div class="corporation-select"><slot /></div>',
-              props: ['modelValue', 'size', 'class'],
+              props: ["modelValue", "size", "class"],
             },
           },
         },
@@ -726,10 +834,12 @@ describe("TopBar.vue", () => {
 
       await flushPromises();
 
-      const corporationSelect = wrapper.findComponent({ name: "CorporationSelect" });
+      const corporationSelect = wrapper.findComponent({
+        name: "CorporationSelect",
+      });
       expect(corporationSelect.exists()).toBe(true);
-      expect(corporationSelect.props('size')).toBe('sm');
-      expect(corporationSelect.props('class')).toBe('w-full');
+      expect(corporationSelect.props("size")).toBe("sm");
+      expect(corporationSelect.props("class")).toBe("w-full");
 
       wrapper.unmount();
     });
@@ -753,21 +863,21 @@ describe("TopBar.vue", () => {
       await flushPromises();
 
       // Initial corporation should be corp-1
-      expect(wrapper.vm.value).toBe("corp-1");
-      expect(wrapper.vm.previousCorporationId).toBe("corp-1");
+      expect((wrapper.vm as any).value).toBe("corp-1");
+      expect((wrapper.vm as any).previousCorporationId).toBe("corp-1");
 
       // Clear the mock to track new calls
       mockClearCorporationData.mockClear();
 
       // Switch to corp-2 by changing the value (triggers the watcher)
-      wrapper.vm.value = "corp-2";
+      (wrapper.vm as any).value = "corp-2";
       await wrapper.vm.$nextTick();
       await flushPromises();
 
       // Should have cleared corp-1 data before loading corp-2
       expect(mockClearCorporationData).toHaveBeenCalledWith("corp-1");
       expect(mockClearCorporationData).toHaveBeenCalledTimes(1);
-      expect(wrapper.vm.previousCorporationId).toBe("corp-2");
+      expect((wrapper.vm as any).previousCorporationId).toBe("corp-2");
 
       wrapper.unmount();
     });
@@ -785,19 +895,19 @@ describe("TopBar.vue", () => {
       await flushPromises();
 
       // Initial corporation should be corp-1
-      expect(wrapper.vm.value).toBe("corp-1");
-      expect(wrapper.vm.previousCorporationId).toBe("corp-1");
+      expect((wrapper.vm as any).value).toBe("corp-1");
+      expect((wrapper.vm as any).previousCorporationId).toBe("corp-1");
 
       mockClearCorporationData.mockClear();
 
       // Deselect corporation by setting value to null (triggers watcher)
-      wrapper.vm.value = null;
+      (wrapper.vm as any).value = null;
       await wrapper.vm.$nextTick();
       await flushPromises();
 
       // Should clear corp-1 data
       expect(mockClearCorporationData).toHaveBeenCalledWith("corp-1");
-      expect(wrapper.vm.previousCorporationId).toBeNull();
+      expect((wrapper.vm as any).previousCorporationId).toBeNull();
 
       wrapper.unmount();
     });
@@ -815,13 +925,13 @@ describe("TopBar.vue", () => {
       await flushPromises();
 
       // Initial corporation should be corp-1
-      expect(wrapper.vm.value).toBe("corp-1");
+      expect((wrapper.vm as any).value).toBe("corp-1");
 
       mockClearCorporationData.mockClear();
 
       // Select corp-1 again
       const corp1Item = { value: "corp-1", uuid: "corp-1" };
-      await wrapper.vm.handleCorporationSelection(corp1Item);
+      await(wrapper.vm as any).handleCorporationSelection(corp1Item);
       await flushPromises();
 
       // Should NOT clear data since it's the same corporation
@@ -843,33 +953,33 @@ describe("TopBar.vue", () => {
       await flushPromises();
 
       // Initial state
-      expect(wrapper.vm.previousCorporationId).toBe("corp-1");
+      expect((wrapper.vm as any).previousCorporationId).toBe("corp-1");
 
       mockClearCorporationData.mockClear();
 
       // Switch to corp-2
-      wrapper.vm.value = "corp-2";
+      (wrapper.vm as any).value = "corp-2";
       await wrapper.vm.$nextTick();
       await flushPromises();
-      expect(wrapper.vm.previousCorporationId).toBe("corp-2");
+      expect((wrapper.vm as any).previousCorporationId).toBe("corp-2");
       expect(mockClearCorporationData).toHaveBeenCalledWith("corp-1");
 
       mockClearCorporationData.mockClear();
 
       // Switch to corp-3
-      wrapper.vm.value = "corp-3";
+      (wrapper.vm as any).value = "corp-3";
       await wrapper.vm.$nextTick();
       await flushPromises();
-      expect(wrapper.vm.previousCorporationId).toBe("corp-3");
+      expect((wrapper.vm as any).previousCorporationId).toBe("corp-3");
       expect(mockClearCorporationData).toHaveBeenCalledWith("corp-2");
 
       mockClearCorporationData.mockClear();
 
       // Switch back to corp-1
-      wrapper.vm.value = "corp-1";
+      (wrapper.vm as any).value = "corp-1";
       await wrapper.vm.$nextTick();
       await flushPromises();
-      expect(wrapper.vm.previousCorporationId).toBe("corp-1");
+      expect((wrapper.vm as any).previousCorporationId).toBe("corp-1");
       expect(mockClearCorporationData).toHaveBeenCalledWith("corp-3");
 
       wrapper.unmount();
@@ -888,7 +998,7 @@ describe("TopBar.vue", () => {
       await flushPromises();
 
       // Legacy handler doesn't directly clear - it lets the watcher handle it
-      expect(wrapper.vm.onCorporationChange).toBeDefined();
+      expect((wrapper.vm as any).onCorporationChange).toBeDefined();
 
       wrapper.unmount();
     });
@@ -908,7 +1018,7 @@ describe("TopBar.vue", () => {
       mockClearCorporationData.mockClear();
 
       // Directly change the value to trigger the watcher
-      wrapper.vm.value = "corp-2";
+      (wrapper.vm as any).value = "corp-2";
       await wrapper.vm.$nextTick();
       await flushPromises();
 
@@ -920,7 +1030,9 @@ describe("TopBar.vue", () => {
 
     it("should handle errors in clearCorporationData gracefully", async () => {
       const { pinia } = setupStores({ multipleCorporations: true });
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
 
       const wrapper = mount(TopBar, {
         global: {
@@ -932,16 +1044,18 @@ describe("TopBar.vue", () => {
       await flushPromises();
 
       mockClearCorporationData.mockClear();
-      mockClearCorporationData.mockRejectedValueOnce(new Error("IndexedDB error"));
+      mockClearCorporationData.mockRejectedValueOnce(
+        new Error("IndexedDB error")
+      );
 
       // Switch corporation via value change - should not throw despite error
-      wrapper.vm.value = "corp-2";
+      (wrapper.vm as any).value = "corp-2";
       await wrapper.vm.$nextTick();
       await flushPromises();
 
       // Error should be logged but not thrown
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        'Error clearing previous corporation data:',
+        "Error clearing previous corporation data:",
         expect.any(Error)
       );
 
@@ -962,7 +1076,7 @@ describe("TopBar.vue", () => {
       await flushPromises();
 
       // Should be initialized from user's recentProperty
-      expect(wrapper.vm.previousCorporationId).toBe("corp-1");
+      expect((wrapper.vm as any).previousCorporationId).toBe("corp-1");
 
       wrapper.unmount();
     });
@@ -982,25 +1096,27 @@ describe("TopBar.vue", () => {
 
       await flushPromises();
 
-      expect(wrapper.vm.previousCorporationId).toBeNull();
+      expect((wrapper.vm as any).previousCorporationId).toBeNull();
 
       mockClearCorporationData.mockClear();
 
       // Select corp-1 for the first time via value change
-      wrapper.vm.value = "corp-1";
+      (wrapper.vm as any).value = "corp-1";
       await wrapper.vm.$nextTick();
       await flushPromises();
 
       // Should not clear any data since there was no previous corporation
       expect(mockClearCorporationData).not.toHaveBeenCalled();
-      expect(wrapper.vm.previousCorporationId).toBe("corp-1");
+      expect((wrapper.vm as any).previousCorporationId).toBe("corp-1");
 
       wrapper.unmount();
     });
 
     it("should log cleanup messages to console", async () => {
       const { pinia } = setupStores({ multipleCorporations: true });
-      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleLogSpy = vi
+        .spyOn(console, "log")
+        .mockImplementation(() => {});
 
       const wrapper = mount(TopBar, {
         global: {
@@ -1014,13 +1130,15 @@ describe("TopBar.vue", () => {
       mockClearCorporationData.mockClear();
 
       // Switch corporation via value change
-      wrapper.vm.value = "corp-2";
+      (wrapper.vm as any).value = "corp-2";
       await wrapper.vm.$nextTick();
       await flushPromises();
 
       // Should log cleanup message
       expect(consoleLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining("🗑️ Clearing IndexedDB data for previous corporation: corp-1")
+        expect.stringContaining(
+          "🗑️ Clearing IndexedDB data for previous corporation: corp-1"
+        )
       );
 
       consoleLogSpy.mockRestore();
