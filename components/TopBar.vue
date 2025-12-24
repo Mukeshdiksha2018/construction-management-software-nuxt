@@ -1,6 +1,11 @@
 <template>
   <header class="w-full bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
     <nav class="flex items-center justify-between px-3 lg:px-4 py-2">
+      <!-- Left side: Empty spacer to balance layout -->
+      <div class="flex items-center gap-2 flex-shrink-0 w-[200px]">
+        <!-- Spacer to balance right side controls (matches approximate width of user profile section) -->
+      </div>
+
       <!-- Center: Corporation Selector -->
       <div class="flex items-center gap-2 flex-1 justify-center max-w-md mx-4">
         <CorporationSelect
