@@ -123,7 +123,7 @@
                        size="xs"
                        color="primary"
                        variant="soft"
-                       @click.stop="openCostCodeSelection"
+                       @click.stop="openCostCodeSelection(costCode, division)"
                      />
                    </div>
                  </div>
@@ -210,7 +210,7 @@
                              size="xs"
                              color="primary"
                              variant="soft"
-                             @click.stop="openCostCodeSelection"
+                             @click.stop="openCostCodeSelection(subCostCode, division)"
                            />
                          </div>
                        </template>
@@ -492,7 +492,7 @@
                       size="xs"
                       color="primary"
                       variant="soft"
-                      @click.stop="openCostCodeSelection"
+                      @click.stop="openCostCodeSelection(costCode, division)"
                     />
                   </div>
                 </div>
@@ -582,7 +582,7 @@
                             size="xs"
                             color="primary"
                             variant="soft"
-                            @click.stop="openCostCodeSelection"
+                            @click.stop="openCostCodeSelection(subCostCode, division)"
                           />
                         </div>
                       </template>
@@ -1317,7 +1317,7 @@ const isReadOnly = computed(() => props.readonly === true)
 const emit = defineEmits<{
   'update:modelValue': [value: any[]]
   'update:deletedUuids': [value: string[]]
-  'open-cost-code-selection': []
+  'open-cost-code-selection': [costCode?: any, division?: any]
 }>()
 
 // Stores
@@ -1517,9 +1517,9 @@ const openRemovedItemsModal = () => {
 }
 
 // Open cost code selection modal (emit to parent)
-const openCostCodeSelection = () => {
+const openCostCodeSelection = (costCode?: any, division?: any) => {
   if (isReadOnly.value) return
-  emit('open-cost-code-selection')
+  emit('open-cost-code-selection', costCode, division)
 }
 
 // Restore a removed cost code

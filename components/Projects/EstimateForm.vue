@@ -284,7 +284,7 @@
                     :editing-estimate="editingEstimate"
                     v-model:deletedUuids="form.removed_cost_code_uuids"
                     @update:model-value="(value) => handleFormUpdate('line_items', value)"
-                    @open-cost-code-selection="openCostCodeSelectionModal"
+                    @open-cost-code-selection="(costCode, division) => openCostCodeSelectionModal(costCode, division)"
                   />
                 </div>
                 <div v-else-if="isCheckingExistingEstimate" class="py-6 text-center">
@@ -782,7 +782,7 @@ const buildHierarchicalData = (divisions: any[], configurations: any[]): any[] =
 };
 
 // Open cost code selection modal
-const openCostCodeSelectionModal = async () => {
+const openCostCodeSelectionModal = async (selectedCostCode?: any, selectedDivision?: any) => {
   const corporationUuid = props.editingEstimate
     ? (props.form.corporation_uuid || corpStore.selectedCorporationId)
     : (estimateCreationStore.selectedCorporationUuid || props.form.corporation_uuid);
@@ -825,7 +825,19 @@ const openCostCodeSelectionModal = async () => {
     }
 
     // Build hierarchical data
-    hierarchicalDataForModal.value = buildHierarchicalData(divisions, configurations);
+    let fullHierarchicalData = buildHierarchicalData(divisions, configurations);
+    
+    // If a specific cost code and division are provided, filter to show only that division and parent cost code
+    if (selectedCostCode && selectedDivision) {
+      hierarchicalDataForModal.value = filterHierarchicalDataForCostCode(
+        fullHierarchicalData,
+        selectedCostCode,
+        selectedDivision
+      );
+    } else {
+      // Show all data if no specific cost code is selected
+      hierarchicalDataForModal.value = fullHierarchicalData;
+    }
     
     // Only open if we have data
     if (hierarchicalDataForModal.value.length > 0) {
@@ -834,6 +846,43 @@ const openCostCodeSelectionModal = async () => {
   } catch (error) {
     console.error('Error loading cost code data for modal:', error);
   }
+};
+
+// Filter hierarchical data to show only the selected division and parent cost code
+const filterHierarchicalDataForCostCode = (
+  fullData: any[],
+  selectedCostCode: any,
+  selectedDivision: any
+): any[] => {
+  // Find the division in the full data - check both by uuid and by division_number/division_name for "Other Costs"
+  const division = fullData.find((d: any) => 
+    d.uuid === selectedDivision.uuid || 
+    (selectedDivision.division_number === 'OTHER' && d.division_number === 'OTHER')
+  );
+  
+  if (!division) {
+    // If division not found, return empty array
+    return [];
+  }
+  
+  // Find the parent cost code in the division
+  const parentCostCode = division.costCodes?.find((cc: any) => cc.uuid === selectedCostCode.uuid);
+  
+  if (!parentCostCode) {
+    // If parent cost code not found, return empty array
+    return [];
+  }
+  
+  // Create a deep copy of the parent cost code to preserve all its sub-cost codes and sub-sub-cost codes
+  const filteredParentCostCode = JSON.parse(JSON.stringify(parentCostCode));
+  
+  // Create a filtered division with only the selected parent cost code
+  const filteredDivision = {
+    ...division,
+    costCodes: [filteredParentCostCode] // Only include the selected parent cost code with all its children
+  };
+  
+  return [filteredDivision];
 };
 
 // Handle cost code selection confirm
