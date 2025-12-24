@@ -138,7 +138,8 @@ describe('Estimates Edge Cases and Error Recovery', () => {
       push: mockPush
     })
     vi.mocked(useRoute).mockReturnValue({
-      params: { id: 'estimate-1' }
+      params: { id: 'estimate-1' },
+      query: {}
     })
   });
 

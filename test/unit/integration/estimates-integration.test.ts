@@ -152,7 +152,8 @@ describe('Estimates Integration Tests', () => {
         push: mockPush
       })
       vi.mocked(useRoute).mockReturnValue({
-        params: { id: 'estimate-1' }
+        params: { id: 'estimate-1' },
+        query: {}
       })
 
       // Test estimates list component
@@ -460,7 +461,8 @@ describe('Estimates Integration Tests', () => {
         push: mockPush
       })
       vi.mocked(useRoute).mockReturnValue({
-        params: { id: 'estimate-1' }
+        params: { id: 'estimate-1' },
+        query: {}
       })
 
       // Test estimates list

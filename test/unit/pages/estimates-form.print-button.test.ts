@@ -18,7 +18,7 @@ vi.mock('@/composables/useEstimatePrint', () => ({
 const pushMock = vi.fn()
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: pushMock }),
-  useRoute: () => ({ params: { id: 'est-123' } })
+  useRoute: () => ({ params: { id: 'est-123' }, query: {} })
 }))
 
 // Mock stores used by the page

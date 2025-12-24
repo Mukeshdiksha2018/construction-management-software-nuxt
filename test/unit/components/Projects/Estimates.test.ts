@@ -572,8 +572,8 @@ describe("Estimates", () => {
 
       wrapper.vm.previewEstimateDetails(mockEstimates[0]);
 
-      expect(wrapper.vm.showPreviewModal).toBe(true);
-      expect(wrapper.vm.previewEstimate).toEqual(mockEstimates[0]);
+      // Should navigate to form page with view mode
+      expect(mockRouter.push).toHaveBeenCalledWith("/estimates/form/estimate-1?mode=view");
     });
 
     it("should edit estimate from preview", async () => {
@@ -885,8 +885,8 @@ describe("Estimates", () => {
       wrapper = createWrapper();
 
       wrapper.vm.previewEstimateDetails(mockEstimates[0]);
-      expect(wrapper.vm.showPreviewModal).toBe(true);
-      expect(wrapper.vm.previewEstimate).toEqual(mockEstimates[0]);
+      // Should navigate to form page with view mode instead of opening modal
+      expect(mockRouter.push).toHaveBeenCalledWith("/estimates/form/estimate-1?mode=view");
     });
 
     it("should open and close delete modal", () => {
