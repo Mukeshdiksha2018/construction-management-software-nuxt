@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import TopBar from "@/components/TopBar.vue";
-import { useDateRangeStore } from "@/stores/dateRange";
 import { useItemTypesStore } from "@/stores/itemTypes";
 import { createPinia, setActivePinia } from "pinia";
 import { useAuthStore } from "@/stores/auth";
@@ -33,16 +32,10 @@ const mockClearCorporationData = vi.fn(() => Promise.resolve());
 
 vi.mock("@/composables/useIndexedDB", () => ({
   useIndexedDB: () => ({
-    resyncDateRangeDependentData: vi.fn(() => Promise.resolve()),
     syncGlobalData: vi.fn(() => Promise.resolve()),
     clearCorporationData: mockClearCorporationData,
   }),
 }));
-
-const buildCalendarDate = (iso: string) => ({
-  toString: () => iso,
-  toDate: () => new Date(iso),
-});
 
 const createStubs = () => ({
   UPopover: {
@@ -128,19 +121,6 @@ const setupStores = (options?: { multipleCorporations?: boolean }) => {
   roleStore.roles = [{ id: "role-1", role_name: "Super Admin" }] as any;
   roleStore.fetchRoles = vi.fn(() => Promise.resolve());
 
-  const dateRangeStore = useDateRangeStore();
-  dateRangeStore.dateRange = {
-    start: buildCalendarDate("2024-01-01"),
-    end: buildCalendarDate("2024-01-31"),
-  } as any;
-  dateRangeStore.dateRangeParams = {
-    start_date: "2024-01-01",
-    end_date: "2024-01-31",
-  } as any;
-  dateRangeStore.setDateRange = vi.fn((range: any) => {
-    dateRangeStore.dateRange = range;
-  });
-
   const shipViaStore = useShipViaStore();
   shipViaStore.fetchShipVia = vi.fn(() => Promise.resolve());
 
@@ -178,7 +158,6 @@ const setupStores = (options?: { multipleCorporations?: boolean }) => {
       corporations: corpStore,
       userProfiles: userProfilesStore,
       roles: roleStore,
-      dateRange: dateRangeStore,
       shipVia: shipViaStore,
       freight: freightStore,
       locations: locationsStore,
@@ -302,7 +281,7 @@ describe("TopBar.vue", () => {
 
     expect(
       stores.corporations.setSelectedCorporationAndFetchData
-    ).toHaveBeenCalledWith("corp-1", expect.any(Object));
+    ).toHaveBeenCalledWith("corp-1");
     expect(
       stores.itemTypes.fetchItemTypes
     ).toHaveBeenCalledWith("corp-1", undefined, true);
@@ -310,47 +289,6 @@ describe("TopBar.vue", () => {
     wrapper.unmount();
   });
 
-  it("fetches vendor invoices when date range changes", async () => {
-    const { pinia, stores } = setupStores();
-
-    const wrapper = mount(TopBar, {
-      global: {
-        plugins: [pinia],
-        stubs: {
-          ...createStubs(),
-        },
-      },
-    });
-
-    await flushPromises();
-
-    // Set a corporation value first
-    wrapper.vm.value = "corp-1";
-    await flushPromises();
-
-    // Clear previous calls
-    (stores.vendorInvoices.fetchVendorInvoices as any).mockClear();
-
-    // Change date range
-    const newDateRange = {
-      start: buildCalendarDate("2024-02-01"),
-      end: buildCalendarDate("2024-02-28"),
-    };
-    stores.dateRange.dateRange = newDateRange as any;
-    stores.dateRange.dateRangeParams = {
-      start_date: "2024-02-01",
-      end_date: "2024-02-28",
-    } as any;
-
-    // Trigger the watcher
-    await wrapper.vm.$nextTick();
-    await flushPromises();
-
-    // Vendor invoices should be fetched when date range changes
-    expect(stores.vendorInvoices.fetchVendorInvoices).toHaveBeenCalled();
-
-    wrapper.unmount();
-  });
 
   it("fetches estimates when corporation context is refreshed", async () => {
     const { pinia, stores } = setupStores();
@@ -377,120 +315,7 @@ describe("TopBar.vue", () => {
     wrapper.unmount();
   });
 
-  it("fetches estimates when date range changes", async () => {
-    const { pinia, stores } = setupStores();
 
-    const wrapper = mount(TopBar, {
-      global: {
-        plugins: [pinia],
-        stubs: {
-          ...createStubs(),
-        },
-      },
-    });
-
-    await flushPromises();
-
-    // Set a corporation value first
-    wrapper.vm.value = "corp-1";
-    await flushPromises();
-
-    // Clear previous calls
-    (stores.estimates.refreshEstimatesFromAPI as any).mockClear();
-
-    // Change date range
-    const newDateRange = {
-      start: buildCalendarDate("2024-02-01"),
-      end: buildCalendarDate("2024-02-28"),
-    };
-    stores.dateRange.dateRange = newDateRange as any;
-    stores.dateRange.dateRangeParams = {
-      start_date: "2024-02-01",
-      end_date: "2024-02-28",
-    } as any;
-
-    // Trigger the watcher
-    await wrapper.vm.$nextTick();
-    await flushPromises();
-
-    // Estimates should be refreshed from API when date range changes
-    expect(stores.estimates.refreshEstimatesFromAPI).toHaveBeenCalled();
-
-    wrapper.unmount();
-  });
-
-  it("forces item types refresh when date range changes", async () => {
-    const { pinia } = setupStores();
-
-    const wrapper = mount(TopBar, {
-      global: {
-        plugins: [pinia],
-        stubs: {
-          UPopover: {
-            template:
-              "<div><slot /><slot name='content'></slot></div>",
-          },
-          UButton: {
-            template: "<button><slot /></button>",
-          },
-          UCalendar: {
-            template: "<div />",
-          },
-          USelectMenu: {
-            template: `
-              <div class="u-select-menu">
-                <button class="select-button" @click="$emit('update:modelValue', modelValue)">
-                  <slot></slot>
-                  <slot name="default"></slot>
-                </button>
-                <div class="select-items">
-                  <div v-for="item in items" :key="item.value" class="select-item" @click="$emit('update:modelValue', item)">
-                    <slot name="item-label" :item="item">{{ item.label }}</slot>
-                  </div>
-                </div>
-              </div>
-            `,
-            props: ["modelValue", "items", "searchable", "searchablePlaceholder", "filterFields", "valueKey", "placeholder", "disabled", "ui"],
-          },
-          UDropdownMenu: {
-            template: "<div><slot /></div>",
-          },
-          UAvatar: {
-            template: "<div />",
-          },
-          UIcon: {
-            template: "<i />",
-          },
-        },
-      },
-    });
-
-    await flushPromises();
-
-    const itemTypesStore = useItemTypesStore();
-    const dateRangeStore = useDateRangeStore();
-
-    (itemTypesStore.fetchItemTypes as any).mockClear();
-
-    dateRangeStore.dateRange = {
-      start: buildCalendarDate("2024-02-01"),
-      end: buildCalendarDate("2024-02-29"),
-    } as any;
-    dateRangeStore.dateRangeParams = {
-      start_date: "2024-02-01",
-      end_date: "2024-02-29",
-    };
-
-    await flushPromises();
-
-    expect(itemTypesStore.fetchItemTypes).toHaveBeenCalledWith(
-      "corp-1",
-      undefined,
-      true
-    );
-
-    wrapper.unmount();
-  });
 
   describe("Searchable Corporation Selector", () => {
     const createStubs = () => ({
@@ -659,8 +484,7 @@ describe("TopBar.vue", () => {
       await flushPromises();
 
       expect(stores.corporations.setSelectedCorporationAndFetchData).toHaveBeenCalledWith(
-        "corp-1",
-        expect.any(Object)
+        "corp-1"
       );
 
       wrapper.unmount();
@@ -827,8 +651,7 @@ describe("TopBar.vue", () => {
       await flushPromises();
 
       expect(stores.corporations.setSelectedCorporationAndFetchData).toHaveBeenCalledWith(
-        "corp-3",
-        expect.any(Object)
+        "corp-3"
       );
 
       wrapper.unmount();
