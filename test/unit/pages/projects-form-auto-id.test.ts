@@ -15,7 +15,12 @@ const mockCorporationStore = {
 const mockProjectsStore = {
   clearCurrentProject: vi.fn(),
   fetchProjectsMetadata: vi.fn().mockResolvedValue(undefined),
-  projectsMetadata: []
+  projectsMetadata: [],
+  localCustomers: [],
+  customersLoading: false,
+  customersError: null,
+  fetchLocalCustomers: vi.fn().mockResolvedValue(undefined),
+  clearLocalCustomers: vi.fn()
 }
 
 vi.mock('@/stores/corporations', () => ({
