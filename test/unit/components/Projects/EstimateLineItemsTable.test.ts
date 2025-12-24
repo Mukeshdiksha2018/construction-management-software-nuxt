@@ -6720,4 +6720,258 @@ describe('EstimateLineItemsTable', () => {
       expect(enriched).toEqual(savedItems)
     })
   })
+
+  describe('Edit Button Functionality', () => {
+    const mockParentCostCode = {
+      uuid: 'parent-1',
+      cost_code_number: '01 40 00',
+      cost_code_name: 'Parent Cost Code',
+      subCostCodes: [
+        {
+          uuid: 'sub-1',
+          cost_code_number: '01 40 10',
+          cost_code_name: 'Sub Cost Code',
+          subSubCostCodes: []
+        }
+      ]
+    }
+
+    const mockSubCostCodeWithChildren = {
+      uuid: 'sub-2',
+      cost_code_number: '01 40 20',
+      cost_code_name: 'Sub Cost Code with Children',
+      subSubCostCodes: [
+        {
+          uuid: 'subsub-1',
+          cost_code_number: '01 40 21',
+          cost_code_name: 'Sub-Sub Cost Code'
+        }
+      ]
+    }
+
+    const mockDivision = {
+      uuid: 'div-1',
+      division_number: '01',
+      division_name: 'GENERAL REQUIREMENTS',
+      costCodes: [mockParentCostCode]
+    }
+
+    beforeEach(async () => {
+      // Setup mock data with parent cost codes
+      const configsWithSubCostCodes = [
+        {
+          uuid: 'parent-1',
+          division_uuid: 'div-1',
+          cost_code_number: '01 40 00',
+          cost_code_name: 'Parent Cost Code',
+          parent_cost_code_uuid: null,
+          order: 1,
+          is_active: true
+        },
+        {
+          uuid: 'sub-1',
+          division_uuid: 'div-1',
+          cost_code_number: '01 40 10',
+          cost_code_name: 'Sub Cost Code',
+          parent_cost_code_uuid: 'parent-1',
+          order: 1,
+          is_active: true
+        },
+        {
+          uuid: 'sub-2',
+          division_uuid: 'div-1',
+          cost_code_number: '01 40 20',
+          cost_code_name: 'Sub Cost Code with Children',
+          parent_cost_code_uuid: 'parent-1',
+          order: 2,
+          is_active: true
+        },
+        {
+          uuid: 'subsub-1',
+          division_uuid: 'div-1',
+          cost_code_number: '01 40 21',
+          cost_code_name: 'Sub-Sub Cost Code',
+          parent_cost_code_uuid: 'sub-2',
+          order: 1,
+          is_active: true
+        }
+      ]
+
+      vi.mocked(useCostCodeConfigurationsStore).mockReturnValue({
+        getActiveConfigurations: vi.fn().mockReturnValue(configsWithSubCostCodes),
+        fetchConfigurations: vi.fn().mockResolvedValue(undefined),
+        getConfigurationCountByCorporation: vi.fn().mockReturnValue(0),
+        getConfigurationById: vi.fn(),
+        getAllItems: vi.fn()
+      } as any)
+    })
+
+    it('should show edit button for parent cost codes with sub-cost codes', async () => {
+      wrapper = createWrapper({ editingEstimate: true })
+      await wrapper.vm.$nextTick()
+      
+      // Set up hierarchical data
+      wrapper.vm.divisions = mockDivisions
+      wrapper.vm.configurations = [
+        {
+          uuid: 'parent-1',
+          division_uuid: 'div-1',
+          cost_code_number: '01 40 00',
+          cost_code_name: 'Parent Cost Code',
+          parent_cost_code_uuid: null,
+          order: 1,
+          is_active: true
+        },
+        {
+          uuid: 'sub-1',
+          division_uuid: 'div-1',
+          cost_code_number: '01 40 10',
+          cost_code_name: 'Sub Cost Code',
+          parent_cost_code_uuid: 'parent-1',
+          order: 1,
+          is_active: true
+        }
+      ]
+      wrapper.vm.loading = false
+      await wrapper.vm.$nextTick()
+      await new Promise(resolve => setTimeout(resolve, 200))
+
+      // Find edit button by data-testid
+      const editButtons = wrapper.findAll('[data-testid="edit-cost-code"]')
+      expect(editButtons.length).toBeGreaterThan(0)
+    })
+
+    it('should show edit button for sub-cost codes with sub-sub-cost codes', async () => {
+      wrapper = createWrapper({ editingEstimate: true })
+      await wrapper.vm.$nextTick()
+      
+      wrapper.vm.divisions = mockDivisions
+      wrapper.vm.configurations = [
+        {
+          uuid: 'parent-1',
+          division_uuid: 'div-1',
+          cost_code_number: '01 40 00',
+          cost_code_name: 'Parent Cost Code',
+          parent_cost_code_uuid: null,
+          order: 1,
+          is_active: true
+        },
+        {
+          uuid: 'sub-2',
+          division_uuid: 'div-1',
+          cost_code_number: '01 40 20',
+          cost_code_name: 'Sub Cost Code with Children',
+          parent_cost_code_uuid: 'parent-1',
+          order: 2,
+          is_active: true
+        },
+        {
+          uuid: 'subsub-1',
+          division_uuid: 'div-1',
+          cost_code_number: '01 40 21',
+          cost_code_name: 'Sub-Sub Cost Code',
+          parent_cost_code_uuid: 'sub-2',
+          order: 1,
+          is_active: true
+        }
+      ]
+      wrapper.vm.loading = false
+      await wrapper.vm.$nextTick()
+      await new Promise(resolve => setTimeout(resolve, 200))
+
+      // Find edit button by data-testid
+      const editButtons = wrapper.findAll('[data-testid="edit-cost-code"]')
+      expect(editButtons.length).toBeGreaterThan(0)
+    })
+
+    it('should emit open-cost-code-selection event when edit button is clicked for parent cost code', async () => {
+      wrapper = createWrapper({ editingEstimate: true })
+      await wrapper.vm.$nextTick()
+      
+      wrapper.vm.divisions = mockDivisions
+      wrapper.vm.configurations = [
+        {
+          uuid: 'parent-1',
+          division_uuid: 'div-1',
+          cost_code_number: '01 40 00',
+          cost_code_name: 'Parent Cost Code',
+          parent_cost_code_uuid: null,
+          order: 1,
+          is_active: true
+        },
+        {
+          uuid: 'sub-1',
+          division_uuid: 'div-1',
+          cost_code_number: '01 40 10',
+          cost_code_name: 'Sub Cost Code',
+          parent_cost_code_uuid: 'parent-1',
+          order: 1,
+          is_active: true
+        }
+      ]
+      wrapper.vm.loading = false
+      await wrapper.vm.$nextTick()
+      await new Promise(resolve => setTimeout(resolve, 200))
+
+      // Call the function directly
+      const costCode = { uuid: 'parent-1', cost_code_number: '01 40 00', cost_code_name: 'Parent Cost Code' }
+      const division = { uuid: 'div-1', division_number: '01', division_name: 'GENERAL REQUIREMENTS' }
+      
+      wrapper.vm.openCostCodeSelection(costCode, division)
+      await wrapper.vm.$nextTick()
+
+      // Check that the event was emitted
+      const emitted = wrapper.emitted('open-cost-code-selection')
+      expect(emitted).toBeTruthy()
+      expect(emitted[0]).toEqual([costCode, division])
+    })
+
+    it('should not emit event when in readonly mode', async () => {
+      wrapper = createWrapper({ readonly: true, editingEstimate: true })
+      await wrapper.vm.$nextTick()
+
+      const costCode = { uuid: 'parent-1' }
+      const division = { uuid: 'div-1' }
+      
+      wrapper.vm.openCostCodeSelection(costCode, division)
+      await wrapper.vm.$nextTick()
+
+      const emitted = wrapper.emitted('open-cost-code-selection')
+      expect(emitted).toBeFalsy()
+    })
+
+    it('should not show edit button when in readonly mode', async () => {
+      wrapper = createWrapper({ readonly: true, editingEstimate: true })
+      await wrapper.vm.$nextTick()
+      
+      wrapper.vm.divisions = mockDivisions
+      wrapper.vm.configurations = [
+        {
+          uuid: 'parent-1',
+          division_uuid: 'div-1',
+          cost_code_number: '01 40 00',
+          cost_code_name: 'Parent Cost Code',
+          parent_cost_code_uuid: null,
+          order: 1,
+          is_active: true
+        },
+        {
+          uuid: 'sub-1',
+          division_uuid: 'div-1',
+          cost_code_number: '01 40 10',
+          cost_code_name: 'Sub Cost Code',
+          parent_cost_code_uuid: 'parent-1',
+          order: 1,
+          is_active: true
+        }
+      ]
+      wrapper.vm.loading = false
+      await wrapper.vm.$nextTick()
+      await new Promise(resolve => setTimeout(resolve, 200))
+
+      // Edit buttons should not be visible in readonly mode
+      const editButtons = wrapper.findAll('[data-testid="edit-cost-code"]')
+      expect(editButtons.length).toBe(0)
+    })
+  })
 })

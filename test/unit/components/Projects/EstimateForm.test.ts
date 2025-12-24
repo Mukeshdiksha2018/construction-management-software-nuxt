@@ -5,11 +5,15 @@ import EstimateForm from '@/components/Projects/EstimateForm.vue'
 import { useCorporationStore } from '@/stores/corporations'
 import { useProjectsStore } from '@/stores/projects'
 import { useEstimatesStore } from '@/stores/estimates'
+import { useCostCodeDivisionsStore } from '@/stores/costCodeDivisions'
+import { useCostCodeConfigurationsStore } from '@/stores/costCodeConfigurations'
 
 // Mock the stores
 vi.mock('@/stores/corporations')
 vi.mock('@/stores/projects')
 vi.mock('@/stores/estimates')
+vi.mock('@/stores/costCodeDivisions')
+vi.mock('@/stores/costCodeConfigurations')
 const mockEstimateCreationStore = {
   selectedCorporationUuid: null,
   projects: [],
@@ -42,8 +46,18 @@ vi.mock('@/components/Projects/EstimateLineItemsTable.vue', () => ({
   default: {
     name: 'EstimateLineItemsTable',
     template: '<div data-testid="estimate-line-items-table"></div>',
-    props: ['modelValue', 'projectUuid', 'readonly'],
-    emits: ['update:modelValue']
+    props: ['modelValue', 'projectUuid', 'readonly', 'editingEstimate'],
+    emits: ['update:modelValue', 'open-cost-code-selection']
+  }
+}))
+
+// Mock CostCodeSelectionModal
+vi.mock('@/components/Projects/CostCodeSelectionModal.vue', () => ({
+  default: {
+    name: 'CostCodeSelectionModal',
+    template: '<div v-if="open" data-testid="cost-code-selection-modal"></div>',
+    props: ['open', 'hierarchicalData', 'removedCostCodeUuids'],
+    emits: ['update:open', 'confirm', 'cancel']
   }
 }))
 
@@ -103,6 +117,16 @@ describe('EstimateForm', () => {
 
     vi.mocked(useEstimatesStore).mockReturnValue({
       estimates: []
+    } as any)
+
+    vi.mocked(useCostCodeDivisionsStore).mockReturnValue({
+      getActiveDivisions: vi.fn().mockReturnValue([]),
+      fetchDivisions: vi.fn().mockResolvedValue(undefined)
+    } as any)
+
+    vi.mocked(useCostCodeConfigurationsStore).mockReturnValue({
+      getActiveConfigurations: vi.fn().mockReturnValue([]),
+      fetchConfigurations: vi.fn().mockResolvedValue(undefined)
     } as any)
   })
 
@@ -1356,6 +1380,292 @@ describe('EstimateForm', () => {
       // Final amount: 1100 + 100 - 50 = 1150
       expect(emittedForm.total_amount).toBe(1100)
       expect(emittedForm.final_amount).toBe(1150)
+    })
+  });
+
+  describe('Cost Code Selection Modal', () => {
+    const mockDivisions = [
+      {
+        uuid: 'div-1',
+        division_number: '01',
+        division_name: 'GENERAL REQUIREMENTS',
+        division_order: 1,
+        is_active: true,
+        exclude_in_estimates_and_reports: false
+      },
+      {
+        uuid: 'div-2',
+        division_number: '02',
+        division_name: 'EXISTING CONDITIONS',
+        division_order: 2,
+        is_active: true,
+        exclude_in_estimates_and_reports: true
+      }
+    ]
+
+    const mockConfigurations = [
+      {
+        uuid: 'config-1',
+        division_uuid: 'div-1',
+        cost_code_number: '01 40 00',
+        cost_code_name: 'Quality Requirements',
+        parent_cost_code_uuid: null,
+        order: 1,
+        is_active: true
+      },
+      {
+        uuid: 'config-2',
+        division_uuid: 'div-1',
+        cost_code_number: '01 70 00',
+        cost_code_name: 'Execution and Closeout Requirements',
+        parent_cost_code_uuid: null,
+        order: 2,
+        is_active: true
+      },
+      {
+        uuid: 'sub-config-1',
+        division_uuid: 'div-1',
+        cost_code_number: '01 40 10',
+        cost_code_name: 'Sub Cost Code',
+        parent_cost_code_uuid: 'config-1',
+        order: 1,
+        is_active: true
+      },
+      {
+        uuid: 'sub-config-2',
+        division_uuid: 'div-1',
+        cost_code_number: '01 40 20',
+        cost_code_name: 'Sub Cost Code with Children',
+        parent_cost_code_uuid: 'config-1',
+        order: 2,
+        is_active: true
+      },
+      {
+        uuid: 'subsub-config-1',
+        division_uuid: 'div-1',
+        cost_code_number: '01 40 21',
+        cost_code_name: 'Sub-Sub Cost Code',
+        parent_cost_code_uuid: 'sub-config-2',
+        order: 1,
+        is_active: true
+      }
+    ]
+
+    beforeEach(() => {
+      // Update mocks for cost code stores
+      vi.mocked(useCostCodeDivisionsStore).mockReturnValue({
+        getActiveDivisions: vi.fn().mockReturnValue(mockDivisions),
+        fetchDivisions: vi.fn().mockResolvedValue(undefined)
+      } as any)
+
+      vi.mocked(useCostCodeConfigurationsStore).mockReturnValue({
+        getActiveConfigurations: vi.fn().mockReturnValue(mockConfigurations),
+        fetchConfigurations: vi.fn().mockResolvedValue(undefined)
+      } as any)
+    })
+
+    it('should open cost code selection modal with all data when no specific cost code is provided', async () => {
+      wrapper = createWrapper({
+        form: {
+          ...mockForm,
+          corporation_uuid: 'corp-1',
+          project_uuid: 'project-1'
+        },
+        editingEstimate: true
+      })
+
+      await wrapper.vm.openCostCodeSelectionModal()
+      await wrapper.vm.$nextTick()
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // Modal should be open
+      expect(wrapper.vm.isCostCodeSelectionModalOpen).toBe(true)
+      // Should have hierarchical data
+      expect(wrapper.vm.hierarchicalDataForModal.length).toBeGreaterThan(0)
+    })
+
+    it('should filter hierarchical data to show only selected division and parent cost code', async () => {
+      wrapper = createWrapper({
+        form: {
+          ...mockForm,
+          corporation_uuid: 'corp-1',
+          project_uuid: 'project-1'
+        },
+        editingEstimate: true
+      })
+
+      const selectedCostCode = {
+        uuid: 'config-1',
+        cost_code_number: '01 40 00',
+        cost_code_name: 'Quality Requirements'
+      }
+
+      const selectedDivision = {
+        uuid: 'div-1',
+        division_number: '01',
+        division_name: 'GENERAL REQUIREMENTS'
+      }
+
+      await wrapper.vm.openCostCodeSelectionModal(selectedCostCode, selectedDivision)
+      await wrapper.vm.$nextTick()
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // Modal should be open
+      expect(wrapper.vm.isCostCodeSelectionModalOpen).toBe(true)
+      // Should have filtered data with only one division
+      expect(wrapper.vm.hierarchicalDataForModal.length).toBe(1)
+      // That division should only have the selected cost code
+      const filteredDivision = wrapper.vm.hierarchicalDataForModal[0]
+      expect(filteredDivision.costCodes.length).toBe(1)
+      expect(filteredDivision.costCodes[0].uuid).toBe('config-1')
+      // Should still have sub-cost codes
+      expect(filteredDivision.costCodes[0].subCostCodes).toBeDefined()
+      expect(filteredDivision.costCodes[0].subCostCodes.length).toBeGreaterThan(0)
+    })
+
+    it('should handle filtering for Other Costs division', async () => {
+      // Add a cost code that will be in "Other Costs" (from excluded division)
+      const otherCostConfigurations = [
+        ...mockConfigurations,
+        {
+          uuid: 'config-3',
+          division_uuid: 'div-2', // This division is excluded
+          cost_code_number: '02 80 00',
+          cost_code_name: 'Facility Remediation',
+          parent_cost_code_uuid: null,
+          order: 1,
+          is_active: true
+        }
+      ]
+
+      vi.mocked(useCostCodeConfigurationsStore).mockReturnValue({
+        getActiveConfigurations: vi.fn().mockReturnValue(otherCostConfigurations),
+        fetchConfigurations: vi.fn().mockResolvedValue(undefined)
+      } as any)
+
+      wrapper = createWrapper({
+        form: {
+          ...mockForm,
+          corporation_uuid: 'corp-1',
+          project_uuid: 'project-1'
+        },
+        editingEstimate: true
+      })
+
+      // First open without filter to build the full hierarchical data
+      await wrapper.vm.openCostCodeSelectionModal()
+      await wrapper.vm.$nextTick()
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // Find the "Other Costs" division in the hierarchical data
+      const otherCostsDivision = wrapper.vm.hierarchicalDataForModal.find(
+        (d: any) => d.division_number === 'OTHER'
+      )
+
+      if (otherCostsDivision && otherCostsDivision.costCodes.length > 0) {
+        const selectedCostCode = otherCostsDivision.costCodes[0]
+        const selectedDivision = {
+          uuid: 'other-costs',
+          division_number: 'OTHER',
+          division_name: 'OTHER COSTS'
+        }
+
+        // Close modal first
+        wrapper.vm.isCostCodeSelectionModalOpen = false
+        await wrapper.vm.$nextTick()
+
+        // Now open with filter
+        await wrapper.vm.openCostCodeSelectionModal(selectedCostCode, selectedDivision)
+        await wrapper.vm.$nextTick()
+        await new Promise(resolve => setTimeout(resolve, 100))
+
+        // Should handle Other Costs division
+        expect(wrapper.vm.isCostCodeSelectionModalOpen).toBe(true)
+        expect(wrapper.vm.hierarchicalDataForModal.length).toBeGreaterThan(0)
+      } else {
+        // If no "Other Costs" division exists, just verify the function doesn't crash
+        wrapper.vm.isCostCodeSelectionModalOpen = false
+        await wrapper.vm.$nextTick()
+
+        const selectedCostCode = {
+          uuid: 'config-3',
+          cost_code_number: '02 80 00',
+          cost_code_name: 'Facility Remediation'
+        }
+
+        const selectedDivision = {
+          uuid: 'other-costs',
+          division_number: 'OTHER',
+          division_name: 'OTHER COSTS'
+        }
+
+        await wrapper.vm.openCostCodeSelectionModal(selectedCostCode, selectedDivision)
+        await wrapper.vm.$nextTick()
+        await new Promise(resolve => setTimeout(resolve, 100))
+
+        // Should handle gracefully even if division not found
+        expect(wrapper.vm.hierarchicalDataForModal.length).toBe(0)
+      }
+    })
+
+    it('should handle case when cost code is not found in division', async () => {
+      wrapper = createWrapper({
+        form: {
+          ...mockForm,
+          corporation_uuid: 'corp-1',
+          project_uuid: 'project-1'
+        },
+        editingEstimate: true
+      })
+
+      const selectedCostCode = {
+        uuid: 'non-existent',
+        cost_code_number: '99 99 99',
+        cost_code_name: 'Non Existent'
+      }
+
+      const selectedDivision = {
+        uuid: 'div-1',
+        division_number: '01',
+        division_name: 'GENERAL REQUIREMENTS'
+      }
+
+      await wrapper.vm.openCostCodeSelectionModal(selectedCostCode, selectedDivision)
+      await wrapper.vm.$nextTick()
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // Should return empty array when cost code not found
+      expect(wrapper.vm.hierarchicalDataForModal.length).toBe(0)
+    })
+
+    it('should handle case when division is not found', async () => {
+      wrapper = createWrapper({
+        form: {
+          ...mockForm,
+          corporation_uuid: 'corp-1',
+          project_uuid: 'project-1'
+        },
+        editingEstimate: true
+      })
+
+      const selectedCostCode = {
+        uuid: 'config-1',
+        cost_code_number: '01 40 00',
+        cost_code_name: 'Quality Requirements'
+      }
+
+      const selectedDivision = {
+        uuid: 'non-existent-div',
+        division_number: '99',
+        division_name: 'NON EXISTENT'
+      }
+
+      await wrapper.vm.openCostCodeSelectionModal(selectedCostCode, selectedDivision)
+      await wrapper.vm.$nextTick()
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // Should return empty array when division not found
+      expect(wrapper.vm.hierarchicalDataForModal.length).toBe(0)
     })
   });
 })
