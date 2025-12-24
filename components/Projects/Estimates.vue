@@ -350,6 +350,7 @@ import { ref, computed, h, watch, onMounted, nextTick, useTemplateRef, resolveCo
 import { useRouter, useRoute } from 'vue-router'
 import { useCorporationStore } from '@/stores/corporations'
 import { useEstimatesStore } from '@/stores/estimates'
+import { useProjectsStore } from '@/stores/projects'
 import { useDateRangeStore } from '@/stores/dateRange'
 import { useTableStandard } from '@/composables/useTableStandard'
 import { useDateFormat } from '@/composables/useDateFormat'
@@ -377,6 +378,7 @@ const route = useRoute()
 // Stores
 const corporationStore = useCorporationStore()
 const estimatesStore = useEstimatesStore()
+const projectsStore = useProjectsStore()
 const dateRangeStore = useDateRangeStore()
 const { formatDate } = useDateFormat()
 const { formatCurrency } = useCurrencyFormat()
@@ -814,6 +816,57 @@ const getCleanMessage = (msg: string | undefined): string => {
   return clean
 }
 
+// Function to update project estimated amount after estimate deletion
+const updateProjectEstimatedAmountAfterDelete = async (deletedEstimate: any) => {
+  // Only update if the deleted estimate was approved
+  if (deletedEstimate.status !== 'Approved') {
+    return;
+  }
+
+  const projectUuid = deletedEstimate.project_uuid;
+  if (!projectUuid) return;
+
+  try {
+    // Find other approved estimates for the same project
+    const otherApprovedEstimates = estimatesStore.estimates.filter(
+      (est: any) => 
+        est.project_uuid === projectUuid && 
+        est.status === 'Approved' && 
+        est.uuid !== deletedEstimate.uuid &&
+        est.is_active !== false
+    );
+
+    let estimatedAmount = 0;
+
+    if (otherApprovedEstimates.length > 0) {
+      // Sort by approved_at or updated_at descending to get the latest
+      const sortedEstimates = otherApprovedEstimates.sort((a: any, b: any) => {
+        const dateA = a.approved_at || a.updated_at || a.created_at || '';
+        const dateB = b.approved_at || b.updated_at || b.created_at || '';
+        return new Date(dateB).getTime() - new Date(dateA).getTime();
+      });
+      
+      // Use the latest approved estimate's final_amount
+      estimatedAmount = Number(sortedEstimates[0].final_amount) || 0;
+    }
+    // If no other approved estimates, estimatedAmount remains 0 (cleared)
+
+    // Update the project's estimated_amount
+    const updated = await projectsStore.updateProject({
+      uuid: projectUuid,
+      estimated_amount: estimatedAmount
+    });
+
+    if (!updated) {
+      console.warn('Project estimated amount could not be updated after estimate deletion.');
+    }
+  } catch (error) {
+    console.error('Error updating project estimated amount after estimate deletion:', error);
+    // Don't show error toast to user as estimate deletion was successful
+    // This is a background update
+  }
+};
+
 const confirmDelete = async () => {
   if (!hasPermission('project_estimates_delete')) {
     const toast = useToast();
@@ -828,10 +881,16 @@ const confirmDelete = async () => {
 
   if (!estimateToDelete.value) return
 
+  // Store the estimate details before deletion for project update
+  const estimateToDeleteCopy = { ...estimateToDelete.value };
+
   try {
     const success = await estimatesStore.deleteEstimate(estimateToDelete.value.uuid)
     
     if (success) {
+      // Update project estimated amount if the deleted estimate was approved
+      await updateProjectEstimatedAmountAfterDelete(estimateToDeleteCopy);
+
       const toast = useToast();
       toast.add({
         title: "Success",
