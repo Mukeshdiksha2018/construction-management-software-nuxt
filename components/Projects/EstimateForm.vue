@@ -284,6 +284,7 @@
                     :editing-estimate="editingEstimate"
                     v-model:deletedUuids="form.removed_cost_code_uuids"
                     @update:model-value="(value) => handleFormUpdate('line_items', value)"
+                    @open-cost-code-selection="openCostCodeSelectionModal"
                   />
                 </div>
                 <div v-else-if="isCheckingExistingEstimate" class="py-6 text-center">

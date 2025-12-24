@@ -115,7 +115,17 @@
                        disabled
                      />
                    </div>
-                   <div class="w-20"></div>
+                   <div class="w-20 flex items-center justify-center gap-1">
+                     <UButton
+                       v-if="!isReadOnly"
+                       data-testid="edit-cost-code"
+                       icon="tdesign:edit-filled"
+                       size="xs"
+                       color="primary"
+                       variant="soft"
+                       @click.stop="openCostCodeSelection"
+                     />
+                   </div>
                  </div>
                </template>
                <template #content="{ item }">
@@ -192,7 +202,17 @@
                          <div v-if="showTotal" class="w-48 text-right font-mono text-sm">
                            {{ formatCurrency(getSubCostCodeTotal(subCostCode)) }}
                          </div>
-                         <div class="w-20"></div>
+                         <div class="w-20 flex items-center justify-center gap-1">
+                           <UButton
+                             v-if="!isReadOnly"
+                             data-testid="edit-cost-code"
+                             icon="tdesign:edit-filled"
+                             size="xs"
+                             color="primary"
+                             variant="soft"
+                             @click.stop="openCostCodeSelection"
+                           />
+                         </div>
                        </template>
                      </div>
 
@@ -464,7 +484,17 @@
                       disabled
                     />
                   </div>
-                  <div class="w-20"></div>
+                  <div class="w-20 flex items-center justify-center gap-1">
+                    <UButton
+                      v-if="!isReadOnly"
+                      data-testid="edit-cost-code"
+                      icon="tdesign:edit-filled"
+                      size="xs"
+                      color="primary"
+                      variant="soft"
+                      @click.stop="openCostCodeSelection"
+                    />
+                  </div>
                 </div>
               </template>
               <template #content="{ item }">
@@ -544,7 +574,17 @@
                         <div v-if="showTotal" class="w-48 text-right font-mono text-sm">
                           {{ formatCurrency(getSubCostCodeTotal(subCostCode)) }}
                         </div>
-                        <div class="w-20"></div>
+                        <div class="w-20 flex items-center justify-center gap-1">
+                          <UButton
+                            v-if="!isReadOnly"
+                            data-testid="edit-cost-code"
+                            icon="tdesign:edit-filled"
+                            size="xs"
+                            color="primary"
+                            variant="soft"
+                            @click.stop="openCostCodeSelection"
+                          />
+                        </div>
                       </template>
                     </div>
 
@@ -1277,6 +1317,7 @@ const isReadOnly = computed(() => props.readonly === true)
 const emit = defineEmits<{
   'update:modelValue': [value: any[]]
   'update:deletedUuids': [value: string[]]
+  'open-cost-code-selection': []
 }>()
 
 // Stores
@@ -1473,6 +1514,12 @@ const removedItemsList = computed(() => {
 // Open removed items modal
 const openRemovedItemsModal = () => {
   isRemovedItemsModalOpen.value = true
+}
+
+// Open cost code selection modal (emit to parent)
+const openCostCodeSelection = () => {
+  if (isReadOnly.value) return
+  emit('open-cost-code-selection')
 }
 
 // Restore a removed cost code
