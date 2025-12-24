@@ -1,29 +1,6 @@
 <template>
   <header class="w-full bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
     <nav class="flex items-center justify-between px-3 lg:px-4 py-2">
-      <!-- Left side: Date Range Selector -->
-      <div class="flex items-center gap-2">
-        <UPopover v-model:open="dateRangePopoverOpen">
-          <UButton color="neutral" variant="solid" icon="i-lucide-calendar" size="xs" class="hover:bg-brand-50 dark:hover:bg-brand-900/20 hover:text-brand-600 dark:hover:text-brand-400 transition-colors">
-            <template v-if="modelValue.start">
-              <template v-if="modelValue.end">
-                {{ df.format(modelValue.start.toDate(getLocalTimeZone())) }} - {{ df.format(modelValue.end.toDate(getLocalTimeZone())) }}
-              </template>
-              <template v-else>
-                {{ df.format(modelValue.start.toDate(getLocalTimeZone())) }}
-              </template>
-            </template>
-            <template v-else>
-              Pick a date
-            </template>
-          </UButton>
-
-          <template #content>
-            <UCalendar v-model="modelValue as any" class="p-2" :number-of-months="2" range size="sm" color="primary" @update:model-value="handleDateRangeChange" />
-          </template>
-        </UPopover>
-      </div>
-
       <!-- Center: Corporation Selector -->
       <div class="flex items-center gap-2 flex-1 justify-center max-w-md mx-4">
         <CorporationSelect
@@ -123,13 +100,11 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch, shallowRef } from "vue";
-import { CalendarDate, DateFormatter, getLocalTimeZone } from '@internationalized/date';
 import { useAuthStore } from "@/stores/auth";
 import { useCorporationStore } from "@/stores/corporations";
 import { useUserProfilesStore } from "@/stores/userProfiles";
 import { useRoleStore } from "@/stores/roles";
 import { useDarkMode } from "@/composables/useDarkMode";
-import { useDateRangeStore } from "@/stores/dateRange";
 import { useIndexedDB } from "@/composables/useIndexedDB";
 import { useShipViaStore } from "@/stores/freight";
 import { useFreightStore } from "@/stores/freightGlobal";
@@ -149,8 +124,7 @@ const authStore = useAuthStore();
 const corpStore = useCorporationStore();
 const userProfilesStore = useUserProfilesStore();
 const roleStore = useRoleStore();
-const dateRangeStore = useDateRangeStore();
-const { resyncDateRangeDependentData, syncGlobalData, clearCorporationData } = useIndexedDB();
+const { syncGlobalData, clearCorporationData } = useIndexedDB();
 const shipViaStore = useShipViaStore();
 const freightStore = useFreightStore();
 const locationsStore = useLocationsStore();
@@ -179,13 +153,8 @@ let stockReturnNotesPromise: Promise<void> | null = null;
 let vendorInvoicesPromise: Promise<void> | null = null;
 let estimatesPromise: Promise<void> | null = null;
 
-const buildContextSignature = (
-  corporationId: string,
-  params: { start_date?: string; end_date?: string }
-) => {
-  const start = params?.start_date ?? "";
-  const end = params?.end_date ?? "";
-  return `${corporationId}::${start}::${end}`;
+const buildContextSignature = (corporationId: string) => {
+  return corporationId;
 };
 
 /**
@@ -304,8 +273,7 @@ const ensurePurchaseOrdersForCorporation = async (
     return;
   }
 
-  const dateParams = dateRangeStore.dateRangeParams || { start_date: '', end_date: '' };
-  const signature = buildContextSignature(normalizedId, dateParams);
+  const signature = buildContextSignature(normalizedId);
   const force = Boolean(options.force);
 
   if (!force && signature === lastFetchedPurchaseOrdersSignature.value) {
@@ -344,8 +312,7 @@ const ensureCorporationData = async (
     return;
   }
 
-  const dateParams = dateRangeStore.dateRangeParams || { start_date: '', end_date: '' };
-  const signature = buildContextSignature(normalizedId, dateParams);
+  const signature = buildContextSignature(normalizedId);
   const force = Boolean(options.force);
 
   if (!force && signature === lastFetchedContextSignature.value) {
@@ -357,7 +324,7 @@ const ensureCorporationData = async (
   }
 
   corporationDataPromise = corpStore
-    .setSelectedCorporationAndFetchData(normalizedId, dateParams)
+    .setSelectedCorporationAndFetchData(normalizedId)
     .then(async () => {
       await itemTypesStore.fetchItemTypes(
         normalizedId,
@@ -387,8 +354,7 @@ const ensureChangeOrdersForCorporation = async (
     return;
   }
 
-  const dateParams = dateRangeStore.dateRangeParams || { start_date: '', end_date: '' };
-  const signature = buildContextSignature(normalizedId, dateParams);
+  const signature = buildContextSignature(normalizedId);
   const force = Boolean(options.force);
 
   if (!force && signature === lastFetchedChangeOrdersSignature.value) {
@@ -427,8 +393,7 @@ const ensureStockReceiptNotesForCorporation = async (
     return;
   }
 
-  const dateParams = dateRangeStore.dateRangeParams || { start_date: '', end_date: '' };
-  const signature = buildContextSignature(normalizedId, dateParams);
+  const signature = buildContextSignature(normalizedId);
   const force = Boolean(options.force);
 
   if (!force && signature === lastFetchedStockReceiptNotesSignature.value) {
@@ -468,8 +433,7 @@ const ensureStockReturnNotesForCorporation = async (
     return;
   }
 
-  const dateParams = dateRangeStore.dateRangeParams || { start_date: '', end_date: '' };
-  const signature = buildContextSignature(normalizedId, dateParams);
+  const signature = buildContextSignature(normalizedId);
   const force = Boolean(options.force);
 
   if (!force && signature === lastFetchedStockReturnNotesSignature.value) {
@@ -509,8 +473,7 @@ const ensureVendorInvoicesForCorporation = async (
     return;
   }
 
-  const dateParams = dateRangeStore.dateRangeParams || { start_date: '', end_date: '' };
-  const signature = buildContextSignature(normalizedId, dateParams);
+  const signature = buildContextSignature(normalizedId);
   const force = Boolean(options.force);
 
   if (!force && signature === lastFetchedVendorInvoicesSignature.value) {
@@ -550,8 +513,7 @@ const ensureEstimatesForCorporation = async (
     return;
   }
 
-  const dateParams = dateRangeStore.dateRangeParams || { start_date: '', end_date: '' };
-  const signature = buildContextSignature(normalizedId, dateParams);
+  const signature = buildContextSignature(normalizedId);
   const force = Boolean(options.force);
 
   if (!force && signature === lastFetchedEstimatesSignature.value) {
@@ -606,35 +568,8 @@ const refreshCorporationContext = async (
 // Dark mode composable
 const { isDark, toggleDarkMode, initializeTheme, watchSystemTheme } = useDarkMode();
 
-// Date range selector
-const df = new DateFormatter('en-US', {
-  dateStyle: 'medium'
-});
-
-// Use the date range from the store
-const modelValue = computed({
-  get: () => dateRangeStore.dateRange,
-  set: (newValue: any) => {
-    if (newValue) {
-      dateRangeStore.setDateRange(newValue);
-    }
-  }
-});
-
-// Handle date range change and close popover when both dates are selected
-const handleDateRangeChange = (newValue: any) => {
-  if (newValue && newValue.start && newValue.end) {
-    // Both dates are selected, close the popover
-    dateRangePopoverOpen.value = false;
-  }
-};
-
 const value = ref<string | null>(null);
 const previousCorporationId = ref<string | null>(null);
-const dateRangePopoverOpen = ref(false);
-
-// Flag to prevent multiple date range syncs
-const isSyncingDateRange = ref(false);
 
 // Get current user from userProfiles store
 const currentUser = computed(() => {
@@ -756,38 +691,6 @@ async function onCorporationChange(newId: string | null) {
   await refreshCorporationContext(newId, { force: true });
   await updateUserPreferences();
 }
-
-// Watch for date range changes and refetch data if corporation is selected
-watch(
-  () => dateRangeStore.dateRange,
-  async (newDateRange, oldDateRange) => {
-    // Only sync if date range actually changed (avoid initial load)
-    // Compare the actual date values, not the objects
-    const hasChanged = !oldDateRange || 
-                       !oldDateRange.start ||
-                       !oldDateRange.end ||
-                       oldDateRange.start.toString() !== newDateRange.start?.toString() || 
-                       oldDateRange.end.toString() !== newDateRange.end?.toString();
-    
-    if (!hasChanged) return;
-
-    // Only sync IndexedDB for the currently selected corporation (recentProperty)
-    // This optimizes performance by avoiding unnecessary syncs for all accessible corporations
-    if (newDateRange && value.value && !isSyncingDateRange.value) {
-      isSyncingDateRange.value = true;
-      try {
-        // Only refresh data for the currently selected corporation
-        await refreshCorporationContext(value.value, { force: true });
-      } catch (error) {
-        // Silently handle IndexedDB sync errors
-      } finally {
-        isSyncingDateRange.value = false;
-      }
-    }
-  },
-  { deep: true }
-);
-
 
 // Watch for changes in currentUser to load existing preferences
 watch(currentUser, (newUser, oldUser) => {
