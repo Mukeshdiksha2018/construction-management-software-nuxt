@@ -645,9 +645,8 @@ describe('ProjectDetails Component', () => {
       
       await wrapper.vm.previewProjectDetails(mockProject)
       
-      // Should show preview modal
-      expect(wrapper.vm.showPreviewModal).toBe(true)
-      expect(wrapper.vm.previewProject).toEqual(mockProject)
+      // Should navigate to form page with view mode
+      expect(mockPush).toHaveBeenCalledWith('/projects/form/project-1?mode=view')
     })
 
     it('should allow confirmDelete when user has project_delete permission', async () => {
