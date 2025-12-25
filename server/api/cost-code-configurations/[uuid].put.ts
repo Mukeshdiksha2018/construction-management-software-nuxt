@@ -126,6 +126,7 @@ export default defineEventHandler(async (event) => {
           project_uuid: item.project_uuid || null,
           item_name: item.item_name,
           item_sequence: item.item_sequence || null,
+          item_uuid: item.item_uuid || null, // Add item_uuid for UUID-based matching
           model_number: item.model_number || null,
           unit_price: parseFloat(item.unit_price),
           unit: item.unit,

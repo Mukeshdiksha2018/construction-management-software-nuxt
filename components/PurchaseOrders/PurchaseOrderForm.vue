@@ -2091,11 +2091,10 @@ const preferredItemOptions = computed(() => {
   
   const options = source
     .map((item: any) => {
-      const value =
-        item.item_uuid ||
-        item.uuid ||
-        item.id ||
-        (typeof item.value === "string" ? item.value : "");
+      // Use item_uuid if available (for UUID-based matching), otherwise fall back to uuid or id
+      // This ensures UUID-based matching works correctly
+      const itemUuid = item.item_uuid || item.uuid || item.id || (typeof item.value === "string" ? item.value : "");
+      const value = String(itemUuid || "");
       const label =
         item.item_name ||
         item.name ||
@@ -2106,10 +2105,13 @@ const preferredItemOptions = computed(() => {
       const itemSequence = item.item_sequence || item.sequence || '';
       const option = {
         label,
-        value: String(value || ""),
+        value: value,
         item_sequence: itemSequence, // Include sequence for SequenceSelect
         sequence: itemSequence, // Also include as 'sequence' for compatibility
-        raw: item,
+        raw: {
+          ...item,
+          item_uuid: itemUuid, // Ensure item_uuid is explicitly set in raw for UUID-based matching
+        },
       };
       
       // Log if model_number is present
@@ -2473,26 +2475,39 @@ const mapPoItemForDisplay = (item: any, index: number, estimateItem?: any) => {
   }
   
   // If still no model_number found, lookup from preferred items
-  // Search through all preferred items to find one with matching item_uuid or item name
+  // PRIORITY: Use UUID-based matching first (most reliable), then fall back to name matching
   if (!resolvedModelNumber && item.item_uuid) {
-    // First try the map lookup (fast path) by UUID
-    let preferredItem = matchedItemOption;
+    const itemUuidStr = String(item.item_uuid).toLowerCase().trim();
+    let preferredItem: any = null;
     
-    // If not found in map, search through all preferred items by matching item_uuid
+    // STEP 1: Try the map lookup (fast path) by UUID
+    preferredItem = matchedItemOption;
+    
+    // STEP 2: If not found in map, search through all preferred items by matching item_uuid
+    // This is the PRIMARY matching method - UUID-based matching is most reliable
     if (!preferredItem) {
-      const itemUuidStr = String(item.item_uuid).toLowerCase();
       preferredItem = preferredItemOptions.value.find((opt: any) => {
-        // Match by item_uuid from raw data (preferred items have item_uuid in raw)
-        const rawItemUuid = opt.raw?.item_uuid ? String(opt.raw.item_uuid).toLowerCase() : '';
-        // Also check value field (which is also item_uuid)
-        const optValueUuid = opt.value ? String(opt.value).toLowerCase() : '';
-        // Also check uuid field
-        const optUuid = opt.raw?.uuid ? String(opt.raw.uuid).toLowerCase() : '';
-        return rawItemUuid === itemUuidStr || optValueUuid === itemUuidStr || optUuid === itemUuidStr;
+        // Check item_uuid in raw data (this is the new field we added)
+        const rawItemUuid = opt.raw?.item_uuid ? String(opt.raw.item_uuid).toLowerCase().trim() : '';
+        if (rawItemUuid && rawItemUuid === itemUuidStr) {
+          return true;
+        }
+        // Also check value field (which might be item_uuid)
+        const optValueUuid = opt.value ? String(opt.value).toLowerCase().trim() : '';
+        if (optValueUuid && optValueUuid === itemUuidStr) {
+          return true;
+        }
+        // Also check uuid field (preferred item's own UUID - not for matching, but included for completeness)
+        const optUuid = opt.raw?.uuid ? String(opt.raw.uuid).toLowerCase().trim() : '';
+        if (optUuid && optUuid === itemUuidStr) {
+          return true;
+        }
+        return false;
       });
     }
     
-    // If still not found by UUID, try matching by item name (for estimate items that have different UUIDs)
+    // STEP 3: If still not found by UUID, try matching by item name (fallback for legacy data)
+    // This is a FALLBACK only - UUID matching is preferred
     if (!preferredItem && resolvedItemName) {
       const itemNameLower = resolvedItemName.toLowerCase().trim();
       preferredItem = preferredItemOptions.value.find((opt: any) => {
@@ -5427,7 +5442,6 @@ onMounted(async () => {
       props.form.project_uuid && String(props.form.include_items || '').toUpperCase() === 'IMPORT_ITEMS_FROM_ESTIMATE'
         ? purchaseOrderResourcesStore.ensureEstimates({
             corporationUuid: corpUuid,
-            projectUuid: props.form.project_uuid,
             force: false,
           })
         : Promise.resolve(),

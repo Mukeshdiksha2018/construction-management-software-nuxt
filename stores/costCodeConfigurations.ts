@@ -6,6 +6,7 @@ export interface PreferredItem {
   item_type_uuid: string;
   item_name: string;
   item_sequence?: string;
+  item_uuid?: string; // UUID of the item for reliable UUID-based matching
   model_number?: string;
   project_uuid?: string;
   corporation_uuid?: string;
