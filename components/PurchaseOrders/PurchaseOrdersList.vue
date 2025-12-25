@@ -171,6 +171,7 @@
               variant="outline"
               clearable
               class="w-full"
+              :ui="{ content: 'max-h-60 min-w-full w-max' }"
             />
           </div>
         </div>
@@ -1126,10 +1127,10 @@ const uniqueLocations = computed(() => {
 })
 
 const statusOptions = [
-  { label: 'Draft', value: 'Draft' },
-  { label: 'Ready', value: 'Ready' },
-  { label: 'Approved', value: 'Approved' },
-  { label: 'Rejected', value: 'Rejected' },
+  { label: 'Pending', value: 'Draft' },
+  { label: 'To be approved', value: 'Ready' },
+  { label: 'Purchase order approved', value: 'Approved' },
+  { label: 'Purchase order rejected', value: 'Rejected' },
   { label: 'Partially Received', value: 'Partially_Received' },
   { label: 'Completed', value: 'Completed' }
 ]
