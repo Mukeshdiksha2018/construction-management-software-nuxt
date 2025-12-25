@@ -404,7 +404,8 @@
     </div>
 
     <!-- Purchase Orders Table - Only show when ToBeRaised is NOT selected and no items table is shown -->
-    <div v-if="selectedStatusFilter !== 'ToBeRaised' && purchaseOrders.length && hasPermission('po_view') && isReady && itemsTableData.length === 0 && (!appliedFilters.corporation || !appliedFilters.project)">
+    <!-- Show when: filters are not applied (summary view) OR when items table has no data -->
+    <div v-if="selectedStatusFilter !== 'ToBeRaised' && purchaseOrders.length && hasPermission('po_view') && isReady && (!appliedFilters.corporation || !appliedFilters.project || itemsTableData.length === 0)">
       <UTable 
         ref="table"
         sticky
@@ -2651,13 +2652,30 @@ const savePurchaseOrder = async (skipModalClose = false): Promise<any | null> =>
         // This updates the table after creating a PO from the "to be raised" screen
         // Works for both: items that don't exceed available quantity, and items that exceed
         // (when user chooses to continue without raising a change order)
+        const wasOnToBeRaisedScreen = selectedStatusFilter.value === 'ToBeRaised'
         if (
-          selectedStatusFilter.value === 'ToBeRaised' &&
+          wasOnToBeRaisedScreen &&
           appliedFilters.value.corporation &&
           appliedFilters.value.project &&
           appliedFilters.value.vendor
         ) {
           await fetchToBeRaisedItems()
+          // Return to summary screen after successful creation
+          // Clear status filter and applied filters to show purchase orders table
+          selectedStatusFilter.value = null
+          appliedFilters.value = {
+            corporation: undefined,
+            project: undefined,
+            vendor: undefined,
+            location: undefined,
+            status: undefined
+          }
+          // Also clear the filter inputs
+          filterCorporation.value = undefined
+          filterProject.value = undefined
+          filterVendor.value = undefined
+          filterLocation.value = undefined
+          filterStatus.value = undefined
         }
         
         closeFormModal()
@@ -2669,6 +2687,8 @@ const savePurchaseOrder = async (skipModalClose = false): Promise<any | null> =>
         }
         
         // Also refetch "to be raised" items if applicable
+        // Note: We don't clear the status filter here because handleRaiseChangeOrder will handle it
+        // after the CO is successfully created
         if (
           selectedStatusFilter.value === 'ToBeRaised' &&
           appliedFilters.value.corporation &&
@@ -3495,13 +3515,30 @@ const handleRaiseChangeOrder = async () => {
       
       // Refetch "to be raised" items if we're in ToBeRaised filter mode
       // This updates the table after creating a PO and CO from the "to be raised" screen
+      const wasOnToBeRaisedScreen = selectedStatusFilter.value === 'ToBeRaised'
       if (
-        selectedStatusFilter.value === 'ToBeRaised' &&
+        wasOnToBeRaisedScreen &&
         appliedFilters.value.corporation &&
         appliedFilters.value.project &&
         appliedFilters.value.vendor
       ) {
         await fetchToBeRaisedItems()
+        // Return to summary screen after successful creation
+        // Clear status filter and applied filters to show purchase orders table
+        selectedStatusFilter.value = null
+        appliedFilters.value = {
+          corporation: undefined,
+          project: undefined,
+          vendor: undefined,
+          location: undefined,
+          status: undefined
+        }
+        // Also clear the filter inputs
+        filterCorporation.value = undefined
+        filterProject.value = undefined
+        filterVendor.value = undefined
+        filterLocation.value = undefined
+        filterStatus.value = undefined
       }
       
       // PO was already saved at the beginning of this function, no need to save again
