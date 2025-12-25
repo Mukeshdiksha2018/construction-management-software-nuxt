@@ -374,13 +374,6 @@
                       <span class="font-semibold text-default whitespace-nowrap">Final Amount:</span>
                       <span class="font-mono text-sm">{{ estimateDetails.finalAmount }}</span>
                     </div>
-                    <div
-                      v-if="estimateDetails.validUntil"
-                      class="flex items-center gap-2 col-span-2"
-                    >
-                      <span class="font-semibold text-default whitespace-nowrap">Valid Until:</span>
-                      <span>{{ estimateDetails.validUntil }}</span>
-                    </div>
                   </div>
                 </template>
                 <template v-else>
