@@ -1486,13 +1486,20 @@ const performSaveReceiptNote = async (saveAsOpenPO: boolean = false) => {
       });
     }
     
+    // Check if form's corporation matches TopBar's selected corporation
+    // Only update store/IndexedDB if they match, otherwise just call API directly
+    const formCorpUuid = formData.corporation_uuid;
+    const topBarCorpUuid = corporationStore.selectedCorporationId;
+    const shouldUpdateStore = formCorpUuid && topBarCorpUuid && formCorpUuid === topBarCorpUuid;
+
     // Refresh the specific purchase order if status was updated to Partially_Received
-    if (saveAsOpenPO && receiptType === 'purchase_order' && formData.purchase_order_uuid && corporationStore.selectedCorporationId) {
+    // Only refresh if form's corporation matches TopBar's selected corporation
+    if (saveAsOpenPO && receiptType === 'purchase_order' && formData.purchase_order_uuid && shouldUpdateStore) {
       try {
         // Fetch only the specific purchase order that was updated
         const updatedPO = await purchaseOrdersStore.fetchPurchaseOrder(formData.purchase_order_uuid);
         if (updatedPO) {
-          // Use store method to update the purchase order in the list (ensures proper reactivity)
+          // Use store method to update the purchase order in the list (ensures proper reactivity and IndexedDB update)
           purchaseOrdersStore.updatePurchaseOrderInList(updatedPO);
         }
       } catch (refreshError) {
@@ -1502,16 +1509,54 @@ const performSaveReceiptNote = async (saveAsOpenPO: boolean = false) => {
     }
 
     // Refresh the specific change order if status was updated to Partially_Received
-    if (saveAsOpenPO && receiptType === 'change_order' && formData.change_order_uuid && corporationStore.selectedCorporationId) {
+    // Only refresh if form's corporation matches TopBar's selected corporation
+    if (saveAsOpenPO && receiptType === 'change_order' && formData.change_order_uuid && shouldUpdateStore) {
       try {
         // Fetch only the specific change order that was updated
         const updatedCO = await changeOrdersStore.fetchChangeOrder(formData.change_order_uuid);
         if (updatedCO) {
-          // Use store method to update the change order in the list (ensures proper reactivity)
+          // Use store method to update the change order in the list (ensures proper reactivity and IndexedDB update)
           changeOrdersStore.updateChangeOrderInList(updatedCO);
         }
       } catch (refreshError) {
         console.error("[ReceiptNoteList] Failed to refresh change order:", refreshError);
+        // Don't fail the operation, just log the error
+      }
+    }
+
+    // Refresh the specific purchase order if status was updated to Completed
+    // This happens when saveAsOpenPO is false (normal save) and all items are fully received
+    // Only refresh if form's corporation matches TopBar's selected corporation
+
+    if (!saveAsOpenPO && receiptType === 'purchase_order' && formData.purchase_order_uuid && shouldUpdateStore) {
+      try {
+        // Fetch only the specific purchase order that was updated
+        // The API may have marked it as Completed if all items are fully received
+        const updatedPO = await purchaseOrdersStore.fetchPurchaseOrder(formData.purchase_order_uuid);
+        if (updatedPO) {
+          // Use store method to update the purchase order in the list (ensures proper reactivity and IndexedDB update)
+          purchaseOrdersStore.updatePurchaseOrderInList(updatedPO);
+        }
+      } catch (refreshError) {
+        console.error("[ReceiptNoteList] Failed to refresh purchase order after completion check:", refreshError);
+        // Don't fail the operation, just log the error
+      }
+    }
+
+    // Refresh the specific change order if status was updated to Completed
+    // This happens when saveAsOpenPO is false (normal save) and all items are fully received
+    // Only refresh if form's corporation matches TopBar's selected corporation
+    if (!saveAsOpenPO && receiptType === 'change_order' && formData.change_order_uuid && shouldUpdateStore) {
+      try {
+        // Fetch only the specific change order that was updated
+        // The API may have marked it as Completed if all items are fully received
+        const updatedCO = await changeOrdersStore.fetchChangeOrder(formData.change_order_uuid);
+        if (updatedCO) {
+          // Use store method to update the change order in the list (ensures proper reactivity and IndexedDB update)
+          changeOrdersStore.updateChangeOrderInList(updatedCO);
+        }
+      } catch (refreshError) {
+        console.error("[ReceiptNoteList] Failed to refresh change order after completion check:", refreshError);
         // Don't fail the operation, just log the error
       }
     }
