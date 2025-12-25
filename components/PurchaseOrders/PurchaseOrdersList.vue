@@ -2454,6 +2454,17 @@ const savePurchaseOrder = async (skipModalClose = false): Promise<any | null> =>
           color: 'success' 
         })
         
+        // Refetch "to be raised" items if we're in ToBeRaised filter mode
+        // This updates the table after updating a PO from the "to be raised" screen
+        if (
+          selectedStatusFilter.value === 'ToBeRaised' &&
+          appliedFilters.value.corporation &&
+          appliedFilters.value.project &&
+          appliedFilters.value.vendor
+        ) {
+          await fetchToBeRaisedItems()
+        }
+        
         // Close modal immediately after successful save
         closeFormModal()
       }
@@ -2475,12 +2486,35 @@ const savePurchaseOrder = async (skipModalClose = false): Promise<any | null> =>
           await fetchItemsTableData()
         }
         
+        // Refetch "to be raised" items if we're in ToBeRaised filter mode
+        // This updates the table after creating a PO from the "to be raised" screen
+        // Works for both: items that don't exceed available quantity, and items that exceed
+        // (when user chooses to continue without raising a change order)
+        if (
+          selectedStatusFilter.value === 'ToBeRaised' &&
+          appliedFilters.value.corporation &&
+          appliedFilters.value.project &&
+          appliedFilters.value.vendor
+        ) {
+          await fetchToBeRaisedItems()
+        }
+        
         closeFormModal()
       } else if (result) {
         // Even if skipModalClose is true, we should still refetch items table data
         // This handles the case when creating a CO (which calls savePurchaseOrder with skipModalClose=true)
         if (appliedFilters.value.corporation && appliedFilters.value.project) {
           await fetchItemsTableData()
+        }
+        
+        // Also refetch "to be raised" items if applicable
+        if (
+          selectedStatusFilter.value === 'ToBeRaised' &&
+          appliedFilters.value.corporation &&
+          appliedFilters.value.project &&
+          appliedFilters.value.vendor
+        ) {
+          await fetchToBeRaisedItems()
         }
       }
     }
@@ -3296,6 +3330,17 @@ const handleRaiseChangeOrder = async () => {
       const corpUuid = changeOrderData.corporation_uuid
       if (corpUuid) {
         await changeOrdersStore.fetchChangeOrders(corpUuid, false)
+      }
+      
+      // Refetch "to be raised" items if we're in ToBeRaised filter mode
+      // This updates the table after creating a PO and CO from the "to be raised" screen
+      if (
+        selectedStatusFilter.value === 'ToBeRaised' &&
+        appliedFilters.value.corporation &&
+        appliedFilters.value.project &&
+        appliedFilters.value.vendor
+      ) {
+        await fetchToBeRaisedItems()
       }
       
       // PO was already saved at the beginning of this function, no need to save again
