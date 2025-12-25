@@ -176,14 +176,22 @@
           </div>
         </div>
         
-        <!-- Show Button -->
-        <div class="flex-shrink-0">
+        <!-- Show and Clear Buttons - Stacked -->
+        <div class="flex-shrink-0 flex flex-col gap-2">
           <UButton
             color="primary"
             size="sm"
             @click="handleShowResults"
           >
             Show
+          </UButton>
+          <UButton
+            color="neutral"
+            variant="outline"
+            size="sm"
+            @click="handleClearFilters"
+          >
+            Clear
           </UButton>
         </div>
       </div>
@@ -330,9 +338,9 @@
     />
 
     <!-- To be Raised Table - Separate from Purchase Orders Table -->
-    <!-- Only show this section if items table doesn't have data, or if ToBeRaised items exist -->
+    <!-- Only show when ToBeRaised status filter is active -->
     <!-- Hide when items table is loading to avoid duplicate loading spinners -->
-    <div v-if="selectedStatusFilter === 'ToBeRaised' && isReady && hasPermission('po_view') && (itemsTableData.length === 0 || toBeRaisedItems.length > 0) && !loadingItemsTable" class="mb-6">
+    <div v-if="selectedStatusFilter === 'ToBeRaised' && isReady && hasPermission('po_view') && !loadingItemsTable" class="mb-6">
       <UCard variant="soft" class="mb-4">
         <div v-if="!appliedFilters.corporation || !appliedFilters.project || !appliedFilters.vendor" class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-4">
           <div class="flex items-center gap-2">
@@ -372,8 +380,8 @@
     </div>
 
     <!-- Items Table - Show when filters are applied and data exists or is loading -->
-    <!-- Always show this table when data exists or is loading, regardless of status filter -->
-    <div v-if="(itemsTableData.length > 0 || loadingItemsTable) && hasPermission('po_view') && isReady && appliedFilters.corporation && appliedFilters.project" class="mb-6">
+    <!-- Only show on ToBeRaised screen when filters are applied -->
+    <div v-if="selectedStatusFilter === 'ToBeRaised' && (itemsTableData.length > 0 || loadingItemsTable) && hasPermission('po_view') && isReady && appliedFilters.corporation && appliedFilters.project" class="mb-6">
       <div class="bg-gray-50 dark:bg-gray-800 rounded-lg overflow-x-auto">
         <!-- Loading State -->
         <div v-if="loadingItemsTable && itemsTableData.length === 0" class="text-center py-12">
@@ -403,9 +411,10 @@
       </div>
     </div>
 
-    <!-- Purchase Orders Table - Only show when ToBeRaised is NOT selected and no items table is shown -->
-    <!-- Show when: filters are not applied (summary view) OR when items table has no data -->
-    <div v-if="selectedStatusFilter !== 'ToBeRaised' && purchaseOrders.length && hasPermission('po_view') && isReady && (!appliedFilters.corporation || !appliedFilters.project || itemsTableData.length === 0)">
+    <!-- Purchase Orders Table - Show when NOT on ToBeRaised screen -->
+    <!-- On Summary screen: always show table with filters applied directly -->
+    <!-- On other status screens: show table with status filter applied -->
+    <div v-if="selectedStatusFilter !== 'ToBeRaised' && purchaseOrders.length && hasPermission('po_view') && isReady">
       <UTable 
         ref="table"
         sticky
@@ -434,17 +443,19 @@
       <p class="text-gray-400 text-sm">You don't have permission to view purchase orders</p>
     </div>
 
-    <div v-else-if="selectedStatusFilter !== 'ToBeRaised' && isReady && (!appliedFilters.corporation || !appliedFilters.project || itemsTableData.length === 0)" class="text-center py-12">
+    <div v-else-if="selectedStatusFilter !== 'ToBeRaised' && isReady && (selectedStatusFilter === null || !appliedFilters.corporation || !appliedFilters.project || itemsTableData.length === 0)" class="text-center py-12">
       <div class="text-gray-400 mb-4">
         <UIcon name="i-heroicons-shopping-cart" class="w-12 h-12 mx-auto" />
       </div>
-      <p v-if="!appliedFilters.corporation || !appliedFilters.project" class="text-gray-500 text-lg">Please select Corporation and Project from the filters above and click "Show" to view items</p>
+      <!-- On Summary screen: show message based on filter inputs -->
+      <!-- On other screens: show message based on applied filters -->
+      <p v-if="(selectedStatusFilter === null && (!filterCorporation || !filterProject)) || (selectedStatusFilter !== null && (!appliedFilters.corporation || !appliedFilters.project))" class="text-gray-500 text-lg">Please select Corporation and Project from the filters above to view purchase orders</p>
       <template v-else>
-        <p class="text-gray-500 text-lg">No items found</p>
-        <p class="text-gray-400 text-sm mb-6">No items match the selected filters</p>
+        <p class="text-gray-500 text-lg">No purchase orders found</p>
+        <p class="text-gray-400 text-sm mb-6">No purchase orders match the selected filters</p>
       </template>
       <UButton 
-        v-if="hasPermission('po_create') && (!appliedFilters.corporation || !appliedFilters.project)"
+        v-if="hasPermission('po_create') && ((selectedStatusFilter === null && (!filterCorporation || !filterProject)) || (selectedStatusFilter !== null && (!appliedFilters.corporation || !appliedFilters.project)))"
         icon="i-heroicons-plus" 
         @click="openCreateModal"
       >
@@ -1202,32 +1213,43 @@ const filteredPurchaseOrders = computed(() => {
     }
   }
   
-  // Apply filter panel filters (only when Show Results is clicked)
-  if (appliedFilters.value.corporation) {
-    filtered = filtered.filter(p => p.corporation_uuid === appliedFilters.value.corporation)
+  // Determine which filter values to use:
+  // - On Summary screen (selectedStatusFilter === null): use filter inputs directly for immediate filtering
+  // - On other screens: use appliedFilters (set when "Show Results" is clicked)
+  const useFilterInputs = selectedStatusFilter.value === null || selectedStatusFilter.value === undefined
+  
+  const activeCorporation = useFilterInputs ? filterCorporation.value : appliedFilters.value.corporation
+  const activeProject = useFilterInputs ? filterProject.value : appliedFilters.value.project
+  const activeVendor = useFilterInputs ? filterVendor.value : appliedFilters.value.vendor
+  const activeLocation = useFilterInputs ? filterLocation.value : appliedFilters.value.location
+  const activeStatus = useFilterInputs ? filterStatus.value : appliedFilters.value.status
+  
+  // Apply filter panel filters
+  if (activeCorporation) {
+    filtered = filtered.filter(p => p.corporation_uuid === activeCorporation)
   }
   
-  if (appliedFilters.value.project) {
-    filtered = filtered.filter(p => p.project_uuid === appliedFilters.value.project)
+  if (activeProject) {
+    filtered = filtered.filter(p => p.project_uuid === activeProject)
   }
   
-  if (appliedFilters.value.vendor) {
-    filtered = filtered.filter(p => p.vendor_uuid === appliedFilters.value.vendor)
+  if (activeVendor) {
+    filtered = filtered.filter(p => p.vendor_uuid === activeVendor)
   }
   
-  if (appliedFilters.value.location) {
+  if (activeLocation) {
     filtered = filtered.filter(p => {
       // Check if any PO item has this location
       if (p.po_items && Array.isArray(p.po_items)) {
-        return p.po_items.some((item: any) => item.location === appliedFilters.value.location)
+        return p.po_items.some((item: any) => item.location === activeLocation)
       }
       // Or check shipping address
-      return (p as any).shipping_address_custom === appliedFilters.value.location
+      return (p as any).shipping_address_custom === activeLocation
     })
   }
   
-  if (appliedFilters.value.status) {
-    filtered = filtered.filter(p => p.status === appliedFilters.value.status)
+  if (activeStatus) {
+    filtered = filtered.filter(p => p.status === activeStatus)
   }
   
   return filtered
@@ -1296,6 +1318,34 @@ const handleShowResults = async () => {
   if (appliedFilters.value.corporation && appliedFilters.value.project) {
     await fetchItemsTableData()
   }
+}
+
+// Clear Filters button handler
+const handleClearFilters = () => {
+  // Clear all filter inputs
+  filterCorporation.value = undefined
+  filterProject.value = undefined
+  filterVendor.value = undefined
+  filterLocation.value = undefined
+  filterStatus.value = undefined
+  
+  // Clear applied filters
+  appliedFilters.value = {
+    corporation: undefined,
+    project: undefined,
+    vendor: undefined,
+    location: undefined,
+    status: undefined
+  }
+  
+  // Clear status filter (return to summary view)
+  selectedStatusFilter.value = null
+  
+  // Clear items table data
+  projectItemsSummary.data.value = { items: [] }
+  
+  // Clear to be raised items
+  toBeRaisedItems.value = []
 }
 
 // Fetch items to be raised based on corporation, project and vendor
@@ -2100,6 +2150,8 @@ const toggleStatusFilter = (status: string) => {
 
 const clearStatusFilter = () => {
   selectedStatusFilter.value = null
+  // Also clear all filters when clicking on summary
+  handleClearFilters()
 }
 
 // Status display helpers for form modal
