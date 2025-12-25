@@ -9,10 +9,26 @@
     :size="size"
     :class="className"
     :disabled="disabled"
+    :variant="variant"
     :ui="menuUi"
     value-key="value"
+    :trailing-icon="variant ? undefined : undefined"
     @update:model-value="handleSelection"
   >
+    <template #default>
+      <slot name="default" :option="selectedItemTypeObject">
+        <span
+          class="flex-1 whitespace-normal text-left"
+          :class="{ 'text-muted': !selectedItemTypeObject }"
+        >
+          {{ selectedItemTypeObject?.label || placeholder }}
+        </span>
+      </slot>
+    </template>
+    <template #trailing="{ open }">
+      <slot name="trailing" :open="open">
+      </slot>
+    </template>
     <template #item-label="{ item }">
       <div class="flex items-center justify-between w-full">
         <div class="flex items-center gap-2 flex-1">
@@ -49,6 +65,7 @@ interface Props {
   projectUuid?: string
   externalItemTypes?: any[] // Optional: pass scoped item types to avoid using global store
   ui?: any
+  variant?: 'solid' | 'outline' | 'none' | 'ghost' | 'soft'
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -58,25 +75,27 @@ const props = withDefaults(defineProps<Props>(), {
   size: 'sm',
   className: 'w-full',
   disabled: false,
-  externalItemTypes: undefined
+  externalItemTypes: undefined,
+  variant: undefined
 })
 
-const defaultUi = {
+const defaultUi = computed(() => ({
+  ...(props.variant ? { trigger: 'flex w-full justify-between gap-2 text-left' } : {}),
   content: 'max-h-60 min-w-full w-max',
   item: {
     base: 'whitespace-normal break-words',
     label: 'whitespace-normal break-words text-left'
   }
-}
+}))
 
 const menuUi = computed(() => {
   const incoming = props.ui ?? {}
   const incomingItem = (incoming as any).item ?? {}
   return {
-    ...defaultUi,
+    ...defaultUi.value,
     ...incoming,
     item: {
-      ...defaultUi.item,
+      ...defaultUi.value.item,
       ...incomingItem
     }
   }

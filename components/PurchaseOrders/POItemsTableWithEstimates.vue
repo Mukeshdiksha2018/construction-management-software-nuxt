@@ -103,7 +103,7 @@
                   </div>
                 </div>
               </td>
-              <td class="px-2 py-2 align-middle w-1/12">
+              <td :class="['px-2 py-2 align-middle', itemColumnWidthClass]">
                 <div class="flex flex-col gap-2 min-w-0">
                   <ItemTypeSelect
                     :model-value="item.item_type_uuid ?? undefined"
@@ -113,9 +113,30 @@
                     :project-uuid="projectUuid"
                     :external-item-types="scopedItemTypes"
                     :disabled="arePOFieldsDisabled"
+                    variant="outline"
+                    :ui="{
+                      trigger: 'flex w-full justify-between gap-2 text-left',
+                      content: 'max-h-60 min-w-full w-max'
+                    }"
                     @update:model-value="(value) => emitItemTypeChange(index, value as string | undefined)"
                     @change="(option) => emitItemTypeChange(index, option?.value ?? option?.uuid, option)"
-                  />
+                  >
+                    <template #default>
+                      <span
+                        class="flex-1 whitespace-normal text-left"
+                        :class="{ 'text-muted': !item.item_type_uuid }"
+                      >
+                        {{ getItemTypeDisplayLabel(item) }}
+                      </span>
+                    </template>
+                    <template #trailing="{ open }">
+                      <UIcon
+                        name="i-heroicons-chevron-down-20-solid"
+                        class="transition-transform duration-200"
+                        :class="{ 'rotate-180': open }"
+                      />
+                    </template>
+                  </ItemTypeSelect>
                 </div>
               </td>
               <td class="px-2 py-2 align-middle w-1/12">
@@ -404,9 +425,34 @@
                 :project-uuid="projectUuid"
                 :external-item-types="scopedItemTypes"
                 :disabled="arePOFieldsDisabled"
+                variant="outline"
+                :ui="{
+                  trigger: 'flex w-full justify-between gap-2 text-left',
+                  content: 'max-h-60 min-w-full w-max',
+                  item: {
+                    base: 'whitespace-normal break-words',
+                    label: 'whitespace-normal break-words text-left'
+                  }
+                }"
                 @update:model-value="(value) => emitItemTypeChange(index, value as string | undefined)"
                 @change="(option) => emitItemTypeChange(index, option?.value ?? option?.uuid, option)"
-              />
+              >
+                <template #default>
+                  <span
+                    class="flex-1 whitespace-normal text-left"
+                    :class="{ 'text-muted': !item.item_type_uuid }"
+                  >
+                    {{ getItemTypeDisplayLabel(item) }}
+                  </span>
+                </template>
+                <template #trailing="{ open }">
+                  <UIcon
+                    name="i-heroicons-chevron-down-20-solid"
+                    class="transition-transform duration-200"
+                    :class="{ 'rotate-180': open }"
+                  />
+                </template>
+              </ItemTypeSelect>
             </div>
             <div>
               <span class="block text-[11px] uppercase tracking-wide text-muted/80">Sequence</span>
@@ -1326,6 +1372,25 @@ const clearActiveRow = (index: number) => {
 
 const handleEditSelection = () => {
   emit('edit-selection')
+}
+
+// Helper to get item type display label
+const getItemTypeDisplayLabel = (item: PurchaseOrderItemDisplay): string => {
+  // Try to find the item type label from scopedItemTypes if available
+  if (item.item_type_uuid && props.scopedItemTypes && Array.isArray(props.scopedItemTypes)) {
+    const itemType = props.scopedItemTypes.find((it: any) => it.uuid === item.item_type_uuid)
+    if (itemType?.item_type) {
+      return itemType.item_type
+    }
+  }
+  
+  // Fallback to stored label
+  if (item.item_type_label) {
+    return item.item_type_label
+  }
+  
+  // Final fallback
+  return 'Select item type'
 }
 
 // Expose to template
