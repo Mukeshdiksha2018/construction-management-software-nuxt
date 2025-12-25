@@ -656,27 +656,6 @@
     >
       <template #body>
         <div class="space-y-4">
-          <!-- Purchase Order Info Header -->
-          <div v-if="poForm.po_number" class="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-6">
-            <div class="flex items-center justify-between">
-              <div>
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-                  Purchase Order #{{ poForm.po_number }}
-                </h3>
-                <p class="text-sm text-gray-600 dark:text-gray-400">
-                  Project: {{ poForm.project_name || poForm.project_uuid || 'N/A' }}
-                </p>
-              </div>
-              <UBadge 
-                :color="getStatusBadgeColor(poForm.status)" 
-                variant="soft"
-                size="lg"
-              >
-                {{ poForm.status || 'Draft' }}
-              </UBadge>
-            </div>
-          </div>
-
           <!-- Audit Timeline -->
           <PurchaseOrderAuditTimeline 
             :audit-log="poForm.audit_log || []"
