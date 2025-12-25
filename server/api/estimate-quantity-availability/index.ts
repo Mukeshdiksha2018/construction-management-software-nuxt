@@ -26,7 +26,8 @@ export default defineEventHandler(async (event) => {
 
   try {
     // Get all active purchase orders for this project that import from estimate
-    // Only include purchase orders with approved/partially_received/completed statuses
+    // Include purchase orders regardless of status (Draft, Ready, Approved, etc.)
+    // This ensures available quantities are calculated based on all POs, not just approved ones
     // Exclude the current PO if editing (exclude_po_uuid provided)
     let poQuery = supabaseServer
       .from("purchase_order_forms")
@@ -34,8 +35,7 @@ export default defineEventHandler(async (event) => {
       .eq("corporation_uuid", corporationUuid)
       .eq("project_uuid", projectUuid)
       .eq("include_items", "IMPORT_ITEMS_FROM_ESTIMATE")
-      .eq("is_active", true)
-      .in("status", ["Approved", "Partially_Received", "Completed"]);
+      .eq("is_active", true);
 
     if (excludePoUuid) {
       poQuery = poQuery.neq("uuid", excludePoUuid);
