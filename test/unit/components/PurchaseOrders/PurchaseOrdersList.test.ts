@@ -94,6 +94,10 @@ vi.mock("#app", () => ({
   }),
 }));
 
+// Mock $fetch for API calls (used for fetching used quantities)
+const fetchMock = vi.fn();
+vi.stubGlobal("$fetch", fetchMock);
+
 const clearResourcesSpy = { current: vi.fn() };
 
 vi.mock("@/stores/purchaseOrderResources", () => {
@@ -102,6 +106,30 @@ vi.mock("@/stores/purchaseOrderResources", () => {
       "purchaseOrderResources",
       () => ({
         clear: (...args: any[]) => clearResourcesSpy.current?.(...args),
+        getEstimatesByProject: vi.fn((corp?: string, project?: string) => {
+          // Return mock estimate if project matches
+          if (project === "project-1" || project) {
+            return [{
+              uuid: "estimate-1",
+              estimate_date: "2024-01-01",
+              estimate_number: "EST-001",
+              status: "Approved",
+              is_active: true,
+            }];
+          }
+          return [];
+        }),
+        ensureEstimates: vi.fn(),
+        ensureEstimateItems: vi.fn(),
+        getEstimateItems: vi.fn(() => []),
+        getEstimateItemsLoading: vi.fn(() => false),
+        getEstimateItemsError: vi.fn(() => null),
+        getItemTypes: vi.fn(() => []),
+        getPreferredItems: vi.fn(() => []),
+        getCostCodeConfigurations: vi.fn(() => []),
+        getProjectState: vi.fn(() => ({ estimates: [], estimatesLoading: false, estimatesLoaded: false })),
+        estimateKey: vi.fn((corp?: string, proj?: string, est?: string) => `${corp}::${proj}::${est}`),
+        clearProject: vi.fn(),
       })
     ),
   };
@@ -117,6 +145,8 @@ describe("PurchaseOrdersList.vue", () => {
 
   beforeEach(() => {
     clearResourcesSpy.current = vi.fn();
+    fetchMock.mockClear();
+    fetchMock.mockResolvedValue({ data: {} }); // Default mock for used quantities API
     pinia = createPinia();
     setActivePinia(pinia);
 
@@ -670,10 +700,14 @@ describe("PurchaseOrdersList.vue", () => {
       const wrapper = mountList();
       const vm: any = wrapper.vm as any;
 
+      // Mock used quantities API response (no quantities used yet)
+      fetchMock.mockResolvedValueOnce({ data: {} });
+
       // Set up form with items that exceed estimate quantities
       vm.poForm = {
         uuid: null,
         corporation_uuid: "corp-1",
+        project_uuid: "project-1",
         include_items: "IMPORT_ITEMS_FROM_ESTIMATE",
         po_items: [
           {
@@ -705,7 +739,7 @@ describe("PurchaseOrdersList.vue", () => {
         ],
       };
 
-      const result = vm.checkForExceededQuantities();
+      const result = await vm.checkForExceededQuantities();
 
       expect(result.hasExceeded).toBe(true);
       expect(result.items).toHaveLength(2);
@@ -723,7 +757,12 @@ describe("PurchaseOrdersList.vue", () => {
       const wrapper = mountList();
       const vm: any = wrapper.vm as any;
 
+      // Mock used quantities API response (no quantities used yet)
+      fetchMock.mockResolvedValueOnce({ data: {} });
+
       vm.poForm = {
+        corporation_uuid: "corp-1",
+        project_uuid: "project-1",
         include_items: "IMPORT_ITEMS_FROM_ESTIMATE",
         po_items: [
           {
@@ -735,7 +774,7 @@ describe("PurchaseOrdersList.vue", () => {
         ],
       };
 
-      const result = vm.checkForExceededQuantities();
+      const result = await vm.checkForExceededQuantities();
 
       expect(result.hasExceeded).toBe(false);
       expect(result.items).toHaveLength(0);
@@ -745,7 +784,12 @@ describe("PurchaseOrdersList.vue", () => {
       const wrapper = mountList();
       const vm: any = wrapper.vm as any;
 
+      // Mock used quantities API response (no quantities used yet)
+      fetchMock.mockResolvedValueOnce({ data: {} });
+
       vm.poForm = {
+        corporation_uuid: "corp-1",
+        project_uuid: "project-1",
         include_items: "IMPORT_ITEMS_FROM_ESTIMATE",
         po_items: [
           {
@@ -757,7 +801,7 @@ describe("PurchaseOrdersList.vue", () => {
         ],
       };
 
-      const result = vm.checkForExceededQuantities();
+      const result = await vm.checkForExceededQuantities();
 
       expect(result.hasExceeded).toBe(false);
       expect(result.items).toHaveLength(0);
@@ -768,6 +812,8 @@ describe("PurchaseOrdersList.vue", () => {
       const vm: any = wrapper.vm as any;
 
       vm.poForm = {
+        corporation_uuid: "corp-1",
+        project_uuid: "project-1",
         include_items: "CUSTOM",
         po_items: [
           {
@@ -779,10 +825,12 @@ describe("PurchaseOrdersList.vue", () => {
         ],
       };
 
-      const result = vm.checkForExceededQuantities();
+      const result = await vm.checkForExceededQuantities();
 
       expect(result.hasExceeded).toBe(false);
       expect(result.items).toHaveLength(0);
+      // Should not call API when not importing from estimate
+      expect(fetchMock).not.toHaveBeenCalled();
     });
 
     it("shows exceeded quantity modal when saving with exceeded quantities", async () => {
@@ -790,9 +838,13 @@ describe("PurchaseOrdersList.vue", () => {
       const vm: any = wrapper.vm as any;
       const poStore = usePurchaseOrdersStore();
 
+      // Mock used quantities API response (no quantities used yet)
+      fetchMock.mockResolvedValueOnce({ data: {} });
+
       vm.poForm = {
         uuid: null,
         corporation_uuid: "corp-1",
+        project_uuid: "project-1",
         include_items: "IMPORT_ITEMS_FROM_ESTIMATE",
         status: "Draft",
         po_items: [
@@ -815,6 +867,7 @@ describe("PurchaseOrdersList.vue", () => {
       // Attempt to save
       await vm.submitWithStatus("Draft");
       await wrapper.vm.$nextTick();
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Modal should be shown
       expect(vm.showExceededQuantityModal).toBe(true);
@@ -827,9 +880,13 @@ describe("PurchaseOrdersList.vue", () => {
       const vm: any = wrapper.vm as any;
       const poStore = usePurchaseOrdersStore();
 
+      // Mock used quantities API response (no quantities used yet)
+      fetchMock.mockResolvedValueOnce({ data: {} });
+
       vm.poForm = {
         uuid: null,
         corporation_uuid: "corp-1",
+        project_uuid: "project-1",
         include_items: "IMPORT_ITEMS_FROM_ESTIMATE",
         status: "Draft",
         po_items: [
@@ -895,6 +952,9 @@ describe("PurchaseOrdersList.vue", () => {
       const vm: any = wrapper.vm as any;
       const poStore = usePurchaseOrdersStore();
       const coStore = useChangeOrdersStore();
+
+      // Mock used quantities API response - 2 units already used
+      fetchMock.mockResolvedValueOnce({ data: { "item-1": 2 } });
 
       vm.poForm = {
         uuid: null,
@@ -1026,9 +1086,12 @@ describe("PurchaseOrdersList.vue", () => {
         expect(createCall.co_items).toBeDefined();
         expect(createCall.co_items.length).toBeGreaterThan(0);
         expect(createCall.co_items).toHaveLength(1);
-        expect(createCall.co_items[0].co_quantity).toBe(5); // Only exceeded portion
+        // CO quantity should be the difference: original PO quantity (15) - available quantity (10 - 2 = 8) = 7
+        // Available quantity = estimate (10) - used (2) = 8
+        // CO quantity = original PO quantity (15) - available (8) = 7
+        expect(createCall.co_items[0].co_quantity).toBe(7); // Only exceeded portion (15 - 8)
         expect(createCall.co_items[0].co_unit_price).toBe(100);
-        expect(createCall.co_items[0].co_total).toBe(500); // 5 * 100
+        expect(createCall.co_items[0].co_total).toBe(700); // 7 * 100
         expect(createCall.original_purchase_order_uuid).toBe("po-new");
         expect(createCall.corporation_uuid).toBe("corp-1");
         expect(createCall.project_uuid).toBe("project-1");
@@ -1036,14 +1099,18 @@ describe("PurchaseOrdersList.vue", () => {
       }
     });
 
-    it("adjusts PO item quantities to estimate quantities before saving when raising CO", async () => {
+    it("adjusts PO item quantities to available quantity (estimate - used) before saving when raising CO", async () => {
       const wrapper = mountList();
       const vm: any = wrapper.vm as any;
       const poStore = usePurchaseOrdersStore();
 
+      // Mock used quantities API response - 3 units already used
+      fetchMock.mockResolvedValueOnce({ data: { "item-1": 3 } });
+
       vm.poForm = {
         uuid: null,
         corporation_uuid: "corp-1",
+        project_uuid: "project-1",
         po_number: "PO-123",
         include_items: "IMPORT_ITEMS_FROM_ESTIMATE",
         status: "Draft",
@@ -1065,9 +1132,9 @@ describe("PurchaseOrdersList.vue", () => {
       const createSpy = vi
         .spyOn(poStoreInstance, "createPurchaseOrder")
         .mockImplementation(async (payload: any) => {
-          // Verify that PO quantities were adjusted
-          expect(payload.po_items[0].po_quantity).toBe(10); // Adjusted to estimate quantity
-          expect(payload.po_items[0].po_total).toBe(1000); // 10 * 100
+          // Verify that PO quantities were adjusted to available quantity (10 - 3 = 7)
+          expect(payload.po_items[0].po_quantity).toBe(7); // Adjusted to available quantity
+          expect(payload.po_items[0].po_total).toBe(700); // 7 * 100
           return {
             uuid: "po-new",
             ...payload,
@@ -1093,8 +1160,8 @@ describe("PurchaseOrdersList.vue", () => {
       // Verify PO was saved with adjusted quantities
       expect(createSpy).toHaveBeenCalled();
       const createCall = createSpy.mock.calls[0]?.[0] as any;
-      expect(createCall.po_items[0].po_quantity).toBe(10); // Adjusted to estimate quantity
-      expect(createCall.po_items[0].po_total).toBe(1000); // 10 * 100
+      expect(createCall.po_items[0].po_quantity).toBe(7); // Adjusted to available quantity (10 - 3)
+      expect(createCall.po_items[0].po_total).toBe(700); // 7 * 100
       // Verify modals are closed after CO creation
       expect(vm.showExceededQuantityModal).toBe(false);
       expect(vm.showFormModal).toBe(false);
@@ -1105,6 +1172,9 @@ describe("PurchaseOrdersList.vue", () => {
       const vm: any = wrapper.vm as any;
       const poStoreInstance = usePurchaseOrdersStore();
       const coStoreInstance = useChangeOrdersStore();
+
+      // Mock used quantities API response (no quantities used yet)
+      fetchMock.mockResolvedValueOnce({ data: {} });
 
       // Set up existing change orders BEFORE they're accessed
       // Access the internal ref and set the value
@@ -1120,6 +1190,7 @@ describe("PurchaseOrdersList.vue", () => {
       vm.poForm = {
         uuid: null,
         corporation_uuid: "corp-1",
+        project_uuid: "project-1",
         po_number: "PO-123",
         include_items: "IMPORT_ITEMS_FROM_ESTIMATE",
         status: "Draft",
@@ -1350,6 +1421,9 @@ describe("PurchaseOrdersList.vue", () => {
       const poStore = usePurchaseOrdersStore();
       const coStore = useChangeOrdersStore();
 
+      // Mock used quantities API response (no quantities used yet)
+      fetchMock.mockResolvedValueOnce({ data: {} });
+
       // Ensure corporation store is accessible
       const corpStore = useCorporationStore();
       expect(corpStore.selectedCorporationId).toBe("corp-1");
@@ -1474,6 +1548,9 @@ describe("PurchaseOrdersList.vue", () => {
       const poStore = usePurchaseOrdersStore();
       const coStore = useChangeOrdersStore();
 
+      // Mock used quantities API response (no quantities used yet)
+      fetchMock.mockResolvedValueOnce({ data: {} });
+
       // Ensure corporation store is accessible
       const corpStore = useCorporationStore();
       expect(corpStore.selectedCorporationId).toBe("corp-1");
@@ -1481,6 +1558,7 @@ describe("PurchaseOrdersList.vue", () => {
       vm.poForm = {
         uuid: null, // New PO - modal should show
         corporation_uuid: "corp-1",
+        project_uuid: "project-1",
         po_number: "PO-123",
         include_items: "IMPORT_ITEMS_FROM_ESTIMATE",
         status: "Draft",
@@ -1549,15 +1627,19 @@ describe("PurchaseOrdersList.vue", () => {
       expect(vm.pendingSaveAction).toBe(null);
     });
 
-    it("does not show exceeded quantity modal for existing purchase orders", async () => {
+    it("shows exceeded quantity modal for existing purchase orders when quantities exceed", async () => {
       const wrapper = mountList();
       const vm: any = wrapper.vm as any;
       const poStore = usePurchaseOrdersStore();
+
+      // Mock used quantities API response (no quantities used yet, excluding current PO)
+      fetchMock.mockResolvedValueOnce({ data: {} });
 
       // Set up form with existing PO (has uuid)
       vm.poForm = {
         uuid: "po-existing",
         corporation_uuid: "corp-1",
+        project_uuid: "project-1",
         po_number: "PO-123",
         include_items: "IMPORT_ITEMS_FROM_ESTIMATE",
         status: "Draft",
@@ -1583,10 +1665,12 @@ describe("PurchaseOrdersList.vue", () => {
       await wrapper.vm.$nextTick();
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      // Modal should NOT be shown for existing POs
-      expect(vm.showExceededQuantityModal).toBe(false);
-      // PO should be saved directly without showing modal
-      expect(poStore.updatePurchaseOrder).toHaveBeenCalled();
+      // Modal SHOULD be shown for existing POs too (new behavior)
+      expect(vm.showExceededQuantityModal).toBe(true);
+      expect(vm.exceededItems).toHaveLength(1);
+      expect(vm.pendingSaveAction).toBeDefined();
+      // PO should NOT be saved yet (waiting for user choice)
+      expect(poStore.updatePurchaseOrder).not.toHaveBeenCalled();
     });
 
     it("closes change order modal correctly", async () => {
@@ -1612,7 +1696,12 @@ describe("PurchaseOrdersList.vue", () => {
       const wrapper = mountList();
       const vm: any = wrapper.vm as any;
 
+      // Mock used quantities API response (no quantities used yet)
+      fetchMock.mockResolvedValueOnce({ data: {} });
+
       vm.poForm = {
+        corporation_uuid: "corp-1",
+        project_uuid: "project-1",
         include_items: "IMPORT_ITEMS_FROM_ESTIMATE",
         po_items: [
           {
@@ -1639,7 +1728,7 @@ describe("PurchaseOrdersList.vue", () => {
         ],
       };
 
-      const result = vm.checkForExceededQuantities();
+      const result = await vm.checkForExceededQuantities();
 
       expect(result.hasExceeded).toBe(true);
       expect(result.items).toHaveLength(2);
@@ -1653,7 +1742,12 @@ describe("PurchaseOrdersList.vue", () => {
       const wrapper = mountList();
       const vm: any = wrapper.vm as any;
 
+      // Mock used quantities API response (no quantities used yet)
+      fetchMock.mockResolvedValueOnce({ data: {} });
+
       vm.poForm = {
+        corporation_uuid: "corp-1",
+        project_uuid: "project-1",
         include_items: "IMPORT_ITEMS_FROM_ESTIMATE",
         po_items: [
           {
@@ -1665,11 +1759,46 @@ describe("PurchaseOrdersList.vue", () => {
         ],
       };
 
-      const result = vm.checkForExceededQuantities();
+      const result = await vm.checkForExceededQuantities();
 
       // Should not detect exceed when estimate quantity is 0
       expect(result.hasExceeded).toBe(false);
       expect(result.items).toHaveLength(0);
+    });
+
+    it("accounts for used quantities when checking for exceeded quantities", async () => {
+      const wrapper = mountList();
+      const vm: any = wrapper.vm as any;
+
+      // Mock used quantities API response - 3 units already used in other POs
+      fetchMock.mockResolvedValueOnce({ data: { "item-1": 3 } });
+
+      vm.poForm = {
+        corporation_uuid: "corp-1",
+        project_uuid: "project-1",
+        include_items: "IMPORT_ITEMS_FROM_ESTIMATE",
+        po_items: [
+          {
+            item_uuid: "item-1",
+            quantity: 10, // Estimate quantity
+            po_quantity: 8, // PO quantity (8 + 3 used = 11, which exceeds 10)
+            po_unit_price: 100,
+            name: "Test Item",
+          },
+        ],
+      };
+
+      const result = await vm.checkForExceededQuantities();
+
+      // Should detect exceed: used (3) + po_quantity (8) = 11 > estimate (10)
+      expect(result.hasExceeded).toBe(true);
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].item_uuid).toBe("item-1");
+      expect(result.items[0].estimate_quantity).toBe(10);
+      expect(result.items[0].po_quantity).toBe(8);
+      expect(result.items[0].used_quantity).toBe(3);
+      expect(result.items[0].total_quantity).toBe(11); // 3 + 8
+      expect(result.items[0].exceeded_quantity).toBe(1); // 11 - 10
     });
   });
 
