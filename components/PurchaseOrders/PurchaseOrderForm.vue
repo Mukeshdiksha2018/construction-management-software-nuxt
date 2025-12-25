@@ -400,12 +400,13 @@
       />
     </div>
     <!-- Quantity Exceeded Warning (only show when estimate items section is visible) -->
+    <!-- Changed to informational only - user can proceed and will be prompted to raise CO -->
     <div v-if="hasQuantityExceeded && !props.readonly && shouldShowEstimateItemsSection" class="mt-6">
       <UBanner
         color="warning"
         icon="i-heroicons-exclamation-triangle"
         title="Purchase order quantities exceed estimate quantities"
-        :description="quantityExceededMessage"
+        :description="quantityExceededMessage + ' You can proceed to save and will be prompted to raise a change order for the difference.'"
       />
     </div>
     <div v-if="shouldShowMasterItemsSection" class="mt-6">
@@ -1340,8 +1341,8 @@ const isFormValid = computed(() => {
   const hasShipVia = isLaborPurchaseOrder.value ? true : !!(props.form.ship_via || props.form.ship_via_uuid);
   const hasIncludeItems = isLaborPurchaseOrder.value ? true : !!props.form.include_items;
   
-  // Check if quantities exceed available quantities (only for Material POs importing from estimate)
-  const quantitiesValid = !hasQuantityExceeded.value;
+  // Note: Quantity validation removed - exceeded quantities will be handled via modal
+  // when user tries to save/approve, allowing them to raise a change order
   
   return hasCorporation && 
          hasPoType && 
@@ -1352,8 +1353,7 @@ const isFormValid = computed(() => {
          hasProject && 
          hasFreight && 
          hasShipVia && 
-         hasIncludeItems &&
-         quantitiesValid;
+         hasIncludeItems;
 });
 
 const poModeOption = computed<any>({

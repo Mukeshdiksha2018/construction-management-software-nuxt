@@ -680,7 +680,10 @@
                   Exceeded: <span class="font-semibold text-warning-600">{{ formatCurrency(item.exceeded_amount || 0) }}</span>
                 </div>
                 <div class="text-xs text-gray-500 dark:text-gray-400 mt-1" v-else>
-                  Estimate Qty: {{ item.estimate_quantity }} | PO Qty: {{ item.po_quantity }} | 
+                  Estimate Qty: {{ item.estimate_quantity }} | 
+                  Already Used: {{ item.used_quantity || 0 }} | 
+                  PO Qty: {{ item.po_quantity }} | 
+                  Total: {{ item.total_quantity || item.po_quantity }} | 
                   Exceeded: <span class="font-semibold text-warning-600">{{ item.exceeded_quantity }}</span>
                 </div>
               </div>
@@ -999,6 +1002,27 @@ const corporationNameByUuid = computed<Record<string, string>>(() => {
 })
 
 // Ship via lookup
+// Latest estimate for the current project
+const latestEstimate = computed(() => {
+  const corpUuid = poForm.value?.corporation_uuid || appliedFilters.value.corporation
+  const projectUuid = poForm.value?.project_uuid || appliedFilters.value.project
+  
+  if (!corpUuid || !projectUuid) return null
+  
+  const estimates = purchaseOrderResourcesStore.getEstimatesByProject(corpUuid, projectUuid) || []
+  
+  // Get the latest approved estimate
+  const latest = estimates
+    .filter((est: any) => est.status === 'Approved' && est.is_active !== false)
+    .sort((a: any, b: any) => {
+      const dateA = a.estimate_date ? new Date(a.estimate_date).getTime() : 0
+      const dateB = b.estimate_date ? new Date(b.estimate_date).getTime() : 0
+      return dateB - dateA
+    })[0]
+  
+  return latest || null
+})
+
 const shipViaNameByUuid = computed<Record<string, string>>(() => {
   const list = shipViaStore.getAllShipVia || []
   const map: Record<string, string> = {}
@@ -2218,8 +2242,57 @@ const handlePrintPurchaseOrder = () => {
   openPurchaseOrderPrint(poForm.value.uuid)
 }
 
+// Used quantities tracking for quantity availability checks
+const usedQuantitiesByItem = ref<Record<string, number>>({})
+const loadingQuantityAvailability = ref(false)
+
+// Fetch used quantities from existing purchase orders for the estimate
+const fetchUsedQuantities = async () => {
+  const includeItems = String(poForm.value?.include_items || '').toUpperCase()
+  const poType = String(poForm.value?.po_type || '').toUpperCase()
+  const isLaborPO = poType === 'LABOR'
+  
+  // Only fetch for material POs importing from estimate or labor POs
+  const checkMaterialPOs = includeItems === 'IMPORT_ITEMS_FROM_ESTIMATE'
+  const checkLaborPOs = isLaborPO
+  
+  if (!checkMaterialPOs && !checkLaborPOs) {
+    usedQuantitiesByItem.value = {}
+    return
+  }
+
+  const corpUuid = poForm.value?.corporation_uuid || corporationStore.selectedCorporationId
+  const projectUuid = poForm.value?.project_uuid
+  const estimateUuid = latestEstimate.value?.uuid
+
+  if (!corpUuid || !projectUuid || !estimateUuid) {
+    usedQuantitiesByItem.value = {}
+    return
+  }
+
+  loadingQuantityAvailability.value = true
+  try {
+    const response: any = await $fetch("/api/estimate-quantity-availability", {
+      method: "GET",
+      query: {
+        corporation_uuid: corpUuid,
+        project_uuid: projectUuid,
+        estimate_uuid: estimateUuid,
+        exclude_po_uuid: poForm.value?.uuid, // Exclude current PO when editing
+      },
+    })
+
+    usedQuantitiesByItem.value = response?.data || {}
+  } catch (error: any) {
+    console.error("Failed to fetch used quantities:", error)
+    usedQuantitiesByItem.value = {}
+  } finally {
+    loadingQuantityAvailability.value = false
+  }
+}
+
 // Check for items exceeding estimate quantities
-const checkForExceededQuantities = (): { hasExceeded: boolean; items: any[] } => {
+const checkForExceededQuantities = async (): Promise<{ hasExceeded: boolean; items: any[] }> => {
   const includeItems = String(poForm.value?.include_items || '').toUpperCase()
   const poType = String(poForm.value?.po_type || '').toUpperCase()
   const isLaborPO = poType === 'LABOR'
@@ -2234,22 +2307,33 @@ const checkForExceededQuantities = (): { hasExceeded: boolean; items: any[] } =>
     return { hasExceeded: false, items: [] }
   }
   
+  // Fetch used quantities first
+  await fetchUsedQuantities()
+  
   const exceeded: any[] = []
   
-  // Check material items
+  // Check material items - account for used quantities from other POs
   if (checkMaterialPOs) {
     const poItems = Array.isArray(poForm.value?.po_items) ? poForm.value.po_items : []
     
     poItems.forEach((item: any) => {
+      const itemUuid = item?.item_uuid
+      if (!itemUuid) return
+      
+      const itemUuidKey = String(itemUuid).toLowerCase()
       const estimateQty = parseFloat(String(item.quantity || 0))
       const poQty = parseFloat(String(item.po_quantity || 0))
+      const usedQuantity = usedQuantitiesByItem.value[itemUuidKey] || 0
+      const totalQuantity = usedQuantity + poQty
       
-      if (poQty > estimateQty && estimateQty > 0) {
+      if (totalQuantity > estimateQty && estimateQty > 0) {
         exceeded.push({
           ...item,
           estimate_quantity: estimateQty,
           po_quantity: poQty,
-          exceeded_quantity: poQty - estimateQty,
+          used_quantity: usedQuantity,
+          total_quantity: totalQuantity,
+          exceeded_quantity: totalQuantity - estimateQty,
           item_type: 'material',
         })
       }
@@ -2289,22 +2373,17 @@ const submitWithStatus = async (status: 'Draft' | 'Ready' | 'Approved') => {
   
   poForm.value.status = status
   
-  // Only check for exceeded quantities and show modal for NEW purchase orders
-  // For existing purchase orders, skip the modal and save directly
-  const isNewPurchaseOrder = !poForm.value?.uuid
+  // Check for exceeded quantities before saving (for both new and existing POs)
+  // This allows users to raise a change order for the difference
+  const { hasExceeded, items } = await checkForExceededQuantities()
   
-  if (isNewPurchaseOrder) {
-    // Check for exceeded quantities before saving
-    const { hasExceeded, items } = checkForExceededQuantities()
-    
-    if (hasExceeded) {
-      exceededItems.value = items
-      pendingSaveAction.value = async () => {
-        await savePurchaseOrder()
-      }
-      showExceededQuantityModal.value = true
-      return
+  if (hasExceeded) {
+    exceededItems.value = items
+    pendingSaveAction.value = async () => {
+      await savePurchaseOrder()
     }
+    showExceededQuantityModal.value = true
+    return
   }
   
   await savePurchaseOrder()
