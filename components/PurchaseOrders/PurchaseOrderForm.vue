@@ -406,8 +406,8 @@
         :description="estimateImportBlockedMessage"
       />
     </div>
-    <!-- Quantity Exceeded Warning -->
-    <div v-if="hasQuantityExceeded && !props.readonly" class="mt-6">
+    <!-- Quantity Exceeded Warning (only show when estimate items section is visible) -->
+    <div v-if="hasQuantityExceeded && !props.readonly && shouldShowEstimateItemsSection" class="mt-6">
       <UBanner
         color="warning"
         icon="i-heroicons-exclamation-triangle"
@@ -415,7 +415,7 @@
         :description="quantityExceededMessage"
       />
     </div>
-    <div v-else-if="shouldShowMasterItemsSection" class="mt-6">
+    <div v-if="shouldShowMasterItemsSection" class="mt-6">
       <POItemsFromItemMaster
         :items="poItemsForDisplay"
         :loading="false"
@@ -446,7 +446,7 @@
         @po-total-change="updatePoItemPoTotal"
       />
     </div>
-    <div v-else-if="shouldShowEstimateItemsSection" class="mt-6">
+    <div v-if="shouldShowEstimateItemsSection" class="mt-6">
       <POItemsTableWithEstimates
         :items="poItemsForDisplay"
         :loading="estimateItemsLoading"
