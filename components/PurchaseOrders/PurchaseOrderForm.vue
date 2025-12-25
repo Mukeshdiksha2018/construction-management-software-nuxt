@@ -5176,25 +5176,31 @@ onMounted(async () => {
   
   // Fetch used quantities if importing from estimate and we have all required values
   // This is important for "to be raised" screen where items are pre-populated
+  // Only do this for new POs or when form has explicit estimate_uuid (not for existing POs without estimate_uuid)
   if (
     isProjectPurchaseOrder.value &&
     String(props.form.include_items || '').toUpperCase() === 'IMPORT_ITEMS_FROM_ESTIMATE' &&
     props.form.corporation_uuid &&
-    props.form.project_uuid
+    props.form.project_uuid &&
+    (!props.editingPurchaseOrder || props.form.estimate_uuid) // Only for new POs or existing POs with explicit estimate_uuid
   ) {
     // Wait for estimates to be loaded and latestEstimateUuid to be computed
     await nextTick();
     await nextTick();
     
+    // Use explicit estimate_uuid from form if available, otherwise use latest estimate
+    const estimateUuid = props.form.estimate_uuid || latestEstimateUuid.value;
+    
     // If we have an estimate UUID, fetch used quantities
     // Also ensure estimate items are loaded if we have items pre-populated (from "to be raised")
-    if (latestEstimateUuid.value) {
+    if (estimateUuid) {
       // If items are pre-populated, ensure estimate items are loaded so available quantity can be calculated
-      if (Array.isArray(props.form.po_items) && props.form.po_items.length > 0) {
+      // Only for new POs (not editing) to avoid auto-importing when editing existing POs
+      if (!props.editingPurchaseOrder && Array.isArray(props.form.po_items) && props.form.po_items.length > 0) {
         await purchaseOrderResourcesStore.ensureEstimateItems({
           corporationUuid: props.form.corporation_uuid,
           projectUuid: props.form.project_uuid,
-          estimateUuid: latestEstimateUuid.value,
+          estimateUuid: estimateUuid,
           force: false,
         });
         await nextTick();
