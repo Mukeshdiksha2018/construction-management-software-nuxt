@@ -522,6 +522,17 @@
           </div>
 
           <div class="flex items-center gap-2 flex-shrink-0">
+            <!-- View Audit Log Button -->
+            <UButton
+              v-if="poForm.uuid && hasPermission('po_view')"
+              icon="i-heroicons-shield-check-solid"
+              color="info"
+              variant="outline"
+              size="sm"
+              @click="showAuditLogModal = true"
+            >
+              View Audit Log
+            </UButton>
             <div class="flex items-center gap-2">
               <UButton
                 v-if="isViewMode && hasPermission('po_edit') && poForm.value?.status !== 'Approved'"
@@ -632,6 +643,66 @@
           @estimate-import-blocked-change="isEstimateImportBlocked = $event"
           @validation-change="isFormValid = $event"
         />
+      </template>
+    </UModal>
+
+    <!-- Audit Log Modal -->
+    <UModal 
+      v-model:open="showAuditLogModal" 
+      title="Purchase Order Audit Log"
+      :description="`View the complete audit trail for ${poForm.po_number || 'this purchase order'}`"
+      size="2xl"
+      :ui="{ body: 'p-6' }"
+    >
+      <template #body>
+        <div class="space-y-4">
+          <!-- Purchase Order Info Header -->
+          <div v-if="poForm.po_number" class="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                  Purchase Order #{{ poForm.po_number }}
+                </h3>
+                <p class="text-sm text-gray-600 dark:text-gray-400">
+                  Project: {{ poForm.project_name || poForm.project_uuid || 'N/A' }}
+                </p>
+              </div>
+              <UBadge 
+                :color="getStatusBadgeColor(poForm.status)" 
+                variant="soft"
+                size="lg"
+              >
+                {{ poForm.status || 'Draft' }}
+              </UBadge>
+            </div>
+          </div>
+
+          <!-- Audit Timeline -->
+          <PurchaseOrderAuditTimeline 
+            :audit-log="poForm.audit_log || []"
+            :purchase-order-uuid="poForm.uuid || ''"
+            @logs-loaded="onAuditLogsLoaded"
+            @error="onAuditLogError"
+          />
+        </div>
+      </template>
+
+      <template #footer>
+        <div class="flex justify-between items-center">
+          <div class="text-sm text-gray-500">
+            <span v-if="auditLogsCount > 0">{{ auditLogsCount }} audit entries</span>
+            <span v-else>No audit entries</span>
+          </div>
+          <div class="flex gap-2">
+            <UButton 
+              color="neutral" 
+              variant="solid" 
+              @click="showAuditLogModal = false"
+            >
+              Close
+            </UButton>
+          </div>
+        </div>
       </template>
     </UModal>
 
@@ -747,6 +818,7 @@
 import { ref, computed, h, watch, onMounted, nextTick, useTemplateRef, resolveComponent } from "vue";
 import { useRouter } from 'vue-router'
 import PurchaseOrderForm from '@/components/PurchaseOrders/PurchaseOrderForm.vue'
+import PurchaseOrderAuditTimeline from '@/components/PurchaseOrders/PurchaseOrderAuditTimeline.vue'
 import { useCorporationStore } from '@/stores/corporations'
 import { usePurchaseOrdersStore } from '@/stores/purchaseOrders'
 import { useTableStandard } from '@/composables/useTableStandard'
@@ -843,6 +915,8 @@ const loadingRowUuid = ref<string | null>(null)
 const isEstimateImportBlocked = ref(false)
 const isFormValid = ref(true) // Track form validation state
 const showExceededQuantityModal = ref(false)
+const showAuditLogModal = ref(false)
+const auditLogsCount = ref(0)
 const exceededItems = ref<any[]>([])
 const pendingSaveAction = ref<(() => Promise<void>) | null>(null)
 const savingCO = ref(false)
@@ -2064,6 +2138,34 @@ const statusChipClass = computed(() => {
   return map[status] || map.draft;
 });
 
+const getStatusBadgeColor = (status: string | undefined): string => {
+  const statusMap: Record<string, string> = {
+    Draft: 'gray',
+    Ready: 'blue',
+    Approved: 'green',
+    Rejected: 'red',
+    Partially_Received: 'cyan',
+    Completed: 'green',
+  };
+  return statusMap[status || 'Draft'] || 'gray';
+};
+
+// Audit log handlers
+const onAuditLogsLoaded = (logs: any[]) => {
+  auditLogsCount.value = logs.length
+}
+
+const onAuditLogError = (error: string) => {
+  console.error('Audit log error:', error)
+  const toast = useToast()
+  toast.add({
+    title: 'Error',
+    description: error || 'Failed to load audit log',
+    color: 'error',
+    icon: 'i-heroicons-x-circle'
+  })
+}
+
 // Purchase orders are fetched by TopBar.vue when corporation changes
 // This component just reads from the store reactively
 
@@ -2166,6 +2268,7 @@ const loadPurchaseOrderForModal = async (po: any, viewMode: boolean = false) => 
       po_items: detailed.po_items || [],
       attachments: detailed.attachments || [],
       removed_po_items: detailed.removed_po_items || [],
+      audit_log: Array.isArray(detailed.audit_log) ? detailed.audit_log : [],
     };
   } catch (error) {
     const toast = useToast();
