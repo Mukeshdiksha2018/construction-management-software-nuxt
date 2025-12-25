@@ -2868,6 +2868,11 @@ const shouldShowEstimateItemsSection = computed(() => {
     return false;
   }
   
+  // Don't show estimate items section if estimate import is blocked (not approved)
+  if (isEstimateImportBlocked.value) {
+    return false;
+  }
+  
   const isMaster = isImportingFromMaster.value;
   const isEstimate = isImportingFromEstimate.value;
   const loading = estimateItemsLoading.value;
