@@ -2637,20 +2637,22 @@ const handleRaiseChangeOrder = async () => {
           }
         })
 
-      // Update PO items to set po_quantity to estimate quantity (quantity field)
+      // Update PO items to set po_quantity to available quantity (estimate quantity - used quantity)
       const updatedPoItems = currentFormData.po_items.map((item: any) => {
         const key = String(item.item_uuid || '').toLowerCase()
         const exceededItem = key ? exceededMap.get(key) : null
         
         if (exceededItem) {
-          // Set po_quantity to estimate quantity
+          // Set po_quantity to available quantity (estimate quantity - used quantity)
           const estimateQty = parseFloat(String(exceededItem.estimate_quantity || exceededItem.quantity || 0))
+          const usedQty = parseFloat(String(exceededItem.used_quantity || 0))
+          const availableQty = Math.max(0, estimateQty - usedQty) // Available quantity
           const poUnitPrice = parseFloat(String(item.po_unit_price || item.unit_price || 0))
-          const poTotal = Math.round((estimateQty * poUnitPrice + Number.EPSILON) * 100) / 100
+          const poTotal = Math.round((availableQty * poUnitPrice + Number.EPSILON) * 100) / 100
           
           return {
             ...item,
-            po_quantity: estimateQty,
+            po_quantity: availableQty,
             po_total: poTotal, // Recalculate total
           }
         }
