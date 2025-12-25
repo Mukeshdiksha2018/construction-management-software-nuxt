@@ -50,6 +50,7 @@
               <th class="w-1/12 px-4 py-2 text-right">Unit Price</th>
               <th class="w-1/12 px-4 py-2 text-right">UOM</th>
               <th v-if="showInvoiceValues" class="w-1/12 px-4 py-2 text-center">To Be Invoiced</th>
+              <th v-if="showEstimateValues" class="w-1/12 px-4 py-2 text-right">Available Qty</th>
               <th class="w-1/12 px-4 py-2 text-right">Qty</th>
               <th class="w-2/12 px-4 py-2 text-right">Total</th>
               <th class="w-1/12 px-4 py-2 text-right">Actions</th>
@@ -247,6 +248,17 @@
               <td v-if="showInvoiceValues" class="px-2 py-2 text-center align-middle">
                 <div class="flex items-center justify-center">
                   <span class="font-mono text-sm text-default">{{ formatQuantity(item.to_be_invoiced ?? 0) }}</span>
+                </div>
+              </td>
+              <td v-if="showEstimateValues" class="px-2 py-2 text-right align-middle">
+                <div class="flex flex-col items-end gap-1">
+                  <UInput
+                    :model-value="formatQuantity(getAvailableQuantity(item, index))"
+                    size="xs"
+                    class="w-full max-w-[120px] text-right font-mono"
+                    :ui="{ base: 'bg-gray-100 dark:bg-gray-800/40 border border-transparent' }"
+                    disabled
+                  />
                 </div>
               </td>
               <td class="px-2 py-2 text-right align-middle">
@@ -464,6 +476,16 @@
                 :disabled="arePOFieldsDisabled"
                 @update:model-value="(value) => emitUomChange(index, value as string | undefined)"
                 @change="(opt) => emitUomChange(index, opt?.value ?? null, opt)"
+              />
+            </div>
+            <div v-if="showEstimateValues" class="flex flex-col gap-1">
+              <span class="block text-[11px] uppercase tracking-wide text-muted/80">Available Qty</span>
+              <UInput
+                :model-value="formatQuantity(getAvailableQuantity(item, index))"
+                size="xs"
+                class="text-right font-mono"
+                :ui="{ base: 'bg-gray-100 dark:bg-gray-800/40 border border-transparent' }"
+                disabled
               />
             </div>
             <div class="flex flex-col gap-1">
@@ -1220,6 +1242,21 @@ const estimateItemsMap = computed(() => {
   });
   return map;
 });
+
+// Get available quantity for a PO item (estimate quantity - used quantities from other POs)
+const getAvailableQuantity = (item: PurchaseOrderItemDisplay, index: number): number => {
+  if (!item.item_uuid) return 0;
+  
+  const itemUuidKey = String(item.item_uuid).toLowerCase();
+  const estimateItem = estimateItemsMap.value.get(itemUuidKey);
+  if (!estimateItem) return 0;
+  
+  const estimateQuantity = parseNumericInput(estimateItem.quantity || 0);
+  const usedQuantity = props.usedQuantitiesByItem?.[itemUuidKey] || 0;
+  
+  const availableQuantity = Math.max(0, estimateQuantity - usedQuantity);
+  return availableQuantity;
+}
 
 // Check if an item has PO quantity exceeding available estimate quantity
 const isQuantityExceeded = (item: PurchaseOrderItemDisplay, index: number): boolean => {
