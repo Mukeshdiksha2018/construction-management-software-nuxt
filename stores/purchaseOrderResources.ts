@@ -358,6 +358,17 @@ export const usePurchaseOrderResourcesStore = defineStore(
                 !item?.project_uuid ||
                 String(item.project_uuid) === String(projectUuid)
               ) {
+                // Log first item to debug model_number
+                if (flattened.length === 0) {
+                  console.log('[purchaseOrderResources] First preferred item structure:', {
+                    item_uuid: item?.item_uuid || item?.uuid,
+                    item_name: item?.item_name || item?.name,
+                    model_number: item?.model_number,
+                    hasModelNumber: item?.model_number !== undefined,
+                    keys: Object.keys(item || {})
+                  });
+                }
+                
                 flattened.push({
                   ...item,
                   cost_code_configuration_uuid: config?.uuid,
@@ -458,6 +469,18 @@ export const usePurchaseOrderResourcesStore = defineStore(
             .trim();
 
           return materialItems.map((item: any, index: number) => {
+            // Log first item to debug model_number
+            if (rowIndex === 0 && index === 0) {
+              console.log('[purchaseOrderResources] First estimate material item structure:', {
+                item_uuid: item?.item_uuid || item?.uuid,
+                item_name: item?.name || item?.item_name,
+                model_number: item?.model_number || item?.modelNumber,
+                hasModelNumber: (item?.model_number || item?.modelNumber) !== undefined,
+                keys: Object.keys(item || {}),
+                fullItem: item
+              });
+            }
+            
             const unitPrice = normalizeNumber(
               item?.unit_price ?? item?.unitPrice ?? item?.price,
               0
@@ -486,6 +509,11 @@ export const usePurchaseOrderResourcesStore = defineStore(
                 ? item.unit
                 : null);
 
+            const modelNumber = item?.model_number || item?.modelNumber || "";
+            if (rowIndex === 0 && index === 0) {
+              console.log('[purchaseOrderResources] Extracted model_number:', modelNumber);
+            }
+
             return {
               id: `${row?.cost_code_uuid || "cost"}-${rowIndex}-${index}-${
                 item?.item_uuid || item?.uuid || index
@@ -507,7 +535,7 @@ export const usePurchaseOrderResourcesStore = defineStore(
                 item?.approvalChecks ||
                 item?.approvals ||
                 null,
-              model_number: item?.model_number || item?.modelNumber || "",
+              model_number: modelNumber,
               location:
                 item?.location ||
                 item?.location_uuid ||

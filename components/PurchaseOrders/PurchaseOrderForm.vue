@@ -1257,6 +1257,7 @@ const isUpdatingEstimatedDeliveryDate = ref(false);
 const entryDatePopoverOpen = ref(false);
 const estimatedDeliveryDatePopoverOpen = ref(false);
 
+
 // Auto-calculate estimated delivery date when entry date or credit days change
 const calculateEstimatedDeliveryDate = (entryDate: CalendarDate | null, creditDays: string | null) => {
   if (!entryDate || !creditDays) return null;
@@ -2076,7 +2077,19 @@ const preferredItemOptions = computed(() => {
   const projectUuid = selectedProjectUuid.value ?? undefined;
   const source =
     purchaseOrderResourcesStore.getPreferredItems(corpUuid, projectUuid) || [];
-  return source
+  
+  console.log('[preferredItemOptions] Source items:', source.length, 'items');
+  if (source.length > 0) {
+    console.log('[preferredItemOptions] Sample item:', {
+      item_uuid: source[0]?.item_uuid || source[0]?.uuid,
+      item_name: source[0]?.item_name || source[0]?.name,
+      model_number: source[0]?.model_number,
+      hasModelNumber: source[0]?.model_number !== undefined,
+      keys: Object.keys(source[0] || {})
+    });
+  }
+  
+  const options = source
     .map((item: any) => {
       const value =
         item.item_uuid ||
@@ -2091,15 +2104,29 @@ const preferredItemOptions = computed(() => {
         String(value);
       // Extract sequence for SequenceSelect matching
       const itemSequence = item.item_sequence || item.sequence || '';
-      return {
+      const option = {
         label,
         value: String(value || ""),
         item_sequence: itemSequence, // Include sequence for SequenceSelect
         sequence: itemSequence, // Also include as 'sequence' for compatibility
         raw: item,
       };
+      
+      // Log if model_number is present
+      if (item.model_number) {
+        console.log('[preferredItemOptions] Item with model_number:', {
+          value: option.value,
+          label: option.label,
+          model_number: item.model_number
+        });
+      }
+      
+      return option;
     })
     .filter((opt: any) => Boolean(opt.value));
+  
+  console.log('[preferredItemOptions] Final options count:', options.length);
+  return options;
 });
 
 const preferredItemOptionMap = computed(() => {
@@ -2132,6 +2159,15 @@ const getPreferredItemsSignature = (items: any[]) =>
     .join('|');
 
 const transformPreferredItemToPoItem = (item: any, index: number) => {
+  console.log('[transformPreferredItemToPoItem] Transforming item:', {
+    index,
+    item_uuid: item?.item_uuid || item?.uuid,
+    item_name: item?.item_name || item?.name,
+    model_number: item?.model_number,
+    hasModelNumber: item?.model_number !== undefined,
+    keys: Object.keys(item || {})
+  });
+  
   const costCodeNumber = item?.cost_code_number || '';
   const costCodeName = item?.cost_code_name || '';
   const costCodeLabel = [costCodeNumber, costCodeName]
@@ -2181,6 +2217,9 @@ const transformPreferredItemToPoItem = (item: any, index: number) => {
   // Extract sequence from preferred item (for SequenceSelect matching)
   const itemSequence = item?.item_sequence || item?.sequence || '';
 
+  const modelNumber = item?.model_number || '';
+  console.log('[transformPreferredItemToPoItem] Final model_number:', modelNumber);
+
   return {
     id: item?.id || `${item?.cost_code_uuid || 'master'}-${index}`,
     cost_code_uuid: item?.cost_code_uuid || item?.cost_code_configuration_uuid || null,
@@ -2197,7 +2236,7 @@ const transformPreferredItemToPoItem = (item: any, index: number) => {
     name: item?.item_name || item?.name || item?.label || '',
     description: item?.description || '',
     approval_checks: null,
-    model_number: item?.model_number || '',
+    model_number: modelNumber,
     location_uuid: null,
     location: '',
     unit_price: unitPrice,
@@ -2221,6 +2260,7 @@ const transformPreferredItemToPoItem = (item: any, index: number) => {
       location_display: '',
       unit_label: unitLabel,
       unit_uuid: unitUuid,
+      model_number: item?.model_number || '',
     },
   };
 };
@@ -2387,6 +2427,129 @@ const mapPoItemForDisplay = (item: any, index: number, estimateItem?: any) => {
     resolvedItemName = item.description || '';
   }
 
+  // Resolve model_number - prefer saved model_number, then from estimate item (if available), then lookup from preferred items
+  // Also check item.metadata directly (JSONB from database) and display_metadata
+  // Use explicit checks to handle empty strings correctly (empty string is a valid value)
+  let resolvedModelNumber = '';
+  if (item.model_number !== undefined && item.model_number !== null && item.model_number !== '') {
+    resolvedModelNumber = String(item.model_number);
+  } else if (itemMetadata.model_number !== undefined && itemMetadata.model_number !== null && itemMetadata.model_number !== '') {
+    resolvedModelNumber = String(itemMetadata.model_number);
+  } else if (display.model_number !== undefined && display.model_number !== null && display.model_number !== '') {
+    resolvedModelNumber = String(display.model_number);
+  }
+  
+  console.log('[mapPoItemForDisplay] Initial model_number resolution:', {
+    itemModelNumber: item.model_number,
+    itemMetadataModelNumber: itemMetadata.model_number,
+    displayModelNumber: display.model_number,
+    resolved: resolvedModelNumber,
+    hasEstimateItem: !!estimateItem,
+    itemUuid: item.item_uuid
+  });
+  
+  // If no model_number found and we have an estimate item, use it as source of truth
+  if (!resolvedModelNumber && estimateItem) {
+    console.log('[mapPoItemForDisplay] Estimate item structure:', {
+      hasEstimateItem: !!estimateItem,
+      estimateItemKeys: estimateItem ? Object.keys(estimateItem) : [],
+      estimateItemModelNumber: estimateItem?.model_number,
+      estimateItemDisplayMetadata: estimateItem?.display_metadata ? {
+        keys: Object.keys(estimateItem.display_metadata),
+        model_number: estimateItem.display_metadata.model_number
+      } : null,
+      estimateItemMetadata: estimateItem?.metadata ? {
+        keys: Object.keys(estimateItem.metadata),
+        model_number: estimateItem.metadata.model_number
+      } : null,
+      estimateItemFull: estimateItem
+    });
+    
+    resolvedModelNumber = estimateItem.model_number ||
+                          estimateItem.display_metadata?.model_number ||
+                          estimateItem.metadata?.model_number ||
+                          '';
+    console.log('[mapPoItemForDisplay] Model_number from estimate item:', resolvedModelNumber);
+  }
+  
+  // If still no model_number found, lookup from preferred items
+  // Search through all preferred items to find one with matching item_uuid or item name
+  if (!resolvedModelNumber && item.item_uuid) {
+    // First try the map lookup (fast path) by UUID
+    let preferredItem = matchedItemOption;
+    
+    // If not found in map, search through all preferred items by matching item_uuid
+    if (!preferredItem) {
+      const itemUuidStr = String(item.item_uuid).toLowerCase();
+      preferredItem = preferredItemOptions.value.find((opt: any) => {
+        // Match by item_uuid from raw data (preferred items have item_uuid in raw)
+        const rawItemUuid = opt.raw?.item_uuid ? String(opt.raw.item_uuid).toLowerCase() : '';
+        // Also check value field (which is also item_uuid)
+        const optValueUuid = opt.value ? String(opt.value).toLowerCase() : '';
+        // Also check uuid field
+        const optUuid = opt.raw?.uuid ? String(opt.raw.uuid).toLowerCase() : '';
+        return rawItemUuid === itemUuidStr || optValueUuid === itemUuidStr || optUuid === itemUuidStr;
+      });
+    }
+    
+    // If still not found by UUID, try matching by item name (for estimate items that have different UUIDs)
+    if (!preferredItem && resolvedItemName) {
+      const itemNameLower = resolvedItemName.toLowerCase().trim();
+      preferredItem = preferredItemOptions.value.find((opt: any) => {
+        const optName = opt.raw?.item_name || opt.raw?.name || opt.label || '';
+        return optName.toLowerCase().trim() === itemNameLower;
+      });
+    }
+    
+    const preferredModelNumber = preferredItem?.raw?.model_number ||
+                                 preferredItem?.model_number ||
+                                 '';
+    console.log('[mapPoItemForDisplay] Looking up from preferred items:', {
+      itemUuid: item.item_uuid,
+      itemName: resolvedItemName,
+      matchedItemOption: preferredItem ? {
+        hasRaw: !!preferredItem.raw,
+        rawModelNumber: preferredItem.raw?.model_number,
+        rawItemUuid: preferredItem.raw?.item_uuid,
+        rawItemName: preferredItem.raw?.item_name || preferredItem.raw?.name,
+        rawKeys: preferredItem.raw ? Object.keys(preferredItem.raw) : [],
+        directModelNumber: preferredItem.model_number,
+        keys: Object.keys(preferredItem),
+        fullRaw: preferredItem.raw
+      } : null,
+      preferredModelNumber,
+      preferredItemOptionMapSize: preferredItemOptionMap.value.size,
+      preferredItemOptionMapHasKey: preferredItemOptionMap.value.has(String(item.item_uuid)),
+      foundInSearch: !!preferredItem && !matchedItemOption,
+      matchedBy: preferredItem ? (preferredItemOptionMap.value.has(String(item.item_uuid)) ? 'uuid-map' : (preferredItem.raw?.item_uuid === item.item_uuid ? 'uuid-search' : 'name')) : 'none'
+    });
+    
+    // If preferred item has model_number (even if null, check if it's explicitly null vs undefined)
+    // Only use it if it's a non-empty string
+    if (preferredModelNumber && typeof preferredModelNumber === 'string' && preferredModelNumber.trim()) {
+      resolvedModelNumber = preferredModelNumber;
+    } else {
+      // If preferred item exists but model_number is null/empty, check if we can get it from the raw item's other fields
+      // Sometimes model_number might be stored differently
+      if (preferredItem?.raw) {
+        const raw = preferredItem.raw;
+        // Try alternative field names
+        const altModelNumber = raw.modelNumber || raw.model_no || raw.model || '';
+        if (altModelNumber && typeof altModelNumber === 'string' && altModelNumber.trim()) {
+          resolvedModelNumber = altModelNumber;
+          console.log('[mapPoItemForDisplay] Found model_number from alternative field:', altModelNumber);
+        }
+      }
+    }
+  }
+  
+  console.log('[mapPoItemForDisplay] Final resolved model_number:', resolvedModelNumber);
+  
+  // Ensure model_number is always a string (even if empty) for consistency
+  const finalModelNumber = resolvedModelNumber !== undefined && resolvedModelNumber !== null 
+    ? String(resolvedModelNumber) 
+    : '';
+
   // Extract sequence from item (for SequenceSelect matching)
   // Use the same value we extracted above for consistency
   const resolvedSequence = sequenceValue;
@@ -2419,6 +2582,7 @@ const mapPoItemForDisplay = (item: any, index: number, estimateItem?: any) => {
         sequence: resolvedSequence,
         item_name: resolvedItemName,
         name: resolvedItemName,
+        model_number: resolvedModelNumber || item.model_number || '', // Include model_number in raw data
       },
     });
   }
@@ -2438,7 +2602,7 @@ const mapPoItemForDisplay = (item: any, index: number, estimateItem?: any) => {
     name: resolvedItemName,
     description: item.description || '',
     approval_checks: approvalChecks,
-    model_number: item.model_number || '',
+    model_number: finalModelNumber,
     location: locationDisplay,
     location_uuid: item.location_uuid || display.location_uuid || null,
     unit_price: estimateUnitPrice,
@@ -2474,11 +2638,31 @@ const poItemsForDisplay = computed(() => {
   // If no items are removed, just return all mapped items
   if (removedItems.length === 0) {
     const mapped = source.map((item: any, index: number) => {
+      // Log model_number before mapping (check all items, not just first)
+      if (index < 3) {
+        console.log('[poItemsForDisplay] Item', index, 'before mapPoItemForDisplay:', {
+          item_uuid: item.item_uuid,
+          model_number: item.model_number,
+          hasModelNumber: !!item.model_number,
+          display_metadata: item.display_metadata ? {
+            model_number: item.display_metadata.model_number
+          } : null
+        });
+      }
       const key = item?.item_uuid
         ? String(item.item_uuid).toLowerCase()
         : '';
       const estimateItem = key ? estimateLookup.get(key) : undefined;
-      return mapPoItemForDisplay(item, index, estimateItem);
+      const mappedItem = mapPoItemForDisplay(item, index, estimateItem);
+      // Log model_number after mapping
+      if (index === 0) {
+        console.log('[poItemsForDisplay] First item after mapPoItemForDisplay:', {
+          item_uuid: mappedItem.item_uuid,
+          model_number: mappedItem.model_number,
+          hasModelNumber: !!mappedItem.model_number
+        });
+      }
+      return mappedItem;
     })
     return mapped
   }
@@ -3187,6 +3371,20 @@ const handleEditEstimateSelection = () => {
 
 // Handler for when user confirms master item selection in modal
 const handleMasterItemsConfirm = (selectedItems: any[]) => {
+  // Log selected items to verify model_number is present
+  console.log('[handleMasterItemsConfirm] Selected items:', selectedItems.length);
+  selectedItems.forEach((item, index) => {
+    if (index < 3) { // Log first 3 items
+      console.log('[handleMasterItemsConfirm] Item', index, ':', {
+        item_uuid: item.item_uuid,
+        model_number: item.model_number,
+        hasModelNumber: !!item.model_number,
+        display_metadata: item.display_metadata ? {
+          model_number: item.display_metadata.model_number
+        } : null
+      });
+    }
+  });
   
   if (isEditingMasterSelection.value) {
     // When editing: Replace items with only the selected ones from the modal
@@ -3209,9 +3407,11 @@ const handleMasterItemsConfirm = (selectedItems: any[]) => {
     
     // Merge: keep existing selected items + add new selected items
     const mergedItems = [...itemsToKeep, ...newItems];
+    console.log('[handleMasterItemsConfirm] Merged items count:', mergedItems.length);
     updatePoItems(mergedItems, true);
   } else {
     // Initial import: Replace all items with selected items
+    console.log('[handleMasterItemsConfirm] Initial import, updating with', selectedItems.length, 'items');
     updatePoItems(selectedItems, true);
   }
   
@@ -3832,6 +4032,9 @@ const mergePoSpecificFields = (target: any, source: any) => {
   if (source.uom_uuid && !target.uom_uuid) {
     target.uom_uuid = source.uom_uuid
   }
+  if (source.model_number && !target.model_number) {
+    target.model_number = source.model_number
+  }
 
   if (source.display_metadata) {
     target.display_metadata = {
@@ -3855,10 +4058,41 @@ const updatePoItems = (items: any[], skipMerge = false) => {
   // Always create a new array reference to ensure reactivity
   if (skipMerge) {
     // Deep clone items to ensure Vue tracks changes
-    const clonedItems = items.map((item: any) => ({
-      ...item,
-      display_metadata: item.display_metadata ? { ...item.display_metadata } : {},
-    }))
+    const clonedItems = items.map((item: any) => {
+      // Log model_number before cloning
+      if (item.model_number || (item.display_metadata && item.display_metadata.model_number)) {
+        console.log('[updatePoItems] Item with model_number before clone:', {
+          item_uuid: item.item_uuid,
+          model_number: item.model_number,
+          display_metadata: item.display_metadata ? {
+            model_number: item.display_metadata.model_number
+          } : null
+        });
+      }
+      // Ensure model_number is preserved from both top-level and display_metadata
+      const modelNumber = item.model_number || (item.display_metadata?.model_number) || '';
+      return {
+        ...item,
+        model_number: modelNumber, // Explicitly preserve model_number
+        display_metadata: item.display_metadata ? { 
+          ...item.display_metadata,
+          model_number: modelNumber // Also ensure it's in display_metadata
+        } : { model_number: modelNumber },
+      };
+    });
+    
+    // Log after cloning
+    clonedItems.forEach((item: any, index: number) => {
+      if ((item.model_number || (item.display_metadata && item.display_metadata.model_number)) && index < 3) {
+        console.log('[updatePoItems] Item', index, 'after clone:', {
+          item_uuid: item.item_uuid,
+          model_number: item.model_number,
+          display_metadata: item.display_metadata ? {
+            model_number: item.display_metadata.model_number
+          } : null
+        });
+      }
+    });
     
     // Use nextTick to ensure the update happens after any pending updates
     nextTick(() => {
@@ -4092,6 +4326,8 @@ const updatePoItemLocation = ({ index, value, option }: { index: number; value: 
 };
 
 const updatePoItemItem = ({ index, value, option }: { index: number; value: string | null; option?: any }) => {
+  console.log('[updatePoItemItem] Called with:', { index, value, option: option ? { label: option.label, raw: option.raw, hasRaw: !!option.raw } : null });
+  
   const current = Array.isArray(props.form.po_items)
     ? [...props.form.po_items]
     : [];
@@ -4108,6 +4344,14 @@ const updatePoItemItem = ({ index, value, option }: { index: number; value: stri
 
   if (option) {
     const raw = option.raw || option;
+    console.log('[updatePoItemItem] Raw option data:', { 
+      hasRaw: !!raw, 
+      model_number: raw?.model_number,
+      item_uuid: raw?.item_uuid || raw?.uuid,
+      item_name: raw?.item_name || raw?.name,
+      keys: raw ? Object.keys(raw) : []
+    });
+    
     const label = option.label || raw?.item_name || raw?.label || '';
     if (label) {
       item.name = label;
@@ -4146,10 +4390,41 @@ const updatePoItemItem = ({ index, value, option }: { index: number; value: stri
     const unitPrice = normalizeNumber(raw?.unit_price, item.unit_price ?? 0);
     item.unit_price = unitPrice;
 
-    if (raw?.model_number !== undefined) {
-      item.model_number = raw.model_number || '';
-      metadata.model_number = raw.model_number || '';
+    // Resolve model_number - prefer from raw option, then lookup from preferred items
+    let resolvedModelNumber = raw?.model_number;
+    console.log('[updatePoItemItem] Initial model_number from raw:', resolvedModelNumber);
+    
+    if ((resolvedModelNumber === undefined || resolvedModelNumber === null || resolvedModelNumber === '') && value) {
+      // Look up from preferred items if not in raw option
+      const preferredItem = preferredItemOptionMap.value.get(String(value));
+      console.log('[updatePoItemItem] Looking up preferred item:', {
+        value,
+        found: !!preferredItem,
+        preferredItemRaw: preferredItem?.raw ? {
+          model_number: preferredItem.raw.model_number,
+          item_uuid: preferredItem.raw.item_uuid || preferredItem.raw.uuid,
+          keys: Object.keys(preferredItem.raw)
+        } : null,
+        preferredItemKeys: preferredItem ? Object.keys(preferredItem) : []
+      });
+      
+      if (preferredItem?.raw?.model_number !== undefined && preferredItem.raw.model_number !== null && preferredItem.raw.model_number !== '') {
+        resolvedModelNumber = preferredItem.raw.model_number;
+        console.log('[updatePoItemItem] Found model_number from preferred item:', resolvedModelNumber);
+      } else {
+        console.log('[updatePoItemItem] No model_number found in preferred item raw');
+      }
     }
+    
+    // Always set model_number (even if empty string) to ensure it's available for display
+    const finalModelNumber = resolvedModelNumber !== undefined && resolvedModelNumber !== null ? (resolvedModelNumber || '') : (item.model_number || '');
+    item.model_number = finalModelNumber;
+    metadata.model_number = finalModelNumber;
+    console.log('[updatePoItemItem] Final model_number set:', { 
+      finalModelNumber, 
+      itemModelNumber: item.model_number,
+      metadataModelNumber: metadata.model_number
+    });
 
     const quantity = normalizeNumber(item.quantity, 0);
     item.total = unitPrice * quantity;

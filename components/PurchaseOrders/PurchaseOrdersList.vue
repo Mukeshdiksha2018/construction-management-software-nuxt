@@ -1428,10 +1428,26 @@ const fetchItemsTableData = async () => {
 
 // Transform selected items to PO items format
 const transformSelectedItemsToPoItems = (selectedItems: any[]): any[] => {
+  console.log('[transformSelectedItemsToPoItems] Transforming items:', selectedItems.length, 'items');
+  if (selectedItems.length > 0) {
+    console.log('[transformSelectedItemsToPoItems] Sample item from API:', {
+      item_uuid: selectedItems[0]?.item_uuid,
+      item_name: selectedItems[0]?.item_name,
+      model_number: selectedItems[0]?.model_number,
+      hasModelNumber: selectedItems[0]?.model_number !== undefined,
+      keys: Object.keys(selectedItems[0] || {})
+    });
+  }
+  
   return selectedItems.map((item: any, index: number) => {
     const pendingQty = parseFloat(item.pending_qty || 0) || 0
     const unitPrice = parseFloat(item.unit_price || 0) || 0
     const poTotal = pendingQty > 0 && unitPrice > 0 ? Math.round((pendingQty * unitPrice + Number.EPSILON) * 100) / 100 : null
+    
+    const modelNumber = item.model_number || "";
+    if (index === 0) {
+      console.log('[transformSelectedItemsToPoItems] Setting model_number for first item:', modelNumber);
+    }
     
     return {
       id: `pending-${index}-${item.item_uuid || item.cost_code_uuid || index}`,
@@ -1464,7 +1480,7 @@ const transformSelectedItemsToPoItems = (selectedItems: any[]): any[] => {
       uom: item.unit_label || "",
       unit_uuid: item.unit_uuid || null,
       approval_checks: null,
-      model_number: item.model_number || "",
+      model_number: modelNumber,
       display_metadata: {
         cost_code_label: item.cost_code_label || "",
         cost_code_number: item.cost_code_number || "",
