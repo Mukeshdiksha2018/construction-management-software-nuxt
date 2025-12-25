@@ -635,7 +635,7 @@
                     :class="attachment.uuid || attachment.isUploaded ? 'text-success-600' : 'text-warning-500'"
                   />
                   <span class="truncate flex-1 text-default">
-                    {{ attachment.document_name || attachment.name || `File ${index + 1}` }}
+                    {{ attachment.document_name || attachment.name || `File ${+index + 1}` }}
                   </span>
                   <div class="flex items-center gap-1">
                     <UButton
@@ -653,7 +653,7 @@
                       variant="soft"
                       size="xs"
                       class="p-1 h-auto text-xs"
-                      @click.stop="removeFile(index)"
+                      @click.stop="removeFile(+index)"
                     />
                   </div>
                 </div>
@@ -775,7 +775,7 @@
                     :class="attachment.uuid || attachment.isUploaded ? 'text-success-600' : 'text-warning-500'"
                   />
                   <span class="truncate flex-1 text-default">
-                    {{ attachment.document_name || attachment.name || `File ${index + 1}` }}
+                    {{ attachment.document_name || attachment.name || `File ${+index + 1}` }}
                   </span>
                   <div class="flex items-center gap-1">
                     <UButton
@@ -793,7 +793,7 @@
                       variant="soft"
                       size="xs"
                       class="p-1 h-auto text-xs"
-                      @click.stop="removeFile(index)"
+                      @click.stop="removeFile(+index)"
                     />
                   </div>
                 </div>
@@ -871,7 +871,7 @@
             <div class="flex items-start justify-between gap-4">
               <div class="min-w-0">
                 <div class="text-sm font-semibold text-default truncate">
-                  {{ item.description || item.name || item.item_name || `Item ${index + 1}` }}
+                  {{ item.description || item.name || item.item_name || `Item ${+index + 1}` }}
                 </div>
                 <div class="text-xs text-muted mt-1 space-x-2">
                   <span v-if="item.po_quantity !== null && item.po_quantity !== undefined">
@@ -889,7 +889,7 @@
                 <div class="text-sm font-mono text-default">
                   {{ formatCurrency(computePoItemEffectiveTotal(item)) }}
                 </div>
-                <UButton size="xs" color="primary" variant="solid" @click="restoreRemovedPoItem(index)">
+                <UButton size="xs" color="primary" variant="solid" @click="restoreRemovedPoItem(+index)">
                   Restore
                 </UButton>
               </div>
@@ -2774,6 +2774,7 @@ const quantityExceededMessage = computed(() => {
 
   if (items.length === 1) {
     const item = items[0];
+    if (!item) return null;
     return `Quantity for "${item.itemName}" exceeds the estimate quantity. Estimate: ${formatQuantity(item.estimateQuantity)}, Already used: ${formatQuantity(item.usedQuantity)}, Current: ${formatQuantity(item.currentQuantity)}, Total: ${formatQuantity(item.totalQuantity)}.`;
   }
 
