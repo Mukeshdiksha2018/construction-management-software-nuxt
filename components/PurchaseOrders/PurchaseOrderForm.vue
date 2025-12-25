@@ -2800,7 +2800,7 @@ watch(
     () => props.form.include_items,
     () => latestEstimateUuid.value,
   ],
-  async ([corpUuid, projectUuid, includeItems, estimateUuid]) => {
+  async ([corpUuid, projectUuid, includeItems, estimateUuid], [prevCorpUuid, prevProjectUuid, prevIncludeItems, prevEstimateUuid]) => {
     // Only fetch used quantities if importing from estimate and we have all required values
     if (
       isProjectPurchaseOrder.value &&
@@ -2809,7 +2809,20 @@ watch(
       projectUuid &&
       estimateUuid
     ) {
+      const wasAlreadyLoading = loadingQuantityAvailability.value;
       await fetchUsedQuantities();
+      
+      // After fetching used quantities, adjust PO quantities for newly imported items
+      // This handles the case where items were imported before used quantities were loaded
+      // Only adjust if not editing (editing should preserve existing quantities)
+      if (!wasAlreadyLoading && !props.editingPurchaseOrder) {
+        const currentItems = Array.isArray(props.form.po_items) ? [...props.form.po_items] : [];
+        if (currentItems.length > 0) {
+          // Don't adjust existing items - only new ones without saved quantities
+          // For now, skip auto-adjustment here to avoid overriding user input
+          // Items will be adjusted when confirmed from modal via handleEstimateItemsConfirm
+        }
+      }
     } else {
       // Clear used quantities if not importing from estimate
       usedQuantitiesByItem.value = {};
@@ -3003,6 +3016,49 @@ const getItemUniqueId = (item: any): string => {
   return item.item_uuid || item.uuid || item.id || '';
 }
 
+// Helper to calculate available quantity for an item (estimate quantity - used quantities)
+const calculateAvailableQuantityForItem = (item: any): number => {
+  if (!item?.item_uuid) return 0;
+  
+  const itemUuidKey = String(item.item_uuid).toLowerCase();
+  const estimateQuantity = parseNumericInput(item.quantity || 0);
+  const usedQuantity = usedQuantitiesByItem.value[itemUuidKey] || 0;
+  
+  const availableQuantity = Math.max(0, estimateQuantity - usedQuantity);
+  return availableQuantity;
+}
+
+// Helper to adjust PO quantities to available quantities for estimate items
+// Only adjusts items that don't already have a saved/edited po_quantity value
+const adjustPoQuantitiesToAvailable = (items: any[], existingItemIds?: Set<string>): any[] => {
+  const existingIds = existingItemIds || new Set<string>();
+  
+  return items.map((item: any) => {
+    const itemId = getItemUniqueId(item);
+    const isExistingItem = itemId && existingIds.has(itemId);
+    
+    // Only adjust if this is a new item (not already in the form)
+    // Existing items should preserve their current po_quantity values
+    if (!isExistingItem) {
+      const availableQty = calculateAvailableQuantityForItem(item);
+      
+      if (availableQty > 0) {
+        const poUnitPrice = item.po_unit_price || item.unit_price || null;
+        const poQuantity = availableQty;
+        const poTotal = poUnitPrice && poQuantity ? roundCurrencyValue(poUnitPrice * poQuantity) : null;
+        
+        return {
+          ...item,
+          po_quantity: poQuantity,
+          po_total: poTotal,
+        };
+      }
+    }
+    
+    return item;
+  });
+}
+
 // Handler for when user confirms item selection in modal
 const handleEstimateItemsConfirm = (selectedItems: any[]) => {
   
@@ -3026,13 +3082,18 @@ const handleEstimateItemsConfirm = (selectedItems: any[]) => {
       return itemId && !currentItemIds.has(itemId);
     });
     
+    // Adjust PO quantities to available quantities for new items only (preserve existing items' quantities)
+    const existingItemIds = new Set(itemsToKeep.map(item => getItemUniqueId(item)));
+    const adjustedNewItems = adjustPoQuantitiesToAvailable(newItems, existingItemIds);
     
-    // Merge: keep existing selected items + add new selected items
-    const mergedItems = [...itemsToKeep, ...newItems];
+    // Merge: keep existing selected items + add new selected items with adjusted quantities
+    const mergedItems = [...itemsToKeep, ...adjustedNewItems];
     updatePoItems(mergedItems, true);
   } else {
-    // Initial import: Replace all items with selected items
-    updatePoItems(selectedItems, true);
+    // Initial import: Replace all items with selected items, adjusting quantities to available
+    // No existing items, so adjust all
+    const adjustedItems = adjustPoQuantitiesToAvailable(selectedItems, new Set());
+    updatePoItems(adjustedItems, true);
   }
   
   if (pendingEstimateKey.value) {
