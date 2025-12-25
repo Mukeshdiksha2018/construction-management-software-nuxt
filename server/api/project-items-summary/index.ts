@@ -175,6 +175,13 @@ export default defineEventHandler(async (event) => {
         // Get description
         const description = item.description || "";
         
+        // Get unit of measure (UOM) fields
+        const unitUuid = item.unit_uuid || item.uom_uuid || null;
+        const unitLabel = item.unit_label || item.uom_label || item.unit || item.uom || "";
+        
+        // Get model number
+        const modelNumber = item.model_number || "";
+        
         // Get location name from map if location_uuid exists
         let locationName = location;
         if (locationUuid && locationMap.has(locationUuid)) {
@@ -203,6 +210,9 @@ export default defineEventHandler(async (event) => {
           location_uuid: locationUuid,
           quantity: quantity,
           unit_price: unitPrice,
+          unit_uuid: unitUuid,
+          unit_label: unitLabel,
+          model_number: modelNumber,
           // Preserve original item for reference
           _original: item,
         });
@@ -305,6 +315,7 @@ export default defineEventHandler(async (event) => {
           unit_price: item.unit_price || 0,
           unit_uuid: item.unit_uuid || null,
           unit_label: item.unit_label || item.unit || "",
+          model_number: item.model_number || "",
           budget_qty: budgetQty,
           po_qty: 0,
           pending_qty: budgetQty,
@@ -457,6 +468,7 @@ export default defineEventHandler(async (event) => {
         unit_price: item.unit_price || 0,
         unit_uuid: item.unit_uuid || null,
         unit_label: item.unit_label || item.unit || "",
+        model_number: item.model_number || "",
         budget_qty: budgetQty,
         po_qty: poQty,
         pending_qty: pendingQty,

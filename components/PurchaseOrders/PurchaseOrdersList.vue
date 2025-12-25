@@ -1462,8 +1462,9 @@ const transformSelectedItemsToPoItems = (selectedItems: any[]): any[] => {
       uom_label: item.unit_label || "",
       unit_label: item.unit_label || "",
       uom: item.unit_label || "",
+      unit_uuid: item.unit_uuid || null,
       approval_checks: null,
-      model_number: "",
+      model_number: item.model_number || "",
       display_metadata: {
         cost_code_label: item.cost_code_label || "",
         cost_code_number: item.cost_code_number || "",
