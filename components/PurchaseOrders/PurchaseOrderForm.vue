@@ -1347,6 +1347,9 @@ const isFormValid = computed(() => {
   const hasShipVia = isLaborPurchaseOrder.value ? true : !!(props.form.ship_via || props.form.ship_via_uuid);
   const hasIncludeItems = isLaborPurchaseOrder.value ? true : !!props.form.include_items;
   
+  // Check if quantities exceed available quantities (only for Material POs importing from estimate)
+  const quantitiesValid = !hasQuantityExceeded.value;
+  
   return hasCorporation && 
          hasPoType && 
          hasVendor && 
@@ -1356,7 +1359,8 @@ const isFormValid = computed(() => {
          hasProject && 
          hasFreight && 
          hasShipVia && 
-         hasIncludeItems;
+         hasIncludeItems &&
+         quantitiesValid;
 });
 
 const poModeOption = computed<any>({
