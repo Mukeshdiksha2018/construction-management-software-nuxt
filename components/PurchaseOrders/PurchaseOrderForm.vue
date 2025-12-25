@@ -1705,11 +1705,21 @@ const estimateDetails = computed(() => {
 });
 
 const isEstimateImportBlocked = computed(() => {
-  return (
+  // For Material PO: check if importing from estimate and estimate is not approved
+  const materialBlocked = (
     isImportingFromEstimate.value &&
     !!estimateDetails.value &&
     estimateDetails.value.statusKey !== 'approved'
   );
+  
+  // For Labor PO: always uses estimate, so check if estimate is not approved
+  const laborBlocked = (
+    isLaborPurchaseOrder.value &&
+    !!estimateDetails.value &&
+    estimateDetails.value.statusKey !== 'approved'
+  );
+  
+  return materialBlocked || laborBlocked;
 });
 
 const estimateImportBlockedMessage = computed(() => {
@@ -1717,11 +1727,17 @@ const estimateImportBlockedMessage = computed(() => {
   const details = estimateDetails.value;
   const number = details?.number ? ` ${details.number}` : '';
   const status = details?.status ?? 'Unavailable';
+  
+  // Different message for Labor PO vs Material PO
+  if (isLaborPurchaseOrder.value) {
+    return `Estimate${number} is ${status.toLowerCase()}. Approve the estimate before creating a labor purchase order.`;
+  }
+  
   return `Estimate${number} is ${status.toLowerCase()}. Approve the estimate before creating a purchase order or select a different include option.`;
 });
 
 const shouldShowEstimateImportWarning = computed(
-  () => isEstimateImportBlocked.value
+  () => isEstimateImportBlocked.value && (isProjectPurchaseOrder.value || isLaborPurchaseOrder.value)
 );
 
 watch(
@@ -2897,6 +2913,10 @@ const shouldShowMasterItemsSection = computed(() => {
 });
 
 const shouldShowLaborItemsSection = computed(() => {
+  // Don't show labor items section if estimate is not approved
+  if (isLaborPurchaseOrder.value && isEstimateImportBlocked.value) {
+    return false;
+  }
   // Always show labor items section for Labor PO (even if empty, to allow adding items)
   return isLaborPurchaseOrder.value;
 });
