@@ -811,6 +811,9 @@ describe("PurchaseOrdersList.vue", () => {
       const wrapper = mountList();
       const vm: any = wrapper.vm as any;
 
+      // Clear any previous fetchMock calls
+      fetchMock.mockClear();
+
       vm.poForm = {
         corporation_uuid: "corp-1",
         project_uuid: "project-1",
@@ -829,8 +832,12 @@ describe("PurchaseOrdersList.vue", () => {
 
       expect(result.hasExceeded).toBe(false);
       expect(result.items).toHaveLength(0);
-      // Should not call API when not importing from estimate
-      expect(fetchMock).not.toHaveBeenCalled();
+      // Should not call estimate-quantity-availability API when not importing from estimate
+      // Note: fetchMock might be called for other APIs (like /api/users/list), so we check specifically
+      const estimateApiCalls = fetchMock.mock.calls.filter((call: any) => 
+        call[0]?.includes?.("/api/estimate-quantity-availability")
+      );
+      expect(estimateApiCalls.length).toBe(0);
     });
 
     it("shows exceeded quantity modal when saving with exceeded quantities", async () => {
@@ -1800,6 +1807,177 @@ describe("PurchaseOrdersList.vue", () => {
       expect(result.items[0].total_quantity).toBe(11); // 3 + 8
       expect(result.items[0].exceeded_quantity).toBe(1); // 11 - 10
     });
+
+    it("uses estimate items map for quantity validation instead of item.quantity", async () => {
+      const wrapper = mountList();
+      const vm: any = wrapper.vm as any;
+      const poResourcesStore = usePurchaseOrderResourcesStore();
+
+      // Mock used quantities API response (no quantities used yet)
+      fetchMock.mockResolvedValueOnce({ data: {} });
+
+      // Mock estimate items with correct estimate quantities
+      const mockEstimateItems = [
+        {
+          item_uuid: "item-1",
+          quantity: 10, // Actual estimate quantity
+          unit_price: 100,
+        },
+        {
+          item_uuid: "item-2",
+          quantity: 5, // Actual estimate quantity
+          unit_price: 50,
+        },
+      ];
+
+      // Mock getEstimateItems to return our estimate items
+      vi.spyOn(poResourcesStore, "getEstimateItems").mockReturnValue(mockEstimateItems);
+      vi.spyOn(poResourcesStore, "ensureEstimateItems").mockResolvedValue(undefined);
+
+      // Set up form with items where item.quantity is different from estimate quantity
+      // This simulates the bug where item.quantity might be modified
+      vm.poForm = {
+        uuid: null,
+        corporation_uuid: "corp-1",
+        project_uuid: "project-1",
+        include_items: "IMPORT_ITEMS_FROM_ESTIMATE",
+        po_items: [
+          {
+            item_uuid: "item-1",
+            quantity: 8, // Modified/wrong value (should be 10 from estimate)
+            po_quantity: 12, // PO quantity that exceeds actual estimate (10)
+            po_unit_price: 100,
+            po_total: 1200,
+            name: "Test Item 1",
+          },
+          {
+            item_uuid: "item-2",
+            quantity: 3, // Modified/wrong value (should be 5 from estimate)
+            po_quantity: 4, // PO quantity that doesn't exceed actual estimate (5)
+            po_unit_price: 50,
+            po_total: 200,
+            name: "Test Item 2",
+          },
+        ],
+      };
+
+      const result = await vm.checkForExceededQuantities();
+
+      // Should detect exceedance based on actual estimate quantity (10), not item.quantity (8)
+      expect(result.hasExceeded).toBe(true);
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].item_uuid).toBe("item-1");
+      expect(result.items[0].estimate_quantity).toBe(10); // From estimate items map, not item.quantity
+      expect(result.items[0].po_quantity).toBe(12);
+      expect(result.items[0].exceeded_quantity).toBe(2); // 12 - 10
+
+      // Verify ensureEstimateItems was called to fetch estimate items
+      expect(poResourcesStore.ensureEstimateItems).toHaveBeenCalled();
+      expect(poResourcesStore.getEstimateItems).toHaveBeenCalled();
+    });
+
+    it("updates form UUID after creating PO so subsequent validations work correctly", async () => {
+      const wrapper = mountList();
+      const vm: any = wrapper.vm as any;
+      const poStore = usePurchaseOrdersStore();
+
+      // Mock used quantities API response
+      fetchMock.mockResolvedValue({ data: {} });
+
+      // Mock createPurchaseOrder to return a PO with UUID
+      const createdPO = {
+        uuid: "new-po-uuid",
+        corporation_uuid: "corp-1",
+        project_uuid: "project-1",
+        po_number: "PO-001",
+        status: "Draft",
+        po_items: [],
+        attachments: [],
+      };
+
+      vi.spyOn(poStore, "createPurchaseOrder").mockResolvedValue(createdPO as any);
+
+      // Set up form without UUID (new PO)
+      vm.poForm = {
+        uuid: null,
+        corporation_uuid: "corp-1",
+        project_uuid: "project-1",
+        include_items: "IMPORT_ITEMS_FROM_ESTIMATE",
+        po_items: [
+          {
+            item_uuid: "item-1",
+            quantity: 10,
+            po_quantity: 5,
+          },
+        ],
+      };
+
+      // Save the PO
+      await vm.savePurchaseOrder(true); // skipModalClose = true
+
+      // Verify form UUID was updated
+      expect(vm.poForm.uuid).toBe("new-po-uuid");
+
+      // Now verify that when checking quantities, the UUID is used to exclude current PO
+      const excludePoUuidBefore = vm.poForm?.uuid;
+      expect(excludePoUuidBefore).toBe("new-po-uuid");
+
+      // Verify that fetchUsedQuantities will use the UUID to exclude current PO
+      await vm.fetchUsedQuantities();
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/estimate-quantity-availability"),
+        expect.objectContaining({
+          query: expect.objectContaining({
+            exclude_po_uuid: "new-po-uuid",
+          }),
+        })
+      );
+    });
+
+    it("updates form UUID after updating PO so subsequent validations work correctly", async () => {
+      const wrapper = mountList();
+      const vm: any = wrapper.vm as any;
+      const poStore = usePurchaseOrdersStore();
+
+      // Mock used quantities API response
+      fetchMock.mockResolvedValue({ data: {} });
+
+      // Mock updatePurchaseOrder to return updated PO
+      const updatedPO = {
+        uuid: "existing-po-uuid",
+        corporation_uuid: "corp-1",
+        project_uuid: "project-1",
+        po_number: "PO-001",
+        status: "Ready",
+        po_items: [],
+        attachments: [],
+      };
+
+      vi.spyOn(poStore, "updatePurchaseOrder").mockResolvedValue(updatedPO as any);
+
+      // Set up form with existing UUID
+      vm.poForm = {
+        uuid: "existing-po-uuid",
+        corporation_uuid: "corp-1",
+        project_uuid: "project-1",
+        include_items: "IMPORT_ITEMS_FROM_ESTIMATE",
+        po_items: [
+          {
+            item_uuid: "item-1",
+            quantity: 10,
+            po_quantity: 5,
+          },
+        ],
+      };
+
+      // Update the PO
+      await vm.savePurchaseOrder(true); // skipModalClose = true
+
+      // Verify form was updated with returned data
+      expect(vm.poForm.uuid).toBe("existing-po-uuid");
+      expect(vm.poForm.status).toBe("Ready");
+    });
+
   });
 
   describe("savePurchaseOrder - Corporation-specific behavior", () => {
