@@ -406,6 +406,15 @@
         :description="estimateImportBlockedMessage"
       />
     </div>
+    <!-- Quantity Exceeded Warning -->
+    <div v-if="hasQuantityExceeded && !props.readonly" class="mt-6">
+      <UBanner
+        color="warning"
+        icon="i-heroicons-exclamation-triangle"
+        title="Purchase order quantities exceed estimate quantities"
+        :description="quantityExceededMessage"
+      />
+    </div>
     <div v-else-if="shouldShowMasterItemsSection" class="mt-6">
       <POItemsFromItemMaster
         :items="poItemsForDisplay"
@@ -453,6 +462,8 @@
         @edit-selection="handleEditEstimateSelection"
         :scoped-cost-code-configurations="scopedCostCodeConfigurations"
         :readonly="props.readonly"
+        :used-quantities-by-item="usedQuantitiesByItem"
+        :estimate-items="estimatePoItems"
         @add-row="insertPoItemAfter"
         @remove-row="removePoItemAt"
         @cost-code-change="updatePoItemCostCode"
@@ -1127,6 +1138,17 @@ const selectedTermsAndCondition = computed(() => {
 });
 
 const { formatCurrency } = useCurrencyFormat();
+
+const formatQuantity = (value: any) => {
+  if (value === null || value === undefined) return '0';
+  const numeric = Number(value ?? 0);
+  if (!Number.isFinite(numeric)) return '0';
+  const formatter = new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 4,
+  });
+  return formatter.format(numeric);
+};
 
 const parseNumericInput = (value: any): number => {
   if (value === null || value === undefined || value === '') return 0
@@ -2646,6 +2668,156 @@ const estimatePoItems = computed(() =>
   )
 );
 
+// Fetch used quantities from existing purchase orders for the estimate
+const fetchUsedQuantities = async () => {
+  if (!isImportingFromEstimate.value || !isProjectPurchaseOrder.value) {
+    usedQuantitiesByItem.value = {};
+    return;
+  }
+
+  const corpUuid = selectedCorporationUuid.value;
+  const projectUuid = selectedProjectUuid.value;
+  const estimateUuid = latestEstimateUuid.value;
+
+  if (!corpUuid || !projectUuid || !estimateUuid) {
+    usedQuantitiesByItem.value = {};
+    return;
+  }
+
+  loadingQuantityAvailability.value = true;
+  try {
+    const response: any = await $fetch("/api/estimate-quantity-availability", {
+      method: "GET",
+      query: {
+        corporation_uuid: corpUuid,
+        project_uuid: projectUuid,
+        estimate_uuid: estimateUuid,
+        exclude_po_uuid: props.editingPurchaseOrder && props.form.uuid ? props.form.uuid : undefined,
+      },
+    });
+
+    usedQuantitiesByItem.value = response?.data || {};
+  } catch (error: any) {
+    console.error("Failed to fetch used quantities:", error);
+    usedQuantitiesByItem.value = {};
+  } finally {
+    loadingQuantityAvailability.value = false;
+  }
+};
+
+// Check if PO quantities exceed available estimate quantities
+const quantityExceededItems = computed(() => {
+  if (!isImportingFromEstimate.value || !isProjectPurchaseOrder.value) {
+    return [];
+  }
+
+  const exceededItems: Array<{
+    itemUuid: string;
+    itemName: string;
+    estimateQuantity: number;
+    usedQuantity: number;
+    currentQuantity: number;
+    totalQuantity: number;
+  }> = [];
+
+  // Build a map of estimate items by item_uuid
+  const estimateItemsMap = new Map<string, any>();
+  (estimatePoItems.value || []).forEach((estItem: any) => {
+    if (estItem?.item_uuid) {
+      estimateItemsMap.set(String(estItem.item_uuid).toLowerCase(), estItem);
+    }
+  });
+
+  // Check each PO item
+  const poItems = Array.isArray(props.form.po_items) ? props.form.po_items : [];
+  poItems.forEach((poItem: any) => {
+    const itemUuid = poItem?.item_uuid;
+    if (!itemUuid) return;
+
+    const itemUuidKey = String(itemUuid).toLowerCase();
+    const estimateItem = estimateItemsMap.get(itemUuidKey);
+    if (!estimateItem) return;
+
+    const estimateQuantity = parseNumericInput(estimateItem.quantity || 0);
+    const currentPoQuantity = parseNumericInput(poItem.po_quantity || 0);
+    const usedQuantity = usedQuantitiesByItem.value[itemUuidKey] || 0;
+    const totalQuantity = usedQuantity + currentPoQuantity;
+
+    if (totalQuantity > estimateQuantity) {
+      exceededItems.push({
+        itemUuid: String(itemUuid),
+        itemName: poItem.name || poItem.description || estimateItem.name || `Item ${itemUuid.substring(0, 8)}`,
+        estimateQuantity,
+        usedQuantity,
+        currentQuantity: currentPoQuantity,
+        totalQuantity,
+      });
+    }
+  });
+
+  return exceededItems;
+});
+
+// Check if any items exceed estimate quantities
+const hasQuantityExceeded = computed(() => quantityExceededItems.value.length > 0);
+
+// Generate notification message for exceeded quantities
+const quantityExceededMessage = computed(() => {
+  if (!hasQuantityExceeded.value) return null;
+
+  const items = quantityExceededItems.value;
+  if (items.length === 0) return null;
+
+  if (items.length === 1) {
+    const item = items[0];
+    return `Quantity for "${item.itemName}" exceeds the estimate quantity. Estimate: ${formatQuantity(item.estimateQuantity)}, Already used: ${formatQuantity(item.usedQuantity)}, Current: ${formatQuantity(item.currentQuantity)}, Total: ${formatQuantity(item.totalQuantity)}.`;
+  }
+
+  return `${items.length} items exceed their estimate quantities. Total PO quantities (including existing purchase orders) cannot exceed the estimate quantities.`;
+});
+
+// Watch for estimate UUID changes to refetch used quantities (after latestEstimateUuid is defined)
+watch(
+  () => latestEstimateUuid.value,
+  async (newEstimateUuid, oldEstimateUuid) => {
+    if (
+      isImportingFromEstimate.value &&
+      isProjectPurchaseOrder.value &&
+      newEstimateUuid &&
+      newEstimateUuid !== oldEstimateUuid
+    ) {
+      await fetchUsedQuantities();
+    }
+  },
+  { immediate: false }
+);
+
+// Watch for changes that require fetching used quantities (when importing from estimate)
+watch(
+  [
+    () => props.form.corporation_uuid,
+    () => props.form.project_uuid,
+    () => props.form.include_items,
+    () => latestEstimateUuid.value,
+  ],
+  async ([corpUuid, projectUuid, includeItems, estimateUuid]) => {
+    // Only fetch used quantities if importing from estimate and we have all required values
+    if (
+      isProjectPurchaseOrder.value &&
+      String(includeItems || '').toUpperCase() === 'IMPORT_ITEMS_FROM_ESTIMATE' &&
+      corpUuid &&
+      projectUuid &&
+      estimateUuid
+    ) {
+      await fetchUsedQuantities();
+    } else {
+      // Clear used quantities if not importing from estimate
+      usedQuantitiesByItem.value = {};
+    }
+  },
+  { immediate: false }
+);
+
 const masterPoItems = computed(() => {
   const corpUuid = selectedCorporationUuid.value;
   if (!corpUuid) return [];
@@ -2707,6 +2879,10 @@ const shouldShowLaborItemsSection = computed(() => {
 
 const laborItemsLoading = ref(false);
 const laborItemsError = ref<string | null>(null);
+
+// Estimate quantity availability tracking
+const usedQuantitiesByItem = ref<Record<string, number>>({});
+const loadingQuantityAvailability = ref(false);
 
 // Labor items description
 const laborItemsDescription = computed(() => {

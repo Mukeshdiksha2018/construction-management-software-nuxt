@@ -62,7 +62,8 @@
               :class="[
                 'align-middle transition-colors duration-150',
                 activeRowIndex === index ? 'bg-primary-50/40 dark:bg-primary-900/20' : '',
-                isOverInvoiced(item, index) ? 'bg-error-50/50 dark:bg-error-900/20 border-l-4 border-error-500' : ''
+                isOverInvoiced(item, index) ? 'bg-error-50/50 dark:bg-error-900/20 border-l-4 border-error-500' : '',
+                isQuantityExceeded(item, index) ? 'bg-warning-50/50 dark:bg-warning-900/20 border-l-4 border-warning-500' : ''
               ]"
             >
               <td class="px-2 py-2 align-middle w-1/12">
@@ -355,7 +356,8 @@
           :key="item.id"
           :class="[
             'px-4 py-4 space-y-3 transition-colors duration-150',
-            activeRowIndex === index ? 'bg-primary-50/30 dark:bg-primary-900/10' : ''
+            activeRowIndex === index ? 'bg-primary-50/30 dark:bg-primary-900/10' : '',
+            isQuantityExceeded(item, index) ? 'bg-warning-50/50 dark:bg-warning-900/20 border-l-4 border-warning-500' : ''
           ]"
         >
           <div class="space-y-2">
@@ -700,6 +702,8 @@ const props = withDefaults(defineProps<{
   hideModelNumber?: boolean
   hideLocation?: boolean
   showEditSelection?: boolean
+  usedQuantitiesByItem?: Record<string, number>
+  estimateItems?: any[]
 }>(), {
   title: 'PO Items',
   description: '',
@@ -720,6 +724,8 @@ const props = withDefaults(defineProps<{
   hideModelNumber: false,
   hideLocation: false,
   showEditSelection: false,
+  usedQuantitiesByItem: () => ({}),
+  estimateItems: () => [],
 })
 
 // Debug log - fires immediately when component is created
@@ -1201,6 +1207,48 @@ const isOverInvoiced = (item: PurchaseOrderItemDisplay, index: number): boolean 
   // Parse current value
   const currentNumeric = parseNumericInput(currentValue)
   return currentNumeric > toBeInvoiced
+}
+
+// Build a map of estimate items by item_uuid for quick lookup
+const estimateItemsMap = computed(() => {
+  const map = new Map<string, any>();
+  const estimateItems = props.estimateItems || [];
+  estimateItems.forEach((estItem: any) => {
+    if (estItem?.item_uuid) {
+      map.set(String(estItem.item_uuid).toLowerCase(), estItem);
+    }
+  });
+  return map;
+});
+
+// Check if an item has PO quantity exceeding available estimate quantity
+const isQuantityExceeded = (item: PurchaseOrderItemDisplay, index: number): boolean => {
+  if (showInvoiceValues.value) return false; // Only check for PO quantities, not invoice
+  if (!item.item_uuid) return false;
+  
+  const itemUuidKey = String(item.item_uuid).toLowerCase();
+  const estimateItem = estimateItemsMap.value.get(itemUuidKey);
+  if (!estimateItem) return false;
+  
+  const estimateQuantity = parseNumericInput(estimateItem.quantity || 0);
+  if (estimateQuantity <= 0) return false; // No limit if estimate quantity is 0 or negative
+  
+  // Check both the draft value and the actual item value
+  const draftValue = poDrafts[index]?.quantityInput;
+  const currentValue = item.po_quantity;
+  const usedQuantity = props.usedQuantitiesByItem?.[itemUuidKey] || 0;
+  
+  let currentPoQuantity = 0;
+  
+  // Parse draft value if it exists (user is typing)
+  if (draftValue !== undefined && draftValue !== null && draftValue !== '') {
+    currentPoQuantity = parseNumericInput(draftValue);
+  } else if (currentValue !== null && currentValue !== undefined && currentValue !== '') {
+    currentPoQuantity = parseNumericInput(currentValue);
+  }
+  
+  const totalQuantity = usedQuantity + currentPoQuantity;
+  return totalQuantity > estimateQuantity;
 }
 
 const emitInvoiceQuantityChange = (index: number, value: string | number | null | undefined) => {
