@@ -7,6 +7,7 @@
     :placeholder="placeholder"
     :size="size"
     :class="className"
+    :ui="menuUi"
     value-attribute="value"
     option-attribute="label"
     searchable
@@ -51,6 +52,11 @@ const emit = defineEmits<{
 }>()
 
 const uomStore = useUOMStore()
+
+// UI configuration for dropdown to show full content width
+const menuUi = {
+  content: 'max-h-60 min-w-full w-max',
+}
 
 const selectedValue = ref<string | undefined>(props.modelValue)
 const selectedOption = ref<UOMOption | undefined>(undefined)
