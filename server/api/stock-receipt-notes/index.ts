@@ -774,6 +774,212 @@ export default defineEventHandler(async (event: H3Event) => {
         }
       }
 
+      // Check if purchase order should be marked as Completed (all items fully received, no shortfall)
+      // This happens when save_as_open_po is false (normal save) and all items are fully received
+      if (
+        body.save_as_open_po !== true &&
+        receiptType === "purchase_order" &&
+        purchaseOrderUuid
+      ) {
+        try {
+          // Fetch all PO items for this purchase order
+          const { data: poItems, error: poItemsError } = await supabaseServer
+            .from("purchase_order_items_list")
+            .select("uuid, po_quantity")
+            .eq("purchase_order_uuid", purchaseOrderUuid)
+            .eq("is_active", true);
+
+          if (poItemsError) {
+            console.error("[StockReceiptNotes] Failed to fetch PO items for completion check:", poItemsError);
+          } else if (poItems && poItems.length > 0) {
+            // Fetch all receipt note items for this purchase order
+            const { data: receiptNoteItems, error: receiptItemsError } = await supabaseServer
+              .from("receipt_note_items")
+              .select("item_uuid, received_quantity")
+              .eq("purchase_order_uuid", purchaseOrderUuid)
+              .eq("is_active", true);
+
+            if (receiptItemsError) {
+              console.error("[StockReceiptNotes] Failed to fetch receipt note items for completion check:", receiptItemsError);
+            } else {
+              // Fetch all return note items for this purchase order (to account for returned quantities)
+              const { data: returnNoteItems, error: returnItemsError } = await supabaseServer
+                .from("return_note_items")
+                .select("item_uuid, return_quantity")
+                .eq("purchase_order_uuid", purchaseOrderUuid)
+                .eq("is_active", true);
+
+              if (returnItemsError) {
+                console.error("[StockReceiptNotes] Failed to fetch return note items for completion check:", returnItemsError);
+              } else {
+                // Calculate received and returned quantities by item
+                const receivedMap = new Map<string, number>();
+                const returnedMap = new Map<string, number>();
+
+                (receiptNoteItems || []).forEach((item: any) => {
+                  const itemUuid = item.item_uuid;
+                  if (itemUuid) {
+                    const key = String(itemUuid).trim().toLowerCase();
+                    const receivedQty = parseFloat(String(item.received_quantity || 0)) || 0;
+                    const existing = receivedMap.get(key) || 0;
+                    receivedMap.set(key, existing + receivedQty);
+                  }
+                });
+
+                (returnNoteItems || []).forEach((item: any) => {
+                  const itemUuid = item.item_uuid;
+                  if (itemUuid) {
+                    const key = String(itemUuid).trim().toLowerCase();
+                    const returnedQty = parseFloat(String(item.return_quantity || 0)) || 0;
+                    const existing = returnedMap.get(key) || 0;
+                    returnedMap.set(key, existing + returnedQty);
+                  }
+                });
+
+                // Check if all items have zero shortfall
+                let allItemsComplete = true;
+                for (const poItem of poItems) {
+                  const itemUuid = poItem.uuid;
+                  if (!itemUuid) continue;
+
+                  const key = String(itemUuid).trim().toLowerCase();
+                  const orderedQty = parseFloat(String(poItem.po_quantity || 0)) || 0;
+                  const receivedQty = receivedMap.get(key) || 0;
+                  const returnedQty = returnedMap.get(key) || 0;
+
+                  // Calculate remaining shortfall: ordered - received - returned
+                  const remainingShortfall = orderedQty - receivedQty - returnedQty;
+
+                  // If any item has remaining shortfall, PO is not complete
+                  if (remainingShortfall > 0) {
+                    allItemsComplete = false;
+                    break;
+                  }
+                }
+
+                // If all items are complete (zero shortfall), update PO status to Completed
+                if (allItemsComplete) {
+                  const { error: poUpdateError } = await supabaseServer
+                    .from("purchase_order_forms")
+                    .update({ status: "Completed" })
+                    .eq("uuid", purchaseOrderUuid);
+
+                  if (poUpdateError) {
+                    console.error("[StockReceiptNotes] Failed to update PO status to Completed:", poUpdateError);
+                  }
+                }
+              }
+            }
+          }
+        } catch (completionCheckError: any) {
+          console.error("[StockReceiptNotes] Error checking PO completion:", completionCheckError);
+          // Don't fail the entire operation, just log the error
+        }
+      }
+
+      // Check if change order should be marked as Completed (all items fully received, no shortfall)
+      // This happens when save_as_open_po is false (normal save) and all items are fully received
+      if (
+        body.save_as_open_po !== true &&
+        receiptType === "change_order" &&
+        changeOrderUuid
+      ) {
+        try {
+          // Fetch all CO items for this change order
+          const { data: coItems, error: coItemsError } = await supabaseServer
+            .from("change_order_items_list")
+            .select("uuid, co_quantity")
+            .eq("change_order_uuid", changeOrderUuid)
+            .eq("is_active", true);
+
+          if (coItemsError) {
+            console.error("[StockReceiptNotes] Failed to fetch CO items for completion check:", coItemsError);
+          } else if (coItems && coItems.length > 0) {
+            // Fetch all receipt note items for this change order
+            const { data: receiptNoteItems, error: receiptItemsError } = await supabaseServer
+              .from("receipt_note_items")
+              .select("item_uuid, received_quantity")
+              .eq("change_order_uuid", changeOrderUuid)
+              .eq("is_active", true);
+
+            if (receiptItemsError) {
+              console.error("[StockReceiptNotes] Failed to fetch receipt note items for completion check:", receiptItemsError);
+            } else {
+              // Fetch all return note items for this change order (to account for returned quantities)
+              const { data: returnNoteItems, error: returnItemsError } = await supabaseServer
+                .from("return_note_items")
+                .select("item_uuid, return_quantity")
+                .eq("change_order_uuid", changeOrderUuid)
+                .eq("is_active", true);
+
+              if (returnItemsError) {
+                console.error("[StockReceiptNotes] Failed to fetch return note items for completion check:", returnItemsError);
+              } else {
+                // Calculate received and returned quantities by item
+                const receivedMap = new Map<string, number>();
+                const returnedMap = new Map<string, number>();
+
+                (receiptNoteItems || []).forEach((item: any) => {
+                  const itemUuid = item.item_uuid;
+                  if (itemUuid) {
+                    const key = String(itemUuid).trim().toLowerCase();
+                    const receivedQty = parseFloat(String(item.received_quantity || 0)) || 0;
+                    const existing = receivedMap.get(key) || 0;
+                    receivedMap.set(key, existing + receivedQty);
+                  }
+                });
+
+                (returnNoteItems || []).forEach((item: any) => {
+                  const itemUuid = item.item_uuid;
+                  if (itemUuid) {
+                    const key = String(itemUuid).trim().toLowerCase();
+                    const returnedQty = parseFloat(String(item.return_quantity || 0)) || 0;
+                    const existing = returnedMap.get(key) || 0;
+                    returnedMap.set(key, existing + returnedQty);
+                  }
+                });
+
+                // Check if all items have zero shortfall
+                let allItemsComplete = true;
+                for (const coItem of coItems) {
+                  const itemUuid = coItem.uuid;
+                  if (!itemUuid) continue;
+
+                  const key = String(itemUuid).trim().toLowerCase();
+                  const orderedQty = parseFloat(String(coItem.co_quantity || 0)) || 0;
+                  const receivedQty = receivedMap.get(key) || 0;
+                  const returnedQty = returnedMap.get(key) || 0;
+
+                  // Calculate remaining shortfall: ordered - received - returned
+                  const remainingShortfall = orderedQty - receivedQty - returnedQty;
+
+                  // If any item has remaining shortfall, CO is not complete
+                  if (remainingShortfall > 0) {
+                    allItemsComplete = false;
+                    break;
+                  }
+                }
+
+                // If all items are complete (zero shortfall), update CO status to Completed
+                if (allItemsComplete) {
+                  const { error: coUpdateError } = await supabaseServer
+                    .from("change_orders")
+                    .update({ status: "Completed" })
+                    .eq("uuid", changeOrderUuid);
+
+                  if (coUpdateError) {
+                    console.error("[StockReceiptNotes] Failed to update CO status to Completed:", coUpdateError);
+                  }
+                }
+              }
+            }
+          }
+        } catch (completionCheckError: any) {
+          console.error("[StockReceiptNotes] Error checking CO completion:", completionCheckError);
+          // Don't fail the entire operation, just log the error
+        }
+      }
+
       return { data: responseData };
     }
 
@@ -1178,6 +1384,212 @@ export default defineEventHandler(async (event: H3Event) => {
             "[StockReceiptNotes] Error updating CO status:",
             coStatusError
           );
+          // Don't fail the entire operation, just log the error
+        }
+      }
+
+      // Check if purchase order should be marked as Completed (all items fully received, no shortfall)
+      // This happens when save_as_open_po is false (normal save) and all items are fully received
+      if (
+        body.save_as_open_po !== true &&
+        receiptType === "purchase_order" &&
+        purchaseOrderUuid
+      ) {
+        try {
+          // Fetch all PO items for this purchase order
+          const { data: poItems, error: poItemsError } = await supabaseServer
+            .from("purchase_order_items_list")
+            .select("uuid, po_quantity")
+            .eq("purchase_order_uuid", purchaseOrderUuid)
+            .eq("is_active", true);
+
+          if (poItemsError) {
+            console.error("[StockReceiptNotes] Failed to fetch PO items for completion check:", poItemsError);
+          } else if (poItems && poItems.length > 0) {
+            // Fetch all receipt note items for this purchase order
+            const { data: receiptNoteItems, error: receiptItemsError } = await supabaseServer
+              .from("receipt_note_items")
+              .select("item_uuid, received_quantity")
+              .eq("purchase_order_uuid", purchaseOrderUuid)
+              .eq("is_active", true);
+
+            if (receiptItemsError) {
+              console.error("[StockReceiptNotes] Failed to fetch receipt note items for completion check:", receiptItemsError);
+            } else {
+              // Fetch all return note items for this purchase order (to account for returned quantities)
+              const { data: returnNoteItems, error: returnItemsError } = await supabaseServer
+                .from("return_note_items")
+                .select("item_uuid, return_quantity")
+                .eq("purchase_order_uuid", purchaseOrderUuid)
+                .eq("is_active", true);
+
+              if (returnItemsError) {
+                console.error("[StockReceiptNotes] Failed to fetch return note items for completion check:", returnItemsError);
+              } else {
+                // Calculate received and returned quantities by item
+                const receivedMap = new Map<string, number>();
+                const returnedMap = new Map<string, number>();
+
+                (receiptNoteItems || []).forEach((item: any) => {
+                  const itemUuid = item.item_uuid;
+                  if (itemUuid) {
+                    const key = String(itemUuid).trim().toLowerCase();
+                    const receivedQty = parseFloat(String(item.received_quantity || 0)) || 0;
+                    const existing = receivedMap.get(key) || 0;
+                    receivedMap.set(key, existing + receivedQty);
+                  }
+                });
+
+                (returnNoteItems || []).forEach((item: any) => {
+                  const itemUuid = item.item_uuid;
+                  if (itemUuid) {
+                    const key = String(itemUuid).trim().toLowerCase();
+                    const returnedQty = parseFloat(String(item.return_quantity || 0)) || 0;
+                    const existing = returnedMap.get(key) || 0;
+                    returnedMap.set(key, existing + returnedQty);
+                  }
+                });
+
+                // Check if all items have zero shortfall
+                let allItemsComplete = true;
+                for (const poItem of poItems) {
+                  const itemUuid = poItem.uuid;
+                  if (!itemUuid) continue;
+
+                  const key = String(itemUuid).trim().toLowerCase();
+                  const orderedQty = parseFloat(String(poItem.po_quantity || 0)) || 0;
+                  const receivedQty = receivedMap.get(key) || 0;
+                  const returnedQty = returnedMap.get(key) || 0;
+
+                  // Calculate remaining shortfall: ordered - received - returned
+                  const remainingShortfall = orderedQty - receivedQty - returnedQty;
+
+                  // If any item has remaining shortfall, PO is not complete
+                  if (remainingShortfall > 0) {
+                    allItemsComplete = false;
+                    break;
+                  }
+                }
+
+                // If all items are complete (zero shortfall), update PO status to Completed
+                if (allItemsComplete) {
+                  const { error: poUpdateError } = await supabaseServer
+                    .from("purchase_order_forms")
+                    .update({ status: "Completed" })
+                    .eq("uuid", purchaseOrderUuid);
+
+                  if (poUpdateError) {
+                    console.error("[StockReceiptNotes] Failed to update PO status to Completed:", poUpdateError);
+                  }
+                }
+              }
+            }
+          }
+        } catch (completionCheckError: any) {
+          console.error("[StockReceiptNotes] Error checking PO completion:", completionCheckError);
+          // Don't fail the entire operation, just log the error
+        }
+      }
+
+      // Check if change order should be marked as Completed (all items fully received, no shortfall)
+      // This happens when save_as_open_po is false (normal save) and all items are fully received
+      if (
+        body.save_as_open_po !== true &&
+        receiptType === "change_order" &&
+        changeOrderUuid
+      ) {
+        try {
+          // Fetch all CO items for this change order
+          const { data: coItems, error: coItemsError } = await supabaseServer
+            .from("change_order_items_list")
+            .select("uuid, co_quantity")
+            .eq("change_order_uuid", changeOrderUuid)
+            .eq("is_active", true);
+
+          if (coItemsError) {
+            console.error("[StockReceiptNotes] Failed to fetch CO items for completion check:", coItemsError);
+          } else if (coItems && coItems.length > 0) {
+            // Fetch all receipt note items for this change order
+            const { data: receiptNoteItems, error: receiptItemsError } = await supabaseServer
+              .from("receipt_note_items")
+              .select("item_uuid, received_quantity")
+              .eq("change_order_uuid", changeOrderUuid)
+              .eq("is_active", true);
+
+            if (receiptItemsError) {
+              console.error("[StockReceiptNotes] Failed to fetch receipt note items for completion check:", receiptItemsError);
+            } else {
+              // Fetch all return note items for this change order (to account for returned quantities)
+              const { data: returnNoteItems, error: returnItemsError } = await supabaseServer
+                .from("return_note_items")
+                .select("item_uuid, return_quantity")
+                .eq("change_order_uuid", changeOrderUuid)
+                .eq("is_active", true);
+
+              if (returnItemsError) {
+                console.error("[StockReceiptNotes] Failed to fetch return note items for completion check:", returnItemsError);
+              } else {
+                // Calculate received and returned quantities by item
+                const receivedMap = new Map<string, number>();
+                const returnedMap = new Map<string, number>();
+
+                (receiptNoteItems || []).forEach((item: any) => {
+                  const itemUuid = item.item_uuid;
+                  if (itemUuid) {
+                    const key = String(itemUuid).trim().toLowerCase();
+                    const receivedQty = parseFloat(String(item.received_quantity || 0)) || 0;
+                    const existing = receivedMap.get(key) || 0;
+                    receivedMap.set(key, existing + receivedQty);
+                  }
+                });
+
+                (returnNoteItems || []).forEach((item: any) => {
+                  const itemUuid = item.item_uuid;
+                  if (itemUuid) {
+                    const key = String(itemUuid).trim().toLowerCase();
+                    const returnedQty = parseFloat(String(item.return_quantity || 0)) || 0;
+                    const existing = returnedMap.get(key) || 0;
+                    returnedMap.set(key, existing + returnedQty);
+                  }
+                });
+
+                // Check if all items have zero shortfall
+                let allItemsComplete = true;
+                for (const coItem of coItems) {
+                  const itemUuid = coItem.uuid;
+                  if (!itemUuid) continue;
+
+                  const key = String(itemUuid).trim().toLowerCase();
+                  const orderedQty = parseFloat(String(coItem.co_quantity || 0)) || 0;
+                  const receivedQty = receivedMap.get(key) || 0;
+                  const returnedQty = returnedMap.get(key) || 0;
+
+                  // Calculate remaining shortfall: ordered - received - returned
+                  const remainingShortfall = orderedQty - receivedQty - returnedQty;
+
+                  // If any item has remaining shortfall, CO is not complete
+                  if (remainingShortfall > 0) {
+                    allItemsComplete = false;
+                    break;
+                  }
+                }
+
+                // If all items are complete (zero shortfall), update CO status to Completed
+                if (allItemsComplete) {
+                  const { error: coUpdateError } = await supabaseServer
+                    .from("change_orders")
+                    .update({ status: "Completed" })
+                    .eq("uuid", changeOrderUuid);
+
+                  if (coUpdateError) {
+                    console.error("[StockReceiptNotes] Failed to update CO status to Completed:", coUpdateError);
+                  }
+                }
+              }
+            }
+          }
+        } catch (completionCheckError: any) {
+          console.error("[StockReceiptNotes] Error checking CO completion:", completionCheckError);
           // Don't fail the entire operation, just log the error
         }
       }
