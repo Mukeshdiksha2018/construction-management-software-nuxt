@@ -210,11 +210,13 @@ export default defineEventHandler(async (event) => {
     });
 
     // Get purchase orders for the project with approved/partially received/completed status
+    // Only include active purchase orders
     let poQuery = supabaseServer
       .from("purchase_order_forms")
       .select("uuid, vendor_uuid, status")
       .eq("project_uuid", projectUuid)
       .eq("corporation_uuid", corporationUuid)
+      .eq("is_active", true)
       .in("status", ["Approved", "Partially_Received", "Completed"]);
 
     // Filter by vendor if provided
