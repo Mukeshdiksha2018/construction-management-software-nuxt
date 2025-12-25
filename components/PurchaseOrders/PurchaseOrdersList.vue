@@ -2355,13 +2355,24 @@ const fetchUsedQuantities = async () => {
 
   loadingQuantityAvailability.value = true
   try {
+    // Always exclude the current PO if it has a UUID (for both new and existing POs)
+    // This ensures that when checking quantities, we don't double-count the current PO
+    const excludePoUuid = poForm.value?.uuid || null
+    
+    // Debug logging
+    console.log('[fetchUsedQuantities]', {
+      excludePoUuid,
+      poFormUuid: poForm.value?.uuid,
+      hasUuid: !!poForm.value?.uuid,
+    })
+    
     const response: any = await $fetch("/api/estimate-quantity-availability", {
       method: "GET",
       query: {
         corporation_uuid: corpUuid,
         project_uuid: projectUuid,
         estimate_uuid: estimateUuid,
-        exclude_po_uuid: poForm.value?.uuid, // Exclude current PO when editing
+        exclude_po_uuid: excludePoUuid || undefined, // Exclude current PO when editing (use undefined instead of null)
       },
     })
 
@@ -2401,6 +2412,35 @@ const checkForExceededQuantities = async (): Promise<{ hasExceeded: boolean; ite
   // Fetch used quantities first
   await fetchUsedQuantities()
   
+  // Get estimate items to use as source of truth for estimate quantities
+  // This ensures we're using the actual estimate quantities, not potentially modified values from PO items
+  const corpUuid = poForm.value?.corporation_uuid || corporationStore.selectedCorporationId
+  const projectUuid = poForm.value?.project_uuid
+  const estimateUuid = latestEstimate.value?.uuid
+  
+  // Ensure estimate items are loaded
+  if (corpUuid && projectUuid && estimateUuid) {
+    await purchaseOrderResourcesStore.ensureEstimateItems({
+      corporationUuid: corpUuid,
+      projectUuid: projectUuid,
+      estimateUuid: estimateUuid,
+    })
+  }
+  
+  const estimateItems = purchaseOrderResourcesStore.getEstimateItems(
+    corpUuid || '',
+    projectUuid || '',
+    estimateUuid || ''
+  ) || []
+  
+  // Build a lookup map of estimate items by item_uuid for quick access
+  const estimateItemsMap = new Map<string, any>()
+  estimateItems.forEach((estItem: any) => {
+    if (estItem?.item_uuid) {
+      estimateItemsMap.set(String(estItem.item_uuid).toLowerCase(), estItem)
+    }
+  })
+  
   const exceeded: any[] = []
   
   // Check material items - account for used quantities from other POs
@@ -2412,10 +2452,31 @@ const checkForExceededQuantities = async (): Promise<{ hasExceeded: boolean; ite
       if (!itemUuid) return
       
       const itemUuidKey = String(itemUuid).toLowerCase()
-      const estimateQty = parseFloat(String(item.quantity || 0))
+      
+      // Get estimate quantity from estimate items map (source of truth)
+      // Fallback to item.quantity only if estimate item is not found
+      const estimateItem = estimateItemsMap.get(itemUuidKey)
+      const estimateQty = estimateItem 
+        ? parseFloat(String(estimateItem.quantity || 0))
+        : parseFloat(String(item.quantity || 0))
+      
       const poQty = parseFloat(String(item.po_quantity || 0))
       const usedQuantity = usedQuantitiesByItem.value[itemUuidKey] || 0
       const totalQuantity = usedQuantity + poQty
+      
+      // Debug logging to help identify the issue
+      if (totalQuantity > estimateQty && estimateQty > 0) {
+        console.log('[PO Quantity Check] Item exceeded:', {
+          itemUuid: itemUuid,
+          itemUuidKey,
+          estimateQty,
+          poQty,
+          usedQuantity,
+          totalQuantity,
+          exceeded: totalQuantity - estimateQty,
+          excludePoUuid: poForm.value?.uuid,
+        })
+      }
       
       if (totalQuantity > estimateQty && estimateQty > 0) {
         exceeded.push({
@@ -2459,6 +2520,10 @@ const checkForExceededQuantities = async (): Promise<{ hasExceeded: boolean; ite
 }
 
 // Status-based save handlers
+// All status changes (Draft, Ready, Approved) go through the same validation flow:
+// 1. Check for exceeded quantities
+// 2. If exceeded, show modal to allow user to raise change order or continue
+// 3. If not exceeded, save directly
 const submitWithStatus = async (status: 'Draft' | 'Ready' | 'Approved') => {
   if (savingPO.value) return
   
@@ -2466,6 +2531,7 @@ const submitWithStatus = async (status: 'Draft' | 'Ready' | 'Approved') => {
   
   // Check for exceeded quantities before saving (for both new and existing POs)
   // This allows users to raise a change order for the difference
+  // This validation applies to ALL status changes: Draft, Ready, and Approved
   const { hasExceeded, items } = await checkForExceededQuantities()
   
   if (hasExceeded) {
@@ -2483,10 +2549,12 @@ const submitWithStatus = async (status: 'Draft' | 'Ready' | 'Approved') => {
 const handleSaveAsDraft = () => submitWithStatus('Draft')
 const handleMarkReady = () => submitWithStatus('Ready')
 
+// Approve handler - uses same validation flow as other status changes
 const handleApprove = async () => {
   await submitWithStatus('Approved')
 }
 
+// Approve and raise handler - uses same validation flow as other status changes
 const handleApproveAndRaise = async () => {
   // Approve and potentially trigger additional workflow (e.g., create receipt note)
   await submitWithStatus('Approved')
@@ -2494,6 +2562,7 @@ const handleApproveAndRaise = async () => {
   // For now, it just approves like handleApprove
 }
 
+// Reject handler - uses same validation flow as other status changes
 const handleRejectToDraft = () => submitWithStatus('Draft')
 
 const savePurchaseOrder = async (skipModalClose = false): Promise<any | null> => {
@@ -2529,6 +2598,10 @@ const savePurchaseOrder = async (skipModalClose = false): Promise<any | null> =>
         raise_against: poForm.value.raise_against || null, // Explicitly include raise_against
       }
       result = await purchaseOrdersStore.updatePurchaseOrder(payload)
+      // Update the form with the returned PO data to ensure it's in sync
+      if (result && result.uuid) {
+        poForm.value = { ...poForm.value, ...result }
+      }
       if (result && !skipModalClose) {
         const toast = useToast();
         toast.add({ 
@@ -2559,6 +2632,11 @@ const savePurchaseOrder = async (skipModalClose = false): Promise<any | null> =>
         raise_against: poForm.value.raise_against || null, // Explicitly include raise_against
       }
       result = await purchaseOrdersStore.createPurchaseOrder(payload)
+      // Update the form with the returned PO data (including UUID) so subsequent validations work correctly
+      if (result && result.uuid) {
+        poForm.value.uuid = result.uuid
+        poForm.value = { ...poForm.value, ...result }
+      }
       if (result && !skipModalClose) {
         const toast = useToast();
         toast.add({ title: 'Created', description: 'Purchase order created', color: 'success' })
