@@ -2693,7 +2693,15 @@ const fetchUsedQuantities = async () => {
       },
     });
 
-    usedQuantitiesByItem.value = response?.data || {};
+    // Normalize keys to lowercase to match lookup in POItemsTableWithEstimates
+    const normalizedData: Record<string, number> = {};
+    if (response?.data && typeof response.data === 'object') {
+      Object.keys(response.data).forEach((key) => {
+        const normalizedKey = String(key).toLowerCase();
+        normalizedData[normalizedKey] = response.data[key];
+      });
+    }
+    usedQuantitiesByItem.value = normalizedData;
   } catch (error: any) {
     console.error("Failed to fetch used quantities:", error);
     usedQuantitiesByItem.value = {};
@@ -5120,6 +5128,14 @@ onMounted(async () => {
       // Projects metadata is managed by TopBar's corporation selection
       Promise.resolve(),
       props.form.project_uuid ? projectAddressesStore.fetchAddresses(props.form.project_uuid) : Promise.resolve(),
+      // If importing from estimate, ensure estimates are loaded (important for "to be raised" screen)
+      props.form.project_uuid && String(props.form.include_items || '').toUpperCase() === 'IMPORT_ITEMS_FROM_ESTIMATE'
+        ? purchaseOrderResourcesStore.ensureEstimates({
+            corporationUuid: corpUuid,
+            projectUuid: props.form.project_uuid,
+            force: false,
+          })
+        : Promise.resolve(),
     ]);
     
     // CRITICAL: For existing POs with "Import from Master", explicitly fetch preferred items
@@ -5157,6 +5173,35 @@ onMounted(async () => {
   
   // Note: Financial calculations are now handled by FinancialBreakdown component
   // The component will automatically calculate on mount
+  
+  // Fetch used quantities if importing from estimate and we have all required values
+  // This is important for "to be raised" screen where items are pre-populated
+  if (
+    isProjectPurchaseOrder.value &&
+    String(props.form.include_items || '').toUpperCase() === 'IMPORT_ITEMS_FROM_ESTIMATE' &&
+    props.form.corporation_uuid &&
+    props.form.project_uuid
+  ) {
+    // Wait for estimates to be loaded and latestEstimateUuid to be computed
+    await nextTick();
+    await nextTick();
+    
+    // If we have an estimate UUID, fetch used quantities
+    // Also ensure estimate items are loaded if we have items pre-populated (from "to be raised")
+    if (latestEstimateUuid.value) {
+      // If items are pre-populated, ensure estimate items are loaded so available quantity can be calculated
+      if (Array.isArray(props.form.po_items) && props.form.po_items.length > 0) {
+        await purchaseOrderResourcesStore.ensureEstimateItems({
+          corporationUuid: props.form.corporation_uuid,
+          projectUuid: props.form.project_uuid,
+          estimateUuid: latestEstimateUuid.value,
+          force: false,
+        });
+        await nextTick();
+      }
+      await fetchUsedQuantities();
+    }
+  }
 });
 
 onBeforeUnmount(() => {

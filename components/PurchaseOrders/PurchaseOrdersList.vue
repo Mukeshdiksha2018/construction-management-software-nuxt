@@ -2282,7 +2282,15 @@ const fetchUsedQuantities = async () => {
       },
     })
 
-    usedQuantitiesByItem.value = response?.data || {}
+    // Normalize keys to lowercase to match lookup in POItemsTableWithEstimates
+    const normalizedData: Record<string, number> = {}
+    if (response?.data && typeof response.data === 'object') {
+      Object.keys(response.data).forEach((key) => {
+        const normalizedKey = String(key).toLowerCase()
+        normalizedData[normalizedKey] = response.data[key]
+      })
+    }
+    usedQuantitiesByItem.value = normalizedData
   } catch (error: any) {
     console.error("Failed to fetch used quantities:", error)
     usedQuantitiesByItem.value = {}
