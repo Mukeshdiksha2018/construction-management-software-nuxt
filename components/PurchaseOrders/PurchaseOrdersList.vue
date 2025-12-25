@@ -2648,10 +2648,9 @@ const savePurchaseOrder = async (skipModalClose = false): Promise<any | null> =>
           await fetchItemsTableData()
         }
         
-        // Refetch "to be raised" items if we're in ToBeRaised filter mode
-        // This updates the table after creating a PO from the "to be raised" screen
-        // Works for both: items that don't exceed available quantity, and items that exceed
-        // (when user chooses to continue without raising a change order)
+        // Return to summary screen after successful creation from "to be raised" screen
+        // Clear status filter and applied filters to show purchase orders table
+        // No need to refetch "to be raised" items since we're navigating away
         const wasOnToBeRaisedScreen = selectedStatusFilter.value === 'ToBeRaised'
         if (
           wasOnToBeRaisedScreen &&
@@ -2659,7 +2658,6 @@ const savePurchaseOrder = async (skipModalClose = false): Promise<any | null> =>
           appliedFilters.value.project &&
           appliedFilters.value.vendor
         ) {
-          await fetchToBeRaisedItems()
           // Return to summary screen after successful creation
           // Clear status filter and applied filters to show purchase orders table
           selectedStatusFilter.value = null
@@ -3513,8 +3511,9 @@ const handleRaiseChangeOrder = async () => {
         await changeOrdersStore.fetchChangeOrders(corpUuid, false)
       }
       
-      // Refetch "to be raised" items if we're in ToBeRaised filter mode
-      // This updates the table after creating a PO and CO from the "to be raised" screen
+      // Return to summary screen after successful creation from "to be raised" screen
+      // Clear status filter and applied filters to show purchase orders table
+      // No need to refetch "to be raised" items since we're navigating away
       const wasOnToBeRaisedScreen = selectedStatusFilter.value === 'ToBeRaised'
       if (
         wasOnToBeRaisedScreen &&
@@ -3522,7 +3521,6 @@ const handleRaiseChangeOrder = async () => {
         appliedFilters.value.project &&
         appliedFilters.value.vendor
       ) {
-        await fetchToBeRaisedItems()
         // Return to summary screen after successful creation
         // Clear status filter and applied filters to show purchase orders table
         selectedStatusFilter.value = null
