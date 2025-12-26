@@ -50,7 +50,7 @@
               <th class="w-1/12 px-4 py-2 text-right">Unit Price</th>
               <th class="w-1/12 px-4 py-2 text-right">UOM</th>
               <th v-if="showInvoiceValues" class="w-1/12 px-4 py-2 text-center">To Be Invoiced</th>
-              <th v-if="showEstimateValues" class="w-1/12 px-4 py-2 text-right">Available Qty</th>
+              <th v-if="false && showEstimateValues" class="w-1/12 px-4 py-2 text-right">Available Qty</th>
               <th class="w-1/12 px-4 py-2 text-right">Qty</th>
               <th class="w-2/12 px-4 py-2 text-right">Total</th>
               <th class="w-1/12 px-4 py-2 text-right">Actions</th>
@@ -271,7 +271,7 @@
                   <span class="font-mono text-sm text-default">{{ formatQuantity(item.to_be_invoiced ?? 0) }}</span>
                 </div>
               </td>
-              <td v-if="showEstimateValues" class="px-2 py-2 text-right align-middle">
+              <td v-if="false && showEstimateValues" class="px-2 py-2 text-right align-middle">
                 <div class="flex flex-col items-end gap-1">
                   <UInput
                     :model-value="formatQuantity(getAvailableQuantity(item, index))"
@@ -539,7 +539,7 @@
                 @change="(opt) => emitUomChange(index, opt?.value ?? null, opt)"
               />
             </div>
-            <div v-if="showEstimateValues" class="flex flex-col gap-1">
+            <div v-if="false && showEstimateValues" class="flex flex-col gap-1">
               <span class="block text-[11px] uppercase tracking-wide text-muted/80">Available Qty</span>
               <UInput
                 :model-value="formatQuantity(getAvailableQuantity(item, index))"
