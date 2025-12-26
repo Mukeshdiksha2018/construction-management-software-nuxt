@@ -399,16 +399,6 @@
         :description="estimateImportBlockedMessage"
       />
     </div>
-    <!-- Quantity Exceeded Warning (only show when estimate items section is visible) -->
-    <!-- Changed to informational only - user can proceed and will be prompted to raise CO -->
-    <div v-if="hasQuantityExceeded && !props.readonly && shouldShowEstimateItemsSection" class="mt-6">
-      <UBanner
-        color="warning"
-        icon="i-heroicons-exclamation-triangle"
-        title="Purchase order quantities exceed estimate quantities"
-        :description="quantityExceededMessage + ' You can proceed to save and will be prompted to raise a change order for the difference.'"
-      />
-    </div>
     <div v-if="shouldShowMasterItemsSection" class="mt-6">
       <POItemsFromItemMaster
         :items="poItemsForDisplay"
