@@ -302,28 +302,43 @@
                     disabled
                   />
                   <!-- Editable PO Quantity (when showInvoiceValues is false) or Invoice Quantity (when showInvoiceValues is true) -->
-                  <UInput
-                    v-if="!showInvoiceValues"
-                    :model-value="poDrafts[index]?.quantityInput ?? toInputString(item.po_quantity)"
-                    size="xs"
-                    inputmode="decimal"
-                    class="w-full max-w-[120px] text-right font-mono"
-                    :disabled="props.readonly"
-                    @focus="setActiveRow(index)"
-                    @blur="clearActiveRow(index)"
-                    @update:model-value="(value) => emitPoQuantityChange(index, value)"
-                  />
-                  <UInput
-                    v-else
-                    :model-value="invoiceDrafts[index]?.quantityInput ?? toInputString((item.invoice_quantity !== null && item.invoice_quantity !== undefined) ? item.invoice_quantity : null)"
-                    size="xs"
-                    inputmode="decimal"
-                    class="w-full max-w-[120px] text-right font-mono"
-                    :disabled="props.readonly"
-                    @focus="setActiveRow(index)"
-                    @blur="clearActiveRow(index)"
-                    @update:model-value="(value) => emitInvoiceQuantityChange(index, value)"
-                  />
+                  <div class="flex flex-col items-end gap-0.5 w-full max-w-[120px]">
+                    <UInput
+                      v-if="!showInvoiceValues"
+                      :model-value="poDrafts[index]?.quantityInput ?? toInputString(item.po_quantity)"
+                      size="xs"
+                      inputmode="decimal"
+                      class="w-full text-right font-mono"
+                      :disabled="props.readonly"
+                      @focus="setActiveRow(index)"
+                      @blur="clearActiveRow(index)"
+                      @update:model-value="(value) => emitPoQuantityChange(index, value)"
+                    />
+                    <UInput
+                      v-else
+                      :model-value="invoiceDrafts[index]?.quantityInput ?? toInputString((item.invoice_quantity !== null && item.invoice_quantity !== undefined) ? item.invoice_quantity : null)"
+                      size="xs"
+                      inputmode="decimal"
+                      class="w-full text-right font-mono"
+                      :disabled="props.readonly"
+                      @focus="setActiveRow(index)"
+                      @blur="clearActiveRow(index)"
+                      @update:model-value="(value) => emitInvoiceQuantityChange(index, value)"
+                    />
+                    <!-- Visual indicator showing remaining available quantity -->
+                    <div
+                      v-if="showEstimateValues && !showInvoiceValues && !props.readonly"
+                      class="w-full text-[10px] font-medium transition-colors duration-150"
+                      :class="getRemainingQuantityClass(item, index)"
+                    >
+                      <span v-if="getRemainingQuantity(item, index) >= 0">
+                        Remaining: {{ formatQuantity(getRemainingQuantity(item, index)) }}
+                      </span>
+                      <span v-else class="text-error-600 dark:text-error-400">
+                        Over by: {{ formatQuantity(Math.abs(getRemainingQuantity(item, index))) }}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </td>
               <td class="px-2 py-2 text-right align-middle w-2/12">
@@ -554,28 +569,43 @@
                 disabled
               />
               <!-- Editable PO Quantity (when showInvoiceValues is false) or Invoice Quantity (when showInvoiceValues is true) -->
-              <UInput
-                v-if="!showInvoiceValues"
-                :model-value="poDrafts[index]?.quantityInput ?? toInputString(item.po_quantity)"
-                size="xs"
-                inputmode="decimal"
-                class="text-right font-mono"
-                :disabled="props.readonly"
-                @focus="setActiveRow(index)"
-                @blur="clearActiveRow(index)"
-                @update:model-value="(value) => emitPoQuantityChange(index, value)"
-              />
-              <UInput
-                v-else
-                :model-value="invoiceDrafts[index]?.quantityInput ?? toInputString((item.invoice_quantity !== null && item.invoice_quantity !== undefined) ? item.invoice_quantity : null)"
-                size="xs"
-                inputmode="decimal"
-                class="text-right font-mono"
-                :disabled="props.readonly"
-                @focus="setActiveRow(index)"
-                @blur="clearActiveRow(index)"
-                @update:model-value="(value) => emitInvoiceQuantityChange(index, value)"
-              />
+              <div class="flex flex-col gap-0.5">
+                <UInput
+                  v-if="!showInvoiceValues"
+                  :model-value="poDrafts[index]?.quantityInput ?? toInputString(item.po_quantity)"
+                  size="xs"
+                  inputmode="decimal"
+                  class="text-right font-mono"
+                  :disabled="props.readonly"
+                  @focus="setActiveRow(index)"
+                  @blur="clearActiveRow(index)"
+                  @update:model-value="(value) => emitPoQuantityChange(index, value)"
+                />
+                <UInput
+                  v-else
+                  :model-value="invoiceDrafts[index]?.quantityInput ?? toInputString((item.invoice_quantity !== null && item.invoice_quantity !== undefined) ? item.invoice_quantity : null)"
+                  size="xs"
+                  inputmode="decimal"
+                  class="text-right font-mono"
+                  :disabled="props.readonly"
+                  @focus="setActiveRow(index)"
+                  @blur="clearActiveRow(index)"
+                  @update:model-value="(value) => emitInvoiceQuantityChange(index, value)"
+                />
+                <!-- Visual indicator showing remaining available quantity -->
+                <div
+                  v-if="showEstimateValues && !showInvoiceValues && !props.readonly"
+                  class="text-[10px] font-medium transition-colors duration-150"
+                  :class="getRemainingQuantityClass(item, index)"
+                >
+                  <span v-if="getRemainingQuantity(item, index) >= 0">
+                    Remaining: {{ formatQuantity(getRemainingQuantity(item, index)) }}
+                  </span>
+                  <span v-else class="text-error-600 dark:text-error-400">
+                    Over by: {{ formatQuantity(Math.abs(getRemainingQuantity(item, index))) }}
+                  </span>
+                </div>
+              </div>
             </div>
             <div class="flex flex-col gap-1">
               <span class="block text-[11px] uppercase tracking-wide text-muted/80">Unit Price</span>
@@ -1302,6 +1332,49 @@ const getAvailableQuantity = (item: PurchaseOrderItemDisplay, index: number): nu
   
   const availableQuantity = Math.max(0, estimateQuantity - usedQuantity);
   return availableQuantity;
+}
+
+// Get remaining available quantity after subtracting current PO quantity input
+// This provides visual feedback as the user types
+const getRemainingQuantity = (item: PurchaseOrderItemDisplay, index: number): number => {
+  if (!item.item_uuid) return 0;
+  
+  const availableQty = getAvailableQuantity(item, index);
+  
+  // Get current input value (from draft if user is typing, otherwise from item)
+  const draftValue = poDrafts[index]?.quantityInput;
+  const currentValue = item.po_quantity;
+  
+  let currentPoQuantity = 0;
+  if (draftValue !== undefined && draftValue !== null && draftValue !== '') {
+    currentPoQuantity = parseNumericInput(draftValue);
+  } else if (currentValue !== null && currentValue !== undefined && currentValue !== '') {
+    currentPoQuantity = parseNumericInput(currentValue);
+  }
+  
+  // Calculate remaining: available - current input
+  const remaining = availableQty - currentPoQuantity;
+  return remaining;
+}
+
+// Get CSS class for remaining quantity indicator based on value
+const getRemainingQuantityClass = (item: PurchaseOrderItemDisplay, index: number): string => {
+  const remaining = getRemainingQuantity(item, index);
+  const availableQty = getAvailableQuantity(item, index);
+  
+  if (remaining < 0) {
+    // Over the available quantity
+    return 'text-error-600 dark:text-error-400';
+  } else if (remaining === 0) {
+    // Exactly at available quantity
+    return 'text-warning-600 dark:text-warning-400';
+  } else if (availableQty > 0 && remaining <= availableQty * 0.1) {
+    // Less than 10% remaining
+    return 'text-warning-500 dark:text-warning-500';
+  } else {
+    // Plenty remaining
+    return 'text-muted';
+  }
 }
 
 // Check if an item has PO quantity exceeding available estimate quantity
