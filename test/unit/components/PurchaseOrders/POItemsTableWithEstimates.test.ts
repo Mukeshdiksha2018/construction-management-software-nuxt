@@ -629,7 +629,7 @@ it("initializes inputs with persisted PO unit price and quantity", async () => {
   });
 
   describe('Available Quantity Column (showEstimateValues = true)', () => {
-    it('should display Available Qty column when showEstimateValues is true', async () => {
+    it('should NOT display Available Qty column (column is hidden)', async () => {
       const estimateItems = [
         {
           item_uuid: baseItem.item_uuid || 'item-uuid-1',
@@ -662,11 +662,8 @@ it("initializes inputs with persisted PO unit price and quantity", async () => {
       await nextTick();
 
       const text = wrapper.text();
-      expect(text).toContain('Available Qty');
-      
-      // Available Qty = Estimate Qty (100) - Used Qty (50) = 50
-      const html = wrapper.html();
-      expect(html).toContain('50');
+      // Available Qty column is now hidden (v-if="false && showEstimateValues")
+      expect(text).not.toContain('Available Qty');
     });
 
     it('should calculate available quantity correctly (estimate - used)', async () => {
