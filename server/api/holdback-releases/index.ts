@@ -54,12 +54,12 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    const { data, error } = await queryBuilder.order("created_at", { ascending: true });
+    const { data: holdbackData, error } = await queryBuilder.order("created_at", { ascending: true });
     
     console.log('[API holdback-releases] Query result:', {
-      dataCount: data?.length || 0,
+      dataCount: holdbackData?.length || 0,
       error: error?.message,
-      sampleData: data?.slice(0, 2), // Log first 2 records as sample
+      sampleData: holdbackData?.slice(0, 2), // Log first 2 records as sample
     });
 
     if (error) {
@@ -70,8 +70,38 @@ export default defineEventHandler(async (event) => {
       });
     }
 
+    // Filter to only include holdback releases from active vendor invoices
+    // Get unique vendor invoice UUIDs from the holdback data
+    const vendorInvoiceUuids = [...new Set(
+      (holdbackData || [])
+        .map((item: any) => item.vendor_invoice_uuid)
+        .filter((uuid: any) => uuid)
+    )];
+
+    // Fetch active vendor invoices
+    let activeInvoiceUuids: string[] = [];
+    if (vendorInvoiceUuids.length > 0) {
+      const { data: vendorInvoices, error: vendorInvoicesError } = await supabaseServer
+        .from("vendor_invoices")
+        .select("uuid")
+        .in("uuid", vendorInvoiceUuids)
+        .eq("is_active", true);
+
+      if (vendorInvoicesError) {
+        console.error("[API holdback-releases] Error fetching vendor invoices:", vendorInvoicesError);
+        // Continue with empty array - will filter out all items
+      } else {
+        activeInvoiceUuids = (vendorInvoices || []).map((vi: any) => vi.uuid);
+      }
+    }
+
+    // Filter holdback data to only include releases from active vendor invoices
+    const filteredData = (holdbackData || []).filter((item: any) => {
+      return activeInvoiceUuids.includes(item.vendor_invoice_uuid);
+    });
+
     const result = {
-      data: data || [],
+      data: filteredData || [],
     };
     
     console.log('[API holdback-releases] Returning data:', {
