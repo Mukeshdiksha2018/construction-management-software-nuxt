@@ -3221,11 +3221,16 @@ const openEstimateModal = async (costCode: any): Promise<void> => {
       const normalizedItems = costCode.material_items.map((item: any) => normalizeMaterialItem(item))
       const enrichedItems = enrichMaterialItemsWithSequence(normalizedItems, costCode.uuid)
       
-      // Filter out duplicates based on item_uuid
+      // Filter out duplicates based on item_uuid (only filter if item_uuid exists)
       const seenItemUuids = new Set<string>()
       materialItems.value = enrichedItems.filter((item: any) => {
         const itemUuid = String(item.item_uuid || '').toLowerCase()
-        if (!itemUuid || seenItemUuids.has(itemUuid)) {
+        // If no item_uuid, always include (might be manually entered item)
+        if (!itemUuid) {
+          return true
+        }
+        // If item_uuid exists, check for duplicates
+        if (seenItemUuids.has(itemUuid)) {
           return false // Skip duplicates
         }
         seenItemUuids.add(itemUuid)
