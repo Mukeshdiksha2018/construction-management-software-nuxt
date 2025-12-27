@@ -1947,27 +1947,37 @@ const loadPreferredItems = () => {
       )
     }
     
-    // Convert preferred items to material items format
-    materialItems.value = filteredPreferredItems.map((item: any) => {
-      const resolvedUnit = resolveUnitOption(item.unit_uuid, item.unit || item.unit_label || item.unit_short_name)
-      const materialItem = normalizeMaterialItem({
-        item_uuid: item.uuid || '',
-        item_type: item.item_type_uuid || '',
-        sequence: item.item_sequence || '', // Load sequence from preferred item
-        name: item.item_name || '',
-        description: item.description || '',
-        model_number: item.model_number || '',
-        unit_price: parseFloat(item.unit_price) || 0,
-        unit_uuid: resolvedUnit?.value || '',
-        unit_label: resolvedUnit?.label || '',
-        unit_short_name: resolvedUnit?.shortName || '',
-        quantity: 1,
-        total: parseFloat(item.unit_price) || 0,
-        is_preferred: true,
+    // Convert preferred items to material items format, filtering out duplicates
+    const seenItemUuids = new Set<string>()
+    materialItems.value = filteredPreferredItems
+      .filter((item: any) => {
+        const itemUuid = String(item.uuid || '').toLowerCase()
+        if (!itemUuid || seenItemUuids.has(itemUuid)) {
+          return false // Skip duplicates
+        }
+        seenItemUuids.add(itemUuid)
+        return true
       })
-      
-      return materialItem
-    })
+      .map((item: any) => {
+        const resolvedUnit = resolveUnitOption(item.unit_uuid, item.unit || item.unit_label || item.unit_short_name)
+        const materialItem = normalizeMaterialItem({
+          item_uuid: item.uuid || '',
+          item_type: item.item_type_uuid || '',
+          sequence: item.item_sequence || '', // Load sequence from preferred item
+          name: item.item_name || '',
+          description: item.description || '',
+          model_number: item.model_number || '',
+          unit_price: parseFloat(item.unit_price) || 0,
+          unit_uuid: resolvedUnit?.value || '',
+          unit_label: resolvedUnit?.label || '',
+          unit_short_name: resolvedUnit?.shortName || '',
+          quantity: 1,
+          total: parseFloat(item.unit_price) || 0,
+          is_preferred: true,
+        })
+        
+        return materialItem
+      })
   } else {
     // If no preferred items, start with empty array
     materialItems.value = []
@@ -1980,7 +1990,18 @@ const removeMaterialItem = (index: number) => {
 
 const duplicateMaterialItem = (index: number) => {
   const item = normalizeMaterialItem(materialItems.value[index] || {})
-  materialItems.value.splice(index + 1, 0, { ...item })
+  // Clear item_uuid to prevent duplicate items - user must select a different item
+  const duplicatedItem = { 
+    ...item,
+    item_uuid: '',
+    name: '',
+    description: '',
+    model_number: '',
+    sequence: '',
+    unit_price: 0,
+    total: 0
+  }
+  materialItems.value.splice(index + 1, 0, duplicatedItem)
 }
 
 const updateMaterialItemTotal = (index: number) => {
@@ -1993,6 +2014,33 @@ const updateMaterialItemTotal = (index: number) => {
 const handleItemUuidChange = (index: number, itemUuid: string | undefined, option?: any) => {
   const item = materialItems.value[index]
   if (!item) return
+  
+  // Check for duplicate item_uuid (excluding the current row)
+  if (itemUuid) {
+    const duplicateIndex = materialItems.value.findIndex((existingItem, idx) => 
+      idx !== index && 
+      existingItem.item_uuid && 
+      String(existingItem.item_uuid).toLowerCase() === String(itemUuid).toLowerCase()
+    )
+    
+    if (duplicateIndex !== -1) {
+      // Show error message
+      try {
+        const toast = useToast()
+        toast.add({
+          title: 'Duplicate Item',
+          description: 'This item is already in the list. The duplicate row has been removed.',
+          color: 'error',
+          icon: 'i-heroicons-exclamation-circle'
+        })
+      } catch (e) {
+        console.warn('Duplicate item detected:', itemUuid)
+      }
+      // Remove the duplicate row (the current row being edited)
+      materialItems.value.splice(index, 1)
+      return
+    }
+  }
   
   // Update item_uuid
   item.item_uuid = itemUuid || ''
@@ -3171,7 +3219,18 @@ const openEstimateModal = async (costCode: any): Promise<void> => {
       materialEstimateType.value = 'item-wise'
       // Enrich saved items with current sequence values from preferred items
       const normalizedItems = costCode.material_items.map((item: any) => normalizeMaterialItem(item))
-      materialItems.value = enrichMaterialItemsWithSequence(normalizedItems, costCode.uuid)
+      const enrichedItems = enrichMaterialItemsWithSequence(normalizedItems, costCode.uuid)
+      
+      // Filter out duplicates based on item_uuid
+      const seenItemUuids = new Set<string>()
+      materialItems.value = enrichedItems.filter((item: any) => {
+        const itemUuid = String(item.item_uuid || '').toLowerCase()
+        if (!itemUuid || seenItemUuids.has(itemUuid)) {
+          return false // Skip duplicates
+        }
+        seenItemUuids.add(itemUuid)
+        return true
+      })
       materialManualAmount.value = ''
     } else {
       materialEstimateType.value = 'manual'
