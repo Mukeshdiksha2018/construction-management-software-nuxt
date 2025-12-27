@@ -173,7 +173,7 @@
                 <UInput
                   v-model="formattedOpeningBalance"
                   type="number"
-                  step="0.01"
+                  step="1"
                   variant="subtle"
                   placeholder="0.00"
                   size="sm"

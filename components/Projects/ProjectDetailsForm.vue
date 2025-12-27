@@ -280,7 +280,7 @@
                     <UInput
                       v-model="form.contingency_percentage"
                       type="number"
-                      step="0.01"
+                      step="1"
                       placeholder="%"
                       size="sm"
                       class="w-full"

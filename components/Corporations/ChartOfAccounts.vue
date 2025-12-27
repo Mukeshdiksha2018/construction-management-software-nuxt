@@ -303,7 +303,7 @@
                     id="opening-balance"
                     v-model.number="form.opening_balance"
                     type="number"
-                    step="0.01"
+                    step="1"
                     variant="subtle"
                     placeholder="0.00"
                     class="w-full pl-8"

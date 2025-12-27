@@ -120,7 +120,7 @@
                 <UInput
                   v-model="form.amount"
                   type="number"
-                  step="0.01"
+                  step="1"
                   pattern="[0-9.]*"
                   inputmode="decimal"
                   placeholder="0.00"
@@ -267,7 +267,7 @@
                 <UInput
                   v-model="item.amount"
                   type="number"
-                  step="0.01"
+                  step="1"
                   pattern="[0-9.]*"
                   inputmode="decimal"
                   placeholder="0.00"
@@ -406,7 +406,7 @@
                 <UInput
                   v-model="item.amount"
                   type="number"
-                  step="0.01"
+                  step="1"
                   pattern="[0-9.]*"
                   inputmode="decimal"
                   placeholder="0.00"

@@ -819,7 +819,7 @@
                     <UInput
                       v-model="laborManualAmount"
                       type="number"
-                      step="0.01"
+                      step="1"
                       placeholder="0.00"
                       :disabled="isReadOnly"
                       @update:model-value="updateLaborTotal"
@@ -850,7 +850,7 @@
                     <UInput
                       v-model="laborAmountPerRoom"
                       type="number"
-                      step="0.01"
+                      step="1"
                       placeholder="0.00"
                       :disabled="isReadOnly"
                       @update:model-value="updateLaborTotal"
@@ -881,7 +881,7 @@
                     <UInput
                       v-model="laborAmountPerSqft"
                       type="number"
-                      step="0.01"
+                      step="1"
                       placeholder="0.00"
                       :disabled="isReadOnly"
                       @update:model-value="updateLaborTotal"
@@ -927,7 +927,7 @@
                     <UInput
                       v-model="materialManualAmount"
                       type="number"
-                      step="0.01"
+                      step="1"
                       placeholder="0.00"
                       :disabled="isReadOnly"
                       @update:model-value="updateMaterialTotal"
@@ -1038,7 +1038,7 @@
                             <UInput
                               v-model="item.unit_price"
                               type="number"
-                              step="0.01"
+                              step="1"
                               placeholder="0.00"
                               size="xs"
                               class="w-20"
@@ -1064,13 +1064,13 @@
                             <UInput
                               v-model="item.quantity"
                               type="number"
-                              step="0.01"
+                              step="1"
                               placeholder="0"
                               size="xs"
                               class="w-16"
                               :disabled="isReadOnly"
                               @update:model-value="updateMaterialItemTotal(index)"
-                              @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"
+                              @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"
                             />
                           </td>
                           <!-- Total -->
@@ -1161,7 +1161,7 @@
                           : String(selectedCostCode.contingency_percentage))
                       : String(currentProject?.contingency_percentage ?? '0')"
                     type="number"
-                    step="0.01"
+                    step="1"
                     :placeholder="selectedCostCode?.contingency_enabled ? String(currentProject?.contingency_percentage ?? '0') : 'e.g. 5'"
                     class="w-40"
                     :disabled="isReadOnly || !selectedCostCode?.contingency_enabled"

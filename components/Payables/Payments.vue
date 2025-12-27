@@ -206,7 +206,7 @@
               <UInput
                 v-model="form.amount"
                 type="number"
-                step="0.01"
+                step="1"
                 placeholder="0.00"
                 size="sm"
                 @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"

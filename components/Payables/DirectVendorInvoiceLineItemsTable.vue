@@ -105,7 +105,7 @@
                 <UInput
                   :model-value="itemDrafts[index]?.unitPriceInput ?? toInputString(item.unit_price)"
                   type="number"
-                  step="0.01"
+                  step="1"
                   pattern="[0-9.]*"
                   inputmode="decimal"
                   size="xs"
@@ -135,7 +135,7 @@
               <UInput
                 :model-value="itemDrafts[index]?.quantityInput ?? toInputString(item.quantity)"
                 type="number"
-                step="0.01"
+                step="1"
                 pattern="[0-9.]*"
                 inputmode="decimal"
                 size="xs"
