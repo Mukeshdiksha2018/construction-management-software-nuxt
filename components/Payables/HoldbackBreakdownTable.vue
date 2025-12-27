@@ -100,7 +100,7 @@
 
               <!-- Release Amount -->
               <td class="px-3 py-2 align-middle">
-                <div class="relative">
+                <div class="flex flex-col gap-1">
                   <UInput
                     :model-value="row.releaseAmount !== null && row.releaseAmount !== undefined ? String(row.releaseAmount) : ''"
                     type="number"
@@ -121,8 +121,17 @@
                     @update:model-value="(value) => handleReleaseAmountChange(index, value)"
                     @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab') e.preventDefault(); }"
                   />
-                  <div v-if="shouldValidateReleaseAmount && isReleaseAmountExceeded(row.cost_code_uuid, parseFloat(String(row.releaseAmount || 0)) || 0, row.retainageAmount || 0)" class="text-xs text-red-600 dark:text-red-400 mt-1">
+                  <div v-if="shouldValidateReleaseAmount && isReleaseAmountExceeded(row.cost_code_uuid, parseFloat(String(row.releaseAmount || 0)) || 0, row.retainageAmount || 0)" class="text-xs text-red-600 dark:text-red-400">
                     Exceeds available amount
+                  </div>
+                  <div v-if="!readonly && !props.currentInvoiceUuid && row.cost_code_uuid && row.retainageAmount" class="text-[10px] font-mono"
+                    :class="getRemainingReleaseAmountClass(row, index)">
+                    <span v-if="getRemainingReleaseAmount(row, index) >= 0">
+                      Remaining: {{ formatCurrency(getRemainingReleaseAmount(row, index)) }}
+                    </span>
+                    <span v-else>
+                      Over by: {{ formatCurrency(Math.abs(getRemainingReleaseAmount(row, index))) }}
+                    </span>
                   </div>
                 </div>
               </td>
@@ -428,6 +437,35 @@ const isReleaseAmountExceeded = (costCodeUuid: string | null, releaseAmount: num
   
   const remaining = getRemainingRetainageAmount(costCodeUuid, retainageAmount)
   return releaseAmount > remaining
+}
+
+// Calculate remaining amount after subtracting release amount from available amount
+const getRemainingReleaseAmount = (row: any, index: number): number => {
+  if (!row.cost_code_uuid || !row.retainageAmount) {
+    return 0
+  }
+  
+  const availableAmount = getRemainingRetainageAmount(row.cost_code_uuid, row.retainageAmount)
+  const releaseAmount = parseFloat(String(row.releaseAmount || 0)) || 0
+  
+  const remaining = availableAmount - releaseAmount
+  return remaining
+}
+
+// Get CSS class for remaining release amount display
+const getRemainingReleaseAmountClass = (row: any, index: number): string => {
+  const remaining = getRemainingReleaseAmount(row, index)
+  const availableAmount = getRemainingRetainageAmount(row.cost_code_uuid, row.retainageAmount)
+  
+  if (remaining < 0) {
+    return 'text-error-600 dark:text-error-400'
+  } else if (remaining === 0) {
+    return 'text-warning-600 dark:text-warning-400'
+  } else if (availableAmount > 0 && remaining <= availableAmount * 0.1) {
+    return 'text-warning-500 dark:text-warning-500'
+  } else {
+    return 'text-muted'
+  }
 }
 
 // Check if any row has exceeded the available amount
