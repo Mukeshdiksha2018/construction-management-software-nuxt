@@ -22,6 +22,7 @@
           <USelectMenu
             v-model="selectedVendor"
             :items="vendorOptions"
+            value-key="value"
             placeholder="All vendors"
             searchable
             clearable
@@ -97,7 +98,7 @@
               </UBadge>
               <UBadge
                 v-if="payment.reference_number"
-                color="gray"
+                color="neutral"
                 variant="soft"
                 size="sm"
               >
@@ -138,7 +139,7 @@
               icon="i-heroicons-trash"
               size="sm"
               variant="soft"
-              color="red"
+              color="error"
               @click="deletePayment(payment)"
             />
           </div>
@@ -170,6 +171,7 @@
               <USelectMenu
                 v-model="form.vendor_uuid"
                 :items="vendorOptions"
+                value-key="value"
                 placeholder="Select vendor"
                 searchable
                 size="sm"
@@ -232,6 +234,7 @@
             <USelectMenu
               v-model="form.bill_entry_uuid"
               :items="billEntryOptions"
+              value-key="value"
               placeholder="Select bill to pay"
               searchable
               clearable
@@ -382,7 +385,7 @@ const vendorOptions = computed(() => {
 const billEntryOptions = computed(() => {
   const list = billEntriesStore.billEntries ?? [];
   return list.map((bill) => ({
-    label: `${bill.number || 'No Number'} - ${bill.vendors?.vendor_name || bill.payee_name} - $${bill.amount.toFixed(2)}`,
+    label: `${bill.number || 'No Number'} - ${bill.payee_name} - $${bill.amount.toFixed(2)}`,
     value: bill.id
   }));
 });
@@ -427,10 +430,10 @@ const addNewPayment = () => {
 const editPayment = (payment: any) => {
   editingPayment.value = payment.id;
   form.value = {
-    vendor_uuid: payment.vendor_uuid,
-    payment_method: payment.payment_method,
-    payment_date: payment.payment_date,
-    amount: payment.amount,
+    vendor_uuid: payment.vendor_uuid || "",
+    payment_method: (payment.payment_method || "CHECK") as 'CHECK' | 'ACH' | 'WIRE' | 'CASH' | 'CARD',
+    payment_date: payment.payment_date || new Date().toISOString().split('T')[0],
+    amount: payment.amount || 0,
     reference_number: payment.reference_number || "",
     bill_entry_uuid: payment.bill_entry_uuid || "",
     memo: payment.memo || ""
@@ -457,7 +460,7 @@ const closeDeleteModal = () => {
 const resetForm = () => {
   form.value = {
     vendor_uuid: "",
-    payment_method: "CHECK",
+    payment_method: "CHECK" as 'CHECK' | 'ACH' | 'WIRE' | 'CASH' | 'CARD',
     payment_date: new Date().toISOString().split('T')[0],
     amount: 0,
     reference_number: "",
@@ -474,8 +477,13 @@ const submitPayment = async () => {
 
     const payload = {
       corporation_uuid: corpStore.selectedCorporation.uuid,
-      ...form.value,
-      amount: parseFloat(form.value.amount.toString())
+      vendor_uuid: form.value.vendor_uuid,
+      payment_method: form.value.payment_method as 'CHECK' | 'ACH' | 'WIRE' | 'CASH' | 'CARD',
+      payment_date: form.value.payment_date,
+      amount: parseFloat(form.value.amount.toString()),
+      reference_number: form.value.reference_number || undefined,
+      bill_entry_uuid: form.value.bill_entry_uuid || undefined,
+      memo: form.value.memo || undefined
     };
 
     if (editingPayment.value) {
@@ -508,15 +516,15 @@ const applyFilters = () => {
   // Filters are applied automatically through computed property
 };
 
-const getPaymentMethodColor = (method: string) => {
-  const colors: Record<string, string> = {
-    'CHECK': 'blue',
-    'ACH': 'green',
-    'WIRE': 'primary',
-    'CASH': 'yellow',
-    'CARD': 'orange'
+const getPaymentMethodColor = (method: string): 'error' | 'info' | 'primary' | 'success' | 'secondary' | 'warning' | 'neutral' | undefined => {
+  const colors: Record<string, 'error' | 'info' | 'primary' | 'success' | 'secondary' | 'warning' | 'neutral' | undefined> = {
+    'CHECK': 'primary',
+    'ACH': 'success',
+    'WIRE': 'info',
+    'CASH': 'warning',
+    'CARD': 'secondary'
   };
-  return colors[method] || 'gray';
+  return colors[method] || 'neutral';
 };
 
 
