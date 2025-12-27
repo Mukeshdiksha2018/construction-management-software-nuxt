@@ -40,7 +40,7 @@
               <th class="w-[110px] px-4 py-2 text-right">Unit Price</th>
               <th class="w-[90px] px-4 py-2 text-right">UOM</th>
               <th class="w-[90px] px-4 py-2 text-right">{{ quantityColumnLabel }}</th>
-              <th v-if="!props.editingReceiptNote" class="w-[120px] px-4 py-2 text-right">Leftover Qty</th>
+              <th v-show="false" class="w-[120px] px-4 py-2 text-right">Leftover Qty</th>
               <th class="w-[120px] px-4 py-2 text-right">Received Qty</th>
               <th class="w-[120px] px-4 py-2 text-right">Total</th>
             </tr>
@@ -107,7 +107,7 @@
               <td class="px-3 py-2 text-right align-middle font-mono text-sm text-default">
                 {{ formatQuantity(item.ordered_quantity ?? item.po_quantity ?? 0) }}
               </td>
-              <td v-if="!props.editingReceiptNote" class="px-3 py-2 text-right align-middle">
+              <td v-show="false" class="px-3 py-2 text-right align-middle">
                 <div class="inline-flex items-center justify-end gap-1 rounded-md border border-default bg-background px-3 py-1.5 font-mono text-sm"
                   :class="getLeftoverQuantity(item, index) <= 0 ? 'text-error-600 dark:text-error-400' : 'text-default'">
                   <span>{{ formatQuantity(getLeftoverQuantity(item, index)) }}</span>
@@ -221,7 +221,7 @@
                 {{ formatQuantity(item.ordered_quantity ?? item.po_quantity ?? 0) }}
               </span>
             </div>
-            <div v-if="!props.editingReceiptNote" class="flex flex-col gap-1 items-end text-right">
+            <div v-show="false" class="flex flex-col gap-1 items-end text-right">
               <span class="block text-[11px] uppercase tracking-wide text-muted/80">Leftover Qty</span>
               <span class="font-mono text-sm"
                 :class="getLeftoverQuantity(item, index) <= 0 ? 'text-error-600 dark:text-error-400' : 'text-default'">
