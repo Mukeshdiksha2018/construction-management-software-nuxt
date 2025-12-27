@@ -2238,12 +2238,19 @@ const fetchItems = async (sourceUuid: string | null, sourceType: string | null, 
     }
 
     // For new receipt notes, ensure received quantities are null (not prefilled)
+    // Also filter out items with zero leftover quantity
     if (!props.editingReceiptNote) {
-      const newReceiptItems = transformed.map((item) => ({
-        ...item,
-        received_quantity: null, // Ensure no prefilled received quantity for new receipts
-        received_total: null,
-      }));
+      const newReceiptItems = transformed
+        .map((item) => ({
+          ...item,
+          received_quantity: null, // Ensure no prefilled received quantity for new receipts
+          received_total: null,
+        }))
+        .filter((item) => {
+          // Filter out items with zero leftover quantity for new receipt notes
+          const leftoverQty = getLeftoverQuantity(item);
+          return leftoverQty > 0;
+        });
       receiptItems.value = newReceiptItems;
     } else {
       // When editing, fetch receipt note items from the new receipt_note_items table
@@ -2805,11 +2812,18 @@ const handleItemsSelectionConfirm = async (selectedItems: any[]) => {
     receiptItems.value = newReceiptItems;
   } else {
     // For new receipt notes, ensure received quantities are null (not prefilled)
-    const newReceiptItems = transformed.map((item) => ({
-      ...item,
-      received_quantity: null,
-      received_total: null,
-    }));
+    // Also filter out items with zero leftover quantity
+    const newReceiptItems = transformed
+      .map((item) => ({
+        ...item,
+        received_quantity: null,
+        received_total: null,
+      }))
+      .filter((item) => {
+        // Filter out items with zero leftover quantity for new receipt notes
+        const leftoverQty = getLeftoverQuantity(item);
+        return leftoverQty > 0;
+      });
     
     receiptItems.value = newReceiptItems;
   }
