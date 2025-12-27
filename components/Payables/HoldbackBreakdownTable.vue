@@ -33,7 +33,7 @@
               <th class="px-3 py-2 text-left">Cost Code</th>
               <th class="px-3 py-2 text-left">GL Account</th>
               <th class="px-3 py-2 text-right">Holdback Amount</th>
-              <th class="px-3 py-2 text-right">Available</th>
+              <th v-show="!props.currentInvoiceUuid" class="px-3 py-2 text-right">Available</th>
               <th class="px-3 py-2 text-right">Release Amount</th>
               <th class="px-3 py-2 text-center">Action</th>
             </tr>
@@ -86,7 +86,7 @@
               </td>
 
               <!-- Available -->
-              <td class="px-3 py-2 align-middle text-right">
+              <td v-show="!props.currentInvoiceUuid" class="px-3 py-2 align-middle text-right">
                 <div v-if="row.cost_code_uuid && row.retainageAmount" class="text-sm">
                   <div class="text-gray-700 dark:text-gray-300 font-medium">
                     {{ formatCurrency(getRemainingRetainageAmount(row.cost_code_uuid, row.retainageAmount)) }}
