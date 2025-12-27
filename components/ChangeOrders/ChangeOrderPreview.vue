@@ -365,12 +365,16 @@
             <div class="space-y-2 print:space-y-1.5">
               <div>
                 <div class="text-xs print:text-[10px] text-gray-700 mb-0.5 print:mb-0.5">Agent / Entity</div>
-                <div class="border-b-2 border-gray-400 pb-0.5 print:pb-0.5 min-h-[20px] print:min-h-[16px]"></div>
+                <div class="border-b-2 border-gray-400 pb-0.5 print:pb-0.5 min-h-[20px] print:min-h-[16px]">
+                  <span class="text-xs print:text-[10px] text-gray-900">{{ approvedByName || '' }}</span>
+                </div>
               </div>
               
               <div>
                 <div class="text-xs print:text-[10px] text-gray-700 mb-0.5 print:mb-0.5">Date</div>
-                <div class="border-b-2 border-gray-400 pb-0.5 print:pb-0.5 min-h-[20px] print:min-h-[16px]"></div>
+                <div class="border-b-2 border-gray-400 pb-0.5 print:pb-0.5 min-h-[20px] print:min-h-[16px]">
+                  <span class="text-xs print:text-[10px] text-gray-900">{{ approvedByDate || '' }}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -425,6 +429,7 @@ import { useCurrencyFormat } from '@/composables/useCurrencyFormat'
 import { useCorporationStore } from '@/stores/corporations'
 import { useTermsAndConditionsStore } from '@/stores/termsAndConditions'
 import { useFreightStore } from '@/stores/freightGlobal'
+import { useUserProfilesStore } from '@/stores/userProfiles'
 
 interface Props {
   changeOrder?: any
@@ -438,6 +443,7 @@ const { formatCurrency, currencyCode } = useCurrencyFormat()
 const corporationStore = useCorporationStore()
 const termsAndConditionsStore = useTermsAndConditionsStore()
 const freightStore = useFreightStore()
+const userProfilesStore = useUserProfilesStore()
 
 const loading = ref(false)
 const error = ref<string | null>(null)
@@ -939,11 +945,78 @@ const approvalRequirementsText = computed(() => {
   return 'Seaming Diagram, Strike-off'
 })
 
+// Extract most recent approval information from audit log
+const mostRecentApproval = computed(() => {
+  if (!changeOrderDetail.value?.audit_log) {
+    return null
+  }
+  
+  const auditLog = Array.isArray(changeOrderDetail.value.audit_log)
+    ? changeOrderDetail.value.audit_log
+    : []
+  
+  // Find all approval entries
+  const approvalEntries = auditLog.filter((log: any) => 
+    log.action === 'approved' && log.timestamp
+  )
+  
+  if (approvalEntries.length === 0) {
+    return null
+  }
+  
+  // Sort by timestamp (most recent first) and get the first one
+  const sorted = approvalEntries.sort((a: any, b: any) => {
+    const timeA = new Date(a.timestamp).getTime()
+    const timeB = new Date(b.timestamp).getTime()
+    return timeB - timeA
+  })
+  
+  return sorted[0]
+})
+
+// Get approved by name from most recent approval
+const approvedByName = computed(() => {
+  const approval = mostRecentApproval.value
+  if (!approval) return ''
+  
+  // Look up user in userProfiles store by UUID to get full name
+  if (approval.user_uuid) {
+    const user = userProfilesStore.users.find((u) => u.id === approval.user_uuid)
+    if (user) {
+      const fullName = `${user.firstName} ${user.lastName}`.trim()
+      if (fullName) {
+        return fullName
+      }
+    }
+  }
+  
+  // Fallback to user_name from audit log, then email
+  return approval.user_name || approval.user_email || ''
+})
+
+// Get approved by date from most recent approval
+const approvedByDate = computed(() => {
+  const approval = mostRecentApproval.value
+  if (!approval || !approval.timestamp) return ''
+  
+  // Format the date for display
+  return formatDate(approval.timestamp)
+})
+
 watch(() => [props.changeOrder, props.changeOrderUuid], () => {
   load()
 }, { immediate: true })
 
 onMounted(async () => {
+  // Ensure user profiles are loaded for name lookup
+  if (userProfilesStore.users.length === 0) {
+    try {
+      await userProfilesStore.fetchUsers()
+    } catch (e) {
+      console.error('Failed to load user profiles:', e)
+    }
+  }
+  
   // Ensure freight store is loaded for resolving freight_uuid
   if (freightStore.freight.length === 0) {
     try {
