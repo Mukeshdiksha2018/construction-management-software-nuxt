@@ -8,13 +8,6 @@ export default defineEventHandler(async (event) => {
     if (method === "GET") {
       const { corporation_uuid, project_uuid, receipt_note_uuid, item_type } = query;
 
-      console.log("[ReceiptNoteItems API] GET request:", {
-        corporation_uuid,
-        project_uuid,
-        receipt_note_uuid,
-        item_type
-      });
-
       let queryBuilder = supabaseServer
         .from("receipt_note_items")
         .select(`
@@ -55,27 +48,9 @@ export default defineEventHandler(async (event) => {
       // Note: If item_type is not provided, we'll get all items (for backward compatibility)
       if (item_type && (item_type === 'purchase_order' || item_type === 'change_order')) {
         queryBuilder = queryBuilder.eq("item_type", item_type as string);
-        console.log("[ReceiptNoteItems API] Filtering by item_type:", item_type);
-      } else {
-        console.log("[ReceiptNoteItems API] No item_type filter - will return all items for receipt note");
       }
 
       const { data, error } = await queryBuilder;
-      
-      console.log("[ReceiptNoteItems API] Query result:", {
-        dataCount: data?.length || 0,
-        error: error?.message || null,
-        items: data?.map((item: any) => ({
-          uuid: item.uuid,
-          item_uuid: item.item_uuid,
-          item_type: item.item_type,
-          receipt_type: item.stock_receipt_notes?.receipt_type,
-          received_quantity: item.received_quantity,
-          purchase_order_uuid: item.purchase_order_uuid,
-          change_order_uuid: item.change_order_uuid,
-          receipt_note_uuid: item.receipt_note_uuid
-        })) || []
-      });
 
       if (error) {
         console.error("[ReceiptNoteItems] GET error:", error);
