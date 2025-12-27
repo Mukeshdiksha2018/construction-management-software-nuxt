@@ -294,6 +294,7 @@
       :change-order-uuid="receiptType === 'change_order' ? form.change_order_uuid : null"
       :project-uuid="form.project_uuid ?? null"
       :current-receipt-note-uuid="form.uuid ?? null"
+      :editing-receipt-note="props.editingReceiptNote"
       :readonly="props.readonly"
       @received-quantity-change="handleReceivedQuantityChange"
     >

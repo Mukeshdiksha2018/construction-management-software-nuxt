@@ -40,7 +40,7 @@
               <th class="w-[110px] px-4 py-2 text-right">Unit Price</th>
               <th class="w-[90px] px-4 py-2 text-right">UOM</th>
               <th class="w-[90px] px-4 py-2 text-right">{{ quantityColumnLabel }}</th>
-              <th class="w-[120px] px-4 py-2 text-right">Leftover Qty</th>
+              <th v-if="!props.editingReceiptNote" class="w-[120px] px-4 py-2 text-right">Leftover Qty</th>
               <th class="w-[120px] px-4 py-2 text-right">Received Qty</th>
               <th class="w-[120px] px-4 py-2 text-right">Total</th>
             </tr>
@@ -107,24 +107,35 @@
               <td class="px-3 py-2 text-right align-middle font-mono text-sm text-default">
                 {{ formatQuantity(item.ordered_quantity ?? item.po_quantity ?? 0) }}
               </td>
-              <td class="px-3 py-2 text-right align-middle">
+              <td v-if="!props.editingReceiptNote" class="px-3 py-2 text-right align-middle">
                 <div class="inline-flex items-center justify-end gap-1 rounded-md border border-default bg-background px-3 py-1.5 font-mono text-sm"
                   :class="getLeftoverQuantity(item, index) <= 0 ? 'text-error-600 dark:text-error-400' : 'text-default'">
                   <span>{{ formatQuantity(getLeftoverQuantity(item, index)) }}</span>
                 </div>
               </td>
               <td class="px-3 py-2 text-right align-middle">
-                <UInput
-                  :model-value="getReceivedInputValue(item, index)"
-                  size="xs"
-                  inputmode="decimal"
-                  class="w-full max-w-[130px] text-right font-mono"
-                  :disabled="props.readonly"
-                  :class="isOverLeftover(item, index) ? 'border-error-500' : ''"
-                  @focus="setActiveRow(index)"
-                  @blur="clearActiveRow(index)"
-                  @update:model-value="(value) => emitReceivedQuantityChange(index, value)"
-                />
+                <div class="flex flex-col gap-1">
+                  <UInput
+                    :model-value="getReceivedInputValue(item, index)"
+                    size="xs"
+                    inputmode="decimal"
+                    class="w-full max-w-[130px] text-right font-mono"
+                    :disabled="props.readonly"
+                    :class="isOverLeftover(item, index) ? 'border-error-500' : ''"
+                    @focus="setActiveRow(index)"
+                    @blur="clearActiveRow(index)"
+                    @update:model-value="(value) => emitReceivedQuantityChange(index, value)"
+                  />
+                  <div v-if="!props.editingReceiptNote && !props.readonly" class="text-[10px] font-mono"
+                    :class="getRemainingQuantityClass(item, index)">
+                    <span v-if="getRemainingQuantity(item, index) >= 0">
+                      Remaining: {{ formatQuantity(getRemainingQuantity(item, index)) }}
+                    </span>
+                    <span v-else>
+                      Over by: {{ formatQuantity(Math.abs(getRemainingQuantity(item, index))) }}
+                    </span>
+                  </div>
+                </div>
               </td>
               <td class="px-3 py-2 text-right align-middle">
                 <div class="inline-flex items-center justify-end gap-1 rounded-md border border-default bg-background px-3 py-1.5 font-mono text-sm">
@@ -210,7 +221,7 @@
                 {{ formatQuantity(item.ordered_quantity ?? item.po_quantity ?? 0) }}
               </span>
             </div>
-            <div class="flex flex-col gap-1 items-end text-right">
+            <div v-if="!props.editingReceiptNote" class="flex flex-col gap-1 items-end text-right">
               <span class="block text-[11px] uppercase tracking-wide text-muted/80">Leftover Qty</span>
               <span class="font-mono text-sm"
                 :class="getLeftoverQuantity(item, index) <= 0 ? 'text-error-600 dark:text-error-400' : 'text-default'">
@@ -219,17 +230,28 @@
             </div>
             <div class="flex flex-col gap-1 items-end text-right">
               <span class="block text-[11px] uppercase tracking-wide text-muted/80">Received Qty</span>
-              <UInput
-                :model-value="getReceivedInputValue(item, index)"
-                size="xs"
-                inputmode="decimal"
-                class="text-right font-mono"
-                :class="isOverLeftover(item, index) ? 'border-error-500' : ''"
-                :disabled="props.readonly"
-                @focus="setActiveRow(index)"
-                @blur="clearActiveRow(index)"
-                @update:model-value="(value) => emitReceivedQuantityChange(index, value)"
-              />
+              <div class="flex flex-col gap-1 w-full">
+                <UInput
+                  :model-value="getReceivedInputValue(item, index)"
+                  size="xs"
+                  inputmode="decimal"
+                  class="text-right font-mono"
+                  :class="isOverLeftover(item, index) ? 'border-error-500' : ''"
+                  :disabled="props.readonly"
+                  @focus="setActiveRow(index)"
+                  @blur="clearActiveRow(index)"
+                  @update:model-value="(value) => emitReceivedQuantityChange(index, value)"
+                />
+                <div v-if="!props.editingReceiptNote && !props.readonly" class="text-[10px] font-mono text-right"
+                  :class="getRemainingQuantityClass(item, index)">
+                  <span v-if="getRemainingQuantity(item, index) >= 0">
+                    Remaining: {{ formatQuantity(getRemainingQuantity(item, index)) }}
+                  </span>
+                  <span v-else>
+                    Over by: {{ formatQuantity(Math.abs(getRemainingQuantity(item, index))) }}
+                  </span>
+                </div>
+              </div>
             </div>
             <div class="col-span-2 flex flex-col gap-1 items-end text-right">
               <span class="block text-[11px] uppercase tracking-wide text-muted/80">Total</span>
@@ -292,11 +314,13 @@ const props = withDefaults(defineProps<{
   changeOrderUuid?: string | null
   projectUuid?: string | null
   currentReceiptNoteUuid?: string | null
+  editingReceiptNote?: boolean
   readonly?: boolean
 }>(), {
   items: () => [],
   loading: false,
   readonly: false,
+  editingReceiptNote: false,
   error: null,
   loadingMessage: 'Loading items…',
   emptyMessage: 'No receipt items found.',
@@ -613,6 +637,39 @@ const isOverLeftover = (item: ReceiptNoteItemDisplay, index: number): boolean =>
   // Otherwise check the item's received quantity
   const receivedQty = parseNumericInput(item.received_quantity ?? 0)
   return receivedQty > leftoverQty
+}
+
+// Calculate remaining quantity after subtracting received quantity from leftover quantity
+const getRemainingQuantity = (item: ReceiptNoteItemDisplay, index: number): number => {
+  const leftoverQty = getLeftoverQuantity(item, index)
+  
+  const draft = drafts[index]
+  let currentReceivedQty = 0
+  
+  if (draft && draft.touched) {
+    currentReceivedQty = parseNumericInput(draft.receivedInput)
+  } else {
+    currentReceivedQty = parseNumericInput(item.received_quantity ?? 0)
+  }
+  
+  const remaining = leftoverQty - currentReceivedQty
+  return remaining
+}
+
+// Get CSS class for remaining quantity display
+const getRemainingQuantityClass = (item: ReceiptNoteItemDisplay, index: number): string => {
+  const remaining = getRemainingQuantity(item, index)
+  const leftoverQty = getLeftoverQuantity(item, index)
+  
+  if (remaining < 0) {
+    return 'text-error-600 dark:text-error-400'
+  } else if (remaining === 0) {
+    return 'text-warning-600 dark:text-warning-400'
+  } else if (leftoverQty > 0 && remaining <= leftoverQty * 0.1) {
+    return 'text-warning-500 dark:text-warning-500'
+  } else {
+    return 'text-muted'
+  }
 }
 
 // Watch for changes to PO/CO UUID or project UUID to refetch
