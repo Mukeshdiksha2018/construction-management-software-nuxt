@@ -213,6 +213,17 @@
 
           <div class="flex items-center gap-2 justify-end">
             <div class="flex items-center gap-2">
+              <!-- View Audit Log Button -->
+              <UButton
+                v-if="coForm.uuid && hasPermission('co_view')"
+                icon="i-heroicons-shield-check-solid"
+                color="info"
+                variant="outline"
+                size="sm"
+                @click="showAuditLogModal = true"
+              >
+                View Audit Log
+              </UButton>
               <UButton
                 v-if="isViewMode && hasPermission('co_edit') && coForm.status !== 'Approved'"
                 type="button"
@@ -361,6 +372,44 @@
         </div>
       </template>
     </UModal>
+
+    <!-- Audit Log Modal -->
+    <UModal 
+      v-model:open="showAuditLogModal" 
+      title="Change Order Audit Log"
+      :description="`View the complete audit trail for ${coForm.co_number || 'this change order'}`"
+      size="2xl"
+      :ui="{ body: 'p-6' }"
+    >
+      <template #body>
+        <div class="space-y-4">
+          <!-- Audit Timeline -->
+          <ChangeOrderAuditTimeline 
+            :audit-log="coForm.audit_log || []"
+            :change-order-uuid="coForm.uuid || ''"
+            @logs-loaded="onAuditLogsLoaded"
+            @error="onAuditLogError"
+          />
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex justify-between items-center w-full">
+          <div class="text-sm text-gray-500">
+            <span v-if="auditLogsCount > 0">{{ auditLogsCount }} audit entries</span>
+            <span v-else>No audit entries</span>
+          </div>
+          <div class="flex gap-2">
+            <UButton 
+              color="neutral" 
+              variant="soft" 
+              @click="showAuditLogModal = false"
+            >
+              Close
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>
 
@@ -372,6 +421,7 @@ import { useDateFormat } from '@/composables/useDateFormat'
 import { useCurrencyFormat } from '@/composables/useCurrencyFormat'
 import { usePermissions } from '@/composables/usePermissions'
 import ChangeOrderForm from './ChangeOrderForm.vue'
+import ChangeOrderAuditTimeline from '@/components/ChangeOrders/ChangeOrderAuditTimeline.vue'
 import { useCorporationStore } from '@/stores/corporations'
 import { useChangeOrderResourcesStore } from '@/stores/changeOrderResources'
 import { useLaborChangeOrderItemsStore } from '@/stores/laborChangeOrderItems'
@@ -401,6 +451,8 @@ const loadingRowUuid = ref<string | null>(null)
 const coForm = ref<any>({})
 const showDeleteModal = ref(false)
 const coToDelete = ref<any>(null)
+const showAuditLogModal = ref(false)
+const auditLogsCount = ref(0)
 const isViewMode = ref(false)
 
 const formModalTitle = computed(() => {
@@ -1102,7 +1154,10 @@ const loadChangeOrderForModal = async (co: any, viewMode: boolean = false) => {
       return;
     }
 
-    coForm.value = { ...detailed }
+    coForm.value = {
+      ...detailed,
+      audit_log: Array.isArray(detailed.audit_log) ? detailed.audit_log : [],
+    };
   } catch (error) {
     console.error("[COL] Failed to fetch change order details:", error);
     const toast = useToast();
@@ -1440,6 +1495,22 @@ const confirmDelete = async () => {
 const cancelDelete = () => {
   showDeleteModal.value = false
   coToDelete.value = null
+}
+
+// Audit log handlers
+const onAuditLogsLoaded = (logs: any[]) => {
+  auditLogsCount.value = logs.length
+}
+
+const onAuditLogError = (error: string) => {
+  console.error('Audit log error:', error)
+  const toast = useToast()
+  toast.add({
+    title: 'Error',
+    description: error || 'Failed to load audit log',
+    color: 'error',
+    icon: 'i-heroicons-x-circle'
+  })
 }
 
 // Load ship via data on mount

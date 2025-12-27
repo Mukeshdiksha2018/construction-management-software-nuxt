@@ -282,6 +282,38 @@ export default defineEventHandler(async (event) => {
         if (insertData[key] === "") insertData[key] = null;
       }
 
+      // Get user info for audit log
+      const getUserInfo = () => {
+        const { user_id, user_name, user_email, user_image_url } = body || {};
+
+        if (!user_id) {
+          console.warn("No user_id provided in request body");
+          return null;
+        }
+
+        return {
+          id: user_id,
+          name: user_name || "Unknown User",
+          email: user_email || "",
+          image_url: user_image_url || null,
+        };
+      };
+
+      const userInfo = getUserInfo();
+
+      // Create audit log entry for creation
+      const auditLogEntry = userInfo ? {
+        timestamp: new Date().toISOString(),
+        user_uuid: userInfo.id,
+        user_name: userInfo.name,
+        user_email: userInfo.email,
+        user_image_url: userInfo.image_url,
+        action: 'created',
+        description: `Change order ${insertData.co_number || 'created'} created`
+      } : null;
+
+      insertData.audit_log = auditLogEntry ? [auditLogEntry] : [];
+
       const { data, error } = await supabaseServer
         .from("change_orders")
         .insert([insertData])
@@ -438,6 +470,105 @@ export default defineEventHandler(async (event) => {
       }
       if (updated.attachments !== undefined) {
         updateData.attachments = sanitizeAttachments(updated.attachments);
+      }
+
+      // Get user info for audit log
+      const getUserInfo = () => {
+        const { user_id, user_name, user_email, user_image_url } = body || {};
+
+        if (!user_id) {
+          console.warn("No user_id provided in request body");
+          return null;
+        }
+
+        return {
+          id: user_id,
+          name: user_name || "Unknown User",
+          email: user_email || "",
+          image_url: user_image_url || null,
+        };
+      };
+
+      const userInfo = getUserInfo();
+
+      // Get existing audit log and status
+      const { data: existingCOWithAudit } = await supabaseServer
+        .from("change_orders")
+        .select("audit_log, status, co_number")
+        .eq("uuid", uuid)
+        .single();
+
+      const existingAuditLog = Array.isArray(existingCOWithAudit?.audit_log) 
+        ? existingCOWithAudit.audit_log 
+        : [];
+      const oldStatus = existingCOWithAudit?.status || 'Draft';
+      const newStatus = updateData.status || oldStatus;
+      const coNumber = existingCOWithAudit?.co_number || '';
+
+      // Create audit log entry based on what changed
+      let auditLogEntry = null;
+      if (userInfo) {
+        // Check if status changed
+        if (oldStatus !== newStatus) {
+          if (newStatus === 'Ready' && oldStatus !== 'Ready') {
+            auditLogEntry = {
+              timestamp: new Date().toISOString(),
+              user_uuid: userInfo.id,
+              user_name: userInfo.name,
+              user_email: userInfo.email,
+              user_image_url: userInfo.image_url,
+              action: 'marked_ready',
+              description: 'Change order marked as ready for approval'
+            };
+          } else if (newStatus === 'Approved' && oldStatus !== 'Approved') {
+            auditLogEntry = {
+              timestamp: new Date().toISOString(),
+              user_uuid: userInfo.id,
+              user_name: userInfo.name,
+              user_email: userInfo.email,
+              user_image_url: userInfo.image_url,
+              action: 'approved',
+              description: 'Change order approved'
+            };
+          } else if (newStatus === 'Rejected' && oldStatus !== 'Rejected') {
+            auditLogEntry = {
+              timestamp: new Date().toISOString(),
+              user_uuid: userInfo.id,
+              user_name: userInfo.name,
+              user_email: userInfo.email,
+              user_image_url: userInfo.image_url,
+              action: 'rejected',
+              description: 'Change order rejected'
+            };
+          }
+        } else {
+          // Status didn't change, but other fields did - track as update
+          // Only track if there are actual field changes (not just status)
+          const hasFieldChanges = Object.keys(updateData).some(
+            key => key !== 'status' && key !== 'uuid' && key !== 'audit_log'
+          );
+          if (hasFieldChanges) {
+            auditLogEntry = {
+              timestamp: new Date().toISOString(),
+              user_uuid: userInfo.id,
+              user_name: userInfo.name,
+              user_email: userInfo.email,
+              user_image_url: userInfo.image_url,
+              action: 'updated',
+              description: 'Change order updated'
+            };
+          }
+        }
+      }
+
+      // Merge audit log
+      const mergedAuditLog = auditLogEntry 
+        ? [...existingAuditLog, auditLogEntry]
+        : existingAuditLog;
+
+      // Always update audit_log if we created a new entry
+      if (auditLogEntry) {
+        updateData.audit_log = mergedAuditLog;
       }
 
       const { data, error } = await supabaseServer

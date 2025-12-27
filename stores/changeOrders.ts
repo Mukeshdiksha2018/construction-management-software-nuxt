@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, readonly } from 'vue'
 import { dbHelpers } from '@/utils/indexedDb'
+import { useAuthStore } from './auth'
 
 export interface COItem {
   order_index?: number
@@ -596,9 +597,30 @@ export const useChangeOrdersStore = defineStore('changeOrders', () => {
     loading.value = true
     error.value = null
     try {
+      // Include user info for audit log
+      const authStore = useAuthStore();
+      const user = authStore.user;
+      const userInfo = user
+        ? {
+            user_id: user.id || "",
+            user_name:
+              user.user_metadata?.full_name ||
+              `${user.user_metadata?.first_name || ""} ${
+                user.user_metadata?.last_name || ""
+              }`.trim() ||
+              user.email?.split("@")[0] ||
+              "Unknown User",
+            user_email: user.email || "",
+            user_image_url:
+              user.user_metadata?.avatar_url ||
+              user.user_metadata?.image_url ||
+              null,
+          }
+        : null;
+
       const response = await $fetch<ChangeOrderResponse>('/api/change-orders', {
         method: 'POST',
-        body: payload,
+        body: userInfo ? { ...payload, ...userInfo } : payload,
       })
       if (response?.error) throw new Error(response.error)
       const created = response?.data
@@ -662,9 +684,30 @@ export const useChangeOrdersStore = defineStore('changeOrders', () => {
     loading.value = true
     error.value = null
     try {
+      // Include user info for audit log
+      const authStore = useAuthStore();
+      const user = authStore.user;
+      const userInfo = user
+        ? {
+            user_id: user.id || "",
+            user_name:
+              user.user_metadata?.full_name ||
+              `${user.user_metadata?.first_name || ""} ${
+                user.user_metadata?.last_name || ""
+              }`.trim() ||
+              user.email?.split("@")[0] ||
+              "Unknown User",
+            user_email: user.email || "",
+            user_image_url:
+              user.user_metadata?.avatar_url ||
+              user.user_metadata?.image_url ||
+              null,
+          }
+        : null;
+
       const response = await $fetch<ChangeOrderResponse>('/api/change-orders', {
         method: 'PUT',
-        body: payload,
+        body: userInfo ? { ...payload, ...userInfo } : payload,
       })
       if (response?.error) throw new Error(response.error)
       const updated = response?.data
