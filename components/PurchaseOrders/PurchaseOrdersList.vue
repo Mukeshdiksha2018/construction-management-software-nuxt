@@ -197,135 +197,6 @@
       </div>
     </div>
 
-    <!-- Purchase Orders Table -->
-    <div v-if="loading">
-      <div class="relative overflow-auto rounded-2xl shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-        <!-- Loading skeleton -->
-        <div class="bg-gray-50 dark:bg-gray-700">
-          <div class="grid gap-4 px-2 py-2 text-sm font-bold text-gray-800 dark:text-gray-200 tracking-wider border-b border-gray-200 dark:border-gray-600" style="grid-template-columns: repeat(13, minmax(0, 1fr));">
-            <div class="flex items-center gap-2">
-              <USkeleton class="h-4 w-4 rounded" />
-              <USkeleton class="h-4 w-6" />
-            </div>
-            <div class="flex items-center gap-2">
-              <USkeleton class="h-4 w-4 rounded" />
-              <USkeleton class="h-4 w-20" />
-            </div>
-            <div class="flex items-center gap-2">
-              <USkeleton class="h-4 w-4 rounded" />
-              <USkeleton class="h-4 w-20" />
-            </div>
-            <div class="flex items-center gap-2">
-              <USkeleton class="h-4 w-4 rounded" />
-              <USkeleton class="h-4 w-24" />
-            </div>
-            <div class="flex items-center gap-2">
-              <USkeleton class="h-4 w-4 rounded" />
-              <USkeleton class="h-4 w-20" />
-            </div>
-            <div class="flex items-center gap-2">
-              <USkeleton class="h-4 w-4 rounded" />
-              <USkeleton class="h-4 w-24" />
-            </div>
-            <div class="flex items-center gap-2">
-              <USkeleton class="h-4 w-4 rounded" />
-              <USkeleton class="h-4 w-20" />
-            </div>
-            <div class="flex items-center gap-2">
-              <USkeleton class="h-4 w-4 rounded" />
-              <USkeleton class="h-4 w-20" />
-            </div>
-            <div class="flex items-center gap-2">
-              <USkeleton class="h-4 w-4 rounded" />
-              <USkeleton class="h-4 w-16" />
-            </div>
-            <div class="flex items-center gap-2">
-              <USkeleton class="h-4 w-4 rounded" />
-              <USkeleton class="h-4 w-20" />
-            </div>
-            <div class="flex items-center gap-2">
-              <USkeleton class="h-4 w-4 rounded" />
-              <USkeleton class="h-4 w-20" />
-            </div>
-            <div class="flex items-center gap-2">
-              <USkeleton class="h-4 w-4 rounded" />
-              <USkeleton class="h-4 w-20" />
-            </div>
-            <div class="flex items-center justify-center">
-              <USkeleton class="h-4 w-4 rounded" />
-            </div>
-            <div class="flex items-center gap-2">
-              <USkeleton class="h-4 w-4 rounded" />
-              <USkeleton class="h-4 w-16" />
-            </div>
-            <div class="flex items-center gap-2">
-              <USkeleton class="h-4 w-4 rounded" />
-              <USkeleton class="h-4 w-20" />
-            </div>
-            <div class="flex items-center gap-2">
-              <USkeleton class="h-4 w-4 rounded" />
-              <USkeleton class="h-4 w-20" />
-            </div>
-            <div class="flex items-center justify-center">
-              <USkeleton class="h-4 w-16" />
-            </div>
-          </div>
-        </div>
-        
-        <!-- Table Body -->
-        <div class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-          <div v-for="i in 8" :key="i" class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150">
-            <div class="grid grid-cols-13 gap-4 px-2 py-1 text-xs text-gray-900 dark:text-gray-100 border-gray-100 dark:border-gray-700" style="grid-template-columns: repeat(13, minmax(0, 1fr));">
-              <div class="flex items-center">
-                <USkeleton class="h-4 w-6" />
-              </div>
-              <div class="flex items-center">
-                <USkeleton class="h-4 w-20" />
-              </div>
-              <div class="flex items-center">
-                <USkeleton class="h-4 w-24" />
-              </div>
-              <div class="flex items-center">
-                <USkeleton class="h-4 w-24" />
-              </div>
-              <div class="flex items-center">
-                <USkeleton class="h-4 w-20" />
-              </div>
-              <div class="flex items-center">
-                <USkeleton class="h-4 w-24" />
-              </div>
-              <div class="flex items-center">
-                <USkeleton class="h-4 w-20" />
-              </div>
-              <div class="flex items-center">
-                <USkeleton class="h-4 w-20" />
-              </div>
-              <div class="flex items-center">
-                <USkeleton class="h-4 w-20" />
-              </div>
-              <div class="flex items-center justify-center">
-                <USkeleton class="h-4 w-4 rounded" />
-              </div>
-              <div class="flex items-center">
-                <USkeleton class="h-4 w-16" />
-              </div>
-              <div class="flex items-center">
-                <USkeleton class="h-4 w-20" />
-              </div>
-              <div class="flex items-center">
-                <USkeleton class="h-4 w-20" />
-              </div>
-              <div class="flex items-center justify-end gap-1">
-                <USkeleton class="h-6 w-6 rounded" />
-                <USkeleton class="h-6 w-6 rounded" />
-                <USkeleton class="h-6 w-6 rounded" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- Error Banner - shown above table without hiding it -->
     <UBanner
       v-if="error && isReady"
@@ -336,6 +207,16 @@
       @close="handleErrorBannerClose"
       class="mb-4"
     />
+
+    <!-- Loading skeleton - show when loading (hides table to prevent showing old data when switching corporations) -->
+    <div v-if="loading && !loadingRowUuid">
+      <div class="text-center py-12">
+        <div class="text-gray-400 mb-4">
+          <UIcon name="i-heroicons-arrow-path" class="w-12 h-12 mx-auto animate-spin" />
+        </div>
+        <p class="text-gray-500 text-lg">Loading purchase orders...</p>
+      </div>
+    </div>
 
     <!-- To be Raised Table - Separate from Purchase Orders Table -->
     <!-- Only show when ToBeRaised status filter is active -->
@@ -414,7 +295,8 @@
     <!-- Purchase Orders Table - Show when NOT on ToBeRaised screen -->
     <!-- On Summary screen: always show table with filters applied directly -->
     <!-- On other status screens: show table with status filter applied -->
-    <div v-if="selectedStatusFilter !== 'ToBeRaised' && purchaseOrders.length && hasPermission('po_view') && isReady">
+    <!-- Only show when not loading (to prevent showing old data while loading new) -->
+    <div v-else-if="selectedStatusFilter !== 'ToBeRaised' && purchaseOrders.length && hasPermission('po_view') && isReady && !loading">
       <UTable 
         ref="table"
         sticky
@@ -435,7 +317,7 @@
       </UTable>
     </div>
 
-    <div v-else-if="!hasPermission('po_view') && isReady" class="text-center py-12">
+    <div v-else-if="!hasPermission('po_view') && isReady && !loading" class="text-center py-12">
       <div class="text-gray-400 mb-4">
         <UIcon name="i-heroicons-lock-closed" class="w-12 h-12 mx-auto" />
       </div>
@@ -443,7 +325,7 @@
       <p class="text-gray-400 text-sm">You don't have permission to view purchase orders</p>
     </div>
 
-    <div v-else-if="selectedStatusFilter !== 'ToBeRaised' && isReady && (selectedStatusFilter === null || !appliedFilters.corporation || !appliedFilters.project || itemsTableData.length === 0)" class="text-center py-12">
+    <div v-else-if="selectedStatusFilter !== 'ToBeRaised' && isReady && !loading && (selectedStatusFilter === null || !appliedFilters.corporation || !appliedFilters.project || itemsTableData.length === 0)" class="text-center py-12">
       <div class="text-gray-400 mb-4">
         <UIcon name="i-heroicons-shopping-cart" class="w-12 h-12 mx-auto" />
       </div>
