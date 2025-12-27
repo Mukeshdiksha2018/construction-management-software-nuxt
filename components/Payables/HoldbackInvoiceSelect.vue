@@ -255,8 +255,13 @@ const processInvoiceOptions = async () => {
     }
   }))
   
+  // Filter out invoices with 0% holdback amount
+  const filtered = processed.filter(option => {
+    return option.holdbackPercentage > 0
+  })
+  
   // Sort by invoice number
-  invoiceOptionsWithHoldback.value = processed.sort((a, b) => {
+  invoiceOptionsWithHoldback.value = filtered.sort((a, b) => {
     const aNum = a.invoiceNumber || ''
     const bNum = b.invoiceNumber || ''
     return aNum.localeCompare(bNum)
