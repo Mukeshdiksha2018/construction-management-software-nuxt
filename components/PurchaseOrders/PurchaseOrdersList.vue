@@ -1164,11 +1164,16 @@ const loadingToBeRaisedItems = ref(false)
 const projectItemsSummary = useProjectItemsSummary()
 const itemsTableData = computed(() => {
   const items = projectItemsSummary.data.value?.items || []
+  // Filter out items with zero or negative pending quantity
+  const filteredItems = items.filter((item: any) => {
+    const pendingQty = parseFloat(item.pending_qty || 0)
+    return pendingQty > 0
+  })
   // Debug: Log to see if data is available
-  if (items.length > 0) {
-    console.log('itemsTableData has data:', items.length, 'items')
+  if (filteredItems.length > 0) {
+    console.log('itemsTableData has data:', filteredItems.length, 'items')
   }
-  return items
+  return filteredItems
 })
 const loadingItemsTable = computed(() => projectItemsSummary.loading.value)
 
@@ -1252,7 +1257,13 @@ const fetchToBeRaisedItems = async () => {
       }
     })
     
-    toBeRaisedItems.value = Array.isArray(response?.data) ? response.data : []
+    const allItems = Array.isArray(response?.data) ? response.data : []
+    // Filter out items with zero or negative pending quantity
+    // Check both pending_qty and quantity fields to handle different API response formats
+    toBeRaisedItems.value = allItems.filter((item: any) => {
+      const pendingQty = parseFloat(item.pending_qty || item.quantity || 0)
+      return pendingQty > 0
+    })
   } catch (error: any) {
     console.error('Error fetching items to be raised:', error)
     toBeRaisedItems.value = []
