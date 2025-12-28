@@ -14,9 +14,7 @@
                    :class="isDark ? 'w-16 h-16 text-white drop-shadow-lg' : 'w-16 h-16 text-brand-600'" />
           </div>
           <h1 class="text-3xl font-bold mb-2 transition-colors duration-300"
-              :class="isDark ? 'text-white drop-shadow-lg' : 'text-gray-800'">Nimble Suite</h1>
-          <p class="transition-colors duration-300"
-             :class="isDark ? 'text-brand-200' : 'text-gray-600'">Manage your properties with ease</p>
+              :class="isDark ? 'text-white drop-shadow-lg' : 'text-gray-800'">Nimble Construction Management</h1>
         </div>
       </div>
       
@@ -29,9 +27,7 @@
                    :class="isDark ? 'w-8 h-8 text-white drop-shadow-lg' : 'w-8 h-8 text-brand-600'" />
           </div>
           <h1 class="text-lg font-bold mb-1 transition-colors duration-300"
-              :class="isDark ? 'text-white drop-shadow-lg' : 'text-gray-800'">Nimble Suite</h1>
-          <p class="text-xs transition-colors duration-300"
-             :class="isDark ? 'text-brand-200' : 'text-gray-600'">Manage your properties with ease</p>
+              :class="isDark ? 'text-white drop-shadow-lg' : 'text-gray-800'">Nimble Construction Management</h1>
         </div>
       </div>
       
