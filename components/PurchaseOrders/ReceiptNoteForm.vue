@@ -2048,8 +2048,17 @@ const transformPoItemsToReceiptItems = (items: any[]) => {
   preferredItems.forEach((prefItem: any) => {
     const itemUuid = prefItem.item_uuid || prefItem.uuid;
     if (itemUuid) {
-      preferredItemsMap.set(String(itemUuid), prefItem);
+      preferredItemsMap.set(String(itemUuid).toLowerCase(), prefItem);
     }
+  });
+  
+  console.log('[ReceiptNoteForm] [transformPoItemsToReceiptItems] Preferred items map:', {
+    preferredItemsCount: preferredItems.length,
+    mapSize: preferredItemsMap.size,
+    samplePreferredItems: preferredItems.slice(0, 3).map((pref: any) => ({
+      item_uuid: pref.item_uuid || pref.uuid,
+      item_name: pref.item_name,
+    })),
   });
   
   return items.map((item) => {
@@ -2107,17 +2116,88 @@ const transformPoItemsToReceiptItems = (items: any[]) => {
       item_type_label: itemTypeLabel,
       sequence_label: sequenceLabel,
       item_uuid: itemUuid,
-      // Get item name - prioritize item_name strictly (same logic as POBreakdown)
+      // Get item name - prioritize lookup from preferred items by item_uuid
+      // Priority: 
+      // 1. Look up from preferred items by item_uuid (source of truth for item names)
+      // 2. item.item_name (direct database field) 
+      // 3. metadata.item_name (from JSONB) 
+      // 4. item.name (if sequence exists)
       item_name: (() => {
-        let itemName = item.item_name || ''
+        console.log('[ReceiptNoteForm] [transformPoItemsToReceiptItems] Extracting item_name for item:', {
+          item_uuid: item.uuid || item.id,
+          po_item_item_uuid: itemUuid,
+          'item.item_name': item.item_name,
+          'item.name': item.name,
+          'item.description': item.description,
+          'metadata.item_name': metadata.item_name,
+          'display_metadata.item_name': item.display_metadata?.item_name,
+          sequenceLabel,
+        });
+        
+        let itemName = '';
+        
+        // First priority: Look up from preferred items by item_uuid (this is the source of truth)
+        if (itemUuid) {
+          const preferredItem = preferredItemsMap.get(String(itemUuid).toLowerCase());
+          if (preferredItem?.item_name) {
+            itemName = preferredItem.item_name;
+            console.log('[ReceiptNoteForm] [transformPoItemsToReceiptItems] Found item_name from preferred items:', {
+              itemName,
+              preferredItemName: preferredItem.item_name,
+              itemUuid,
+            });
+          } else {
+            console.log('[ReceiptNoteForm] [transformPoItemsToReceiptItems] No preferred item found for item_uuid:', {
+              itemUuid,
+              preferredItemsMapKeys: Array.from(preferredItemsMap.keys()),
+            });
+          }
+        }
+        
+        // Fallback: check the direct database field
         if (!itemName) {
-          itemName = metadata.item_name || ''
+          itemName = item.item_name || ''
+          console.log('[ReceiptNoteForm] [transformPoItemsToReceiptItems] After checking item.item_name:', {
+            itemName,
+            'item.item_name': item.item_name,
+          });
         }
+        
+        // If item_name is empty, check metadata (JSONB field) - check both metadata and display_metadata
+        if (!itemName) {
+          const metadataItemName = metadata.item_name || item.display_metadata?.item_name || ''
+          console.log('[ReceiptNoteForm] [transformPoItemsToReceiptItems] Checking metadata:', {
+            'metadata.item_name': metadata.item_name,
+            'display_metadata.item_name': item.display_metadata?.item_name,
+            metadataItemName,
+          });
+          itemName = metadataItemName
+        }
+        
         // If we have sequence but still no item_name, try item.name (preferred items may use 'name' field)
-        if (!itemName && sequenceLabel) {
-          itemName = item.name || ''
+        if (!itemName) {
+          const hasSequence = sequenceLabel && sequenceLabel !== '—' && sequenceLabel.trim() !== ''
+          console.log('[ReceiptNoteForm] [transformPoItemsToReceiptItems] Checking item.name (hasSequence check):', {
+            hasSequence,
+            sequenceLabel,
+            'item.name': item.name,
+          });
+          if (hasSequence) {
+            itemName = item.name || ''
+            console.log('[ReceiptNoteForm] [transformPoItemsToReceiptItems] Using item.name:', itemName);
+          }
         }
-        return itemName || null
+        
+        // Return the item name
+        // DO NOT fall back to description - item_name and description are separate fields
+        const finalItemName = itemName || null
+        console.log('[ReceiptNoteForm] [transformPoItemsToReceiptItems] Final item_name result:', {
+          finalItemName,
+          'item.description (for comparison)': item.description,
+          'item.item_name (original)': item.item_name,
+          'Will show in table': finalItemName || '—',
+        });
+        return finalItemName
       })(),
       description: item.description || metadata.description || null,
       model_number: item.model_number || metadata.model_number || null,
@@ -2225,8 +2305,47 @@ const fetchItems = async (sourceUuid: string | null, sourceType: string | null, 
       items = Array.isArray(response?.data) ? response.data : [];
     }
     
+    console.log('[ReceiptNoteForm] [fetchItems] Raw API response items:', {
+      sourceType,
+      sourceUuid,
+      itemsCount: items.length,
+      sampleItem: items.length > 0 ? {
+        'item.item_name': items[0]?.item_name,
+        'item.name': items[0]?.name,
+        'item.description': items[0]?.description,
+        'item.metadata': items[0]?.metadata,
+        'item.display_metadata': items[0]?.display_metadata,
+        'item.uuid': items[0]?.uuid,
+        'item.id': items[0]?.id,
+        fullItem: items[0],
+      } : null,
+      allItems: items.map((item, idx) => ({
+        index: idx,
+        'item.item_name': item?.item_name,
+        'item.name': item?.name,
+        'item.description': item?.description,
+        'item.metadata?.item_name': item?.metadata?.item_name,
+        'item.display_metadata?.item_name': item?.display_metadata?.item_name,
+      })),
+    });
+    
     poItems.value = items;
     const transformed = transformPoItemsToReceiptItems(items);
+    
+    console.log('[ReceiptNoteForm] [fetchItems] After transformation:', {
+      sourceType,
+      sourceUuid,
+      itemsCount: items.length,
+      transformedCount: transformed.length,
+      transformedItems: transformed.map((item, idx) => ({
+        index: idx,
+        'item.item_name': item.item_name,
+        'item.description': item.description,
+        'item.id': item.id,
+        'item.uuid': item.uuid,
+        'item.base_item_uuid': item.base_item_uuid,
+      })),
+    });
 
     // If showModal is true and we're creating a new receipt note, show the selection modal
     if (showModal && !props.editingReceiptNote) {
@@ -2252,6 +2371,19 @@ const fetchItems = async (sourceUuid: string | null, sourceType: string | null, 
           const leftoverQty = getLeftoverQuantity(item);
           return leftoverQty > 0;
         });
+      
+      console.log('[ReceiptNoteForm] [fetchItems] Setting receiptItems for new receipt note:', {
+        newReceiptItemsCount: newReceiptItems.length,
+        newReceiptItems: newReceiptItems.map((item, idx) => ({
+          index: idx,
+          'item.item_name': item.item_name,
+          'item.description': item.description,
+          'item.id': item.id,
+          'item.uuid': item.uuid,
+          'item.base_item_uuid': item.base_item_uuid,
+        })),
+      });
+      
       receiptItems.value = newReceiptItems;
     } else {
       // When editing, fetch receipt note items from the new receipt_note_items table
@@ -2529,6 +2661,18 @@ const fetchItems = async (sourceUuid: string | null, sourceType: string | null, 
         
         
         return item;
+      });
+      
+      console.log('[ReceiptNoteForm] [fetchItems] Setting receiptItems for editing receipt note:', {
+        receiptItemsCount: receiptItems.value.length,
+        receiptItems: receiptItems.value.map((item, idx) => ({
+          index: idx,
+          'item.item_name': item.item_name,
+          'item.description': item.description,
+          'item.id': item.id,
+          'item.uuid': item.uuid,
+          'item.base_item_uuid': item.base_item_uuid,
+        })),
       });
     }
   } catch (error: any) {

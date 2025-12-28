@@ -79,7 +79,18 @@
               </td>
               <td class="px-3 py-2 align-middle">
                 <div class="text-xs font-medium text-default truncate">
-                  {{ item.item_name || '—' }}
+                  {{ (() => {
+                    console.log('[ReceiptNoteItemsTable] Rendering item_name for item:', {
+                      index,
+                      'item.item_name': item.item_name,
+                      'item.description': item.description,
+                      'item.id': item.id,
+                      'item.uuid': (item as any).uuid,
+                      'item.base_item_uuid': item.base_item_uuid,
+                      fullItem: item,
+                    });
+                    return item.item_name || '—';
+                  })() }}
                 </div>
               </td>
               <td class="px-3 py-2 text-left align-middle">
@@ -187,7 +198,18 @@
             </div>
             <div class="col-span-2 flex flex-col gap-1">
               <span class="block text-[11px] uppercase tracking-wide text-muted/80">Item</span>
-              <span class="font-semibold">{{ item.item_name || '—' }}</span>
+              <span class="font-semibold">{{ (() => {
+                console.log('[ReceiptNoteItemsTable] [Mobile] Rendering item_name for item:', {
+                  index,
+                  'item.item_name': item.item_name,
+                  'item.description': item.description,
+                  'item.id': item.id,
+                  'item.uuid': (item as any).uuid,
+                  'item.base_item_uuid': item.base_item_uuid,
+                  fullItem: item,
+                });
+                return item.item_name || '—';
+              })() }}</span>
             </div>
             <div class="col-span-2 flex flex-col gap-1">
               <span class="block text-[11px] uppercase tracking-wide text-muted/80">Received At</span>
