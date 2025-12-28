@@ -1713,17 +1713,33 @@ const transformItemsToReturnItems = (items: any[]) => {
       item_type_label: itemTypeLabel,
       sequence_label: sequenceLabel,
       item_uuid: itemUuid,
-      // Get item name - prioritize item_name strictly (same logic as POBreakdown)
+      // Get item name - prioritize preferred item's item_name by item_uuid
       item_name: (() => {
-        let itemName = item.item_name || ''
-        if (!itemName) {
-          itemName = metadata.item_name || ''
+        let resolvedName = '';
+        
+        // Strategy 1: Look up from preferred items by item_uuid
+        if (preferredItem?.item_name) {
+          resolvedName = preferredItem.item_name;
+        } else if (preferredItem?.name) { // Fallback to 'name' field on preferred item
+          resolvedName = preferredItem.name;
         }
-        // If we have sequence but still no item_name, try item.name (preferred items may use 'name' field)
-        if (!itemName && sequenceLabel) {
-          itemName = item.name || ''
+        
+        // Strategy 2: Fallback to item.item_name (direct database field) if not found from preferred item
+        if (!resolvedName && item.item_name) {
+          resolvedName = item.item_name;
         }
-        return itemName || null
+        
+        // Strategy 3: Fallback to metadata.item_name (JSONB field) if not found
+        if (!resolvedName) {
+          resolvedName = metadata.item_name || item.display_metadata?.item_name || '';
+        }
+        
+        // Strategy 4: Fallback to item.name (if sequence exists, for preferred items that might use 'name')
+        if (!resolvedName && sequenceLabel && sequenceLabel !== '—' && sequenceLabel.trim() !== '') {
+          resolvedName = item.name || '';
+        }
+        
+        return resolvedName || null;
       })(),
       description: item.description || metadata.description || null,
       model_number: item.model_number || metadata.model_number || null,
