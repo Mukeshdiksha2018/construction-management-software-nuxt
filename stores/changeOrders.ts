@@ -80,6 +80,8 @@ export interface ChangeOrder {
   project_id?: string | null
   vendor_name?: string | null
   po_number?: string | null
+  // Audit log
+  audit_log?: any[] | null
 }
 
 export interface ChangeOrderResponse {

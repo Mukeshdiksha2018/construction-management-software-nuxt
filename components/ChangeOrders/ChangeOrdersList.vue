@@ -1222,6 +1222,7 @@ const switchToEditMode = () => {
 const closeFormModal = () => {
   changeOrderResourcesStore.clear()
   showFormModal.value = false
+  showAuditLogModal.value = false
   isViewMode.value = false
   coForm.value = {}
   loadingDetail.value = false
