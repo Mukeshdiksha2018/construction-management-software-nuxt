@@ -3667,6 +3667,11 @@ const applyEstimateItemsToForm = (
     return
   }
 
+  // Don't show modal if estimate is not approved
+  if (isEstimateImportBlocked.value) {
+    return
+  }
+
   const currentItems = Array.isArray(props.form.po_items) ? props.form.po_items : []
   
   // Don't overwrite items if we're editing an existing PO (unless forced)
@@ -3722,6 +3727,11 @@ watch(
 
       // Handle switching to estimate import
       if (switchedToEstimate) {
+        
+        // Don't proceed if estimate is not approved
+        if (isEstimateImportBlocked.value) {
+          return
+        }
         
         // Ensure estimates are fetched when switching to estimate import
         if (corpUuid && projectUuid) {
@@ -5206,7 +5216,8 @@ watch(
       
       // Explicitly trigger labor items loading from estimate after form update
       // Skip if editing an existing PO with labor items
-      if (!shouldSkipLaborAutoImport.value) {
+      // Skip if estimate is not approved
+      if (!shouldSkipLaborAutoImport.value && !isEstimateImportBlocked.value) {
         await nextTick();
         // Automatically load labor items from estimate (Labor PO always uses estimate)
         const projectUuid = props.form.project_uuid;
@@ -5561,7 +5572,8 @@ watch(
 
     // Labor PO always uses "Against Estimate" behavior
     // Skip auto-loading if editing an existing PO with labor items
-    if (shouldSkipLaborAutoImport.value) {
+    // Skip if estimate is not approved
+    if (shouldSkipLaborAutoImport.value || isEstimateImportBlocked.value) {
       return;
     }
     
@@ -5669,6 +5681,11 @@ const loadAllCostCodes = async () => {
 // Load labor items from estimate line items (similar to how material items are loaded)
 const loadLaborItemsFromEstimateLineItems = async (lineItems: any[]) => {
   if (!Array.isArray(lineItems) || lineItems.length === 0) {
+    return;
+  }
+
+  // Don't show modal if estimate is not approved
+  if (isEstimateImportBlocked.value) {
     return;
   }
 
