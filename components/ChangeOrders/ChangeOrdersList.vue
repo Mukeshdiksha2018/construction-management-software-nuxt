@@ -984,11 +984,11 @@ const columns = computed<TableColumn<any>[]>(() => [
           color: 'primary'
         },
         approved: {
-          label: 'Purchase order approved',
+          label: 'Change order approved',
           color: 'success'
         },
         rejected: {
-          label: 'Purchase order rejected',
+          label: 'Change order rejected',
           color: 'error'
         },
         partially_received: {
