@@ -118,19 +118,19 @@
                     ]"
                     :disabled="readonly || !row.cost_code_uuid || !!props.currentInvoiceUuid"
                     placeholder="0.00"
-                    @update:model-value="(value) => handleReleaseAmountChange(index, value)"
+                    @update:model-value="(value) => handleReleaseAmountChange(costCodeRows.value.findIndex(r => r.id === row.id), value)"
                     @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab') e.preventDefault(); }"
                   />
                   <div v-if="shouldValidateReleaseAmount && isReleaseAmountExceeded(row.cost_code_uuid, parseFloat(String(row.releaseAmount || 0)) || 0, row.retainageAmount || 0)" class="text-xs text-red-600 dark:text-red-400">
                     Exceeds available amount
                   </div>
                   <div v-if="!readonly && !props.currentInvoiceUuid && row.cost_code_uuid && row.retainageAmount" class="text-[10px] font-mono"
-                    :class="getRemainingReleaseAmountClass(row, index)">
-                    <span v-if="getRemainingReleaseAmount(row, index) >= 0">
-                      Remaining: {{ formatCurrency(getRemainingReleaseAmount(row, index)) }}
+                    :class="getRemainingReleaseAmountClass(row, costCodeRows.value.findIndex(r => r.id === row.id))">
+                    <span v-if="getRemainingReleaseAmount(row, costCodeRows.value.findIndex(r => r.id === row.id)) >= 0">
+                      Remaining: {{ formatCurrency(getRemainingReleaseAmount(row, costCodeRows.value.findIndex(r => r.id === row.id))) }}
                     </span>
                     <span v-else>
-                      Over by: {{ formatCurrency(Math.abs(getRemainingReleaseAmount(row, index))) }}
+                      Over by: {{ formatCurrency(Math.abs(getRemainingReleaseAmount(row, costCodeRows.value.findIndex(r => r.id === row.id)))) }}
                     </span>
                   </div>
                 </div>
@@ -146,7 +146,7 @@
                     color="primary"
                     variant="soft"
                     class="p-1"
-                    @click="handleAddRow(index)"
+                    @click="handleAddRow(costCodeRows.value.findIndex(r => r.id === row.id))"
                   />
                   <UButton
                     v-if="!readonly"
@@ -155,7 +155,7 @@
                     color="error"
                     variant="soft"
                     class="p-1"
-                    @click="handleRemoveRow(index)"
+                    @click="handleRemoveRow(costCodeRows.value.findIndex(r => r.id === row.id))"
                   />
                 </div>
               </td>
