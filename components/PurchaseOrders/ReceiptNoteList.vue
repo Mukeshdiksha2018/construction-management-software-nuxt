@@ -1399,7 +1399,7 @@ const saveReceiptNote = async () => {
   await performSaveReceiptNote(false); // Pass false for normal save
 };
 
-const performSaveReceiptNote = async (saveAsOpenPO: boolean = false) => {
+const performSaveReceiptNote = async (saveAsOpenPO: boolean = false, suppressToast: boolean = false) => {
   if (savingReceiptNote.value) return;
   const corpUuid = corporationStore.selectedCorporationId;
   if (!corpUuid) {
@@ -1470,20 +1470,24 @@ const performSaveReceiptNote = async (saveAsOpenPO: boolean = false) => {
 
     if (receiptNoteForm.value?.uuid) {
       await stockReceiptNotesStore.updateStockReceiptNote(payload);
-      const toast = useToast();
-      toast.add({
-        title: "Updated",
-        description: "Receipt note updated successfully.",
-        color: "success",
-      });
+      if (!suppressToast) {
+        const toast = useToast();
+        toast.add({
+          title: "Updated",
+          description: "Receipt note updated successfully.",
+          color: "success",
+        });
+      }
     } else {
       await stockReceiptNotesStore.createStockReceiptNote(payload);
-      const toast = useToast();
-      toast.add({
-        title: "Created",
-        description: "Receipt note created successfully.",
-        color: "success",
-      });
+      if (!suppressToast) {
+        const toast = useToast();
+        toast.add({
+          title: "Created",
+          description: "Receipt note created successfully.",
+          color: "success",
+        });
+      }
     }
     
     // Check if form's corporation matches TopBar's selected corporation
@@ -1695,9 +1699,9 @@ const handleRaiseReturnNote = async () => {
     return;
   }
 
-  // First, save the receipt note as open PO
+  // First, save the receipt note as open PO (suppress toast - we'll show combined message later)
   try {
-    await performSaveReceiptNote(true); // Save as open PO
+    await performSaveReceiptNote(true, true); // Save as open PO, suppress toast
   } catch (error: any) {
     console.error("[ReceiptNoteList] Failed to save receipt note:", error);
     const toast = useToast();
