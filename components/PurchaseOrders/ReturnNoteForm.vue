@@ -1963,8 +1963,45 @@ const fetchItems = async (sourceUuid: string | null, sourceType: string | null) 
       });
       
       
-      // Merge return note items with transformed PO/CO items
-      returnItems.value = transformed.map((item, index) => {
+      // When editing, only show items that are in the return note (from return_note_items table or props.form.return_items)
+      // Build a set of item UUIDs that should be included
+      const includedItemUuids = new Set<string>();
+      
+      // Add UUIDs from return note items map
+      returnNoteItemsMap.forEach((rni) => {
+        if (rni.item_uuid) {
+          includedItemUuids.add(String(rni.item_uuid).trim().toLowerCase());
+        }
+        if (rni.base_item_uuid) {
+          includedItemUuids.add(String(rni.base_item_uuid).trim().toLowerCase());
+        }
+      });
+      
+      // Also check props.form.return_items for backward compatibility
+      if (props.form.return_items && Array.isArray(props.form.return_items)) {
+        props.form.return_items.forEach((ri: any) => {
+          if (ri.item_uuid) {
+            includedItemUuids.add(String(ri.item_uuid).trim().toLowerCase());
+          }
+          if (ri.base_item_uuid) {
+            includedItemUuids.add(String(ri.base_item_uuid).trim().toLowerCase());
+          }
+          if (ri.uuid) {
+            includedItemUuids.add(String(ri.uuid).trim().toLowerCase());
+          }
+        });
+      }
+      
+      // Filter transformed items to only include those that are in the return note
+      const filteredTransformed = transformed.filter((item) => {
+        const itemUuid = item.uuid || item.base_item_uuid || item.item_uuid;
+        if (!itemUuid) return false;
+        const itemUuidKey = String(itemUuid).trim().toLowerCase();
+        return includedItemUuids.has(itemUuidKey);
+      });
+      
+      // Merge return note items with filtered transformed PO/CO items
+      returnItems.value = filteredTransformed.map((item, index) => {
         const itemUuid = item.uuid || item.base_item_uuid || item.id;
         const currentReturnType = returnType.value;
         
@@ -2002,13 +2039,13 @@ const fetchItems = async (sourceUuid: string | null, sourceType: string | null) 
         
         // Strategy 4: Fallback to position-based matching when UUIDs don't match
         if (!returnNoteItem && returnNoteItemsArray.length > 0) {
-          // If we have the same number of return note items as PO items, match by position
-          if (returnNoteItemsArray.length === transformed.length && index < returnNoteItemsArray.length) {
+          // If we have the same number of return note items as filtered items, match by position
+          if (returnNoteItemsArray.length === filteredTransformed.length && index < returnNoteItemsArray.length) {
             returnNoteItem = returnNoteItemsArray[index];
             matchedBy = 'position (same count)';
           } 
           // If we have more return note items, still try position-based matching
-          else if (returnNoteItemsArray.length > transformed.length && index < returnNoteItemsArray.length) {
+          else if (returnNoteItemsArray.length > filteredTransformed.length && index < returnNoteItemsArray.length) {
             returnNoteItem = returnNoteItemsArray[index];
             matchedBy = 'position (more return items)';
           }
@@ -2041,7 +2078,10 @@ const fetchItems = async (sourceUuid: string | null, sourceType: string | null) 
         // Fallback: If no return note item found, check props.form.return_items (for backward compatibility)
         if (props.form.return_items && Array.isArray(props.form.return_items)) {
           const existing = props.form.return_items.find(
-            (ri: any) => (ri.uuid || ri.base_item_uuid) === itemUuid
+            (ri: any) => {
+              const riUuid = ri.uuid || ri.base_item_uuid || ri.item_uuid;
+              return riUuid && String(riUuid).trim().toLowerCase() === String(itemUuid).trim().toLowerCase();
+            }
           );
           if (existing) {
             return {
@@ -2057,7 +2097,8 @@ const fetchItems = async (sourceUuid: string | null, sourceType: string | null) 
           }
         }
         
-        
+        // If we reach here, the item should still be included (it passed the filter)
+        // but we don't have return note data for it - use the item as-is
         return item;
       });
       
