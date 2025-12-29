@@ -148,7 +148,11 @@ const storeItems = computed<ExternalItemOption[]>(() => {
         : undefined
       const configTyped = config as CostCodeConfigurationLike | undefined
       const preferred = Array.isArray(configTyped?.preferred_items) ? configTyped?.preferred_items : []
-      return (preferred as ExternalItemOption[]).map((item) => ({
+      // Filter out inactive items - only show items with status 'Active'
+      const activePreferred = preferred.filter((item: any) => 
+        item.status === 'Active' || item.status === undefined || item.status === null
+      )
+      return (activePreferred as ExternalItemOption[]).map((item) => ({
         ...item,
         cost_code_configuration_uuid: configTyped?.uuid,
         cost_code_number: configTyped?.cost_code_number,
@@ -163,7 +167,9 @@ const storeItems = computed<ExternalItemOption[]>(() => {
         if (config.preferred_items && Array.isArray(config.preferred_items) && config.preferred_items.length > 0) {
           config.preferred_items.forEach((item: any) => {
             // Filter by project if projectUuid is provided
-            if (!props.projectUuid || item.project_uuid === props.projectUuid) {
+            // Also filter out inactive items - only show items with status 'Active'
+            if ((!props.projectUuid || item.project_uuid === props.projectUuid) &&
+                (item.status === 'Active' || item.status === undefined || item.status === null)) {
               allItems.push({
                 ...item,
                 cost_code_configuration_uuid: config.uuid,
@@ -196,7 +202,11 @@ const storeItems = computed<ExternalItemOption[]>(() => {
     const preferred = Array.isArray(config?.preferred_items)
       ? config?.preferred_items
       : []
-    let mapped = (preferred as ExternalItemOption[]).map((item) => ({
+    // Filter out inactive items - only show items with status 'Active'
+    const activePreferred = preferred.filter((item: any) => 
+      item.status === 'Active' || item.status === undefined || item.status === null
+    )
+    let mapped = (activePreferred as ExternalItemOption[]).map((item) => ({
       ...item,
       cost_code_configuration_uuid: config?.uuid,
       cost_code_number: config?.cost_code_number,
@@ -222,6 +232,11 @@ const storeItems = computed<ExternalItemOption[]>(() => {
         if (props.projectUuid && Array.isArray(allItems) && allItems.length > 0) {
           allItems = allItems.filter((item: any) => item.project_uuid === props.projectUuid)
         }
+        
+        // Filter out inactive items - only show items with status 'Active'
+        allItems = allItems.filter((item: any) => 
+          item.status === 'Active' || item.status === undefined || item.status === null
+        )
         
         const matchingItem = Array.isArray(allItems) 
           ? allItems.find((item: any) => 
@@ -256,6 +271,11 @@ const storeItems = computed<ExternalItemOption[]>(() => {
   if (props.projectUuid && filteredItems.length > 0) {
     filteredItems = filteredItems.filter((item: any) => item.project_uuid === props.projectUuid)
   }
+  
+  // Filter out inactive items - only show items with status 'Active'
+  filteredItems = filteredItems.filter((item: any) => 
+    item.status === 'Active' || item.status === undefined || item.status === null
+  )
 
   return filteredItems
 })
@@ -280,7 +300,12 @@ const sequenceOptions = computed<SequenceOption[]>(() => {
     }
   })
   
-  const source = mergedItems
+  // Filter out inactive items - only show items with status 'Active'
+  const source = mergedItems.filter((item: any) => {
+    const status = String(item.status || '').trim()
+    // Show item if status is 'Active' or if status is not set (for backward compatibility)
+    return status === '' || status.toLowerCase() === 'active'
+  })
 
   const normalized = source
     .map((item) => {
