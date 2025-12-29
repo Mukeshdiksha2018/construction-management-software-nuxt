@@ -1183,6 +1183,254 @@ describe("PurchaseOrdersList.vue", () => {
       expect(vm.showFormModal).toBe(false);
     });
 
+    it("preserves custom_duties values when raising change order for exceeded quantities", async () => {
+      const wrapper = mountList();
+      const vm: any = wrapper.vm as any;
+      const poStore = usePurchaseOrdersStore();
+      const coStore = useChangeOrdersStore();
+
+      // Mock used quantities API response - 2 units already used
+      fetchMock.mockResolvedValueOnce({ data: { "item-1": 2 } });
+
+      vm.poForm = {
+        uuid: null,
+        corporation_uuid: "corp-1",
+        project_uuid: "project-1",
+        po_number: "PO-123",
+        vendor_uuid: "vendor-1",
+        po_type: "MATERIAL",
+        include_items: "IMPORT_ITEMS_FROM_ESTIMATE",
+        status: "Draft",
+        item_total: 1500,
+        po_items: [
+          {
+            item_uuid: "item-1",
+            quantity: 10, // Estimate quantity
+            po_quantity: 15, // PO quantity exceeds
+            po_unit_price: 100,
+            po_total: 1500,
+            unit_price: 100,
+          },
+        ],
+        // Set initial custom_duties values (these will be updated by FinancialBreakdown)
+        custom_duties_charges_percentage: 0,
+        custom_duties_charges_amount: 0,
+        custom_duties_charges_taxable: false,
+      };
+
+      const poStoreInstance = usePurchaseOrdersStore();
+      const coStoreInstance = useChangeOrdersStore();
+
+      // Simulate FinancialBreakdown updating the form with custom_duties values
+      // This happens before handleRaiseChangeOrder is called
+      vm.poForm.custom_duties_charges_percentage = 3;
+      vm.poForm.custom_duties_charges_amount = 45; // 3% of 1500
+      vm.poForm.custom_duties_charges_taxable = true;
+
+      // Also update financial_breakdown to reflect the custom_duties
+      vm.poForm.financial_breakdown = {
+        charges: {
+          custom_duties: {
+            percentage: 3,
+            amount: 45,
+            taxable: true,
+          },
+        },
+      };
+
+      // Spy on store methods
+      const createPOSpy = vi
+        .spyOn(poStoreInstance, "createPurchaseOrder")
+        .mockResolvedValue({
+          uuid: "po-new",
+          po_number: "PO-123",
+          ...vm.poForm,
+        } as any);
+
+      vi.spyOn(poStoreInstance, "fetchPurchaseOrder").mockResolvedValue({
+        uuid: "po-new",
+        po_number: "PO-123",
+        ...vm.poForm,
+      } as any);
+
+      vi.spyOn(poStoreInstance, "fetchPurchaseOrders").mockResolvedValue([
+        {
+          uuid: "po-new",
+          po_number: "PO-123",
+          corporation_uuid: "corp-1",
+          ...vm.poForm,
+        },
+      ] as any);
+
+      poStoreInstance.purchaseOrders = [
+        ...poStoreInstance.purchaseOrders,
+        {
+          uuid: "po-new",
+          po_number: "PO-123",
+          corporation_uuid: "corp-1",
+          entry_date: new Date().toISOString(),
+          ...vm.poForm,
+        },
+      ];
+
+      const createCOSpy = vi
+        .spyOn(coStoreInstance, "createChangeOrder")
+        .mockResolvedValue({
+          uuid: "co-new",
+          co_number: "CO-1",
+        } as any);
+
+      // Set up change orders in store for CO number generation
+      if ((coStoreInstance as any)._changeOrders) {
+        (coStoreInstance as any)._changeOrders.value = [
+          { co_number: "CO-1" },
+        ];
+      }
+
+      // Trigger exceeded quantity check
+      await vm.submitWithStatus("Draft");
+      await wrapper.vm.$nextTick();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(vm.showExceededQuantityModal).toBe(true);
+
+      // User chooses to raise change order
+      await vm.handleRaiseChangeOrder();
+      await wrapper.vm.$nextTick();
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Verify PO was saved with preserved custom_duties values
+      expect(createPOSpy).toHaveBeenCalled();
+      const createPOCall = createPOSpy.mock.calls[0]?.[0] as any;
+      
+      // Verify custom_duties values are preserved
+      expect(createPOCall.custom_duties_charges_percentage).toBe(3);
+      expect(createPOCall.custom_duties_charges_amount).toBeGreaterThan(0); // Should be recalculated based on adjusted item_total
+      expect(createPOCall.custom_duties_charges_taxable).toBe(true);
+      
+      // Verify financial_breakdown also has custom_duties
+      expect(createPOCall.financial_breakdown).toBeDefined();
+      expect(createPOCall.financial_breakdown.charges).toBeDefined();
+      expect(createPOCall.financial_breakdown.charges.custom_duties).toBeDefined();
+      expect(createPOCall.financial_breakdown.charges.custom_duties.percentage).toBe(3);
+      expect(createPOCall.financial_breakdown.charges.custom_duties.taxable).toBe(true);
+
+      // Verify modals are closed
+      expect(vm.showExceededQuantityModal).toBe(false);
+      expect(vm.showFormModal).toBe(false);
+    });
+
+    it("preserves custom_duties values when raising change order for labor PO with exceeded amounts", async () => {
+      const wrapper = mountList();
+      const vm: any = wrapper.vm as any;
+      const poStore = usePurchaseOrdersStore();
+      const coStore = useChangeOrdersStore();
+
+      // Mock used quantities API response
+      fetchMock.mockResolvedValueOnce({ data: {} });
+
+      vm.poForm = {
+        uuid: null,
+        corporation_uuid: "corp-1",
+        project_uuid: "project-1",
+        po_number: "PO-123",
+        vendor_uuid: "vendor-1",
+        po_type: "LABOR",
+        include_items: "IMPORT_ITEMS_FROM_ESTIMATE",
+        status: "Draft",
+        item_total: 2000,
+        labor_po_items: [
+          {
+            cost_code_uuid: "cc-1",
+            po_amount: 2500, // PO amount exceeds estimate
+            labor_budgeted_amount: 2000, // Estimate amount
+          },
+        ],
+        // Set initial custom_duties values
+        custom_duties_charges_percentage: 0,
+        custom_duties_charges_amount: 0,
+        custom_duties_charges_taxable: false,
+      };
+
+      const poStoreInstance = usePurchaseOrdersStore();
+      const coStoreInstance = useChangeOrdersStore();
+
+      // Simulate FinancialBreakdown updating the form with custom_duties values
+      vm.poForm.custom_duties_charges_percentage = 5;
+      vm.poForm.custom_duties_charges_amount = 100; // 5% of 2000
+      vm.poForm.custom_duties_charges_taxable = true;
+
+      vm.poForm.financial_breakdown = {
+        charges: {
+          custom_duties: {
+            percentage: 5,
+            amount: 100,
+            taxable: true,
+          },
+        },
+      };
+
+      // Spy on store methods
+      const createPOSpy = vi
+        .spyOn(poStoreInstance, "createPurchaseOrder")
+        .mockResolvedValue({
+          uuid: "po-new",
+          po_number: "PO-123",
+          ...vm.poForm,
+        } as any);
+
+      vi.spyOn(poStoreInstance, "fetchPurchaseOrder").mockResolvedValue({
+        uuid: "po-new",
+        po_number: "PO-123",
+        ...vm.poForm,
+      } as any);
+
+      const createCOSpy = vi
+        .spyOn(coStoreInstance, "createChangeOrder")
+        .mockResolvedValue({
+          uuid: "co-new",
+          co_number: "CO-1",
+        } as any);
+
+      // Set up change orders in store
+      if ((coStoreInstance as any)._changeOrders) {
+        (coStoreInstance as any)._changeOrders.value = [
+          { co_number: "CO-1" },
+        ];
+      }
+
+      // Trigger exceeded quantity check
+      await vm.submitWithStatus("Draft");
+      await wrapper.vm.$nextTick();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(vm.showExceededQuantityModal).toBe(true);
+
+      // User chooses to raise change order
+      await vm.handleRaiseChangeOrder();
+      await wrapper.vm.$nextTick();
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Verify PO was saved with preserved custom_duties values
+      expect(createPOSpy).toHaveBeenCalled();
+      const createPOCall = createPOSpy.mock.calls[0]?.[0] as any;
+      
+      // Verify custom_duties values are preserved
+      expect(createPOCall.custom_duties_charges_percentage).toBe(5);
+      expect(createPOCall.custom_duties_charges_amount).toBeGreaterThan(0); // Should be recalculated
+      expect(createPOCall.custom_duties_charges_taxable).toBe(true);
+      
+      // Verify financial_breakdown also has custom_duties
+      expect(createPOCall.financial_breakdown).toBeDefined();
+      expect(createPOCall.financial_breakdown.charges).toBeDefined();
+      expect(createPOCall.financial_breakdown.charges.custom_duties).toBeDefined();
+      expect(createPOCall.financial_breakdown.charges.custom_duties.percentage).toBe(5);
+      expect(createPOCall.financial_breakdown.charges.custom_duties.taxable).toBe(true);
+
+      // Verify modals are closed
+      expect(vm.showExceededQuantityModal).toBe(false);
+    });
+
     it("generates correct CO number when creating change order", async () => {
       const wrapper = mountList();
       const vm: any = wrapper.vm as any;

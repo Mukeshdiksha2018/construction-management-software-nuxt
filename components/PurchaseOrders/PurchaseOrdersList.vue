@@ -3260,11 +3260,37 @@ const handleRaiseChangeOrder = async () => {
       const roundedItemTotal = Math.round((newItemTotal + Number.EPSILON) * 100) / 100
       
       // Recalculate charges based on percentages
+      // Read from poForm.value (latest) first, then fallback to currentFormData
+      // Also check both field name formats: with and without _charges_ suffix
+      const getChargePercentageForLabor = (key: string) => {
+        const withCharges = `${key}_charges_percentage`
+        const withoutCharges = `${key}_percentage`
+        return parseFloat(String(
+          poForm.value[withCharges] ?? 
+          poForm.value[withoutCharges] ?? 
+          currentFormData[withCharges] ?? 
+          currentFormData[withoutCharges] ?? 
+          0
+        ))
+      }
+      
+      const getChargeTaxableForLabor = (key: string) => {
+        const withCharges = `${key}_charges_taxable`
+        const withoutCharges = `${key}_taxable`
+        return Boolean(
+          poForm.value[withCharges] ?? 
+          poForm.value[withoutCharges] ?? 
+          currentFormData[withCharges] ?? 
+          currentFormData[withoutCharges] ?? 
+          false
+        )
+      }
+      
       // Use helper functions to read from latest poForm.value
-      const freightPercentage = getChargePercentage('freight')
-      const packingPercentage = getChargePercentage('packing')
-      const customDutiesPercentage = getChargePercentage('custom_duties')
-      const otherChargesPercentage = getChargePercentage('other')
+      const freightPercentage = getChargePercentageForLabor('freight')
+      const packingPercentage = getChargePercentageForLabor('packing')
+      const customDutiesPercentage = getChargePercentageForLabor('custom_duties')
+      const otherChargesPercentage = getChargePercentageForLabor('other')
       
       const freightAmount = Math.round((roundedItemTotal * (freightPercentage / 100) + Number.EPSILON) * 100) / 100
       const packingAmount = Math.round((roundedItemTotal * (packingPercentage / 100) + Number.EPSILON) * 100) / 100
@@ -3275,10 +3301,10 @@ const handleRaiseChangeOrder = async () => {
       
       // Calculate taxable base (item_total + taxable charges)
       // Use helper function to read from latest poForm.value
-      const freightTaxable = getChargeTaxable('freight')
-      const packingTaxable = getChargeTaxable('packing')
-      const customDutiesTaxable = getChargeTaxable('custom_duties')
-      const otherChargesTaxable = getChargeTaxable('other')
+      const freightTaxable = getChargeTaxableForLabor('freight')
+      const packingTaxable = getChargeTaxableForLabor('packing')
+      const customDutiesTaxable = getChargeTaxableForLabor('custom_duties')
+      const otherChargesTaxable = getChargeTaxableForLabor('other')
       
       const taxableBase = roundedItemTotal + 
         (freightTaxable ? freightAmount : 0) +
