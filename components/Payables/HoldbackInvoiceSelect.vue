@@ -94,13 +94,13 @@ const loading = ref(false)
 const invoiceOptionsWithHoldback = ref<any[]>([])
 
 // Helper function to fetch PO/CO financial breakdown and extract holdback amount
-// Also extracts invoice's item total (from financial_breakdown.totals.item_total)
-// Returns { totalAmount: number, holdbackAmount: number }
-const getPOCOFinancialData = async (invoice: any): Promise<{ totalAmount: number; holdbackAmount: number }> => {
-  // Get invoice's item total (from invoice's financial_breakdown.totals.item_total)
+// Also extracts invoice's total amount (item_total + charges + tax, BEFORE deductions for advances/holdbacks)
+// Returns { totalAmount: number, holdbackAmount: number, poCoTotalAmount: number }
+const getPOCOFinancialData = async (invoice: any): Promise<{ totalAmount: number; holdbackAmount: number; poCoTotalAmount: number }> => {
+  // Get invoice's total amount (item_total + charges + tax, BEFORE deductions for advances/holdbacks)
   let totalAmount: number | null = null
   
-  // First try to get from invoice's financial_breakdown.totals.item_total
+  // Parse invoice financial breakdown
   let invoiceFinancialBreakdown = invoice.financial_breakdown
   if (typeof invoiceFinancialBreakdown === 'string') {
     try {
@@ -110,23 +110,26 @@ const getPOCOFinancialData = async (invoice: any): Promise<{ totalAmount: number
     }
   }
   
+  // Calculate total amount from item_total + charges_total + tax_total (before deductions)
+  // This is the total amount BEFORE advances and holdbacks are deducted
   if (invoiceFinancialBreakdown && typeof invoiceFinancialBreakdown === 'object' && invoiceFinancialBreakdown.totals) {
-    const itemTotalValue = invoiceFinancialBreakdown.totals.item_total
-    if (itemTotalValue !== null && itemTotalValue !== undefined && itemTotalValue !== '') {
-      const parsed = typeof itemTotalValue === 'number' 
-        ? itemTotalValue 
-        : (parseFloat(String(itemTotalValue)) || 0)
-      totalAmount = parsed
+    const itemTotal = invoiceFinancialBreakdown.totals.item_total || 0
+    const chargesTotal = invoiceFinancialBreakdown.totals.charges_total || 0
+    const taxTotal = invoiceFinancialBreakdown.totals.tax_total || 0
+    const calculatedTotal = itemTotal + chargesTotal + taxTotal
+    if (calculatedTotal > 0) {
+      totalAmount = calculatedTotal
     }
   }
   
-  // Fallback to invoice.amount if financial_breakdown doesn't have item_total
-  if (totalAmount === null) {
+  // Fallback to invoice.amount if financial_breakdown doesn't have the totals
+  if (totalAmount === null || totalAmount === 0) {
     totalAmount = typeof invoice.amount === 'number' ? invoice.amount : (parseFloat(String(invoice.amount || '0')) || 0)
   }
   
   // Fetch holdback amount from PO/CO financial_breakdown
   let holdbackAmount: number | null = null
+  let poCoTotalAmount: number | null = null
   let poCoFinancialBreakdown: any = null
   
   // For AGAINST_PO invoices, fetch PO financial_breakdown
@@ -167,14 +170,36 @@ const getPOCOFinancialData = async (invoice: any): Promise<{ totalAmount: number
     }
   }
   
-  // Extract holdback amount from PO/CO financial_breakdown
+  // Extract holdback amount and total amount from PO/CO financial_breakdown
   if (poCoFinancialBreakdown && typeof poCoFinancialBreakdown === 'object' && poCoFinancialBreakdown.totals) {
+    // Get holdback amount
     const holdbackValue = poCoFinancialBreakdown.totals.holdback_amount
     if (holdbackValue !== null && holdbackValue !== undefined && holdbackValue !== '') {
       const parsed = typeof holdbackValue === 'number' 
         ? holdbackValue 
         : (parseFloat(String(holdbackValue)) || 0)
       holdbackAmount = parsed
+    }
+    
+    // Get PO/CO total amount (the base amount for calculating holdback percentage)
+    // This should be the total invoice amount (item_total + charges + tax) before holdback deduction
+    const poCoTotalValue = poCoFinancialBreakdown.totals.total_invoice_amount || 
+                           poCoFinancialBreakdown.totals.total_po_amount || 
+                           poCoFinancialBreakdown.totals.total_co_amount ||
+                           poCoFinancialBreakdown.totals.amount
+    if (poCoTotalValue !== null && poCoTotalValue !== undefined && poCoTotalValue !== '') {
+      const parsed = typeof poCoTotalValue === 'number' 
+        ? poCoTotalValue 
+        : (parseFloat(String(poCoTotalValue)) || 0)
+      poCoTotalAmount = parsed
+    }
+    
+    // If we don't have total_invoice_amount, calculate from item_total + charges + tax
+    if (poCoTotalAmount === null || poCoTotalAmount === 0) {
+      const itemTotal = poCoFinancialBreakdown.totals.item_total || 0
+      const chargesTotal = poCoFinancialBreakdown.totals.charges_total || 0
+      const taxTotal = poCoFinancialBreakdown.totals.tax_total || 0
+      poCoTotalAmount = itemTotal + chargesTotal + taxTotal
     }
   }
   
@@ -199,7 +224,11 @@ const getPOCOFinancialData = async (invoice: any): Promise<{ totalAmount: number
     }
   }
   
-  return { totalAmount: totalAmount ?? 0, holdbackAmount: holdbackAmount ?? 0 }
+  return { 
+    totalAmount: totalAmount ?? 0, 
+    holdbackAmount: holdbackAmount ?? 0,
+    poCoTotalAmount: poCoTotalAmount ?? 0
+  }
 }
 
 // Process invoices and fetch holdback amounts from PO/CO financial_breakdown
@@ -223,9 +252,20 @@ const processInvoiceOptions = async () => {
   // Process invoices and fetch holdback amounts from PO/CO and invoice totals
   const processed = await Promise.all(filteredInvoices.map(async (invoice) => {
     const invoiceNumber = invoice.number || 'Unnamed Invoice'
-    // Fetch invoice total amount and holdback amount from PO/CO financial_breakdown
-    const { totalAmount, holdbackAmount } = await getPOCOFinancialData(invoice)
-    const holdbackPercentage = typeof invoice.holdback === 'number' ? invoice.holdback : (parseFloat(String(invoice.holdback || '0')) || 0)
+    // Fetch invoice total amount, holdback amount, and PO/CO total amount from PO/CO financial_breakdown
+    const { totalAmount, holdbackAmount, poCoTotalAmount } = await getPOCOFinancialData(invoice)
+    
+    // Get holdback percentage from invoice, or calculate it from holdback amount and PO/CO total amount
+    let holdbackPercentage = typeof invoice.holdback === 'number' ? invoice.holdback : (parseFloat(String(invoice.holdback || '0')) || 0)
+    
+    // If invoice doesn't have a holdback percentage but we have holdback amount and PO/CO total amount,
+    // calculate the percentage from the amounts (use PO/CO total amount as the base)
+    if (holdbackPercentage <= 0 && holdbackAmount > 0 && poCoTotalAmount > 0) {
+      holdbackPercentage = (holdbackAmount / poCoTotalAmount) * 100
+    } else if (holdbackPercentage <= 0 && holdbackAmount > 0 && totalAmount > 0) {
+      // Fallback to invoice total amount if PO/CO total amount is not available
+      holdbackPercentage = (holdbackAmount / totalAmount) * 100
+    }
     
     // Get PO/CO number based on invoice type
     const poCoNumber = invoice.invoice_type === 'AGAINST_PO' 
@@ -243,7 +283,7 @@ const processInvoiceOptions = async () => {
       invoiceNumber: invoiceNumber,
       poCoNumber: poCoNumber,
       formattedDate: formattedDate || 'N/A',
-      invoiceAmount: totalAmount, // Invoice's item total from financial_breakdown.totals.item_total
+      invoiceAmount: totalAmount, // Invoice's total amount (item_total + charges + tax, BEFORE deductions for advances/holdbacks)
       formattedInvoiceAmount: formatCurrency(totalAmount),
       holdbackPercentage: holdbackPercentage,
       holdbackAmount: holdbackAmount,
@@ -255,9 +295,9 @@ const processInvoiceOptions = async () => {
     }
   }))
   
-  // Filter out invoices with 0% holdback amount
+  // Filter out invoices with 0 holdback amount (check both percentage and amount)
   const filtered = processed.filter(option => {
-    return option.holdbackPercentage > 0
+    return option.holdbackAmount > 0 || option.holdbackPercentage > 0
   })
   
   // Sort by invoice number
