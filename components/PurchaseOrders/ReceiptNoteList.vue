@@ -1681,11 +1681,6 @@ const handleRaiseReturnNote = async () => {
 
   shortfallItemsForReturn.value = shortfallItems;
 
-  // Store the pending save action
-  pendingReceiptNoteSave.value = async () => {
-    await saveReceiptNote();
-  };
-
   // Get the receipt note data to use as reference
   const receiptData = receiptNoteForm.value;
   const corpUuid = corporationStore.selectedCorporationId;
@@ -1700,72 +1695,181 @@ const handleRaiseReturnNote = async () => {
     return;
   }
 
-  // Generate next return number
-  await stockReturnNotesStore.fetchStockReturnNotes(corpUuid);
-  const returnNumber = stockReturnNotesStore.generateNextReturnNumber(corpUuid);
+  // First, save the receipt note as open PO
+  try {
+    await performSaveReceiptNote(true); // Save as open PO
+  } catch (error: any) {
+    console.error("[ReceiptNoteList] Failed to save receipt note:", error);
+    const toast = useToast();
+    toast.add({
+      title: "Error",
+      description: "Failed to save receipt note. Return note was not created.",
+      color: "error",
+    });
+    return;
+  }
 
-  // Prepare return note items from shortfall items
-  const returnItems = shortfallItems.map((item: any) => {
+  // Now automatically create the return note
+  try {
+    // Generate next return number
+    await stockReturnNotesStore.fetchStockReturnNotes(corpUuid);
+    const returnNumber = stockReturnNotesStore.generateNextReturnNumber(corpUuid);
+
+    // Prepare return note items from shortfall items
+    const returnItems = shortfallItems.map((item: any) => {
+      const returnType = receiptData.receipt_type || 'purchase_order';
+      const orderedQty = item.ordered_quantity || item.po_quantity || 0;
+      
+      return {
+        base_item_uuid: item.uuid || item.base_item_uuid || null,
+        cost_code_uuid: item.cost_code_uuid || null,
+        cost_code_number: item.cost_code_number || '',
+        cost_code_name: item.cost_code_name || '',
+        cost_code_label: item.cost_code_label || [item.cost_code_number, item.cost_code_name].filter(Boolean).join(' ').trim(),
+        item_type_uuid: item.item_type_uuid || null,
+        item_type_code: item.item_type_code || null,
+        item_type_label: item.item_type_label || null,
+        item_uuid: item.item_uuid || null,
+        item_name: item.item_name || '',
+        description: item.description || '',
+        model_number: item.model_number || '',
+        unit_uuid: item.unit_uuid || null,
+        unit_label: item.unit_label || '',
+        unit_price: item.unit_price || 0,
+        // Set ordered quantity based on return type
+        ordered_quantity: orderedQty,
+        po_quantity: returnType === 'purchase_order' ? orderedQty : null,
+        co_quantity: returnType === 'change_order' ? orderedQty : null,
+        return_quantity: item.shortfall_quantity, // The shortfall quantity
+        return_total: item.shortfall_quantity * (item.unit_price || 0),
+        location_uuid: item.location_uuid || null,
+        location_label: item.location_label || null,
+        sequence_label: item.sequence_label || null,
+      };
+    });
+
+    // Calculate total return amount
+    const totalReturnAmount = returnItems.reduce((sum: number, item: any) => {
+      return sum + (item.return_total || 0);
+    }, 0);
+
+    // Determine return type based on receipt type
     const returnType = receiptData.receipt_type || 'purchase_order';
-    const orderedQty = item.ordered_quantity || item.po_quantity || 0;
-    
-    return {
-      base_item_uuid: item.uuid || item.base_item_uuid || null,
-      cost_code_uuid: item.cost_code_uuid || null,
-      cost_code_number: item.cost_code_number || '',
-      cost_code_name: item.cost_code_name || '',
-      cost_code_label: item.cost_code_label || [item.cost_code_number, item.cost_code_name].filter(Boolean).join(' ').trim(),
-      item_type_uuid: item.item_type_uuid || null,
-      item_type_code: item.item_type_code || null,
-      item_type_label: item.item_type_label || null,
-      item_uuid: item.item_uuid || null,
-      item_name: item.item_name || '',
-      description: item.description || '',
-      model_number: item.model_number || '',
-      unit_uuid: item.unit_uuid || null,
-      unit_label: item.unit_label || '',
-      unit_price: item.unit_price || 0,
-      // Set ordered quantity based on return type
-      ordered_quantity: orderedQty,
-      po_quantity: returnType === 'purchase_order' ? orderedQty : null,
-      co_quantity: returnType === 'change_order' ? orderedQty : null,
-      return_quantity: item.shortfall_quantity, // The shortfall quantity
-      return_total: item.shortfall_quantity * (item.unit_price || 0),
-      location_uuid: item.location_uuid || null,
-      location_label: item.location_label || null,
-      sequence_label: item.sequence_label || null,
+    const purchaseOrderUuid = returnType === 'purchase_order' ? receiptData.purchase_order_uuid : null;
+    const changeOrderUuid = returnType === 'change_order' ? receiptData.change_order_uuid : null;
+
+    // Create return note payload
+    const returnNotePayload = {
+      return_number: returnNumber,
+      entry_date: receiptData.entry_date || toUTCString(getCurrentLocal()),
+      return_type: returnType,
+      purchase_order_uuid: purchaseOrderUuid,
+      change_order_uuid: changeOrderUuid,
+      project_uuid: receiptData.project_uuid || null,
+      returned_by: receiptData.received_by || null,
+      location_uuid: receiptData.location_uuid || null,
+      notes: `Return note for shortfall quantities from receipt note ${receiptData.grn_number || ''}`,
+      status: 'Returned',
+      return_items: returnItems,
+      total_return_amount: totalReturnAmount,
+      attachments: [],
+      corporation_uuid: corpUuid,
     };
-  });
 
-  // Calculate total return amount
-  const totalReturnAmount = returnItems.reduce((sum: number, item: any) => {
-    return sum + (item.return_total || 0);
-  }, 0);
+    // Check if form's corporation matches TopBar's selected corporation
+    const topBarCorpUuid = corporationStore.selectedCorporationId;
+    const shouldUpdateStore = corpUuid && topBarCorpUuid && corpUuid === topBarCorpUuid;
 
-  // Determine return type based on receipt type
-  const returnType = receiptData.receipt_type || 'purchase_order';
-  const purchaseOrderUuid = returnType === 'purchase_order' ? receiptData.purchase_order_uuid : null;
-  const changeOrderUuid = returnType === 'change_order' ? receiptData.change_order_uuid : null;
+    // Create the return note automatically
+    let createdReturnNote;
+    if (shouldUpdateStore) {
+      // Form's corporation matches TopBar's selected corporation - update store and IndexedDB
+      createdReturnNote = await stockReturnNotesStore.createStockReturnNote(returnNotePayload);
+    } else {
+      // Form's corporation is different - just call API directly (bypass store/IndexedDB)
+      const response = await $fetch("/api/stock-return-notes", {
+        method: "POST",
+        body: returnNotePayload,
+      });
+      createdReturnNote = (response as any)?.data ?? response ?? null;
+    }
 
-  // Create return note form data
-  returnNoteFormData.value = {
-    return_number: returnNumber,
-    entry_date: receiptData.entry_date || toUTCString(getCurrentLocal()),
-    return_type: returnType,
-    purchase_order_uuid: purchaseOrderUuid,
-    change_order_uuid: changeOrderUuid,
-    project_uuid: receiptData.project_uuid || null,
-    returned_by: receiptData.received_by || null,
-    location_uuid: receiptData.location_uuid || null,
-    notes: `Return note for shortfall quantities from receipt note ${receiptData.grn_number || ''}`,
-    status: 'Returned',
-    return_items: returnItems,
-    total_return_amount: totalReturnAmount,
-    attachments: [],
-  };
+    // Refresh purchase order or change order if needed
+    if (returnType === 'purchase_order' && purchaseOrderUuid && shouldUpdateStore && topBarCorpUuid) {
+      try {
+        const updatedPO = await purchaseOrdersStore.fetchPurchaseOrder(purchaseOrderUuid);
+        if (updatedPO) {
+          purchaseOrdersStore.updatePurchaseOrderInList(updatedPO);
+        }
+      } catch (refreshError) {
+        console.error("[ReceiptNoteList] Failed to refresh purchase order:", refreshError);
+      }
+    }
 
-  // Show return note form modal
-  showReturnNoteModal.value = true;
+    if (returnType === 'change_order' && changeOrderUuid && shouldUpdateStore && topBarCorpUuid) {
+      try {
+        const updatedCO = await changeOrdersStore.fetchChangeOrder(changeOrderUuid);
+        if (updatedCO) {
+          changeOrdersStore.updateChangeOrderInList(updatedCO);
+        }
+      } catch (refreshError) {
+        console.error("[ReceiptNoteList] Failed to refresh change order:", refreshError);
+      }
+    }
+
+    // Refresh return notes store if needed
+    if (shouldUpdateStore && topBarCorpUuid) {
+      await stockReturnNotesStore.fetchStockReturnNotes(topBarCorpUuid, { force: true });
+    }
+
+    // Fetch return note items to ensure they're available
+    if (createdReturnNote?.uuid) {
+      try {
+        await $fetch("/api/return-note-items", {
+          method: "GET",
+          query: {
+            corporation_uuid: corpUuid,
+            project_uuid: returnNotePayload.project_uuid || undefined,
+            return_note_uuid: createdReturnNote.uuid,
+            item_type: returnType,
+          },
+        });
+      } catch (error) {
+        console.warn("[ReceiptNoteList] Failed to fetch return note items after creation:", error);
+      }
+    }
+
+    // Show success message
+    const toast = useToast();
+    toast.add({
+      title: "Success",
+      description: "Receipt note saved and return note created successfully.",
+      color: "success",
+    });
+
+    // Clear shortfall state
+    shortfallItemsForModal.value = [];
+    shortfallItemsForReturn.value = [];
+    
+    // Close the receipt note form modal
+    closeFormModal();
+  } catch (error: any) {
+    console.error("[ReceiptNoteList] Failed to create return note:", error);
+    const toast = useToast();
+    let errorDescription = 'Failed to create return note.';
+    
+    if (error?.statusMessage) {
+      errorDescription = error.statusMessage;
+    } else if (error?.message) {
+      errorDescription = error.message;
+    }
+    
+    toast.add({
+      title: "Error",
+      description: errorDescription,
+      color: "error",
+    });
+  }
 };
 
 // Save return note from shortfall
