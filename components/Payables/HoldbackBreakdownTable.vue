@@ -26,7 +26,7 @@
       </div>
 
       <!-- Table -->
-      <div v-else-if="costCodeRows.length > 0" class="overflow-x-auto">
+      <div v-else-if="filteredCostCodeRows.length > 0" class="overflow-x-auto">
         <table class="min-w-full divide-y divide-default/60">
           <thead class="bg-muted/20 text-[11px] font-semibold uppercase tracking-wide text-muted">
             <tr>
@@ -40,8 +40,8 @@
           </thead>
           <tbody class="divide-y divide-default/60 text-sm text-default bg-white dark:bg-gray-900/40">
             <tr
-              v-for="(row, index) in costCodeRows"
-              :key="row.id || index"
+              v-for="(row, filteredIndex) in filteredCostCodeRows"
+              :key="row.id || filteredIndex"
               :class="[
                 'align-middle transition-colors duration-150 hover:bg-gray-50 dark:hover:bg-gray-800/50',
                 shouldValidateReleaseAmount && isReleaseAmountExceeded(row.cost_code_uuid, parseFloat(String(row.releaseAmount || 0)) || 0, row.retainageAmount || 0) && row.cost_code_uuid && row.retainageAmount && getRemainingRetainageAmount(row.cost_code_uuid, row.retainageAmount) > 0
@@ -58,8 +58,8 @@
                   class="w-full"
                   :disabled="isCostCodeDisabled"
                   placeholder="Select Cost Code"
-                  @update:model-value="(value) => handleCostCodeChange(index, value ?? null)"
-                  @change="(option) => handleCostCodeChange(index, (option?.costCode?.uuid || option?.value) ?? null, option)"
+                  @update:model-value="(value) => handleCostCodeChange(costCodeRows.value.findIndex(r => r.id === row.id), value ?? null)"
+                  @change="(option) => handleCostCodeChange(costCodeRows.value.findIndex(r => r.id === row.id), (option?.costCode?.uuid || option?.value) ?? null, option)"
                 />
               </td>
 
@@ -73,8 +73,8 @@
                   class="w-full"
                   :disabled="readonly || !row.cost_code_uuid"
                   placeholder="Select GL Account"
-                  @update:model-value="(value) => handleGLAccountChange(index, value)"
-                  @change="(account) => handleGLAccountChange(index, account?.value, account)"
+                  @update:model-value="(value) => handleGLAccountChange(costCodeRows.value.findIndex(r => r.id === row.id), value)"
+                  @change="(account) => handleGLAccountChange(costCodeRows.value.findIndex(r => r.id === row.id), account?.value, account)"
                 />
               </td>
 
@@ -247,6 +247,24 @@ const isCostCodeDisabled = computed(() => {
 // Only validate release amounts for new invoices, not for existing ones
 const shouldValidateReleaseAmount = computed(() => {
   return !props.currentInvoiceUuid // If currentInvoiceUuid is set, it's an existing invoice - skip validation
+})
+
+// Filter out rows where remaining amount is zero
+// Remaining amount = available amount - release amount
+const filteredCostCodeRows = computed(() => {
+  return costCodeRows.value.filter((row, index) => {
+    // If no cost code or retainage amount, keep the row (user might be adding it)
+    if (!row.cost_code_uuid || !row.retainageAmount) {
+      return true
+    }
+    
+    // Calculate remaining amount
+    const remaining = getRemainingReleaseAmount(row, index)
+    
+    // Filter out rows where remaining amount is zero or less
+    // Keep rows with positive remaining amount
+    return remaining > 0
+  })
 })
 
 // Calculate total release amount (rounded to 2 decimal places)
