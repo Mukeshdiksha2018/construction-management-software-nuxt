@@ -252,19 +252,26 @@ const processInvoiceOptions = async () => {
   // Process invoices and fetch holdback amounts from PO/CO and invoice totals
   const processed = await Promise.all(filteredInvoices.map(async (invoice) => {
     const invoiceNumber = invoice.number || 'Unnamed Invoice'
-    // Fetch invoice total amount, holdback amount, and PO/CO total amount from PO/CO financial_breakdown
-    const { totalAmount, holdbackAmount, poCoTotalAmount } = await getPOCOFinancialData(invoice)
+    // Fetch invoice total amount and PO/CO total amount from PO/CO financial_breakdown
+    const { totalAmount, holdbackAmount: poCoHoldbackAmount, poCoTotalAmount } = await getPOCOFinancialData(invoice)
     
-    // Get holdback percentage from invoice, or calculate it from holdback amount and PO/CO total amount
+    // Get holdback percentage from invoice, or calculate it from PO/CO holdback amount and PO/CO total amount
     let holdbackPercentage = typeof invoice.holdback === 'number' ? invoice.holdback : (parseFloat(String(invoice.holdback || '0')) || 0)
     
     // If invoice doesn't have a holdback percentage but we have holdback amount and PO/CO total amount,
     // calculate the percentage from the amounts (use PO/CO total amount as the base)
-    if (holdbackPercentage <= 0 && holdbackAmount > 0 && poCoTotalAmount > 0) {
-      holdbackPercentage = (holdbackAmount / poCoTotalAmount) * 100
-    } else if (holdbackPercentage <= 0 && holdbackAmount > 0 && totalAmount > 0) {
+    if (holdbackPercentage <= 0 && poCoHoldbackAmount > 0 && poCoTotalAmount > 0) {
+      holdbackPercentage = (poCoHoldbackAmount / poCoTotalAmount) * 100
+    } else if (holdbackPercentage <= 0 && poCoHoldbackAmount > 0 && totalAmount > 0) {
       // Fallback to invoice total amount if PO/CO total amount is not available
-      holdbackPercentage = (holdbackAmount / totalAmount) * 100
+      holdbackPercentage = (poCoHoldbackAmount / totalAmount) * 100
+    }
+    
+    // Calculate holdback amount from invoice amount and holdback percentage
+    // This is the value that should be displayed in the holdback amount column
+    let calculatedHoldbackAmount = 0
+    if (holdbackPercentage > 0 && totalAmount > 0) {
+      calculatedHoldbackAmount = (totalAmount * holdbackPercentage) / 100
     }
     
     // Get PO/CO number based on invoice type
@@ -286,8 +293,8 @@ const processInvoiceOptions = async () => {
       invoiceAmount: totalAmount, // Invoice's total amount (item_total + charges + tax, BEFORE deductions for advances/holdbacks)
       formattedInvoiceAmount: formatCurrency(totalAmount),
       holdbackPercentage: holdbackPercentage,
-      holdbackAmount: holdbackAmount,
-      formattedHoldbackAmount: formatCurrency(holdbackAmount),
+      holdbackAmount: calculatedHoldbackAmount, // Calculated from invoice amount and holdback percentage
+      formattedHoldbackAmount: formatCurrency(calculatedHoldbackAmount),
       type: invoice.invoice_type === 'AGAINST_PO' ? 'PO' : 'CO',
       type_label: invoice.invoice_type === 'AGAINST_PO' ? 'PO' : 'CO',
       type_color: invoice.invoice_type === 'AGAINST_PO' ? 'primary' : 'secondary',
