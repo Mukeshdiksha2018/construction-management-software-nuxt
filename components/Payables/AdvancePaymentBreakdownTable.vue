@@ -1,5 +1,6 @@
 <template>
-  <div class="mt-6">
+  <!-- For saved invoices, only show if there are adjusted amounts -->
+  <div v-if="!isInvoiceSaved || (isInvoiceSaved && totalAdjustedAmount > 0)" class="mt-6">
     <div class="mb-4">
       <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Advance Payment Breakdown</h3>
       <p class="text-sm text-gray-500 dark:text-gray-400">
@@ -46,10 +47,10 @@
             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700">
               Cost Code Breakdown
             </th>
-            <th v-if="hasPreviouslyAdjustedCostCodes" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-green-700 dark:text-green-400 border-b border-gray-200 dark:border-gray-700">
+            <th v-if="hasPreviouslyAdjustedCostCodes && !isInvoiceSaved" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-green-700 dark:text-green-400 border-b border-gray-200 dark:border-gray-700">
               Previously Adjusted
             </th>
-            <th v-if="hasPreviouslyAdjustedCostCodes && showAdjustmentInputs" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-400 border-b border-gray-200 dark:border-gray-700">
+            <th v-if="hasPreviouslyAdjustedCostCodes && showAdjustmentInputs && !isInvoiceSaved" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-400 border-b border-gray-200 dark:border-gray-700">
               Remaining to be Adjusted
             </th>
             <th v-if="showAdjustmentInputs" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700">
@@ -92,9 +93,9 @@
 
             <!-- Cost Code Breakdown -->
             <td class="px-4 py-3">
-              <div v-if="payment.costCodes && payment.costCodes.length > 0" class="space-y-1">
+              <div v-if="getFilteredCostCodes(payment).length > 0" class="space-y-1">
                 <div
-                  v-for="(costCode, ccIndex) in payment.costCodes"
+                  v-for="(costCode, ccIndex) in getFilteredCostCodes(payment)"
                   :key="costCode.uuid || ccIndex"
                   class="text-xs text-gray-600 dark:text-gray-400"
                 >
@@ -112,11 +113,11 @@
               <span v-else class="text-xs text-gray-400">No cost codes</span>
             </td>
 
-            <!-- Previously Adjusted Column (only shown when hasPreviouslyAdjustedCostCodes is true) -->
-            <td v-if="hasPreviouslyAdjustedCostCodes" class="px-4 py-3">
-              <div v-if="payment.costCodes && payment.costCodes.length > 0" class="space-y-1">
+            <!-- Previously Adjusted Column (only shown when hasPreviouslyAdjustedCostCodes is true and invoice is not saved) -->
+            <td v-if="hasPreviouslyAdjustedCostCodes && !isInvoiceSaved" class="px-4 py-3">
+              <div v-if="getFilteredCostCodes(payment).length > 0" class="space-y-1">
                 <div
-                  v-for="(costCode, ccIndex) in payment.costCodes"
+                  v-for="(costCode, ccIndex) in getFilteredCostCodes(payment)"
                   :key="'prev-' + (costCode.uuid || ccIndex)"
                   class="text-xs"
                 >
@@ -129,6 +130,16 @@
                   <span v-else class="text-gray-400">-</span>
                 </div>
               </div>
+              <div v-else-if="payment.costCodes && payment.costCodes.length > 0 && getFilteredCostCodes(payment).length === 0" class="text-right">
+                <!-- All cost codes filtered out (all have zero remaining), show total if any previously adjusted -->
+                <span 
+                  v-if="getTotalPreviouslyAdjustedForPayment(payment.uuid) > 0"
+                  class="text-xs font-medium text-green-600 dark:text-green-400"
+                >
+                  {{ formatCurrency(getTotalPreviouslyAdjustedForPayment(payment.uuid)) }}
+                </span>
+                <span v-else class="text-xs text-gray-400">-</span>
+              </div>
               <div v-else class="text-right">
                 <span 
                   v-if="getTotalPreviouslyAdjustedForPayment(payment.uuid) > 0"
@@ -140,11 +151,11 @@
               </div>
             </td>
 
-            <!-- Remaining to be Adjusted Column (only shown when hasPreviouslyAdjustedCostCodes and showAdjustmentInputs) -->
-            <td v-if="hasPreviouslyAdjustedCostCodes && showAdjustmentInputs" class="px-4 py-3">
-              <div v-if="payment.costCodes && payment.costCodes.length > 0" class="space-y-1">
+            <!-- Remaining to be Adjusted Column (only shown when hasPreviouslyAdjustedCostCodes and showAdjustmentInputs and invoice is not saved) -->
+            <td v-if="hasPreviouslyAdjustedCostCodes && showAdjustmentInputs && !isInvoiceSaved" class="px-4 py-3">
+              <div v-if="getFilteredCostCodes(payment).length > 0" class="space-y-1">
                 <div
-                  v-for="(costCode, ccIndex) in payment.costCodes"
+                  v-for="(costCode, ccIndex) in getFilteredCostCodes(payment)"
                   :key="'remaining-' + (costCode.uuid || ccIndex)"
                   class="text-xs"
                 >
@@ -158,9 +169,9 @@
 
             <!-- Adjust Amount Column (only shown when showAdjustmentInputs is true) -->
             <td v-if="showAdjustmentInputs" class="px-4 py-3">
-              <div v-if="payment.costCodes && payment.costCodes.length > 0" class="space-y-2">
+              <div v-if="getFilteredCostCodes(payment).length > 0" class="space-y-2">
                 <div
-                  v-for="(costCode, ccIndex) in payment.costCodes"
+                  v-for="(costCode, ccIndex) in getFilteredCostCodes(payment)"
                   :key="costCode.uuid || ccIndex"
                   class="flex items-center gap-2"
                 >
@@ -204,7 +215,7 @@
               {{ formatCurrency(-totalAdvancePaidWithoutTaxes) }}
             </td>
           </tr>
-          <tr v-if="hasPreviouslyAdjustedCostCodes && totalPreviouslyAdjusted > 0">
+          <tr v-if="hasPreviouslyAdjustedCostCodes && totalPreviouslyAdjusted > 0 && !isInvoiceSaved">
             <td :colspan="footerColspan" class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100 text-right">
               Total Previously Adjusted:
             </td>
@@ -305,6 +316,21 @@ const getRemainingAmount = (advancePaymentUuid: string, costCode: any): number =
   return Math.max(0, remaining) // Don't allow negative
 }
 
+// Filter cost codes to exclude those with zero remaining amount
+// Returns filtered cost codes for a specific payment
+const getFilteredCostCodes = (payment: any): any[] => {
+  if (!payment.costCodes || payment.costCodes.length === 0) {
+    return []
+  }
+  
+  return payment.costCodes.filter((costCode: any) => {
+    const remaining = getRemainingAmount(payment.uuid, costCode)
+    // Filter out cost codes where remaining amount is exactly zero
+    // Keep cost codes with remaining > 0 or remaining < 0 (over-adjusted, for error display)
+    return remaining !== 0
+  })
+}
+
 // Get total previously adjusted amount for a specific advance payment
 const getTotalPreviouslyAdjustedForPayment = (advancePaymentUuid: string): number => {
   if (!props.previouslyAdjustedCostCodes || props.previouslyAdjustedCostCodes.length === 0) {
@@ -328,20 +354,22 @@ const totalPreviouslyAdjusted = computed(() => {
 // Calculate footer colspan based on visible columns
 const footerColspan = computed(() => {
   let cols = 4 // Invoice Number, Invoice Date, Status, Cost Code Breakdown
-  if (hasPreviouslyAdjustedCostCodes.value) cols++
-  if (hasPreviouslyAdjustedCostCodes.value && props.showAdjustmentInputs) cols++ // Remaining column
+  if (hasPreviouslyAdjustedCostCodes.value && !props.isInvoiceSaved) cols++
+  if (hasPreviouslyAdjustedCostCodes.value && props.showAdjustmentInputs && !props.isInvoiceSaved) cols++ // Remaining column
   if (props.showAdjustmentInputs) cols++
   return cols
 })
 
 // Check if any cost code in a payment has over-adjusted amount
+// Only check filtered cost codes (those with remaining > 0 or < 0)
 const hasOverAdjustedAmount = (payment: any): boolean => {
-  if (!payment.costCodes || payment.costCodes.length === 0) return false
+  const filteredCostCodes = getFilteredCostCodes(payment)
+  if (filteredCostCodes.length === 0) return false
   if (!props.showAdjustmentInputs) return false
   // Skip validation if invoice is saved (already adjusted amounts should not be validated)
   if (props.isInvoiceSaved) return false
   
-  return payment.costCodes.some((costCode: any) => {
+  return filteredCostCodes.some((costCode: any) => {
     const costCodeUuid = costCode.cost_code_uuid || costCode.uuid
     const currentlyAdjusted = parseFloat(getAdjustedAmount(payment.uuid, costCodeUuid)) || 0
     const remaining = getRemainingAmount(payment.uuid, costCode)
@@ -518,9 +546,11 @@ const handleAdjustedAmountChange = (advancePaymentUuid: string, costCode: any, v
 }
 
 // Calculate total adjusted amount across all advance payments
+// For saved invoices, use props.adjustedAmounts; for new invoices, use localAdjustedAmounts
 const totalAdjustedAmount = computed(() => {
   let total = 0
-  Object.values(localAdjustedAmounts.value).forEach((costCodeAmounts) => {
+  const amountsToUse = props.isInvoiceSaved ? props.adjustedAmounts : localAdjustedAmounts.value
+  Object.values(amountsToUse).forEach((costCodeAmounts) => {
     Object.values(costCodeAmounts).forEach((amount) => {
       total += amount || 0
     })
