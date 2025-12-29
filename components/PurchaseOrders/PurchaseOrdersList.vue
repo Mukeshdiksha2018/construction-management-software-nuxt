@@ -2640,7 +2640,21 @@ const checkForExceededQuantities = async (): Promise<{ hasExceeded: boolean; ite
 const submitWithStatus = async (status: 'Draft' | 'Ready' | 'Approved') => {
   if (savingPO.value) return
   
+  console.log('[submitWithStatus] START - poForm.value custom_duties:', {
+    custom_duties_percentage: poForm.value.custom_duties_percentage,
+    custom_duties_amount: poForm.value.custom_duties_amount,
+    custom_duties_taxable: poForm.value.custom_duties_taxable,
+    financial_breakdown_custom_duties: poForm.value.financial_breakdown?.charges?.custom_duties,
+  })
+  
   poForm.value.status = status
+  
+  console.log('[submitWithStatus] After setting status - poForm.value custom_duties:', {
+    custom_duties_percentage: poForm.value.custom_duties_percentage,
+    custom_duties_amount: poForm.value.custom_duties_amount,
+    custom_duties_taxable: poForm.value.custom_duties_taxable,
+    financial_breakdown_custom_duties: poForm.value.financial_breakdown?.charges?.custom_duties,
+  })
   
   // Check for exceeded quantities before saving (for both new and existing POs)
   // This allows users to raise a change order for the difference
@@ -2704,13 +2718,31 @@ const savePurchaseOrder = async (skipModalClose = false): Promise<any | null> =>
     
     if (poForm.value.uuid) {
       // Ensure corporation_uuid is set correctly in the payload
+      console.log('[savePurchaseOrder] Before creating payload - poForm.value custom_duties:', {
+        custom_duties_percentage: poForm.value.custom_duties_percentage,
+        custom_duties_amount: poForm.value.custom_duties_amount,
+        custom_duties_taxable: poForm.value.custom_duties_taxable,
+        financial_breakdown_custom_duties: poForm.value.financial_breakdown?.charges?.custom_duties,
+      })
       const payload = { 
         uuid: poForm.value.uuid, 
         ...poForm.value,
         corporation_uuid: corporationUuid, // Explicitly set to ensure correct corporation
         raise_against: poForm.value.raise_against || null, // Explicitly include raise_against
       }
+      console.log('[savePurchaseOrder] Payload custom_duties:', {
+        custom_duties_percentage: payload.custom_duties_percentage,
+        custom_duties_amount: payload.custom_duties_amount,
+        custom_duties_taxable: payload.custom_duties_taxable,
+        financial_breakdown_custom_duties: payload.financial_breakdown?.charges?.custom_duties,
+      })
       result = await purchaseOrdersStore.updatePurchaseOrder(payload)
+      console.log('[savePurchaseOrder] After updatePurchaseOrder - result custom_duties:', {
+        custom_duties_percentage: result?.custom_duties_percentage,
+        custom_duties_amount: result?.custom_duties_amount,
+        custom_duties_taxable: result?.custom_duties_taxable,
+        financial_breakdown_custom_duties: result?.financial_breakdown?.charges?.custom_duties,
+      })
       // Update the form with the returned PO data to ensure it's in sync
       if (result && result.uuid) {
         poForm.value = { ...poForm.value, ...result }
@@ -2949,7 +2981,19 @@ const handleRaiseChangeOrder = async () => {
   // Store the current form data before it gets cleared during PO save
   // This must happen BEFORE calling pendingSaveAction since that clears the form
   // Use deep clone to avoid reactive proxy issues
+  console.log('[handleRaiseChangeOrder] START - Original poForm.value custom_duties:', {
+    custom_duties_percentage: poForm.value.custom_duties_percentage,
+    custom_duties_amount: poForm.value.custom_duties_amount,
+    custom_duties_taxable: poForm.value.custom_duties_taxable,
+    financial_breakdown_custom_duties: poForm.value.financial_breakdown?.charges?.custom_duties,
+  })
   const currentFormData = JSON.parse(JSON.stringify(poForm.value))
+  console.log('[handleRaiseChangeOrder] After deep clone - currentFormData custom_duties:', {
+    custom_duties_percentage: currentFormData.custom_duties_percentage,
+    custom_duties_amount: currentFormData.custom_duties_amount,
+    custom_duties_taxable: currentFormData.custom_duties_taxable,
+    financial_breakdown_custom_duties: currentFormData.financial_breakdown?.charges?.custom_duties,
+  })
 
   // Adjust PO items quantities/amounts to match estimate quantities/amounts before saving
   const exceededItemsList = exceededItems.value
@@ -3002,10 +3046,61 @@ const handleRaiseChangeOrder = async () => {
       const roundedItemTotal = Math.round((newItemTotal + Number.EPSILON) * 100) / 100
 
       // Recalculate charges based on percentages
-      const freightPercentage = parseFloat(String(currentFormData.freight_charges_percentage || 0))
-      const packingPercentage = parseFloat(String(currentFormData.packing_charges_percentage || 0))
-      const customDutiesPercentage = parseFloat(String(currentFormData.custom_duties_percentage || 0))
-      const otherChargesPercentage = parseFloat(String(currentFormData.other_charges_percentage || 0))
+      // Read from poForm.value (latest) first, then fallback to currentFormData
+      // Also check both field name formats: with and without _charges_ suffix
+      const getChargePercentage = (key: string) => {
+        const withCharges = `${key}_charges_percentage`
+        const withoutCharges = `${key}_percentage`
+        return parseFloat(String(
+          poForm.value[withCharges] ?? 
+          poForm.value[withoutCharges] ?? 
+          currentFormData[withCharges] ?? 
+          currentFormData[withoutCharges] ?? 
+          0
+        ))
+      }
+      
+      const getChargeTaxable = (key: string) => {
+        const withCharges = `${key}_charges_taxable`
+        const withoutCharges = `${key}_taxable`
+        return Boolean(
+          poForm.value[withCharges] ?? 
+          poForm.value[withoutCharges] ?? 
+          currentFormData[withCharges] ?? 
+          currentFormData[withoutCharges] ?? 
+          false
+        )
+      }
+      
+      console.log('[handleRaiseChangeOrder] Reading charge percentages from poForm.value (latest):', {
+        freight_charges_percentage: poForm.value.freight_charges_percentage,
+        packing_charges_percentage: poForm.value.packing_charges_percentage,
+        custom_duties_charges_percentage: poForm.value.custom_duties_charges_percentage,
+        other_charges_percentage: poForm.value.other_charges_percentage,
+      })
+      console.log('[handleRaiseChangeOrder] Reading charge percentages from currentFormData (snapshot):', {
+        freight_charges_percentage: currentFormData.freight_charges_percentage,
+        packing_charges_percentage: currentFormData.packing_charges_percentage,
+        custom_duties_charges_percentage: currentFormData.custom_duties_charges_percentage,
+        other_charges_percentage: currentFormData.other_charges_percentage,
+      })
+      console.log('[handleRaiseChangeOrder] Reading charge taxable flags from poForm.value (latest):', {
+        freight_charges_taxable: poForm.value.freight_charges_taxable,
+        packing_charges_taxable: poForm.value.packing_charges_taxable,
+        custom_duties_charges_taxable: poForm.value.custom_duties_charges_taxable,
+        other_charges_taxable: poForm.value.other_charges_taxable,
+      })
+      
+      const freightPercentage = getChargePercentage('freight')
+      const packingPercentage = getChargePercentage('packing')
+      const customDutiesPercentage = getChargePercentage('custom_duties')
+      const otherChargesPercentage = getChargePercentage('other')
+      console.log('[handleRaiseChangeOrder] Parsed charge percentages:', {
+        freightPercentage,
+        packingPercentage,
+        customDutiesPercentage,
+        otherChargesPercentage,
+      })
       
       const freightAmount = Math.round((roundedItemTotal * (freightPercentage / 100) + Number.EPSILON) * 100) / 100
       const packingAmount = Math.round((roundedItemTotal * (packingPercentage / 100) + Number.EPSILON) * 100) / 100
@@ -3015,10 +3110,11 @@ const handleRaiseChangeOrder = async () => {
       const chargesTotal = freightAmount + packingAmount + customDutiesAmount + otherChargesAmount
       
       // Calculate taxable base (item_total + taxable charges)
-      const freightTaxable = poForm.value.freight_charges_taxable || false
-      const packingTaxable = poForm.value.packing_charges_taxable || false
-      const customDutiesTaxable = poForm.value.custom_duties_taxable || false
-      const otherChargesTaxable = poForm.value.other_charges_taxable || false
+      // Use helper function to read from latest poForm.value
+      const freightTaxable = getChargeTaxable('freight')
+      const packingTaxable = getChargeTaxable('packing')
+      const customDutiesTaxable = getChargeTaxable('custom_duties')
+      const otherChargesTaxable = getChargeTaxable('other')
       
       const taxableBase = roundedItemTotal + 
         (freightTaxable ? freightAmount : 0) +
@@ -3082,21 +3178,46 @@ const handleRaiseChangeOrder = async () => {
       }
       
       // Update the form with adjusted quantities and recalculated totals
+      console.log('[handleRaiseChangeOrder] Setting charge values in poForm.value:', {
+        custom_duties_charges_percentage: customDutiesPercentage,
+        custom_duties_charges_amount: customDutiesAmount,
+        custom_duties_charges_taxable: customDutiesTaxable,
+        freight_charges_percentage: freightPercentage,
+        packing_charges_percentage: packingPercentage,
+        other_charges_percentage: otherChargesPercentage,
+      })
       poForm.value = {
         ...poForm.value,
         po_items: updatedPoItems,
         item_total: roundedItemTotal,
+        freight_charges_percentage: freightPercentage,
         freight_charges_amount: freightAmount,
+        freight_charges_taxable: freightTaxable,
+        packing_charges_percentage: packingPercentage,
         packing_charges_amount: packingAmount,
-        custom_duties_amount: customDutiesAmount,
+        packing_charges_taxable: packingTaxable,
+        custom_duties_charges_percentage: customDutiesPercentage,
+        custom_duties_charges_amount: customDutiesAmount,
+        custom_duties_charges_taxable: customDutiesTaxable,
+        other_charges_percentage: otherChargesPercentage,
         other_charges_amount: otherChargesAmount,
+        other_charges_taxable: otherChargesTaxable,
         charges_total: chargesTotal,
+        sales_tax_1_percentage: salesTax1Percentage,
         sales_tax_1_amount: salesTax1Amount,
+        sales_tax_2_percentage: salesTax2Percentage,
         sales_tax_2_amount: salesTax2Amount,
         tax_total: taxTotal,
         total_po_amount: totalPoAmount,
         financial_breakdown: updatedFinancialBreakdown,
       }
+      console.log('[handleRaiseChangeOrder] After setting poForm.value, verifying custom_duties:', {
+        custom_duties_percentage: poForm.value.custom_duties_percentage,
+        custom_duties_amount: poForm.value.custom_duties_amount,
+        custom_duties_taxable: poForm.value.custom_duties_taxable,
+        financial_breakdown_custom_duties: poForm.value.financial_breakdown?.charges?.custom_duties,
+      })
+      console.log('[handleRaiseChangeOrder] Full financial_breakdown.charges:', poForm.value.financial_breakdown?.charges)
     }
     
     // Handle labor items
@@ -3139,10 +3260,11 @@ const handleRaiseChangeOrder = async () => {
       const roundedItemTotal = Math.round((newItemTotal + Number.EPSILON) * 100) / 100
       
       // Recalculate charges based on percentages
-      const freightPercentage = parseFloat(String(poForm.value.freight_charges_percentage || 0))
-      const packingPercentage = parseFloat(String(poForm.value.packing_charges_percentage || 0))
-      const customDutiesPercentage = parseFloat(String(poForm.value.custom_duties_percentage || 0))
-      const otherChargesPercentage = parseFloat(String(poForm.value.other_charges_percentage || 0))
+      // Use helper functions to read from latest poForm.value
+      const freightPercentage = getChargePercentage('freight')
+      const packingPercentage = getChargePercentage('packing')
+      const customDutiesPercentage = getChargePercentage('custom_duties')
+      const otherChargesPercentage = getChargePercentage('other')
       
       const freightAmount = Math.round((roundedItemTotal * (freightPercentage / 100) + Number.EPSILON) * 100) / 100
       const packingAmount = Math.round((roundedItemTotal * (packingPercentage / 100) + Number.EPSILON) * 100) / 100
@@ -3152,10 +3274,11 @@ const handleRaiseChangeOrder = async () => {
       const chargesTotal = freightAmount + packingAmount + customDutiesAmount + otherChargesAmount
       
       // Calculate taxable base (item_total + taxable charges)
-      const freightTaxable = poForm.value.freight_charges_taxable || false
-      const packingTaxable = poForm.value.packing_charges_taxable || false
-      const customDutiesTaxable = poForm.value.custom_duties_taxable || false
-      const otherChargesTaxable = poForm.value.other_charges_taxable || false
+      // Use helper function to read from latest poForm.value
+      const freightTaxable = getChargeTaxable('freight')
+      const packingTaxable = getChargeTaxable('packing')
+      const customDutiesTaxable = getChargeTaxable('custom_duties')
+      const otherChargesTaxable = getChargeTaxable('other')
       
       const taxableBase = roundedItemTotal + 
         (freightTaxable ? freightAmount : 0) +
@@ -3223,12 +3346,22 @@ const handleRaiseChangeOrder = async () => {
         ...poForm.value,
         labor_po_items: updatedLaborItems,
         item_total: roundedItemTotal,
+        freight_charges_percentage: freightPercentage,
         freight_charges_amount: freightAmount,
+        freight_charges_taxable: freightTaxable,
+        packing_charges_percentage: packingPercentage,
         packing_charges_amount: packingAmount,
-        custom_duties_amount: customDutiesAmount,
+        packing_charges_taxable: packingTaxable,
+        custom_duties_charges_percentage: customDutiesPercentage,
+        custom_duties_charges_amount: customDutiesAmount,
+        custom_duties_charges_taxable: customDutiesTaxable,
+        other_charges_percentage: otherChargesPercentage,
         other_charges_amount: otherChargesAmount,
+        other_charges_taxable: otherChargesTaxable,
         charges_total: chargesTotal,
+        sales_tax_1_percentage: salesTax1Percentage,
         sales_tax_1_amount: salesTax1Amount,
+        sales_tax_2_percentage: salesTax2Percentage,
         sales_tax_2_amount: salesTax2Amount,
         tax_total: taxTotal,
         total_po_amount: totalPoAmount,

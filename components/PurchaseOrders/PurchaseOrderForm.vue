@@ -2013,8 +2013,25 @@ const recalculateChargesAndTaxes = (
 
 // Handler for financial breakdown component updates
 const handleFinancialBreakdownUpdate = (updates: Record<string, any>) => {
+  console.log('[PurchaseOrderForm handleFinancialBreakdownUpdate] Received updates:', {
+    custom_duties_percentage: updates.custom_duties_charges_percentage,
+    custom_duties_amount: updates.custom_duties_charges_amount,
+    custom_duties_taxable: updates.custom_duties_charges_taxable,
+    financial_breakdown_custom_duties: updates.financial_breakdown?.charges?.custom_duties,
+    allUpdatesKeys: Object.keys(updates),
+  })
+  console.log('[PurchaseOrderForm handleFinancialBreakdownUpdate] Current form custom_duties before update:', {
+    custom_duties_percentage: props.form.custom_duties_percentage,
+    custom_duties_amount: props.form.custom_duties_amount,
+    custom_duties_taxable: props.form.custom_duties_taxable,
+  })
   // The component handles all calculations, we just need to update the form
   updateFormFields(updates)
+  console.log('[PurchaseOrderForm handleFinancialBreakdownUpdate] After updateFormFields - form should have:', {
+    custom_duties_percentage: updates.custom_duties_charges_percentage,
+    custom_duties_amount: updates.custom_duties_charges_amount,
+    custom_duties_taxable: updates.custom_duties_charges_taxable,
+  })
 }
 
 const normalizeNumber = (value: any, fallback = 0) => {

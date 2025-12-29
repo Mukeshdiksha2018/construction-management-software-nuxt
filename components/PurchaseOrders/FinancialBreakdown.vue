@@ -268,9 +268,23 @@ const buildChargeStates = (): ChargeComputationState[] => {
     const amountKey = `${row.key}_charges_amount`
     const taxableKey = `${row.key}_charges_taxable`
 
-    const percentage = roundTo(parseNumericInput(resolveFieldValue(percentageKey)), 4)
+    const rawPercentageValue = resolveFieldValue(percentageKey)
+    const parsedPercentage = parseNumericInput(rawPercentageValue)
+    const percentage = roundTo(parsedPercentage, 4)
     const amount = roundCurrencyValue(itemTotalValue * (percentage / 100))
     const taxable = Boolean(resolveFieldValue(taxableKey))
+
+    // Debug logging for custom_duties
+    if (row.key === 'custom_duties') {
+      console.log('[FinancialBreakdown buildChargeStates] custom_duties:', {
+        rawPercentageValue,
+        parsedPercentage,
+        percentage,
+        amount,
+        taxable,
+        itemTotalValue,
+      })
+    }
 
     return {
       key: row.key,
@@ -450,10 +464,30 @@ const recalculateAndEmit = () => {
       [props.totalFieldName]: roundCurrencyValue(totalValue),
     }
 
-    // Update charge amounts (calculated from percentages) - only if charges are not hidden
+    // Update charge amounts, percentages, and taxable flags (calculated from percentages) - only if charges are not hidden
     if (!props.hideCharges) {
+    console.log('[FinancialBreakdown recalculateAndEmit] Charge states:', states.map(s => ({
+      key: s.key,
+      percentage: s.percentage,
+      amount: s.amount,
+      taxable: s.taxable,
+    })))
     states.forEach((state) => {
       updates[`${state.key}_charges_amount`] = state.amount
+      // Only update percentage and taxable if they have values (don't overwrite with undefined)
+      // This preserves existing values when recalculating
+      if (state.percentage !== undefined && state.percentage !== null) {
+        updates[`${state.key}_charges_percentage`] = state.percentage
+      }
+      if (state.taxable !== undefined && state.taxable !== null) {
+        updates[`${state.key}_charges_taxable`] = state.taxable
+      }
+    })
+    console.log('[FinancialBreakdown recalculateAndEmit] Updates object (before financial_breakdown):', {
+      custom_duties_percentage: updates.custom_duties_charges_percentage,
+      custom_duties_amount: updates.custom_duties_charges_amount,
+      custom_duties_taxable: updates.custom_duties_charges_taxable,
+      allChargeFields: Object.keys(updates).filter(k => k.includes('charges')),
     })
     }
 
@@ -504,6 +538,14 @@ const recalculateAndEmit = () => {
         [props.totalFieldName]: roundCurrencyValue(totalValue),
       },
     }
+
+    console.log('[FinancialBreakdown recalculateAndEmit] Final updates object:', {
+      custom_duties_percentage: updates.custom_duties_charges_percentage,
+      custom_duties_amount: updates.custom_duties_charges_amount,
+      custom_duties_taxable: updates.custom_duties_charges_taxable,
+      financial_breakdown_custom_duties: updates.financial_breakdown?.charges?.custom_duties,
+      allUpdatesKeys: Object.keys(updates),
+    })
 
     emit('update', updates)
   } finally {
