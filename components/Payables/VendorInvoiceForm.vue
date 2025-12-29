@@ -1527,6 +1527,23 @@ const allHoldbackAmountsZero = computed(() => {
     return false;
   }
 
+  // Check if user has entered any release amounts
+  // If they have, keep the table visible even if all available amounts become zero
+  let hasEnteredReleaseAmounts = false;
+  for (const costCode of holdbackCostCodes.value) {
+    const releaseAmount = parseFloat(String(costCode.releaseAmount || costCode.release_amount || 0)) || 0;
+    if (releaseAmount > 0) {
+      hasEnteredReleaseAmounts = true;
+      break;
+    }
+  }
+
+  // If user has entered release amounts, don't hide the table
+  // This allows them to see and modify their entries even if all available amounts become zero
+  if (hasEnteredReleaseAmounts) {
+    return false;
+  }
+
   // Check each cost code to see if all have zero available amount
   let allZero = true;
   let hasAtLeastOneCostCode = false;

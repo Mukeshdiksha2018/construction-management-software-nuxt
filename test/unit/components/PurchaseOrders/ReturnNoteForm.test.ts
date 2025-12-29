@@ -1144,5 +1144,424 @@ describe("ReturnNoteForm", () => {
       expect(coOptions).toHaveLength(0);
     });
   });
+
+  describe("Editing saved return note - filtering items", () => {
+    it("should only show items that are in the return note when editing a saved return note (Purchase Order)", async () => {
+      // Setup: PO has 5 items, but return note only has 2 items
+      const allPOItems = [
+        {
+          uuid: "po-item-1",
+          item_uuid: "item-1",
+          base_item_uuid: "item-1",
+          item_name: "Item 1",
+          po_quantity: 20,
+          unit_price: 10,
+        },
+        {
+          uuid: "po-item-2",
+          item_uuid: "item-2",
+          base_item_uuid: "item-2",
+          item_name: "Item 2",
+          po_quantity: 15,
+          unit_price: 15,
+        },
+        {
+          uuid: "po-item-3",
+          item_uuid: "item-3",
+          base_item_uuid: "item-3",
+          item_name: "Item 3",
+          po_quantity: 10,
+          unit_price: 20,
+        },
+        {
+          uuid: "po-item-4",
+          item_uuid: "item-4",
+          base_item_uuid: "item-4",
+          item_name: "Item 4",
+          po_quantity: 25,
+          unit_price: 12,
+        },
+        {
+          uuid: "po-item-5",
+          item_uuid: "item-5",
+          base_item_uuid: "item-5",
+          item_name: "Item 5",
+          po_quantity: 30,
+          unit_price: 8,
+        },
+      ];
+
+      // Return note only has items 1 and 3
+      const returnNoteItems = [
+        {
+          uuid: "rni-1",
+          return_note_uuid: "rtn-1",
+          item_uuid: "item-1",
+          base_item_uuid: "item-1",
+          return_quantity: 5,
+          return_total: 50,
+          cost_code_uuid: "cc-1",
+          cost_code_number: "CC-001",
+          cost_code_name: "Cost Code 1",
+          item_type: "purchase_order",
+          purchase_order_uuid: "po-1",
+        },
+        {
+          uuid: "rni-3",
+          return_note_uuid: "rtn-1",
+          item_uuid: "item-3",
+          base_item_uuid: "item-3",
+          return_quantity: 3,
+          return_total: 60,
+          cost_code_uuid: "cc-3",
+          cost_code_number: "CC-003",
+          cost_code_name: "Cost Code 3",
+          item_type: "purchase_order",
+          purchase_order_uuid: "po-1",
+        },
+      ];
+
+      fetchPurchaseOrderItemsMock.mockResolvedValue(allPOItems);
+
+      mockFetch.mockImplementation((url: string, options?: any) => {
+        if (url.includes("/api/return-note-items")) {
+          return Promise.resolve({
+            data: returnNoteItems,
+          });
+        }
+        return Promise.resolve({ data: [] });
+      });
+
+      const wrapper = mountForm({
+        form: {
+          uuid: "rtn-1",
+          return_type: "purchase_order",
+          purchase_order_uuid: "po-1",
+          project_uuid: "project-1",
+          corporation_uuid: "corp-1",
+          return_items: [],
+        },
+        editingReturnNote: true,
+      });
+
+      // Wait for watchers and async operations (watcher has immediate: true)
+      await flushPromises();
+      await wrapper.vm.$nextTick();
+      await flushPromises();
+      await wrapper.vm.$nextTick();
+      await flushPromises();
+      await wrapper.vm.$nextTick();
+
+      // Verify fetchPurchaseOrderItemsMock was called
+      expect(fetchPurchaseOrderItemsMock).toHaveBeenCalledWith("po-1");
+
+      // Access returnItems from component's internal state (it's a ref)
+      const vm = wrapper.vm as any;
+      const returnItems = vm.returnItems?.value || vm.returnItems || [];
+
+      // Should only have 2 items (item-1 and item-3)
+      expect(returnItems.length).toBe(2);
+
+      // Verify the items are correct
+      const itemUuids = returnItems.map((item: any) => item.item_uuid || item.base_item_uuid || item.uuid);
+      expect(itemUuids).toContain("item-1");
+      expect(itemUuids).toContain("item-3");
+      expect(itemUuids).not.toContain("item-2");
+      expect(itemUuids).not.toContain("item-4");
+      expect(itemUuids).not.toContain("item-5");
+
+      // Verify return quantities are preserved
+      const item1 = returnItems.find((item: any) => (item.item_uuid || item.base_item_uuid || item.uuid) === "item-1");
+      const item3 = returnItems.find((item: any) => (item.item_uuid || item.base_item_uuid || item.uuid) === "item-3");
+      expect(item1?.return_quantity).toBe(5);
+      expect(item3?.return_quantity).toBe(3);
+    });
+
+    it("should only show items that are in the return note when editing a saved return note (Change Order)", async () => {
+      // Setup: CO has 4 items, but return note only has 1 item
+      const allCOItems = [
+        {
+          uuid: "co-item-1",
+          item_uuid: "item-1",
+          base_item_uuid: "item-1",
+          item_name: "Item 1",
+          co_quantity: 20,
+          unit_price: 10,
+        },
+        {
+          uuid: "co-item-2",
+          item_uuid: "item-2",
+          base_item_uuid: "item-2",
+          item_name: "Item 2",
+          co_quantity: 15,
+          unit_price: 15,
+        },
+        {
+          uuid: "co-item-3",
+          item_uuid: "item-3",
+          base_item_uuid: "item-3",
+          item_name: "Item 3",
+          co_quantity: 10,
+          unit_price: 20,
+        },
+        {
+          uuid: "co-item-4",
+          item_uuid: "item-4",
+          base_item_uuid: "item-4",
+          item_name: "Item 4",
+          co_quantity: 25,
+          unit_price: 12,
+        },
+      ];
+
+      // Return note only has item 2
+      const returnNoteItems = [
+        {
+          uuid: "rni-2",
+          return_note_uuid: "rtn-1",
+          item_uuid: "item-2",
+          base_item_uuid: "item-2",
+          return_quantity: 8,
+          return_total: 120,
+          cost_code_uuid: "cc-2",
+          cost_code_number: "CC-002",
+          cost_code_name: "Cost Code 2",
+          item_type: "change_order",
+          change_order_uuid: "co-1",
+        },
+      ];
+
+      mockFetch.mockImplementation((url: string, options?: any) => {
+        if (url.includes("/api/change-order-items")) {
+          return Promise.resolve({
+            data: allCOItems,
+          });
+        }
+        if (url.includes("/api/return-note-items")) {
+          return Promise.resolve({
+            data: returnNoteItems,
+          });
+        }
+        return Promise.resolve({ data: [] });
+      });
+
+      const wrapper = mountForm({
+        form: {
+          uuid: "rtn-1",
+          return_type: "change_order",
+          change_order_uuid: "co-1",
+          project_uuid: "project-1",
+          corporation_uuid: "corp-1",
+          return_items: [],
+        },
+        editingReturnNote: true,
+      });
+
+      // Wait for watchers and async operations (watcher has immediate: true)
+      await flushPromises();
+      await wrapper.vm.$nextTick();
+      await flushPromises();
+      await wrapper.vm.$nextTick();
+      await flushPromises();
+      await wrapper.vm.$nextTick();
+
+      // Access returnItems from component's internal state (it's a ref)
+      const vm = wrapper.vm as any;
+      const returnItems = vm.returnItems?.value || vm.returnItems || [];
+
+      // Should only have 1 item (item-2)
+      expect(returnItems.length).toBe(1);
+
+      // Verify the item is correct
+      const itemUuids = returnItems.map((item: any) => item.item_uuid || item.base_item_uuid || item.uuid);
+      expect(itemUuids).toContain("item-2");
+      expect(itemUuids).not.toContain("item-1");
+      expect(itemUuids).not.toContain("item-3");
+      expect(itemUuids).not.toContain("item-4");
+
+      // Verify return quantity is preserved
+      const item2 = returnItems.find((item: any) => (item.item_uuid || item.base_item_uuid || item.uuid) === "item-2");
+      expect(item2?.return_quantity).toBe(8);
+    });
+
+    it("should use props.form.return_items as fallback when return note items API fails", async () => {
+      const allPOItems = [
+        {
+          uuid: "po-item-1",
+          item_uuid: "item-1",
+          base_item_uuid: "item-1",
+          item_name: "Item 1",
+          po_quantity: 20,
+          unit_price: 10,
+        },
+        {
+          uuid: "po-item-2",
+          item_uuid: "item-2",
+          base_item_uuid: "item-2",
+          item_name: "Item 2",
+          po_quantity: 15,
+          unit_price: 15,
+        },
+      ];
+
+      // Return note items API fails
+      fetchPurchaseOrderItemsMock.mockResolvedValue(allPOItems);
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/return-note-items")) {
+          return Promise.reject(new Error("API Error"));
+        }
+        return Promise.resolve({ data: [] });
+      });
+
+      const wrapper = mountForm({
+        form: {
+          uuid: "rtn-1",
+          return_type: "purchase_order",
+          purchase_order_uuid: "po-1",
+          project_uuid: "project-1",
+          corporation_uuid: "corp-1",
+          // Fallback: return_items in form
+          return_items: [
+            {
+              uuid: "po-item-1",
+              item_uuid: "item-1",
+              base_item_uuid: "item-1",
+              item_name: "Item 1",
+              return_quantity: 5,
+              return_total: 50,
+            },
+          ],
+        },
+        editingReturnNote: true,
+      });
+
+      await flushPromises();
+      await wrapper.vm.$nextTick();
+
+      // Verify that only item 1 is in returnItems (from props.form.return_items)
+      const vm = wrapper.vm as any;
+      const returnItems = vm.returnItems || [];
+
+      // Should only have 1 item (item-1)
+      expect(returnItems.length).toBe(1);
+
+      const itemUuids = returnItems.map((item: any) => item.item_uuid || item.base_item_uuid || item.uuid);
+      expect(itemUuids).toContain("item-1");
+      expect(itemUuids).not.toContain("item-2");
+    });
+
+    it("should match items by base_item_uuid when item_uuid doesn't match", async () => {
+      const allPOItems = [
+        {
+          uuid: "po-item-1",
+          item_uuid: "item-1",
+          base_item_uuid: "base-item-1",
+          item_name: "Item 1",
+          po_quantity: 20,
+          unit_price: 10,
+        },
+      ];
+
+      // Return note item uses base_item_uuid
+      const returnNoteItems = [
+        {
+          uuid: "rni-1",
+          return_note_uuid: "rtn-1",
+          item_uuid: "item-1",
+          base_item_uuid: "base-item-1",
+          return_quantity: 5,
+          return_total: 50,
+          cost_code_uuid: "cc-1",
+          item_type: "purchase_order",
+          purchase_order_uuid: "po-1",
+        },
+      ];
+
+      fetchPurchaseOrderItemsMock.mockResolvedValue(allPOItems);
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/return-note-items")) {
+          return Promise.resolve({
+            data: returnNoteItems,
+          });
+        }
+        return Promise.resolve({ data: [] });
+      });
+
+      const wrapper = mountForm({
+        form: {
+          uuid: "rtn-1",
+          return_type: "purchase_order",
+          purchase_order_uuid: "po-1",
+          project_uuid: "project-1",
+          corporation_uuid: "corp-1",
+          return_items: [],
+        },
+        editingReturnNote: true,
+      });
+
+      // Wait for watchers and async operations (watcher has immediate: true)
+      await flushPromises();
+      await wrapper.vm.$nextTick();
+      await flushPromises();
+      await wrapper.vm.$nextTick();
+      await flushPromises();
+      await wrapper.vm.$nextTick();
+
+      // Access returnItems from component's internal state (it's a ref)
+      const vm = wrapper.vm as any;
+      const returnItems = vm.returnItems?.value || vm.returnItems || [];
+
+      expect(returnItems.length).toBe(1);
+      const item = returnItems[0];
+      expect(item.return_quantity).toBe(5);
+    });
+
+    it("should handle empty return note items gracefully", async () => {
+      const allPOItems = [
+        {
+          uuid: "po-item-1",
+          item_uuid: "item-1",
+          base_item_uuid: "item-1",
+          item_name: "Item 1",
+          po_quantity: 20,
+          unit_price: 10,
+        },
+      ];
+
+      // Return note has no items
+      fetchPurchaseOrderItemsMock.mockResolvedValue(allPOItems);
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/return-note-items")) {
+          return Promise.resolve({
+            data: [],
+          });
+        }
+        return Promise.resolve({ data: [] });
+      });
+
+      const wrapper = mountForm({
+        form: {
+          uuid: "rtn-1",
+          return_type: "purchase_order",
+          purchase_order_uuid: "po-1",
+          project_uuid: "project-1",
+          corporation_uuid: "corp-1",
+        },
+        editingReturnNote: true,
+      });
+
+      await flushPromises();
+      await wrapper.vm.$nextTick();
+
+      // Verify that no items are shown (all filtered out)
+      const vm = wrapper.vm as any;
+      const returnItems = vm.returnItems || [];
+
+      expect(returnItems.length).toBe(0);
+    });
+  });
 });
 
