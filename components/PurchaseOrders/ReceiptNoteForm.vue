@@ -144,6 +144,28 @@
             />
           </div>
 
+          <!-- Vendor Address -->
+          <div>
+            <label class="block text-xs font-medium text-default mb-1">
+              Vendor Address
+            </label>
+            <div class="relative p-2 bg-gray-50 dark:bg-gray-800 rounded-md text-xs text-muted min-h-[50px] border border-default group hover:border-primary-400 dark:hover:border-primary-600 transition-colors cursor-pointer">
+              <div :class="form.vendor_uuid && !props.readonly ? 'pr-8' : ''">
+                {{ vendorAddressText || 'No vendor selected' }}
+              </div>
+              <UButton
+                v-if="form.vendor_uuid && !props.readonly"
+                icon="tdesign:edit-filled"
+                size="xs"
+                variant="ghost"
+                color="neutral"
+                @click="openVendorEditModal"
+                title="Edit vendor address"
+                class="absolute top-2 right-2 transition-all group-hover:!bg-primary-100 group-hover:!text-primary-600 group-hover:scale-110 dark:group-hover:!bg-primary-900 dark:group-hover:!text-primary-400"
+              />
+            </div>
+          </div>
+
           <div v-if="receiptType === 'purchase_order'">
             <label class="block text-xs font-medium text-default mb-1">
               Purchase Order <span class="text-red-500">*</span>
@@ -504,6 +526,13 @@
       @confirm="handleItemsSelectionConfirm"
       @cancel="handleItemsSelectionCancel"
     />
+
+    <!-- Vendor Edit Modal -->
+    <VendorForm 
+      v-model="showVendorEditModal" 
+      :vendor="editingVendor"
+      @vendor-saved="handleVendorSaved"
+    />
   </div>
 </template>
 
@@ -530,6 +559,7 @@ import { useStockReceiptNotesStore } from "@/stores/stockReceiptNotes";
 import FinancialBreakdown from "@/components/PurchaseOrders/FinancialBreakdown.vue";
 import FilePreview from "@/components/Shared/FilePreview.vue";
 import ReceiptNoteItemsSelectionModal from "@/components/PurchaseOrders/ReceiptNoteItemsSelectionModal.vue";
+import VendorForm from "@/components/PurchaseOrders/VendorForm.vue";
 
 interface Props {
   form: any;
@@ -572,6 +602,10 @@ const showItemsSelectionModal = ref(false);
 const availableItemsForSelection = ref<any[]>([]);
 const pendingSourceUuid = ref<string | null>(null);
 const pendingSourceType = ref<string | null>(null);
+
+// Vendor edit functionality
+const showVendorEditModal = ref(false);
+const editingVendor = ref<any>(null);
 
 // Local purchase orders and change orders (independent from global store)
 const { localPurchaseOrders, localChangeOrders, fetchLocalPurchaseOrders, fetchLocalChangeOrders } = useLocalPOCOData();
@@ -1649,6 +1683,53 @@ const receivedDateDisplayText = computed(() => {
   return df.format(receivedDateValue.value.toDate(getLocalTimeZone()));
 });
 
+// Helper to format country code to full name
+const getCountryName = (countryCode: string): string => {
+  if (!countryCode) return '';
+  const countryMap: Record<string, string> = {
+    'US': 'UNITED STATES OF AMERICA',
+    'CA': 'CANADA',
+    'GB': 'UNITED KINGDOM',
+    'AU': 'AUSTRALIA',
+    'MX': 'MEXICO',
+    // Add more as needed
+  };
+  return countryMap[countryCode.toUpperCase()] || countryCode.toUpperCase();
+};
+
+// Vendor address block (display only)
+const vendorAddressText = computed(() => {
+  if (props.form.vendor_uuid) {
+    // First try to find in localVendors (preferred for ReceiptNoteForm)
+    const localVendor = localVendors.value.find((v: any) => v.uuid === props.form.vendor_uuid);
+    if (localVendor) {
+      const parts = [
+        localVendor.vendor_address,
+        localVendor.vendor_city,
+        localVendor.vendor_state,
+        localVendor.vendor_zip,
+        getCountryName(localVendor.vendor_country || '')
+      ].filter(Boolean);
+      const addr = parts.length > 0 ? parts.join(', ').toUpperCase() : '';
+      return addr;
+    }
+    // Fallback to vendorStore
+    const vendor = vendorStore.vendors.find((v: any) => v.uuid === props.form.vendor_uuid);
+    if (vendor) {
+      const parts = [
+        vendor.vendor_address,
+        vendor.vendor_city,
+        vendor.vendor_state,
+        vendor.vendor_zip,
+        getCountryName(vendor.vendor_country || '')
+      ].filter(Boolean);
+      const addr = parts.length > 0 ? parts.join(', ').toUpperCase() : '';
+      return addr;
+    }
+  }
+  return '';
+});
+
 const updateAttachments = (attachments: any[]) => {
   updateFormField("attachments", attachments);
 };
@@ -1795,6 +1876,43 @@ const handleProjectChange = async (projectUuid?: string | null) => {
       updateFormField("change_order_uuid", null, nextForm);
     }
   }
+};
+
+// Vendor edit methods
+const openVendorEditModal = () => {
+  if (!props.form.vendor_uuid) return;
+  
+  // First try to find in localVendors (preferred for ReceiptNoteForm)
+  const localVendor = localVendors.value.find((v: any) => v.uuid === props.form.vendor_uuid);
+  if (localVendor) {
+    editingVendor.value = localVendor;
+    showVendorEditModal.value = true;
+    return;
+  }
+  
+  // Fallback to vendorStore
+  const vendor = vendorStore.vendors.find((v: any) => v.uuid === props.form.vendor_uuid);
+  if (!vendor) {
+    return;
+  }
+  
+  editingVendor.value = vendor;
+  showVendorEditModal.value = true;
+};
+
+const handleVendorSaved = async () => {
+  // Refresh vendors from API to get the updated data
+  const corpUuid = props.form.corporation_uuid || corpStore.selectedCorporation?.uuid;
+  if (corpUuid) {
+    await Promise.allSettled([
+      vendorStore.fetchVendors(corpUuid),
+      fetchLocalVendors(String(corpUuid))
+    ]);
+  }
+  
+  // Close the modal
+  showVendorEditModal.value = false;
+  editingVendor.value = null;
 };
 
 const handleVendorChange = async (vendorUuid?: string | null) => {
