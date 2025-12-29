@@ -455,6 +455,7 @@ export const useEstimatesStore = defineStore("estimates", () => {
     estimates: readonly(estimates),
     loading: readonly(loading),
     error: readonly(error),
+    paginationInfo: readonly(paginationInfo),
 
     // Actions
     fetchEstimates,

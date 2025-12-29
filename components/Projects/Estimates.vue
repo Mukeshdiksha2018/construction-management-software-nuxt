@@ -223,7 +223,7 @@
       />
       
       <!-- Pagination -->
-      <div v-if="shouldShowPagination(filteredEstimates.length).value" class="mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+      <div v-if="shouldShowServerPagination" class="mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
         <div class="flex items-center gap-2">
           <span class="text-sm text-gray-600">Show:</span>
           <USelect
@@ -237,10 +237,15 @@
           />
         </div>
         
-        <UPagination v-bind="getPaginationProps(table)" />
+        <UPagination
+          :default-page="serverPaginationPage"
+          :items-per-page="pagination.pageSize"
+          :total="serverPaginationTotal"
+          @update:page="handleServerPageChange"
+        />
         
         <div class="text-sm text-gray-600">
-          {{ getPageInfo(table, 'estimates').value }}
+          {{ serverPageInfo }}
         </div>
       </div>
     </div>
@@ -504,8 +509,118 @@ const filteredEstimates = computed(() => {
     filtered = filtered.filter(e => e.status === selectedStatusFilter.value)
   }
   
+  // Apply global filter if provided
+  if (globalFilter.value.trim()) {
+    const searchTerm = globalFilter.value.toLowerCase().trim()
+    filtered = filtered.filter(e => {
+      const searchableFields = [
+        e.estimate_number || '',
+        e.project?.project_name || '',
+        e.status || '',
+      ]
+      return searchableFields.some(field => 
+        field.toLowerCase().includes(searchTerm)
+      )
+    })
+  }
+  
   return filtered
 })
+
+// Server-side pagination support
+const serverPaginationInfo = computed(() => {
+  if (!selectedCorporationId.value) return null
+  return estimatesStore.getPaginationInfo(selectedCorporationId.value)
+})
+
+const serverPaginationTotal = computed(() => {
+  // Use the total from the server pagination info if available, otherwise fallback to the filtered client-side data length
+  return serverPaginationInfo.value?.totalRecords || filteredEstimates.value.length
+})
+
+const serverPaginationPage = computed(() => {
+  if (!table.value?.tableApi) return 1
+  return (table.value.tableApi.getState().pagination.pageIndex || 0) + 1
+})
+
+const shouldShowServerPagination = computed(() => {
+  return serverPaginationTotal.value > 10
+})
+
+const serverPageInfo = computed(() => {
+  if (!table.value?.tableApi) {
+    return `Showing 0 of 0 estimates`
+  }
+  
+  const tableState = table.value.tableApi.getState()
+  const pageIndex = tableState.pagination.pageIndex || 0
+  const pageSize = tableState.pagination.pageSize || 10
+  
+  // Get the actual displayed rows from the table (after pagination)
+  const rowModel = table.value.tableApi.getRowModel()
+  const displayedRows = rowModel.rows || []
+  const displayedCount = displayedRows.length
+  
+  // Calculate start/end based on what's actually displayed
+  const start = displayedCount > 0 ? pageIndex * pageSize + 1 : 0
+  const end = pageIndex * pageSize + displayedCount
+  
+  const filteredCount = filteredEstimates.value.length
+  const serverTotal = serverPaginationTotal.value
+  
+  // Show filtered count, but also show server total if different (indicates more records available)
+  if (selectedStatusFilter.value || globalFilter.value.trim()) {
+    if (serverTotal > filteredCount) {
+      return `Showing ${start} to ${end} of ${filteredCount} filtered (${serverTotal} total) estimates`
+    }
+    return `Showing ${start} to ${end} of ${filteredCount} estimates`
+  } else {
+    // No filters: show server total
+    return `Showing ${start} to ${end} of ${serverTotal || filteredCount} estimates`
+  }
+})
+
+// Handle server-side pagination page changes
+const handleServerPageChange = async (newPage: number) => {
+  if (!table.value?.tableApi || !selectedCorporationId.value) return
+  
+  const pageIndex = newPage - 1
+  table.value.tableApi.setPageIndex(pageIndex)
+  
+  // If filters are active, we're doing client-side pagination on filtered data
+  // No need to load more from API
+  if (selectedStatusFilter.value || globalFilter.value.trim()) {
+    return
+  }
+  
+  // No filters: load more data from API if needed
+  const tablePageSize = pagination.value.pageSize || 10
+  const apiPageSize = 100 // API page size
+  
+  // Check if we need to load this page
+  const paginationInfo = serverPaginationInfo.value
+  if (paginationInfo && paginationInfo.hasMore) {
+    // Check if we've already loaded enough data for this page
+    let loadedCount = estimates.value.filter((est: any) => 
+      String(est.corporation_uuid) === String(selectedCorporationId.value)
+    ).length
+    
+    const neededCount = pageIndex * tablePageSize + tablePageSize
+    if (neededCount > loadedCount) {
+      // Load more pages until we have enough data
+      let currentApiPage = Math.floor(loadedCount / apiPageSize) + 1
+      while (neededCount > loadedCount && paginationInfo.hasMore && currentApiPage <= paginationInfo.totalPages) {
+        await estimatesStore.refreshEstimatesFromAPI(selectedCorporationId.value, currentApiPage, apiPageSize)
+        const newLoadedCount = estimates.value.filter((est: any) => 
+          String(est.corporation_uuid) === String(selectedCorporationId.value)
+        ).length
+        if (newLoadedCount === loadedCount) break // No new data loaded
+        loadedCount = newLoadedCount
+        currentApiPage++
+      }
+    }
+  }
+}
 
 // Table columns configuration
 const columns: TableColumn<any>[] = [
@@ -1013,11 +1128,17 @@ watch(() => pagination.value.pageSize, (newSize) => {
   }
 });
 
-watch(globalFilter, () => {
+watch([() => selectedCorporationId.value, globalFilter, () => selectedStatusFilter.value], () => {
   if (table.value?.tableApi) {
-    table.value.tableApi.setPageIndex(0); // Reset to first page when filter changes
+    table.value.tableApi.setPageIndex(0)
   }
-});
+})
+
+watch(() => pagination.value.pageSize, () => {
+  if (table.value?.tableApi) {
+    table.value.tableApi.setPageIndex(0)
+  }
+})
 
 // Estimates are automatically fetched by TopBar.vue when corporation changes
 // No need to fetch here - just use the store data reactively
