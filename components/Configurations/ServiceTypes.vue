@@ -332,6 +332,7 @@ const columns: TableColumn<any>[] = [
     accessorKey: 'name',
     header: 'Name',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: { original: any } }) => {
       const serviceType = row.original as ServiceType;
       return h('div', { class: 'flex items-center space-x-3' }, [
@@ -347,6 +348,7 @@ const columns: TableColumn<any>[] = [
     accessorKey: 'description',
     header: 'Description',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: { original: any } }) => {
       const serviceType = row.original as ServiceType;
       return h('span', { 
@@ -358,6 +360,7 @@ const columns: TableColumn<any>[] = [
     accessorKey: 'isActive',
     header: 'Status',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: { original: any } }) => {
       const serviceType = row.original as ServiceType;
       return h(UBadge, {
@@ -371,6 +374,7 @@ const columns: TableColumn<any>[] = [
     accessorKey: 'actions',
     header: 'Actions',
     enableSorting: false,
+    meta: { class: { th: 'text-right sticky right-0 z-10 w-32', td: 'text-right sticky right-0 w-32' } },
     cell: ({ row }: { row: { original: any } }) => {
       const serviceType = row.original as ServiceType;
       return h('div', { class: 'flex justify-end gap-1' }, [

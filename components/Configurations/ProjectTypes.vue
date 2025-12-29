@@ -279,7 +279,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, h, onMounted, resolveComponent } from 'vue'
+import { ref, computed, reactive, h, onMounted, resolveComponent } from 'vue'
 import { z } from 'zod'
 import { useProjectTypesStore, type ProjectType } from '@/stores/projectTypes'
 import type { TableColumn } from '@nuxt/ui'
@@ -329,6 +329,7 @@ const columns: TableColumn<any>[] = [
     accessorKey: 'name',
     header: 'Name',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: { original: any } }) => {
       const projectType = row.original as ProjectType;
       return h('div', { class: 'flex items-center space-x-3' }, [
@@ -344,6 +345,7 @@ const columns: TableColumn<any>[] = [
     accessorKey: 'description',
     header: 'Description',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: { original: any } }) => {
       const projectType = row.original as ProjectType;
       return h('span', { 
@@ -355,6 +357,7 @@ const columns: TableColumn<any>[] = [
     accessorKey: 'isActive',
     header: 'Status',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: { original: any } }) => {
       const projectType = row.original as ProjectType;
       return h(UBadge, {
@@ -368,6 +371,7 @@ const columns: TableColumn<any>[] = [
     accessorKey: 'actions',
     header: 'Actions',
     enableSorting: false,
+    meta: { class: { th: 'text-right sticky right-0 z-10 w-32', td: 'text-right sticky right-0 w-32' } },
     cell: ({ row }: { row: { original: any } }) => {
       const projectType = row.original as ProjectType;
       return h('div', { class: 'flex justify-end gap-1' }, [
