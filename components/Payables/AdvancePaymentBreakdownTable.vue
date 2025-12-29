@@ -47,9 +47,6 @@
             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700">
               Cost Code Breakdown
             </th>
-            <th v-if="hasPreviouslyAdjustedCostCodes && !isInvoiceSaved" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-green-700 dark:text-green-400 border-b border-gray-200 dark:border-gray-700">
-              Previously Adjusted
-            </th>
             <th v-if="hasPreviouslyAdjustedCostCodes && showAdjustmentInputs && !isInvoiceSaved" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-400 border-b border-gray-200 dark:border-gray-700">
               Remaining to be Adjusted
             </th>
@@ -111,44 +108,6 @@
                 </div>
               </div>
               <span v-else class="text-xs text-gray-400">No cost codes</span>
-            </td>
-
-            <!-- Previously Adjusted Column (only shown when hasPreviouslyAdjustedCostCodes is true and invoice is not saved) -->
-            <td v-if="hasPreviouslyAdjustedCostCodes && !isInvoiceSaved" class="px-4 py-3">
-              <div v-if="getFilteredCostCodes(payment).length > 0" class="space-y-1">
-                <div
-                  v-for="(costCode, ccIndex) in getFilteredCostCodes(payment)"
-                  :key="'prev-' + (costCode.uuid || ccIndex)"
-                  class="text-xs"
-                >
-                  <span 
-                    v-if="getPreviouslyAdjustedAmount(payment.uuid, costCode.uuid || costCode.cost_code_uuid) > 0"
-                    class="font-medium text-green-600 dark:text-green-400"
-                  >
-                    {{ formatCurrency(getPreviouslyAdjustedAmount(payment.uuid, costCode.uuid || costCode.cost_code_uuid)) }}
-                  </span>
-                  <span v-else class="text-gray-400">-</span>
-                </div>
-              </div>
-              <div v-else-if="payment.costCodes && payment.costCodes.length > 0 && getFilteredCostCodes(payment).length === 0" class="text-right">
-                <!-- All cost codes filtered out (all have zero remaining), show total if any previously adjusted -->
-                <span 
-                  v-if="getTotalPreviouslyAdjustedForPayment(payment.uuid) > 0"
-                  class="text-xs font-medium text-green-600 dark:text-green-400"
-                >
-                  {{ formatCurrency(getTotalPreviouslyAdjustedForPayment(payment.uuid)) }}
-                </span>
-                <span v-else class="text-xs text-gray-400">-</span>
-              </div>
-              <div v-else class="text-right">
-                <span 
-                  v-if="getTotalPreviouslyAdjustedForPayment(payment.uuid) > 0"
-                  class="text-xs font-medium text-green-600 dark:text-green-400"
-                >
-                  {{ formatCurrency(getTotalPreviouslyAdjustedForPayment(payment.uuid)) }}
-                </span>
-                <span v-else class="text-xs text-gray-400">-</span>
-              </div>
             </td>
 
             <!-- Remaining to be Adjusted Column (only shown when hasPreviouslyAdjustedCostCodes and showAdjustmentInputs and invoice is not saved) -->
@@ -213,14 +172,6 @@
             </td>
             <td class="px-4 py-3 text-sm font-bold text-red-600 dark:text-red-400 text-right">
               {{ formatCurrency(-totalAdvancePaidWithoutTaxes) }}
-            </td>
-          </tr>
-          <tr v-if="hasPreviouslyAdjustedCostCodes && totalPreviouslyAdjusted > 0 && !isInvoiceSaved">
-            <td :colspan="footerColspan" class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100 text-right">
-              Total Previously Adjusted:
-            </td>
-            <td class="px-4 py-3 text-sm font-bold text-green-600 dark:text-green-400 text-right">
-              {{ formatCurrency(totalPreviouslyAdjusted) }}
             </td>
           </tr>
           <tr v-if="showAdjustmentInputs">
@@ -354,7 +305,6 @@ const totalPreviouslyAdjusted = computed(() => {
 // Calculate footer colspan based on visible columns
 const footerColspan = computed(() => {
   let cols = 4 // Invoice Number, Invoice Date, Status, Cost Code Breakdown
-  if (hasPreviouslyAdjustedCostCodes.value && !props.isInvoiceSaved) cols++
   if (hasPreviouslyAdjustedCostCodes.value && props.showAdjustmentInputs && !props.isInvoiceSaved) cols++ // Remaining column
   if (props.showAdjustmentInputs) cols++
   return cols
