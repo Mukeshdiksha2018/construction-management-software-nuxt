@@ -45,7 +45,16 @@ vi.mock("vue-router", () => ({
 // Mock table API
 const mockTableApi = {
   setPageSize: vi.fn(),
-  setPageIndex: vi.fn()
+  setPageIndex: vi.fn(),
+  getState: vi.fn(() => ({
+    pagination: {
+      pageIndex: 0,
+      pageSize: 10,
+    },
+  })),
+  getRowModel: vi.fn(() => ({
+    rows: [],
+  })),
 }
 
 // Mock the composables
@@ -614,8 +623,9 @@ describe("Estimates", () => {
       wrapper.vm.globalFilter = "EST-001";
       wrapper.vm.filteredEstimates;
 
-      // The filteredEstimates computed should return all estimates since filtering logic is in the table
-      expect(wrapper.vm.filteredEstimates).toEqual(mockEstimates);
+      // The filteredEstimates computed should filter by globalFilter
+      // EST-001 matches estimate-1, so should return only that estimate
+      expect(wrapper.vm.filteredEstimates).toEqual([mockEstimates[0]]);
     });
   });
 
@@ -627,8 +637,10 @@ describe("Estimates", () => {
         estimates: [],
         loading: false,
         error: null,
+        paginationInfo: { value: {} },
         fetchEstimates: mockFetchEstimates,
         refreshEstimatesFromAPI: mockRefreshEstimatesFromAPI,
+        getPaginationInfo: vi.fn(() => null),
         deleteEstimate: vi.fn().mockResolvedValue(true),
       } as any);
 
@@ -663,8 +675,10 @@ describe("Estimates", () => {
         estimates: [],
         loading: false,
         error: null,
+        paginationInfo: { value: {} },
         fetchEstimates: mockFetchEstimates,
         refreshEstimatesFromAPI: mockRefreshEstimatesFromAPI,
+        getPaginationInfo: vi.fn(() => null),
         deleteEstimate: vi.fn().mockResolvedValue(true),
       } as any);
 
@@ -685,8 +699,10 @@ describe("Estimates", () => {
         estimates: [...originalEstimates],
         loading: false,
         error: null,
+        paginationInfo: { value: {} },
         fetchEstimates: mockFetchEstimates,
         refreshEstimatesFromAPI: mockRefreshEstimatesFromAPI,
+        getPaginationInfo: vi.fn(() => null),
         deleteEstimate: vi.fn().mockResolvedValue(true),
       } as any);
 
