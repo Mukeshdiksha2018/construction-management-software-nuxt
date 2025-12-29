@@ -12447,5 +12447,322 @@ describe("VendorInvoiceForm.vue", () => {
       expect(wrapper.exists()).toBe(true);
     });
   });
+
+  describe("Holdback Invoice Amount Calculation", () => {
+    it("should calculate total invoice amount correctly when release amounts are updated", async () => {
+      const form = {
+        ...baseForm,
+        invoice_type: "AGAINST_HOLDBACK_AMOUNT",
+        holdback_invoice_uuid: "holdback-invoice-1",
+        purchase_order_uuid: "po-uuid-1",
+        po_number: "PO-001",
+        amount: 0,
+        financial_breakdown: {
+          totals: {
+            item_total: 0,
+            charges_total: 0,
+            tax_total: 0,
+            amount: 0,
+          },
+        },
+      };
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: false,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      const vm = wrapper.vm as any;
+
+      // Simulate release amount update of 0.59
+      const releaseAmount = 0.59;
+      vm.handleHoldbackReleaseAmountsUpdate(releaseAmount);
+
+      await flushPromises();
+
+      // Check that the form was updated
+      const emittedForms = wrapper.emitted("update:form") as VendorInvoiceFormData[][] | undefined;
+      expect(emittedForms).toBeTruthy();
+      expect(emittedForms!.length).toBeGreaterThan(0);
+
+      const lastUpdate = emittedForms![emittedForms!.length - 1][0] as VendorInvoiceFormData;
+      
+      // Verify item_total is set to release amount
+      expect(lastUpdate.financial_breakdown?.totals?.item_total).toBe(0.59);
+      
+      // Verify amount is calculated as item_total + charges_total + tax_total
+      // Since charges_total and tax_total are 0, amount should be 0.59
+      expect(lastUpdate.financial_breakdown?.totals?.amount).toBe(0.59);
+      expect(lastUpdate.financial_breakdown?.totals?.total_invoice_amount).toBe(0.59);
+      expect(lastUpdate.amount).toBe(0.59);
+    });
+
+    it("should calculate total invoice amount correctly when release amounts and taxes are updated", async () => {
+      const form = {
+        ...baseForm,
+        invoice_type: "AGAINST_HOLDBACK_AMOUNT",
+        holdback_invoice_uuid: "holdback-invoice-1",
+        purchase_order_uuid: "po-uuid-1",
+        po_number: "PO-001",
+        amount: 0,
+        financial_breakdown: {
+          totals: {
+            item_total: 0,
+            charges_total: 0,
+            tax_total: 0,
+            amount: 0,
+          },
+        },
+      };
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: false,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      const vm = wrapper.vm as any;
+
+      // First, update release amount to 0.59
+      vm.handleHoldbackReleaseAmountsUpdate(0.59);
+      await flushPromises();
+
+      // Then, simulate financial breakdown update with taxes
+      const financialBreakdownUpdate = {
+        financial_breakdown: {
+          totals: {
+            item_total: 0.5, // Old value (should be ignored)
+            charges_total: 0,
+            tax_total: 0.02,
+            amount: 0.52, // Old calculated value (should be recalculated)
+          },
+        },
+        amount: 0.52,
+      };
+
+      vm.handleFinancialBreakdownUpdate(financialBreakdownUpdate);
+      await flushPromises();
+
+      // Check that the form was updated with correct calculation
+      const emittedForms = wrapper.emitted("update:form") as VendorInvoiceFormData[][] | undefined;
+      expect(emittedForms).toBeTruthy();
+      expect(emittedForms!.length).toBeGreaterThan(0);
+
+      const lastUpdate = emittedForms![emittedForms!.length - 1][0] as VendorInvoiceFormData;
+      
+      // Verify item_total uses release amount (0.59), not the old value (0.5)
+      expect(lastUpdate.financial_breakdown?.totals?.item_total).toBe(0.59);
+      
+      // Verify tax_total is updated
+      expect(lastUpdate.financial_breakdown?.totals?.tax_total).toBe(0.02);
+      
+      // Verify amount is calculated as 0.59 + 0 + 0.02 = 0.61
+      expect(lastUpdate.financial_breakdown?.totals?.amount).toBe(0.61);
+      expect(lastUpdate.financial_breakdown?.totals?.total_invoice_amount).toBe(0.61);
+      expect(lastUpdate.amount).toBe(0.61);
+    });
+
+    it("should use release amount total as item_total source of truth for holdback invoices", async () => {
+      const form = {
+        ...baseForm,
+        invoice_type: "AGAINST_HOLDBACK_AMOUNT",
+        holdback_invoice_uuid: "holdback-invoice-1",
+        purchase_order_uuid: "po-uuid-1",
+        po_number: "PO-001",
+        amount: 0,
+        financial_breakdown: {
+          totals: {
+            item_total: 0.5, // Old value
+            charges_total: 0,
+            tax_total: 0.02,
+            amount: 0.52,
+          },
+        },
+      };
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: false,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      const vm = wrapper.vm as any;
+
+      // Update release amount to 0.59
+      vm.handleHoldbackReleaseAmountsUpdate(0.59);
+      await flushPromises();
+
+      // Simulate financial breakdown update with old item_total value
+      const financialBreakdownUpdate = {
+        financial_breakdown: {
+          totals: {
+            item_total: 0.5, // Old value - should be ignored
+            charges_total: 0,
+            tax_total: 0.02,
+            amount: 0.52,
+          },
+        },
+        amount: 0.52,
+      };
+
+      vm.handleFinancialBreakdownUpdate(financialBreakdownUpdate);
+      await flushPromises();
+
+      // Check that item_total uses release amount, not the value from updates
+      const emittedForms = wrapper.emitted("update:form") as VendorInvoiceFormData[][] | undefined;
+      expect(emittedForms).toBeTruthy();
+      
+      const lastUpdate = emittedForms![emittedForms!.length - 1][0] as VendorInvoiceFormData;
+      
+      // Should use release amount (0.59), not the old value (0.5) from updates
+      expect(lastUpdate.financial_breakdown?.totals?.item_total).toBe(0.59);
+      expect(lastUpdate.amount).toBe(0.61); // 0.59 + 0 + 0.02
+    });
+
+    it("should not apply holdback calculation logic to non-holdback invoices", async () => {
+      const form = {
+        ...baseForm,
+        invoice_type: "AGAINST_PO",
+        purchase_order_uuid: "po-uuid-1",
+        po_number: "PO-001",
+        amount: 0,
+        financial_breakdown: {
+          totals: {
+            item_total: 1000,
+            charges_total: 100,
+            tax_total: 120,
+            amount: 1220,
+          },
+        },
+      };
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: false,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      const vm = wrapper.vm as any;
+
+      // Try to update release amount (should not affect non-holdback invoices)
+      vm.handleHoldbackReleaseAmountsUpdate(0.59);
+      await flushPromises();
+
+      // Simulate financial breakdown update
+      const financialBreakdownUpdate = {
+        financial_breakdown: {
+          totals: {
+            item_total: 1000,
+            charges_total: 100,
+            tax_total: 120,
+            amount: 1220,
+          },
+        },
+        amount: 1220,
+      };
+
+      vm.handleFinancialBreakdownUpdate(financialBreakdownUpdate);
+      await flushPromises();
+
+      // For non-holdback invoices, should use standard logic
+      const emittedForms = wrapper.emitted("update:form") as VendorInvoiceFormData[][] | undefined;
+      expect(emittedForms).toBeTruthy();
+      
+      const lastUpdate = emittedForms![emittedForms!.length - 1][0] as VendorInvoiceFormData;
+      
+      // Should use the value from financial breakdown, not release amount
+      expect(lastUpdate.financial_breakdown?.totals?.item_total).toBe(1000);
+      expect(lastUpdate.amount).toBe(1220);
+    });
+
+    it("should handle release amount update with charges and taxes", async () => {
+      const form = {
+        ...baseForm,
+        invoice_type: "AGAINST_HOLDBACK_AMOUNT",
+        holdback_invoice_uuid: "holdback-invoice-1",
+        purchase_order_uuid: "po-uuid-1",
+        po_number: "PO-001",
+        amount: 0,
+        financial_breakdown: {
+          totals: {
+            item_total: 0,
+            charges_total: 50,
+            tax_total: 0.02,
+            amount: 0,
+          },
+        },
+      };
+
+      const wrapper = mount(VendorInvoiceForm, {
+        props: {
+          form,
+          editingInvoice: false,
+          loading: false,
+          readonly: false,
+        },
+        global: {
+          plugins: [pinia],
+          stubs: uiStubs,
+        },
+      });
+
+      await flushPromises();
+
+      const vm = wrapper.vm as any;
+
+      // Update release amount to 0.59
+      vm.handleHoldbackReleaseAmountsUpdate(0.59);
+      await flushPromises();
+
+      // Check calculation: 0.59 (item_total) + 50 (charges) + 0.02 (tax) = 50.61
+      const emittedForms = wrapper.emitted("update:form") as VendorInvoiceFormData[][] | undefined;
+      expect(emittedForms).toBeTruthy();
+      
+      const lastUpdate = emittedForms![emittedForms!.length - 1][0] as VendorInvoiceFormData;
+      
+      expect(lastUpdate.financial_breakdown?.totals?.item_total).toBe(0.59);
+      expect(lastUpdate.financial_breakdown?.totals?.charges_total).toBe(50);
+      expect(lastUpdate.financial_breakdown?.totals?.tax_total).toBe(0.02);
+      expect(lastUpdate.financial_breakdown?.totals?.amount).toBeCloseTo(50.61, 2);
+      expect(lastUpdate.amount).toBeCloseTo(50.61, 2);
+    });
+  });
 });
 
