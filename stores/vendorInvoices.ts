@@ -20,6 +20,7 @@ export interface VendorInvoice {
   amount: number;
   holdback?: number | null;
   is_active?: boolean;
+  holdback_fully_paid?: boolean;
   attachments?: any[];
   line_items?: any[]; // Line items for direct invoices
   created_by?: string;

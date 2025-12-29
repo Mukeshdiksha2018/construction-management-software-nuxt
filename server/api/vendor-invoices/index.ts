@@ -219,6 +219,142 @@ const persistAdvancePaymentCostCodes = async (options: {
   }
 };
 
+// Helper function to check and update holdback_fully_paid status for a PO/CO invoice
+const updateHoldbackFullyPaidStatus = async (holdbackInvoiceUuid: string | null) => {
+  if (!holdbackInvoiceUuid) return;
+
+  try {
+    // Get the holdback invoice (AGAINST_PO or AGAINST_CO) to find the PO/CO UUID
+    const { data: holdbackInvoice, error: invoiceError } = await supabaseServer
+      .from("vendor_invoices")
+      .select("uuid, invoice_type, purchase_order_uuid, change_order_uuid, is_active")
+      .eq("uuid", holdbackInvoiceUuid)
+      .maybeSingle();
+
+    if (invoiceError || !holdbackInvoice || !holdbackInvoice.is_active) {
+      console.error("[updateHoldbackFullyPaidStatus] Error fetching holdback invoice:", invoiceError);
+      return;
+    }
+
+    const invoiceType = String(holdbackInvoice.invoice_type || '').toUpperCase();
+    if (invoiceType !== "AGAINST_PO" && invoiceType !== "AGAINST_CO") {
+      // Not a PO/CO invoice, nothing to update
+      return;
+    }
+
+    const poCoUuid = invoiceType === "AGAINST_PO" 
+      ? holdbackInvoice.purchase_order_uuid 
+      : holdbackInvoice.change_order_uuid;
+
+    if (!poCoUuid) {
+      console.warn("[updateHoldbackFullyPaidStatus] No PO/CO UUID found for invoice:", holdbackInvoiceUuid);
+      return;
+    }
+
+    // Fetch all active holdback invoices (AGAINST_HOLDBACK_AMOUNT) for this PO/CO
+    const holdbackInvoiceQuery = supabaseServer
+      .from("vendor_invoices")
+      .select("uuid")
+      .eq("invoice_type", "AGAINST_HOLDBACK_AMOUNT")
+      .eq("is_active", true);
+
+    if (invoiceType === "AGAINST_PO") {
+      holdbackInvoiceQuery.eq("purchase_order_uuid", poCoUuid);
+    } else {
+      holdbackInvoiceQuery.eq("change_order_uuid", poCoUuid);
+    }
+
+    const { data: holdbackInvoices, error: holdbackInvoicesError } = await holdbackInvoiceQuery;
+
+    if (holdbackInvoicesError) {
+      console.error("[updateHoldbackFullyPaidStatus] Error fetching holdback invoices:", holdbackInvoicesError);
+      return;
+    }
+
+    if (!holdbackInvoices || holdbackInvoices.length === 0) {
+      // No holdback invoices exist, so holdback is not fully paid
+      await supabaseServer
+        .from("vendor_invoices")
+        .update({ holdback_fully_paid: false })
+        .eq("uuid", holdbackInvoiceUuid);
+      return;
+    }
+
+    // Get all holdback cost codes for these holdback invoices
+    const holdbackInvoiceUuids = holdbackInvoices.map((inv: any) => inv.uuid);
+    const { data: holdbackCostCodes, error: costCodesError } = await supabaseServer
+      .from("holdback_cost_codes")
+      .select("cost_code_uuid, release_amount, retainage_amount")
+      .in("vendor_invoice_uuid", holdbackInvoiceUuids)
+      .eq("is_active", true);
+
+    if (costCodesError) {
+      console.error("[updateHoldbackFullyPaidStatus] Error fetching holdback cost codes:", costCodesError);
+      return;
+    }
+
+    // Build a map of cost code UUID to total released amount
+    const costCodeReleasedMap = new Map<string, number>();
+    const costCodeRetainageMap = new Map<string, number>();
+
+    (holdbackCostCodes || []).forEach((costCode: any) => {
+      const costCodeUuid = costCode.cost_code_uuid;
+      if (!costCodeUuid) return;
+
+      const releaseAmount = parseFloat(String(costCode.release_amount || 0)) || 0;
+      const retainageAmount = parseFloat(String(costCode.retainage_amount || 0)) || 0;
+
+      const currentReleased = costCodeReleasedMap.get(costCodeUuid) || 0;
+      costCodeReleasedMap.set(costCodeUuid, currentReleased + releaseAmount);
+
+      // Store the maximum retainage amount for each cost code (should be the same across all holdback invoices)
+      const currentRetainage = costCodeRetainageMap.get(costCodeUuid) || 0;
+      if (retainageAmount > currentRetainage) {
+        costCodeRetainageMap.set(costCodeUuid, retainageAmount);
+      }
+    });
+
+    // Check if all cost codes with retainage have zero available amount
+    let allZero = true;
+    let hasAtLeastOneCostCode = false;
+
+    costCodeRetainageMap.forEach((retainageAmount, costCodeUuid) => {
+      if (retainageAmount <= 0) {
+        return; // Skip cost codes with no retainage
+      }
+
+      hasAtLeastOneCostCode = true;
+
+      const previouslyReleased = costCodeReleasedMap.get(costCodeUuid) || 0;
+      const roundedReleased = Math.round((previouslyReleased + Number.EPSILON) * 100) / 100;
+      const roundedRetainage = Math.round((retainageAmount + Number.EPSILON) * 100) / 100;
+
+      // Calculate available amount
+      const availableAmount = Math.max(0, roundedRetainage - roundedReleased);
+
+      // If any cost code has available amount > 0, not all are zero
+      if (availableAmount > 0.01) { // Use 0.01 tolerance for floating point
+        allZero = false;
+      }
+    });
+
+    // Only mark as fully paid if we have at least one cost code with retainage and all have zero available
+    const isFullyPaid = hasAtLeastOneCostCode && allZero;
+
+    // Update the holdback_fully_paid column
+    const { error: updateError } = await supabaseServer
+      .from("vendor_invoices")
+      .update({ holdback_fully_paid: isFullyPaid })
+      .eq("uuid", holdbackInvoiceUuid);
+
+    if (updateError) {
+      console.error("[updateHoldbackFullyPaidStatus] Error updating holdback_fully_paid:", updateError);
+    }
+  } catch (error: any) {
+    console.error("[updateHoldbackFullyPaidStatus] Unexpected error:", error);
+  }
+};
+
 const persistHoldbackCostCodes = async (options: {
   vendorInvoiceUuid: string;
   corporationUuid: string | null;
@@ -255,6 +391,10 @@ const persistHoldbackCostCodes = async (options: {
   }
 
   if (!Array.isArray(items) || items.length === 0) {
+    // If no items, update the parent invoice's holdback_fully_paid status
+    if (holdbackInvoiceUuid) {
+      await updateHoldbackFullyPaidStatus(holdbackInvoiceUuid);
+    }
     return;
   }
 
@@ -276,6 +416,10 @@ const persistHoldbackCostCodes = async (options: {
     });
 
   if (prepared.length === 0) {
+    // If no prepared items, update the parent invoice's holdback_fully_paid status
+    if (holdbackInvoiceUuid) {
+      await updateHoldbackFullyPaidStatus(holdbackInvoiceUuid);
+    }
     return;
   }
 
@@ -288,6 +432,11 @@ const persistHoldbackCostCodes = async (options: {
       statusCode: 500,
       statusMessage: insertError.message,
     });
+  }
+
+  // Update the parent invoice's holdback_fully_paid status after saving holdback cost codes
+  if (holdbackInvoiceUuid) {
+    await updateHoldbackFullyPaidStatus(holdbackInvoiceUuid);
   }
 };
 
@@ -1684,9 +1833,12 @@ export default defineEventHandler(async (event) => {
       // Before deleting, unmark any advance payment invoices that were adjusted against this invoice
       const { data: invoiceToDelete } = await supabaseServer
         .from("vendor_invoices")
-        .select("uuid, invoice_type")
+        .select("uuid, invoice_type, purchase_order_uuid, change_order_uuid")
         .eq("uuid", uuid as string)
         .maybeSingle();
+
+      // Store parent holdback invoice UUID before deletion (for AGAINST_HOLDBACK_AMOUNT invoices)
+      let parentHoldbackInvoiceUuid: string | null = null;
 
       if (invoiceToDelete) {
         const invoiceType = String(invoiceToDelete.invoice_type || '').toUpperCase();
@@ -1718,6 +1870,21 @@ export default defineEventHandler(async (event) => {
             console.log('[DELETE] Deactivated adjusted_advance_payment_cost_codes for vendor_invoice_uuid:', invoiceToDelete.uuid);
           }
         }
+
+        // For AGAINST_HOLDBACK_AMOUNT invoices, get the parent invoice UUID before deletion
+        if (invoiceType === "AGAINST_HOLDBACK_AMOUNT") {
+          // Get the holdback_invoice_uuid from holdback_cost_codes to find the parent invoice
+          // We need to do this BEFORE deletion because holdback_cost_codes will be deleted via CASCADE
+          const { data: holdbackCostCodes } = await supabaseServer
+            .from("holdback_cost_codes")
+            .select("holdback_invoice_uuid")
+            .eq("vendor_invoice_uuid", invoiceToDelete.uuid)
+            .limit(1);
+
+          if (holdbackCostCodes && holdbackCostCodes.length > 0) {
+            parentHoldbackInvoiceUuid = holdbackCostCodes[0].holdback_invoice_uuid;
+          }
+        }
       }
 
       const { data, error } = await supabaseServer
@@ -1729,6 +1896,14 @@ export default defineEventHandler(async (event) => {
 
       if (error)
         throw createError({ statusCode: 500, statusMessage: error.message });
+
+      // Update holdback_fully_paid status if this was a holdback invoice
+      // We need to do this after the invoice is marked as inactive so the query in updateHoldbackFullyPaidStatus
+      // doesn't include this deleted invoice
+      if (parentHoldbackInvoiceUuid) {
+        await updateHoldbackFullyPaidStatus(parentHoldbackInvoiceUuid);
+      }
+
       return { data: decorateVendorInvoiceRecord({ ...data }) };
     }
 

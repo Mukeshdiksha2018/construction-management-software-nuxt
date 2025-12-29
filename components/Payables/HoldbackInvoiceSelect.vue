@@ -238,15 +238,16 @@ const processInvoiceOptions = async () => {
     return
   }
   
-  // Filter vendor invoices: AGAINST_PO or AGAINST_CO, matching corporation, project, and vendor
+  // Filter vendor invoices: AGAINST_PO or AGAINST_CO, matching corporation, project, and vendor, and holdback not fully paid
   const filteredInvoices = vendorInvoices.value.filter(invoice => {
     const matchesCorporation = invoice.corporation_uuid === props.corporationUuid
     const matchesProject = invoice.project_uuid === props.projectUuid
     const matchesVendor = invoice.vendor_uuid === props.vendorUuid
     const isAgainstPOOrCO = invoice.invoice_type === 'AGAINST_PO' || invoice.invoice_type === 'AGAINST_CO'
     const isActive = invoice.is_active !== false
+    const isHoldbackFullyPaid = invoice.holdback_fully_paid === true
     
-    return matchesCorporation && matchesProject && matchesVendor && isAgainstPOOrCO && isActive
+    return matchesCorporation && matchesProject && matchesVendor && isAgainstPOOrCO && isActive && !isHoldbackFullyPaid
   })
   
   // Process invoices and fetch holdback amounts from PO/CO and invoice totals
