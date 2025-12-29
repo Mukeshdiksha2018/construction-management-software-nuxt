@@ -150,7 +150,7 @@
                     @update:model-value="handleAdjustedAmountChange(payment.uuid, costCode, $event)"
                   />
                   <span class="text-xs text-gray-500 dark:text-gray-400">
-                    / {{ formatCurrency(getRemainingAmount(payment.uuid, costCode)) }}
+                    / {{ formatCurrency(getRemainingAfterAdjustment(payment.uuid, costCode)) }}
                   </span>
                 </div>
               </div>
@@ -265,6 +265,16 @@ const getRemainingAmount = (advancePaymentUuid: string, costCode: any): number =
   const previouslyAdjusted = getPreviouslyAdjustedAmount(advancePaymentUuid, costCodeUuid)
   const remaining = advanceAmount - previouslyAdjusted
   return Math.max(0, remaining) // Don't allow negative
+}
+
+// Get remaining amount after current adjustment (for display after /)
+// This shows what will be left after the user's adjustment: remaining - currently_adjusted
+const getRemainingAfterAdjustment = (advancePaymentUuid: string, costCode: any): number => {
+  const remaining = getRemainingAmount(advancePaymentUuid, costCode)
+  const costCodeUuid = costCode.cost_code_uuid || costCode.uuid
+  const currentlyAdjusted = parseFloat(getAdjustedAmount(advancePaymentUuid, costCodeUuid)) || 0
+  const remainingAfterAdjustment = remaining - currentlyAdjusted
+  return Math.max(0, remainingAfterAdjustment) // Don't allow negative
 }
 
 // Filter cost codes to exclude those with zero remaining amount
