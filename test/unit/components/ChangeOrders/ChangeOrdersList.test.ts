@@ -163,6 +163,13 @@ describe("ChangeOrdersList.vue", () => {
       }));
       const updateChangeOrder = vi.fn(async (payload) => ({ ...payload }));
       const deleteChangeOrder = vi.fn(async (uuid: string) => true);
+      const getPaginationInfo = vi.fn((corporationUuid: string) => ({
+        page: 1,
+        pageSize: 100,
+        totalRecords: changeOrdersArray.value.filter((co: any) => co.corporation_uuid === corporationUuid).length,
+        totalPages: 1,
+        hasMore: false,
+      }));
       return {
         changeOrders: changeOrdersArray, // Return ref directly (component wraps in computed, which accesses .value)
         _changeOrdersArray: changeOrdersArray, // Keep ref for test manipulation
@@ -173,6 +180,7 @@ describe("ChangeOrdersList.vue", () => {
         createChangeOrder,
         updateChangeOrder,
         deleteChangeOrder,
+        getPaginationInfo,
       };
     });
 

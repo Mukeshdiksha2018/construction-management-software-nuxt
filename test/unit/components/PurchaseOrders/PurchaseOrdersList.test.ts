@@ -43,12 +43,12 @@ vi.mock("@/components/ChangeOrders/ChangeOrderForm.vue", () => ({
 // Mock composables
 vi.mock("@/composables/useTableStandard", () => ({
   useTableStandard: () => ({
-    pagination: { value: { pageSize: 10 } },
+    pagination: { value: { pageIndex: 0, pageSize: 50 } },
     paginationOptions: {},
     pageSizeOptions: [10, 20, 50],
     updatePageSize: vi.fn(),
     getPaginationProps: vi.fn(() => ({})),
-    getPageInfo: vi.fn(() => ({ value: "1-10 of 10 purchase orders" })),
+    getPageInfo: vi.fn(() => ({ value: "1-50 of 50 purchase orders" })),
     shouldShowPagination: vi.fn(() => ({ value: true })),
   }),
 }));
@@ -161,6 +161,20 @@ describe("PurchaseOrdersList.vue", () => {
     });
 
     usePurchaseOrdersStore = defineStore("purchaseOrders", () => {
+      const purchaseOrdersArray = [
+        {
+          uuid: "po-1",
+          corporation_uuid: "corp-1",
+          entry_date: "2025-11-05T00:00:00Z",
+          po_number: "PO-1",
+          po_type: "LABOR",
+          credit_days: "NET_30",
+          status: "Draft",
+          total_po_amount: 100,
+          ship_via_uuid: "sv-1",
+          freight_uuid: "fr-1",
+        },
+      ];
       const fetchPurchaseOrders = vi.fn();
       const fetchPurchaseOrder = vi.fn(async () => null);
       const createPurchaseOrder = vi.fn(async (payload: any) => ({
@@ -171,21 +185,15 @@ describe("PurchaseOrdersList.vue", () => {
         ...payload,
       }));
       const deletePurchaseOrder = vi.fn(async () => true);
+      const getPaginationInfo = vi.fn((corporationUuid: string) => ({
+        page: 1,
+        pageSize: 100,
+        totalRecords: purchaseOrdersArray.filter((po: any) => po.corporation_uuid === corporationUuid).length,
+        totalPages: 1,
+        hasMore: false,
+      }));
       return {
-        purchaseOrders: [
-          {
-            uuid: "po-1",
-            corporation_uuid: "corp-1",
-            entry_date: "2025-11-05T00:00:00Z",
-            po_number: "PO-1",
-            po_type: "LABOR",
-            credit_days: "NET_30",
-            status: "Draft",
-            total_po_amount: 100,
-            ship_via_uuid: "sv-1",
-            freight_uuid: "fr-1",
-          },
-        ],
+        purchaseOrders: purchaseOrdersArray,
         loading: false,
         error: null,
         fetchPurchaseOrders,
@@ -193,6 +201,7 @@ describe("PurchaseOrdersList.vue", () => {
         createPurchaseOrder,
         updatePurchaseOrder,
         deletePurchaseOrder,
+        getPaginationInfo,
         // Expose spies for tests
         _createPurchaseOrderSpy: createPurchaseOrder,
         _fetchPurchaseOrderSpy: fetchPurchaseOrder,
