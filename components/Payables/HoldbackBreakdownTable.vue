@@ -255,8 +255,13 @@ const getOriginalIndex = (rowId: string | undefined): number => {
   return costCodeRows.value.findIndex(r => r.id === rowId)
 }
 
+// Track initial remaining amounts for each row (set when items are first processed)
+// This allows us to filter based on initial state, not current state after user input
+const initialRemainingAmounts = ref<Map<string, number>>(new Map())
+
 // Filter out rows where remaining amount is zero
-// Remaining amount = available amount - release amount
+// Only filter based on initial remaining (at population time), not current remaining (after user input)
+// This prevents rows from disappearing when user types a release amount equal to available amount
 const filteredCostCodeRows = computed(() => {
   return costCodeRows.value.filter((row) => {
     // If no cost code or retainage amount, keep the row (user might be adding it)
@@ -268,15 +273,19 @@ const filteredCostCodeRows = computed(() => {
     const originalIndex = getOriginalIndex(row.id)
     if (originalIndex === -1) return true
     
-    // Calculate remaining amount using original index
-    const remaining = getRemainingReleaseAmount(row, originalIndex)
+    // Check initial remaining amount (at population time)
+    // If we don't have an initial remaining amount for this row, calculate it now
+    // This handles rows that were added after initial population
+    if (!initialRemainingAmounts.value.has(row.id)) {
+      const availableAmount = getRemainingRetainageAmount(row.cost_code_uuid, row.retainageAmount)
+      initialRemainingAmounts.value.set(row.id, availableAmount)
+    }
     
-    // Filter out rows where remaining amount is exactly zero
-    // Keep rows with:
-    // - Positive remaining amount (remaining > 0)
-    // - Negative remaining amount (over by, for error display)
-    // Filter out rows with zero remaining (remaining === 0)
-    return remaining !== 0
+    const initialRemaining = initialRemainingAmounts.value.get(row.id) ?? 0
+    
+    // Only filter out rows that had zero remaining at initial population
+    // Keep rows that had non-zero remaining initially, even if they become zero after user input
+    return initialRemaining !== 0
   })
 })
 
@@ -824,6 +833,20 @@ const processItems = async () => {
     }
 
     costCodeRows.value = rows
+    
+    // Store initial remaining amounts for each row (after merging saved data, before any new user input)
+    // This is used to filter rows based on initial state, not current state
+    // Calculate remaining = available - releaseAmount (where releaseAmount includes saved data)
+    initialRemainingAmounts.value.clear()
+    rows.forEach((row) => {
+      if (row.cost_code_uuid && row.retainageAmount) {
+        const availableAmount = getRemainingRetainageAmount(row.cost_code_uuid, row.retainageAmount)
+        const releaseAmount = parseFloat(String(row.releaseAmount || 0)) || 0
+        const initialRemaining = availableAmount - releaseAmount
+        initialRemainingAmounts.value.set(row.id, initialRemaining)
+      }
+    })
+    
     // Only emit if the data actually changed to prevent infinite loops
     const currentModelValue = Array.isArray(props.modelValue) ? props.modelValue : []
     const hasChanged = JSON.stringify(costCodeRows.value) !== JSON.stringify(currentModelValue)
