@@ -66,6 +66,25 @@ describe("server/api/purchase-orders/invoice-summary", () => {
       })),
     }));
   };
+  
+  // Helper to create chainable mock for advance payments query with financial_breakdown
+  // Updated to select both amount and financial_breakdown
+  const createAdvancePaymentsWithBreakdownMock = (data: any[]) => {
+    return vi.fn(() => ({
+      eq: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() =>
+              Promise.resolve({
+                data,
+                error: null,
+              })
+            ),
+          })),
+        })),
+      })),
+    }));
+  };
 
   // Helper to create chainable mock for PO invoices query
   // Chain: .select().eq(purchase_order_uuid).eq(invoice_type).eq(status).eq(is_active)
@@ -522,6 +541,354 @@ describe("server/api/purchase-orders/invoice-summary", () => {
       });
 
       await expect(handler.default(event)).rejects.toThrow("Method not allowed");
+    });
+
+    describe("Advance Paid Calculation - Tax Exclusion", () => {
+      it("calculates advance paid excluding taxes when financial_breakdown has sales_taxes", async () => {
+        const globals = stubGlobals();
+        globals.mockGetQuery.mockReturnValue({
+          purchase_order_uuid: "po-uuid-1",
+        });
+
+        supabaseMock.from
+          .mockReturnValueOnce({
+            select: createPOSelectMock({
+              uuid: "po-uuid-1",
+              financial_breakdown: JSON.stringify({
+                totals: { total_po_amount: 10000 },
+              }),
+            }),
+          })
+          .mockReturnValueOnce({
+            select: createAdvancePaymentsWithBreakdownMock([
+              {
+                amount: "110.00", // Total with tax
+                financial_breakdown: JSON.stringify({
+                  totals: { tax_total: 10 },
+                  sales_taxes: {
+                    sales_tax_1: { amount: 6 },
+                    sales_tax_2: { amount: 4 },
+                  },
+                }),
+              },
+              {
+                amount: "220.00", // Total with tax
+                financial_breakdown: JSON.stringify({
+                  totals: { tax_total: 20 },
+                  sales_taxes: {
+                    sales_tax_1: { amount: 12 },
+                    sales_tax_2: { amount: 8 },
+                  },
+                }),
+              },
+            ]),
+          })
+          .mockReturnValueOnce({
+            select: createPOInvoicesMock([]),
+          });
+
+        vi.doMock("@/utils/supabaseServer", () => ({
+          supabaseServer: supabaseMock,
+        }));
+
+        const handler = await import("@/server/api/purchase-orders/invoice-summary");
+        const event = makeEvent("GET", {
+          query: { purchase_order_uuid: "po-uuid-1" },
+        });
+
+        const result = await handler.default(event);
+
+        // Advance paid should exclude taxes: (110 - 10) + (220 - 20) = 100 + 200 = 300
+        expect(result.data.advance_paid).toBe(300);
+      });
+
+      it("calculates advance paid excluding taxes when financial_breakdown has tax_total (no sales_taxes)", async () => {
+        const globals = stubGlobals();
+        globals.mockGetQuery.mockReturnValue({
+          purchase_order_uuid: "po-uuid-1",
+        });
+
+        supabaseMock.from
+          .mockReturnValueOnce({
+            select: createPOSelectMock({
+              uuid: "po-uuid-1",
+              financial_breakdown: JSON.stringify({
+                totals: { total_po_amount: 10000 },
+              }),
+            }),
+          })
+          .mockReturnValueOnce({
+            select: createAdvancePaymentsWithBreakdownMock([
+              {
+                amount: "105.00", // Total with tax
+                financial_breakdown: JSON.stringify({
+                  totals: { tax_total: 5 },
+                }),
+              },
+              {
+                amount: "210.00", // Total with tax
+                financial_breakdown: JSON.stringify({
+                  totals: { tax_total: 10 },
+                }),
+              },
+            ]),
+          })
+          .mockReturnValueOnce({
+            select: createPOInvoicesMock([]),
+          });
+
+        vi.doMock("@/utils/supabaseServer", () => ({
+          supabaseServer: supabaseMock,
+        }));
+
+        const handler = await import("@/server/api/purchase-orders/invoice-summary");
+        const event = makeEvent("GET", {
+          query: { purchase_order_uuid: "po-uuid-1" },
+        });
+
+        const result = await handler.default(event);
+
+        // Advance paid should exclude taxes: (105 - 5) + (210 - 10) = 100 + 200 = 300
+        expect(result.data.advance_paid).toBe(300);
+      });
+
+      it("falls back to amount when financial_breakdown is missing", async () => {
+        const globals = stubGlobals();
+        globals.mockGetQuery.mockReturnValue({
+          purchase_order_uuid: "po-uuid-1",
+        });
+
+        supabaseMock.from
+          .mockReturnValueOnce({
+            select: createPOSelectMock({
+              uuid: "po-uuid-1",
+              financial_breakdown: JSON.stringify({
+                totals: { total_po_amount: 10000 },
+              }),
+            }),
+          })
+          .mockReturnValueOnce({
+            select: createAdvancePaymentsWithBreakdownMock([
+              {
+                amount: "100.00",
+                financial_breakdown: null, // No financial breakdown
+              },
+              {
+                amount: "200.00",
+                // financial_breakdown is undefined
+              },
+            ]),
+          })
+          .mockReturnValueOnce({
+            select: createPOInvoicesMock([]),
+          });
+
+        vi.doMock("@/utils/supabaseServer", () => ({
+          supabaseServer: supabaseMock,
+        }));
+
+        const handler = await import("@/server/api/purchase-orders/invoice-summary");
+        const event = makeEvent("GET", {
+          query: { purchase_order_uuid: "po-uuid-1" },
+        });
+
+        const result = await handler.default(event);
+
+        // Should fall back to amount: 100 + 200 = 300
+        expect(result.data.advance_paid).toBe(300);
+      });
+
+      it("handles financial_breakdown as object (not string)", async () => {
+        const globals = stubGlobals();
+        globals.mockGetQuery.mockReturnValue({
+          purchase_order_uuid: "po-uuid-1",
+        });
+
+        supabaseMock.from
+          .mockReturnValueOnce({
+            select: createPOSelectMock({
+              uuid: "po-uuid-1",
+              financial_breakdown: JSON.stringify({
+                totals: { total_po_amount: 10000 },
+              }),
+            }),
+          })
+          .mockReturnValueOnce({
+            select: createAdvancePaymentsWithBreakdownMock([
+              {
+                amount: "110.00",
+                financial_breakdown: {
+                  // Object format, not string
+                  totals: { tax_total: 10 },
+                  sales_taxes: {
+                    sales_tax_1: { amount: 6 },
+                    sales_tax_2: { amount: 4 },
+                  },
+                },
+              },
+            ]),
+          })
+          .mockReturnValueOnce({
+            select: createPOInvoicesMock([]),
+          });
+
+        vi.doMock("@/utils/supabaseServer", () => ({
+          supabaseServer: supabaseMock,
+        }));
+
+        const handler = await import("@/server/api/purchase-orders/invoice-summary");
+        const event = makeEvent("GET", {
+          query: { purchase_order_uuid: "po-uuid-1" },
+        });
+
+        const result = await handler.default(event);
+
+        // Should handle object format: 110 - 10 = 100
+        expect(result.data.advance_paid).toBe(100);
+      });
+
+      it("handles parsing errors gracefully and falls back to amount", async () => {
+        const globals = stubGlobals();
+        globals.mockGetQuery.mockReturnValue({
+          purchase_order_uuid: "po-uuid-1",
+        });
+
+        supabaseMock.from
+          .mockReturnValueOnce({
+            select: createPOSelectMock({
+              uuid: "po-uuid-1",
+              financial_breakdown: JSON.stringify({
+                totals: { total_po_amount: 10000 },
+              }),
+            }),
+          })
+          .mockReturnValueOnce({
+            select: createAdvancePaymentsWithBreakdownMock([
+              {
+                amount: "100.00",
+                financial_breakdown: "invalid json {", // Invalid JSON
+              },
+            ]),
+          })
+          .mockReturnValueOnce({
+            select: createPOInvoicesMock([]),
+          });
+
+        vi.doMock("@/utils/supabaseServer", () => ({
+          supabaseServer: supabaseMock,
+        }));
+
+        const handler = await import("@/server/api/purchase-orders/invoice-summary");
+        const event = makeEvent("GET", {
+          query: { purchase_order_uuid: "po-uuid-1" },
+        });
+
+        const result = await handler.default(event);
+
+        // Should fall back to amount when parsing fails
+        expect(result.data.advance_paid).toBe(100);
+      });
+
+      it("handles mixed scenarios with and without financial_breakdown", async () => {
+        const globals = stubGlobals();
+        globals.mockGetQuery.mockReturnValue({
+          purchase_order_uuid: "po-uuid-1",
+        });
+
+        supabaseMock.from
+          .mockReturnValueOnce({
+            select: createPOSelectMock({
+              uuid: "po-uuid-1",
+              financial_breakdown: JSON.stringify({
+                totals: { total_po_amount: 10000 },
+              }),
+            }),
+          })
+          .mockReturnValueOnce({
+            select: createAdvancePaymentsWithBreakdownMock([
+              {
+                amount: "110.00",
+                financial_breakdown: JSON.stringify({
+                  totals: { tax_total: 10 },
+                }),
+              },
+              {
+                amount: "200.00",
+                // No financial_breakdown - should use amount
+              },
+              {
+                amount: "330.00",
+                financial_breakdown: JSON.stringify({
+                  sales_taxes: {
+                    sales_tax_1: { amount: 20 },
+                    sales_tax_2: { amount: 10 },
+                  },
+                }),
+              },
+            ]),
+          })
+          .mockReturnValueOnce({
+            select: createPOInvoicesMock([]),
+          });
+
+        vi.doMock("@/utils/supabaseServer", () => ({
+          supabaseServer: supabaseMock,
+        }));
+
+        const handler = await import("@/server/api/purchase-orders/invoice-summary");
+        const event = makeEvent("GET", {
+          query: { purchase_order_uuid: "po-uuid-1" },
+        });
+
+        const result = await handler.default(event);
+
+        // (110 - 10) + 200 + (330 - 30) = 100 + 200 + 300 = 600
+        expect(result.data.advance_paid).toBe(600);
+      });
+
+      it("handles zero tax correctly", async () => {
+        const globals = stubGlobals();
+        globals.mockGetQuery.mockReturnValue({
+          purchase_order_uuid: "po-uuid-1",
+        });
+
+        supabaseMock.from
+          .mockReturnValueOnce({
+            select: createPOSelectMock({
+              uuid: "po-uuid-1",
+              financial_breakdown: JSON.stringify({
+                totals: { total_po_amount: 10000 },
+              }),
+            }),
+          })
+          .mockReturnValueOnce({
+            select: createAdvancePaymentsWithBreakdownMock([
+              {
+                amount: "100.00",
+                financial_breakdown: JSON.stringify({
+                  totals: { tax_total: 0 },
+                }),
+              },
+            ]),
+          })
+          .mockReturnValueOnce({
+            select: createPOInvoicesMock([]),
+          });
+
+        vi.doMock("@/utils/supabaseServer", () => ({
+          supabaseServer: supabaseMock,
+        }));
+
+        const handler = await import("@/server/api/purchase-orders/invoice-summary");
+        const event = makeEvent("GET", {
+          query: { purchase_order_uuid: "po-uuid-1" },
+        });
+
+        const result = await handler.default(event);
+
+        // Should handle zero tax: 100 - 0 = 100
+        expect(result.data.advance_paid).toBe(100);
+      });
     });
   });
 });
