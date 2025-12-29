@@ -1641,13 +1641,25 @@ const coDisplayItems = computed(() => {
   })
   
   return filtered.map((row: any, idx: number) => {
-    // Fetch sequence from cost code configurations store using item_uuid
-    const itemUuid = row?.item_uuid || null
-    const itemFromStore = itemUuid ? costCodeConfigurationsStore.getItemById(itemUuid) : null
-    const sequence = itemFromStore?.item_sequence || row?.item_sequence || row?.sequence || null
-    
     // Get item name - prioritize item_name strictly (same logic as POBreakdown)
     const metadata = row?.metadata || row?.display_metadata || {}
+    
+    // Fetch sequence from multiple sources:
+    // 1. Check metadata and display_metadata first (from saved PO items)
+    const sequenceFromMetadata = metadata?.item_sequence || metadata?.sequence || null
+    
+    // 2. Check direct row fields
+    const sequenceFromRow = row?.item_sequence || row?.sequence || null
+    
+    // 3. Fetch from cost code configurations store using item_uuid (if not found above)
+    const itemUuid = row?.item_uuid || null
+    const itemFromStore = itemUuid && !sequenceFromMetadata && !sequenceFromRow 
+      ? costCodeConfigurationsStore.getItemById(itemUuid) 
+      : null
+    const sequenceFromStore = itemFromStore?.item_sequence || null
+    
+    // Use the first available sequence
+    const sequence = sequenceFromMetadata || sequenceFromRow || sequenceFromStore || null
     let itemName = row?.item_name || ''
     if (!itemName) {
       itemName = metadata?.item_name || ''
