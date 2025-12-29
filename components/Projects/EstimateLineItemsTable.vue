@@ -1947,6 +1947,11 @@ const loadPreferredItems = () => {
       )
     }
     
+    // Filter out inactive items (only show Active items)
+    filteredPreferredItems = filteredPreferredItems.filter((item: any) => 
+      item.status === 'Active' || item.status === undefined || item.status === null
+    )
+    
     // Convert preferred items to material items format, filtering out duplicates
     const seenItemUuids = new Set<string>()
     materialItems.value = filteredPreferredItems
