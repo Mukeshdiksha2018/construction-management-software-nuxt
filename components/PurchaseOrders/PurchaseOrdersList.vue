@@ -300,8 +300,10 @@
       <UTable 
         ref="table"
         sticky
+        v-model:pagination="pagination"
         v-model:column-pinning="columnPinning"
         v-model:expanded="expanded"
+        :pagination-options="paginationOptions"
         :data="filteredPurchaseOrders" 
         :columns="columns"
         v-model:selected="selectedPurchaseOrders"
@@ -778,6 +780,9 @@ const {
   shouldShowPagination
 } = useTableStandard()
 
+// Set default page size to 50 for Purchase Orders
+pagination.value.pageSize = 50
+
 // Data state
 const selectedPurchaseOrders = ref<any[]>([])
 const selectedStatusFilter = ref<string | null>(null)
@@ -1009,14 +1014,25 @@ const shouldShowServerPagination = computed(() => {
 })
 
 const serverPageInfo = computed(() => {
-  const pageIndex = table.value?.tableApi?.getState().pagination.pageIndex || 0
-  const pageSize = pagination.value.pageSize || 10
+  if (!table.value?.tableApi) {
+    return `Showing 0 of 0 purchase orders`
+  }
+  
+  const tableState = table.value.tableApi.getState()
+  const pageIndex = tableState.pagination.pageIndex || 0
+  const pageSize = tableState.pagination.pageSize || 10
+  
+  // Get the actual displayed rows from the table (after pagination)
+  const rowModel = table.value.tableApi.getRowModel()
+  const displayedRows = rowModel.rows || []
+  const displayedCount = displayedRows.length
+  
+  // Calculate start/end based on what's actually displayed
+  const start = displayedCount > 0 ? pageIndex * pageSize + 1 : 0
+  const end = pageIndex * pageSize + displayedCount
+  
   const filteredCount = filteredPurchaseOrders.value.length
   const serverTotal = serverPaginationTotal.value
-  
-  // Calculate start/end based on filtered data
-  const start = Math.min(pageIndex * pageSize + 1, filteredCount)
-  const end = Math.min((pageIndex + 1) * pageSize, filteredCount)
   
   // Show filtered count, but also show server total if different (indicates more records available)
   if (hasActiveFilters.value) {
@@ -3850,6 +3866,13 @@ onMounted(async () => {
     await shipViaStore.fetchShipVia()
   } catch (error) {
     console.error('Error fetching ship via:', error)
+  }
+  
+  // Ensure table pagination is initialized with correct page size (50)
+  // Use nextTick to ensure table is fully rendered
+  await nextTick()
+  if (table.value?.tableApi) {
+    table.value.tableApi.setPageSize(50)
   }
 })
 
