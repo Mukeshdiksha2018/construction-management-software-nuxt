@@ -16,7 +16,22 @@ export default defineEventHandler(async (event) => {
     if (method === "GET") {
       const { data, error } = await supabaseServer
         .from("change_orders")
-        .select("*")
+        .select(`
+          *,
+          project:projects!project_uuid (
+            uuid,
+            project_name,
+            project_id
+          ),
+          vendor:vendors!vendor_uuid (
+            uuid,
+            vendor_name
+          ),
+          purchase_order:purchase_order_forms!original_purchase_order_uuid (
+            uuid,
+            po_number
+          )
+        `)
         .eq("uuid", uuid)
         .maybeSingle();
 
@@ -24,7 +39,22 @@ export default defineEventHandler(async (event) => {
         throw createError({ statusCode: 500, statusMessage: error.message });
       if (!data)
         throw createError({ statusCode: 404, statusMessage: "Change order not found" });
-      return { data: decorateChangeOrderRecord(data as any) };
+      
+      const decorated = decorateChangeOrderRecord(data as any);
+      
+      // Add metadata fields for easy access in the list view
+      if ((data as any).project) {
+        (decorated as any).project_name = (data as any).project.project_name || null;
+        (decorated as any).project_id = (data as any).project.project_id || null;
+      }
+      if ((data as any).vendor) {
+        (decorated as any).vendor_name = (data as any).vendor.vendor_name || null;
+      }
+      if ((data as any).purchase_order) {
+        (decorated as any).po_number = (data as any).purchase_order.po_number || null;
+      }
+      
+      return { data: decorated };
     }
 
     throw createError({ statusCode: 405, statusMessage: "Method not allowed" });

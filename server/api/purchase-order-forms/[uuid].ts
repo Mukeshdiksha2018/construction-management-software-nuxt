@@ -16,7 +16,18 @@ export default defineEventHandler(async (event) => {
     if (method === "GET") {
       const { data, error } = await supabaseServer
         .from("purchase_order_forms")
-        .select("*")
+        .select(`
+          *,
+          project:projects!project_uuid (
+            uuid,
+            project_name,
+            project_id
+          ),
+          vendor:vendors!vendor_uuid (
+            uuid,
+            vendor_name
+          )
+        `)
         .eq("uuid", uuid)
         .maybeSingle();
 
@@ -26,6 +37,15 @@ export default defineEventHandler(async (event) => {
         throw createError({ statusCode: 404, statusMessage: "Form not found" });
       
       const decoratedData = decoratePurchaseOrderRecord({ ...data });
+      
+      // Add metadata fields for easy access in the list view
+      if ((data as any).project) {
+        (decoratedData as any).project_name = (data as any).project.project_name || null;
+        (decoratedData as any).project_id = (data as any).project.project_id || null;
+      }
+      if ((data as any).vendor) {
+        (decoratedData as any).vendor_name = (data as any).vendor.vendor_name || null;
+      }
       
       // If this is a LABOR PO, fetch labor items
       const normalizedPoType = (decoratedData.po_type || "").toUpperCase();
