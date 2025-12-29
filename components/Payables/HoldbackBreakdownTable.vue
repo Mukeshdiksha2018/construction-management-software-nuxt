@@ -58,8 +58,8 @@
                   class="w-full"
                   :disabled="isCostCodeDisabled"
                   placeholder="Select Cost Code"
-                  @update:model-value="(value) => handleCostCodeChange(costCodeRows.value.findIndex(r => r.id === row.id), value ?? null)"
-                  @change="(option) => handleCostCodeChange(costCodeRows.value.findIndex(r => r.id === row.id), (option?.costCode?.uuid || option?.value) ?? null, option)"
+                  @update:model-value="(value) => handleCostCodeChange(getOriginalIndex(row.id), value ?? null)"
+                  @change="(option) => handleCostCodeChange(getOriginalIndex(row.id), (option?.costCode?.uuid || option?.value) ?? null, option)"
                 />
               </td>
 
@@ -73,8 +73,8 @@
                   class="w-full"
                   :disabled="readonly || !row.cost_code_uuid"
                   placeholder="Select GL Account"
-                  @update:model-value="(value) => handleGLAccountChange(costCodeRows.value.findIndex(r => r.id === row.id), value)"
-                  @change="(account) => handleGLAccountChange(costCodeRows.value.findIndex(r => r.id === row.id), account?.value, account)"
+                  @update:model-value="(value) => handleGLAccountChange(getOriginalIndex(row.id), value)"
+                  @change="(account) => handleGLAccountChange(getOriginalIndex(row.id), account?.value, account)"
                 />
               </td>
 
@@ -118,19 +118,19 @@
                     ]"
                     :disabled="readonly || !row.cost_code_uuid || !!props.currentInvoiceUuid"
                     placeholder="0.00"
-                    @update:model-value="(value) => handleReleaseAmountChange(costCodeRows.value.findIndex(r => r.id === row.id), value)"
+                    @update:model-value="(value) => handleReleaseAmountChange(getOriginalIndex(row.id), value)"
                     @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab') e.preventDefault(); }"
                   />
                   <div v-if="shouldValidateReleaseAmount && isReleaseAmountExceeded(row.cost_code_uuid, parseFloat(String(row.releaseAmount || 0)) || 0, row.retainageAmount || 0)" class="text-xs text-red-600 dark:text-red-400">
                     Exceeds available amount
                   </div>
                   <div v-if="!readonly && !props.currentInvoiceUuid && row.cost_code_uuid && row.retainageAmount" class="text-[10px] font-mono"
-                    :class="getRemainingReleaseAmountClass(row, costCodeRows.value.findIndex(r => r.id === row.id))">
-                    <span v-if="getRemainingReleaseAmount(row, costCodeRows.value.findIndex(r => r.id === row.id)) >= 0">
-                      Remaining: {{ formatCurrency(getRemainingReleaseAmount(row, costCodeRows.value.findIndex(r => r.id === row.id))) }}
+                    :class="getRemainingReleaseAmountClass(row, getOriginalIndex(row.id))">
+                    <span v-if="getRemainingReleaseAmount(row, getOriginalIndex(row.id)) >= 0">
+                      Remaining: {{ formatCurrency(getRemainingReleaseAmount(row, getOriginalIndex(row.id))) }}
                     </span>
                     <span v-else>
-                      Over by: {{ formatCurrency(Math.abs(getRemainingReleaseAmount(row, costCodeRows.value.findIndex(r => r.id === row.id)))) }}
+                      Over by: {{ formatCurrency(Math.abs(getRemainingReleaseAmount(row, getOriginalIndex(row.id)))) }}
                     </span>
                   </div>
                 </div>
@@ -146,7 +146,7 @@
                     color="primary"
                     variant="soft"
                     class="p-1"
-                    @click="handleAddRow(costCodeRows.value.findIndex(r => r.id === row.id))"
+                    @click="handleAddRow(getOriginalIndex(row.id))"
                   />
                   <UButton
                     v-if="!readonly"
@@ -155,7 +155,7 @@
                     color="error"
                     variant="soft"
                     class="p-1"
-                    @click="handleRemoveRow(costCodeRows.value.findIndex(r => r.id === row.id))"
+                    @click="handleRemoveRow(getOriginalIndex(row.id))"
                   />
                 </div>
               </td>
@@ -249,17 +249,27 @@ const shouldValidateReleaseAmount = computed(() => {
   return !props.currentInvoiceUuid // If currentInvoiceUuid is set, it's an existing invoice - skip validation
 })
 
+// Helper to get original index from row id
+const getOriginalIndex = (rowId: string | undefined): number => {
+  if (!rowId) return -1
+  return costCodeRows.value.findIndex(r => r.id === rowId)
+}
+
 // Filter out rows where remaining amount is zero
 // Remaining amount = available amount - release amount
 const filteredCostCodeRows = computed(() => {
-  return costCodeRows.value.filter((row, index) => {
+  return costCodeRows.value.filter((row) => {
     // If no cost code or retainage amount, keep the row (user might be adding it)
     if (!row.cost_code_uuid || !row.retainageAmount) {
       return true
     }
     
-    // Calculate remaining amount
-    const remaining = getRemainingReleaseAmount(row, index)
+    // Get original index for this row
+    const originalIndex = getOriginalIndex(row.id)
+    if (originalIndex === -1) return true
+    
+    // Calculate remaining amount using original index
+    const remaining = getRemainingReleaseAmount(row, originalIndex)
     
     // Filter out rows where remaining amount is zero or less
     // Keep rows with positive remaining amount
