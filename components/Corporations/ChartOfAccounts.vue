@@ -911,24 +911,28 @@ const columns: TableColumn<any>[] = [
     accessorKey: 'code',
     header: 'Code',
     enableSorting: false,
+    meta: { class: { th: 'text-right', td: 'text-right' } },
     cell: ({ row }) => h('div', { class: 'font-mono text-xs text-right text-default' }, row.original.code)
   },
   {
     accessorKey: 'account_name',
     header: 'Account Name',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }) => h('div', { class: 'text-xs text-default' }, row.original.account_name)
   },
   {
     accessorKey: 'parent_account',
     header: 'Parent Account',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }) => h('div', { class: 'text-xs text-muted' }, row.original.parent_account || '-')
   },
   {
     accessorKey: 'account_type',
     header: 'Account Type',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }) => {
       const accountTypeColors: Record<string, string> = {
         'Asset': 'bg-success/10 text-success',
@@ -948,6 +952,7 @@ const columns: TableColumn<any>[] = [
     accessorKey: 'opening_balance',
     header: 'Opening Balance',
     enableSorting: false,
+    meta: { class: { th: 'text-right', td: 'text-right' } },
     cell: ({ row }) => {
       const balance = row.original.opening_balance || 0;
       const formattedBalance = formatCurrency(balance);
@@ -964,12 +969,14 @@ const columns: TableColumn<any>[] = [
     accessorKey: 'notes',
     header: 'Notes',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }) => h('div', { class: 'text-muted max-w-xs truncate' }, row.original.notes || '-')
   },
   {
     accessorKey: 'actions',
     header: 'Actions',
     enableSorting: false,
+    meta: { class: { th: 'text-right sticky right-0 z-10 w-32', td: 'text-right sticky right-0 w-32' } },
     cell: ({ row }) => {
       return h('div', { class: 'flex justify-end space-x-2' }, [
         h(UButton, {

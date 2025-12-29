@@ -497,6 +497,7 @@ const columns: TableColumn<any>[] = [
     header: 'Location Name',
     enableSorting: false,
     meta: { 
+      class: { th: 'text-left', td: 'text-left' },
       style: {
         th: 'width: 25%; min-width: 200px;',
         td: 'width: 25%; min-width: 200px;'
@@ -509,6 +510,7 @@ const columns: TableColumn<any>[] = [
     header: 'Address',
     enableSorting: false,
     meta: { 
+      class: { th: 'text-left', td: 'text-left' },
       style: {
         th: 'width: 30%; max-width: 300px;',
         td: 'width: 30%; max-width: 300px;'
@@ -536,6 +538,7 @@ const columns: TableColumn<any>[] = [
     header: 'Default',
     enableSorting: false,
     meta: { 
+      class: { th: 'text-left', td: 'text-left' },
       style: {
         th: 'width: 12%;',
         td: 'width: 12%;'
@@ -557,6 +560,7 @@ const columns: TableColumn<any>[] = [
     header: 'Status',
     enableSorting: false,
     meta: { 
+      class: { th: 'text-left', td: 'text-left' },
       style: {
         th: 'width: 15%;',
         td: 'width: 15%;'
@@ -577,6 +581,7 @@ const columns: TableColumn<any>[] = [
     enableSorting: false,
     enableHiding: false,
     meta: { 
+      class: { th: 'text-right sticky right-0 z-10 w-32', td: 'text-right sticky right-0 w-32' },
       style: {
         th: 'width: 18%; min-width: 120px;',
         td: 'width: 18%; min-width: 120px;'

@@ -748,30 +748,35 @@ const columns: TableColumn<Corporation>[] = [
     accessorKey: 'corporation_name',
     header: 'Corporation Name',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }) => h('div', { class: 'font-medium text-default' }, row.original.corporation_name)
   },
   {
     accessorKey: 'legal_name',
     header: 'Legal Name',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }) => h('div', { class: 'text-default' }, row.original.legal_name)
   },
   {
     accessorKey: 'corporation_location',
     header: 'Location',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }) => h('div', { class: 'text-default' }, row.original.corporation_location)
   },
   {
     accessorKey: 'number_of_rooms',
     header: 'Rooms',
     enableSorting: false,
+    meta: { class: { th: 'text-center', td: 'text-center' } },
     cell: ({ row }) => h('div', { class: 'text-center font-medium text-default' }, row.original.number_of_rooms?.toString() || '0')
   },
   {
     accessorKey: 'pms_name',
     header: 'PMS',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }) => {
       const pmsColors: Record<string, string> = {
         'opera': 'bg-info/10 text-info',
@@ -788,6 +793,7 @@ const columns: TableColumn<Corporation>[] = [
     accessorKey: 'country',
     header: 'Country',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }) => {
       const countryData = countries.find(c => c.code === row.original.country);
       return h('div', { class: 'flex items-center space-x-2' }, [
@@ -804,6 +810,7 @@ const columns: TableColumn<Corporation>[] = [
     accessorKey: 'currency',
     header: 'Currency',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }) => {
       const currencySymbol = row.original.currency_symbol || '';
       const currencyCode = row.original.currency || '';
@@ -818,6 +825,7 @@ const columns: TableColumn<Corporation>[] = [
     accessorKey: 'actions',
     header: 'Actions',
     enableSorting: false,
+    meta: { class: { th: 'text-right sticky right-0 z-10 w-32', td: 'text-right sticky right-0 w-32' } },
     cell: ({ row }) => {
       return h('div', { class: 'flex justify-end space-x-2' }, [
         h(UButton, {
