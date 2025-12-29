@@ -61,9 +61,10 @@ export default defineEventHandler(async (event) => {
 
     // Calculate advance payment made (sum of invoice amounts where invoice_type is AGAINST_ADVANCE_PAYMENT and status is Paid)
     // Only count advance payments that are in "Paid" status
+    // Use financial_breakdown to get amount without taxes (item_total + charges_total, excluding tax_total)
     const { data: advanceInvoices, error: advanceInvoicesError } = await supabaseServer
       .from("vendor_invoices")
-      .select("amount")
+      .select("amount, financial_breakdown")
       .eq("purchase_order_uuid", purchase_order_uuid as string)
       .eq("invoice_type", "AGAINST_ADVANCE_PAYMENT")
       .eq("status", "Paid")
@@ -74,10 +75,47 @@ export default defineEventHandler(async (event) => {
     }
 
     const advancePaid =
-      advanceInvoices?.reduce(
-        (sum, invoice) => sum + (parseFloat(invoice.amount || "0") || 0),
-        0
-      ) || 0;
+      advanceInvoices?.reduce((sum, invoice) => {
+        // Calculate amount without taxes: totalAmount - taxTotal
+        // This matches the logic in AdvancePaymentBreakdownTable.getAmountWithoutTaxes
+        const totalAmount = parseFloat(invoice.amount || "0") || 0;
+        
+        let taxTotal = 0;
+        if (invoice.financial_breakdown) {
+          try {
+            let breakdown = invoice.financial_breakdown;
+            
+            // Parse if it's a string
+            if (typeof breakdown === 'string') {
+              try {
+                breakdown = JSON.parse(breakdown);
+              } catch (parseError) {
+                // If parsing fails, use 0 for tax
+              }
+            }
+
+            // Handle both nested structure and flattened structure
+            const totals = breakdown?.totals || breakdown || {};
+            
+            // Calculate total tax from sales taxes if available
+            if (breakdown?.sales_taxes) {
+              const salesTaxes = breakdown.sales_taxes;
+              const tax1 = parseFloat(salesTaxes.sales_tax_1?.amount || salesTaxes.salesTax1?.amount || '0') || 0;
+              const tax2 = parseFloat(salesTaxes.sales_tax_2?.amount || salesTaxes.salesTax2?.amount || '0') || 0;
+              taxTotal = tax1 + tax2;
+            } else {
+              // Fallback to totals.tax_total
+              taxTotal = parseFloat(totals.tax_total || totals.taxTotal || '0') || 0;
+            }
+          } catch (error) {
+            // If there's an error, use 0 for tax
+            taxTotal = 0;
+          }
+        }
+        
+        // Return amount without taxes
+        return sum + (totalAmount - taxTotal);
+      }, 0) || 0;
 
     // Calculate invoiced value (sum of vendor_invoices where purchase_order_uuid matches, invoice_type is AGAINST_PO, and status is Paid)
     const { data: invoices, error: invoicesError } = await supabaseServer
