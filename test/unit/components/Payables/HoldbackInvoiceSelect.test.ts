@@ -340,7 +340,34 @@ describe("HoldbackInvoiceSelect Component", () => {
   });
 
   describe("Financial Data Extraction", () => {
-    it("should extract invoice item_total from financial_breakdown and display in invoiceAmount", async () => {
+    it("should calculate invoice amount as item_total + charges_total + tax_total from financial_breakdown", async () => {
+      const invoice = {
+        ...mockVendorInvoices[0],
+        purchase_order_uuid: "po-1",
+        financial_breakdown: {
+          totals: {
+            item_total: 9500,
+            charges_total: 200,
+            tax_total: 300,
+          },
+        },
+      };
+
+      vi.mocked($fetch).mockImplementation((url: string) => {
+        if (typeof url === "string" && url.includes("/api/vendor-invoices")) {
+          return Promise.resolve({ data: [invoice] });
+        }
+        if (typeof url === "string" && url.includes("/api/purchase-order-forms/po-1")) {
+          return Promise.resolve({
+            data: {
+              uuid: "po-1",
+              financial_breakdown: mockPOFinancialBreakdown,
+            },
+          });
+        }
+        return Promise.resolve({ data: null });
+      });
+
       wrapper = createWrapper({ modelValue: true });
       await flushPromises();
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -348,19 +375,9 @@ describe("HoldbackInvoiceSelect Component", () => {
 
       const options = wrapper.vm.invoiceOptions;
       
-      // Find invoice with item_total of 9500
-      const invoiceWithBreakdown = options.find(
-        (opt: any) => opt.invoice?.financial_breakdown?.totals?.item_total === 9500
-      );
-
-      if (invoiceWithBreakdown) {
-        expect(invoiceWithBreakdown.invoiceAmount).toBe(9500);
-      } else {
-        // If not found, check if any invoice has the expected structure
-        const anyInvoice = options.find((opt: any) => opt.invoice?.financial_breakdown?.totals?.item_total);
-        if (anyInvoice) {
-          expect(anyInvoice.invoiceAmount).toBe(anyInvoice.invoice.financial_breakdown.totals.item_total);
-        }
+      if (options.length > 0) {
+        // Should be 9500 + 200 + 300 = 10000 (not just 9500)
+        expect(options[0].invoiceAmount).toBe(10000);
       }
     });
 
@@ -380,7 +397,35 @@ describe("HoldbackInvoiceSelect Component", () => {
       }
     });
 
-    it("should fetch holdback amount from PO financial_breakdown for AGAINST_PO invoices", async () => {
+    it("should calculate holdback amount from invoice amount and percentage for AGAINST_PO invoices", async () => {
+      const invoice = {
+        ...mockVendorInvoices[0],
+        purchase_order_uuid: "po-1",
+        holdback: 10, // 10%
+        financial_breakdown: {
+          totals: {
+            item_total: 9500,
+            charges_total: 200,
+            tax_total: 300,
+          },
+        },
+      };
+
+      vi.mocked($fetch).mockImplementation((url: string) => {
+        if (typeof url === "string" && url.includes("/api/vendor-invoices")) {
+          return Promise.resolve({ data: [invoice] });
+        }
+        if (typeof url === "string" && url.includes("/api/purchase-order-forms/po-1")) {
+          return Promise.resolve({
+            data: {
+              uuid: "po-1",
+              financial_breakdown: mockPOFinancialBreakdown,
+            },
+          });
+        }
+        return Promise.resolve({ data: null });
+      });
+
       wrapper = createWrapper({ modelValue: true });
       await flushPromises();
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -392,7 +437,12 @@ describe("HoldbackInvoiceSelect Component", () => {
       );
 
       if (poInvoice) {
-        expect(poInvoice.holdbackAmount).toBe(1000); // From PO financial_breakdown
+        const invoiceAmount = 9500 + 200 + 300; // 10000
+        const expectedHoldbackAmount = (invoiceAmount * 10) / 100; // 1000
+        // Should calculate from invoice amount and percentage, not use PO's holdback_amount directly
+        expect(poInvoice.invoiceAmount).toBe(invoiceAmount);
+        expect(poInvoice.holdbackPercentage).toBe(10);
+        expect(poInvoice.holdbackAmount).toBe(expectedHoldbackAmount);
         expect($fetch).toHaveBeenCalledWith("/api/purchase-order-forms/po-1");
       } else {
         // Test passed if no matching invoice (might be filtered out)
@@ -400,7 +450,35 @@ describe("HoldbackInvoiceSelect Component", () => {
       }
     });
 
-    it("should fetch holdback amount from CO financial_breakdown for AGAINST_CO invoices", async () => {
+    it("should calculate holdback amount from invoice amount and percentage for AGAINST_CO invoices", async () => {
+      const invoice = {
+        ...mockVendorInvoices[1],
+        change_order_uuid: "co-1",
+        holdback: 5, // 5%
+        financial_breakdown: {
+          totals: {
+            item_total: 4800,
+            charges_total: 100,
+            tax_total: 100,
+          },
+        },
+      };
+
+      vi.mocked($fetch).mockImplementation((url: string) => {
+        if (typeof url === "string" && url.includes("/api/vendor-invoices")) {
+          return Promise.resolve({ data: [invoice] });
+        }
+        if (typeof url === "string" && url.includes("/api/change-orders/co-1")) {
+          return Promise.resolve({
+            data: {
+              uuid: "co-1",
+              financial_breakdown: mockCOFinancialBreakdown,
+            },
+          });
+        }
+        return Promise.resolve({ data: null });
+      });
+
       wrapper = createWrapper({ modelValue: true });
       await flushPromises();
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -412,7 +490,12 @@ describe("HoldbackInvoiceSelect Component", () => {
       );
 
       if (coInvoice) {
-        expect(coInvoice.holdbackAmount).toBe(250); // From CO financial_breakdown
+        const invoiceAmount = 4800 + 100 + 100; // 5000
+        const expectedHoldbackAmount = (invoiceAmount * 5) / 100; // 250
+        // Should calculate from invoice amount and percentage, not use CO's holdback_amount directly
+        expect(coInvoice.invoiceAmount).toBe(invoiceAmount);
+        expect(coInvoice.holdbackPercentage).toBe(5);
+        expect(coInvoice.holdbackAmount).toBe(expectedHoldbackAmount);
         expect($fetch).toHaveBeenCalledWith("/api/change-orders/co-1");
       } else {
         // Test passed if no matching invoice (might be filtered out)
@@ -420,13 +503,16 @@ describe("HoldbackInvoiceSelect Component", () => {
       }
     });
 
-    it("should fallback to invoice's own holdback_amount when PO/CO doesn't have it", async () => {
+    it("should calculate holdback amount from invoice amount and percentage when PO/CO doesn't have holdback", async () => {
       const invoiceWithHoldback = {
         ...mockVendorInvoices[0],
+        holdback: 10, // 10% holdback percentage
         financial_breakdown: {
           totals: {
             item_total: 9500,
-            holdback_amount: 950, // Invoice's own holdback
+            charges_total: 0,
+            tax_total: 0,
+            holdback_amount: 950, // This should NOT be used - should calculate from amount and percentage
           },
         },
       };
@@ -458,17 +544,22 @@ describe("HoldbackInvoiceSelect Component", () => {
 
       const options = wrapper.vm.invoiceOptions;
       if (options.length > 0) {
+        // Invoice amount: 9500 + 0 + 0 = 9500
+        // Holdback amount should be calculated: (9500 * 10) / 100 = 950
+        expect(options[0].invoiceAmount).toBe(9500);
+        expect(options[0].holdbackPercentage).toBe(10);
         expect(options[0].holdbackAmount).toBe(950);
       } else {
-        // If no options, the test still validates the fallback logic exists
+        // If no options, the test still validates the calculation logic exists
         expect(true).toBe(true);
       }
     });
 
-    it("should calculate holdback from percentage when no financial_breakdown available", async () => {
+    it("should calculate holdback from invoice amount and percentage when no financial_breakdown available", async () => {
       const invoice = {
         ...mockVendorInvoices[2],
         holdback: 10, // 10%
+        amount: 8000, // Will be used as fallback
       };
 
       vi.mocked($fetch).mockImplementation((url: string) => {
@@ -493,7 +584,9 @@ describe("HoldbackInvoiceSelect Component", () => {
 
       const options = wrapper.vm.invoiceOptions;
       if (options.length > 0) {
-        // Should calculate: 8000 * 10 / 100 = 800
+        // Invoice amount should fallback to invoice.amount = 8000
+        // Holdback amount should calculate: 8000 * 10 / 100 = 800
+        expect(options[0].invoiceAmount).toBe(8000);
         expect(options[0].holdbackAmount).toBe(800);
       }
     });
@@ -569,6 +662,415 @@ describe("HoldbackInvoiceSelect Component", () => {
         expect(options[0].holdbackAmount).toBe(0);
       }
     });
+
+    it("should calculate invoice amount as item_total + charges_total + tax_total (before deductions)", async () => {
+      const invoice = {
+        ...mockVendorInvoices[0],
+        purchase_order_uuid: "po-total-test",
+        financial_breakdown: {
+          totals: {
+            item_total: 10000,
+            charges_total: 500,
+            tax_total: 300,
+            total_invoice_amount: 9500, // After deductions - should NOT be used
+          },
+        },
+      };
+
+      vi.mocked($fetch).mockImplementation((url: string) => {
+        if (typeof url === "string" && url.includes("/api/vendor-invoices")) {
+          return Promise.resolve({ data: [invoice] });
+        }
+        if (typeof url === "string" && url.includes("/api/purchase-order-forms/po-total-test")) {
+          return Promise.resolve({
+            data: {
+              uuid: "po-total-test",
+              financial_breakdown: {
+                totals: {
+                  item_total: 10000,
+                  charges_total: 500,
+                  tax_total: 300,
+                  holdback_amount: 1080, // 10% of 10800
+                },
+              },
+            },
+          });
+        }
+        return Promise.resolve({ data: null });
+      });
+
+      wrapper = createWrapper({ modelValue: true });
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await flushPromises();
+
+      const options = wrapper.vm.invoiceOptions;
+      if (options.length > 0) {
+        // Should be 10000 + 500 + 300 = 10800 (not 9500 which is after deductions)
+        expect(options[0].invoiceAmount).toBe(10800);
+      }
+    });
+
+    it("should calculate invoice amount from item_total + charges_total + tax_total when total_invoice_amount is not available", async () => {
+      const invoice = {
+        ...mockVendorInvoices[0],
+        purchase_order_uuid: "po-calc-test",
+        financial_breakdown: {
+          totals: {
+            item_total: 8000,
+            charges_total: 200,
+            tax_total: 100,
+            // No total_invoice_amount
+          },
+        },
+      };
+
+      vi.mocked($fetch).mockImplementation((url: string) => {
+        if (typeof url === "string" && url.includes("/api/vendor-invoices")) {
+          return Promise.resolve({ data: [invoice] });
+        }
+        if (typeof url === "string" && url.includes("/api/purchase-order-forms/po-calc-test")) {
+          return Promise.resolve({
+            data: {
+              uuid: "po-calc-test",
+              financial_breakdown: {
+                totals: {
+                  item_total: 8000,
+                  charges_total: 200,
+                  tax_total: 100,
+                },
+              },
+            },
+          });
+        }
+        return Promise.resolve({ data: null });
+      });
+
+      wrapper = createWrapper({ modelValue: true });
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await flushPromises();
+
+      const options = wrapper.vm.invoiceOptions;
+      if (options.length > 0) {
+        // Should be 8000 + 200 + 100 = 8300
+        expect(options[0].invoiceAmount).toBe(8300);
+      }
+    });
+
+    it("should calculate holdback amount from invoice amount and holdback percentage", async () => {
+      const invoice = {
+        ...mockVendorInvoices[0],
+        purchase_order_uuid: "po-holdback-calc",
+        holdback: 10, // 10%
+        financial_breakdown: {
+          totals: {
+            item_total: 10000,
+            charges_total: 500,
+            tax_total: 300,
+          },
+        },
+      };
+
+      vi.mocked($fetch).mockImplementation((url: string) => {
+        if (typeof url === "string" && url.includes("/api/vendor-invoices")) {
+          return Promise.resolve({ data: [invoice] });
+        }
+        if (typeof url === "string" && url.includes("/api/purchase-order-forms/po-holdback-calc")) {
+          return Promise.resolve({
+            data: {
+              uuid: "po-holdback-calc",
+              financial_breakdown: {
+                totals: {
+                  item_total: 10000,
+                  charges_total: 500,
+                  tax_total: 300,
+                  holdback_amount: 2000, // This should NOT be used - should calculate from invoice
+                },
+              },
+            },
+          });
+        }
+        return Promise.resolve({ data: null });
+      });
+
+      wrapper = createWrapper({ modelValue: true });
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await flushPromises();
+
+      const options = wrapper.vm.invoiceOptions;
+      if (options.length > 0) {
+        const invoiceAmount = 10000 + 500 + 300; // 10800
+        const expectedHoldbackAmount = (invoiceAmount * 10) / 100; // 1080
+        expect(options[0].invoiceAmount).toBe(10800);
+        expect(options[0].holdbackPercentage).toBe(10);
+        // Holdback amount should be calculated from invoice amount, not from PO holdback_amount
+        expect(options[0].holdbackAmount).toBe(expectedHoldbackAmount);
+        expect(options[0].holdbackAmount).not.toBe(2000); // Should not use PO's holdback_amount
+      }
+    });
+
+    it("should calculate holdback percentage from PO/CO when invoice doesn't have it", async () => {
+      const invoice = {
+        ...mockVendorInvoices[0],
+        purchase_order_uuid: "po-percentage-calc",
+        holdback: null, // No holdback percentage on invoice
+        financial_breakdown: {
+          totals: {
+            item_total: 10000,
+            charges_total: 500,
+            tax_total: 300,
+          },
+        },
+      };
+
+      vi.mocked($fetch).mockImplementation((url: string) => {
+        if (typeof url === "string" && url.includes("/api/vendor-invoices")) {
+          return Promise.resolve({ data: [invoice] });
+        }
+        if (typeof url === "string" && url.includes("/api/purchase-order-forms/po-percentage-calc")) {
+          return Promise.resolve({
+            data: {
+              uuid: "po-percentage-calc",
+              financial_breakdown: {
+                totals: {
+                  item_total: 10000,
+                  charges_total: 500,
+                  tax_total: 300,
+                  total_po_amount: 10800, // Total before deductions
+                  holdback_amount: 1080, // 10% of 10800
+                },
+              },
+            },
+          });
+        }
+        return Promise.resolve({ data: null });
+      });
+
+      wrapper = createWrapper({ modelValue: true });
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await flushPromises();
+
+      const options = wrapper.vm.invoiceOptions;
+      if (options.length > 0) {
+        // Should calculate percentage from PO: (1080 / 10800) * 100 = 10%
+        expect(options[0].holdbackPercentage).toBe(10);
+        // Then calculate holdback amount from invoice amount: (10800 * 10) / 100 = 1080
+        expect(options[0].holdbackAmount).toBe(1080);
+      }
+    });
+
+    it("should calculate holdback percentage from CO when invoice doesn't have it", async () => {
+      const invoice = {
+        ...mockVendorInvoices[1],
+        change_order_uuid: "co-percentage-calc",
+        holdback: null, // No holdback percentage on invoice
+        financial_breakdown: {
+          totals: {
+            item_total: 5000,
+            charges_total: 200,
+            tax_total: 100,
+          },
+        },
+      };
+
+      vi.mocked($fetch).mockImplementation((url: string) => {
+        if (typeof url === "string" && url.includes("/api/vendor-invoices")) {
+          return Promise.resolve({ data: [invoice] });
+        }
+        if (typeof url === "string" && url.includes("/api/change-orders/co-percentage-calc")) {
+          return Promise.resolve({
+            data: {
+              uuid: "co-percentage-calc",
+              financial_breakdown: {
+                totals: {
+                  item_total: 5000,
+                  charges_total: 200,
+                  tax_total: 100,
+                  total_co_amount: 5300, // Total before deductions
+                  holdback_amount: 265, // 5% of 5300
+                },
+              },
+            },
+          });
+        }
+        return Promise.resolve({ data: null });
+      });
+
+      wrapper = createWrapper({ modelValue: true });
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await flushPromises();
+
+      const options = wrapper.vm.invoiceOptions;
+      if (options.length > 0) {
+        const coInvoice = options.find(
+          (opt: any) => opt.invoice?.change_order_uuid === "co-percentage-calc"
+        );
+        if (coInvoice) {
+          // Should calculate percentage from CO: (265 / 5300) * 100 = 5%
+          expect(coInvoice.holdbackPercentage).toBe(5);
+          // Invoice amount: 5000 + 200 + 100 = 5300
+          // Holdback amount: (5300 * 5) / 100 = 265
+          expect(coInvoice.invoiceAmount).toBe(5300);
+          expect(coInvoice.holdbackAmount).toBe(265);
+        }
+      }
+    });
+
+    it("should use invoice holdback percentage when available, not calculate from PO/CO", async () => {
+      const invoice = {
+        ...mockVendorInvoices[0],
+        purchase_order_uuid: "po-invoice-percentage",
+        holdback: 15, // Invoice has 15% holdback
+        financial_breakdown: {
+          totals: {
+            item_total: 10000,
+            charges_total: 500,
+            tax_total: 300,
+          },
+        },
+      };
+
+      vi.mocked($fetch).mockImplementation((url: string) => {
+        if (typeof url === "string" && url.includes("/api/vendor-invoices")) {
+          return Promise.resolve({ data: [invoice] });
+        }
+        if (typeof url === "string" && url.includes("/api/purchase-order-forms/po-invoice-percentage")) {
+          return Promise.resolve({
+            data: {
+              uuid: "po-invoice-percentage",
+              financial_breakdown: {
+                totals: {
+                  item_total: 10000,
+                  charges_total: 500,
+                  tax_total: 300,
+                  total_po_amount: 10800,
+                  holdback_amount: 1080, // PO has 10% (1080/10800)
+                },
+              },
+            },
+          });
+        }
+        return Promise.resolve({ data: null });
+      });
+
+      wrapper = createWrapper({ modelValue: true });
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await flushPromises();
+
+      const options = wrapper.vm.invoiceOptions;
+      if (options.length > 0) {
+        // Should use invoice's holdback percentage (15%), not calculate from PO (10%)
+        expect(options[0].holdbackPercentage).toBe(15);
+        // Holdback amount should be calculated from invoice amount with invoice percentage
+        const invoiceAmount = 10000 + 500 + 300; // 10800
+        const expectedHoldbackAmount = (invoiceAmount * 15) / 100; // 1620
+        expect(options[0].holdbackAmount).toBe(expectedHoldbackAmount);
+        expect(options[0].holdbackAmount).not.toBe(1080); // Should not use PO's holdback amount
+      }
+    });
+
+    it("should calculate holdback amount correctly with decimal percentages", async () => {
+      const invoice = {
+        ...mockVendorInvoices[0],
+        purchase_order_uuid: "po-decimal-percentage",
+        holdback: 7.5, // 7.5%
+        financial_breakdown: {
+          totals: {
+            item_total: 10000,
+            charges_total: 500,
+            tax_total: 300,
+          },
+        },
+      };
+
+      vi.mocked($fetch).mockImplementation((url: string) => {
+        if (typeof url === "string" && url.includes("/api/vendor-invoices")) {
+          return Promise.resolve({ data: [invoice] });
+        }
+        if (typeof url === "string" && url.includes("/api/purchase-order-forms/po-decimal-percentage")) {
+          return Promise.resolve({
+            data: {
+              uuid: "po-decimal-percentage",
+              financial_breakdown: {
+                totals: {
+                  item_total: 10000,
+                  charges_total: 500,
+                  tax_total: 300,
+                },
+              },
+            },
+          });
+        }
+        return Promise.resolve({ data: null });
+      });
+
+      wrapper = createWrapper({ modelValue: true });
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await flushPromises();
+
+      const options = wrapper.vm.invoiceOptions;
+      if (options.length > 0) {
+        const invoiceAmount = 10000 + 500 + 300; // 10800
+        const expectedHoldbackAmount = (invoiceAmount * 7.5) / 100; // 810
+        expect(options[0].holdbackPercentage).toBe(7.5);
+        expect(options[0].holdbackAmount).toBe(expectedHoldbackAmount);
+      }
+    });
+
+    it("should handle case where charges_total and tax_total are zero", async () => {
+      const invoice = {
+        ...mockVendorInvoices[0],
+        purchase_order_uuid: "po-no-charges",
+        holdback: 10,
+        financial_breakdown: {
+          totals: {
+            item_total: 10000,
+            charges_total: 0,
+            tax_total: 0,
+          },
+        },
+      };
+
+      vi.mocked($fetch).mockImplementation((url: string) => {
+        if (typeof url === "string" && url.includes("/api/vendor-invoices")) {
+          return Promise.resolve({ data: [invoice] });
+        }
+        if (typeof url === "string" && url.includes("/api/purchase-order-forms/po-no-charges")) {
+          return Promise.resolve({
+            data: {
+              uuid: "po-no-charges",
+              financial_breakdown: {
+                totals: {
+                  item_total: 10000,
+                  charges_total: 0,
+                  tax_total: 0,
+                },
+              },
+            },
+          });
+        }
+        return Promise.resolve({ data: null });
+      });
+
+      wrapper = createWrapper({ modelValue: true });
+      await flushPromises();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await flushPromises();
+
+      const options = wrapper.vm.invoiceOptions;
+      if (options.length > 0) {
+        // Invoice amount should be 10000 + 0 + 0 = 10000
+        expect(options[0].invoiceAmount).toBe(10000);
+        // Holdback amount should be (10000 * 10) / 100 = 1000
+        expect(options[0].holdbackAmount).toBe(1000);
+      }
+    });
   });
 
   describe("processInvoiceOptions Function", () => {
@@ -635,7 +1137,34 @@ describe("HoldbackInvoiceSelect Component", () => {
       }
     });
 
-    it("should use invoice item_total for invoiceAmount field", async () => {
+    it("should calculate invoiceAmount as item_total + charges_total + tax_total", async () => {
+      const invoice = {
+        ...mockVendorInvoices[0],
+        purchase_order_uuid: "po-1",
+        financial_breakdown: {
+          totals: {
+            item_total: 9500,
+            charges_total: 200,
+            tax_total: 300,
+          },
+        },
+      };
+
+      vi.mocked($fetch).mockImplementation((url: string) => {
+        if (typeof url === "string" && url.includes("/api/vendor-invoices")) {
+          return Promise.resolve({ data: [invoice] });
+        }
+        if (typeof url === "string" && url.includes("/api/purchase-order-forms/po-1")) {
+          return Promise.resolve({
+            data: {
+              uuid: "po-1",
+              financial_breakdown: mockPOFinancialBreakdown,
+            },
+          });
+        }
+        return Promise.resolve({ data: null });
+      });
+
       wrapper = createWrapper({ modelValue: true });
       await flushPromises();
       await new Promise((resolve) => setTimeout(resolve, 200));
@@ -647,8 +1176,11 @@ describe("HoldbackInvoiceSelect Component", () => {
       );
 
       if (invoiceWithBreakdown) {
-        const expectedItemTotal = invoiceWithBreakdown.invoice.financial_breakdown.totals.item_total;
-        expect(invoiceWithBreakdown.invoiceAmount).toBe(expectedItemTotal);
+        const itemTotal = invoiceWithBreakdown.invoice.financial_breakdown.totals.item_total;
+        const chargesTotal = invoiceWithBreakdown.invoice.financial_breakdown.totals.charges_total || 0;
+        const taxTotal = invoiceWithBreakdown.invoice.financial_breakdown.totals.tax_total || 0;
+        const expectedTotal = itemTotal + chargesTotal + taxTotal;
+        expect(invoiceWithBreakdown.invoiceAmount).toBe(expectedTotal);
       }
     });
   });
