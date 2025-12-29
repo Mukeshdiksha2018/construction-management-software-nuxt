@@ -92,7 +92,9 @@ vi.mock("@/stores/stockReceiptNotes", () => {
 vi.mock("@/stores/stockReturnNotes", () => {
   const useStockReturnNotesStore = defineStore("stockReturnNotes", () => ({
     stockReturnNotes: ref([]),
+    paginationInfo: ref({}),
     fetchStockReturnNotes: vi.fn().mockResolvedValue(undefined),
+    getPaginationInfo: vi.fn(() => null),
   }));
   return { useStockReturnNotesStore };
 });

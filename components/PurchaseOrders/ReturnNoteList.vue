@@ -851,7 +851,7 @@ const openCreateModal = async () => {
   }
 
   await ensureSupportingData(corpUuid);
-  await stockReturnNotesStore.fetchStockReturnNotes(corpUuid);
+  await stockReturnNotesStore.fetchStockReturnNotes(corpUuid, false, 1, 100);
 
   const returnNumber = stockReturnNotesStore.generateNextReturnNumber(corpUuid);
   returnNoteForm.value = {

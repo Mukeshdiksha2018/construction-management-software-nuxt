@@ -84,15 +84,22 @@ describe('StockReturnNotes Store - Comprehensive Tests', () => {
     it('should fetch return notes from API and cache them in IndexedDB', async () => {
       ;(global.$fetch as any).mockResolvedValue({
         data: mockReturnNotes,
+        pagination: {
+          page: 1,
+          pageSize: 100,
+          totalRecords: 2,
+          totalPages: 1,
+          hasMore: false,
+        },
       })
       const { dbHelpers } = await import('@/utils/indexedDb')
       vi.mocked(dbHelpers.getStockReturnNotes).mockResolvedValue([])
       vi.mocked(dbHelpers.needsSync).mockResolvedValue(true)
 
-      await store.fetchStockReturnNotes('corp-1', { force: true })
+      await store.fetchStockReturnNotes('corp-1', true, 1, 100)
 
       expect(global.$fetch).toHaveBeenCalledWith(
-        '/api/stock-return-notes?corporation_uuid=corp-1'
+        '/api/stock-return-notes?corporation_uuid=corp-1&page=1&page_size=100'
       )
       expect(store.stockReturnNotes.length).toBeGreaterThanOrEqual(2)
       expect(vi.mocked(dbHelpers.saveStockReturnNotes)).toHaveBeenCalledWith(
@@ -113,7 +120,7 @@ describe('StockReturnNotes Store - Comprehensive Tests', () => {
       ;(store as any).lastFetchedCorporation = 'corp-1'
       ;(store as any).hasDataForCorporation = new Set(['corp-1'])
 
-      await store.fetchStockReturnNotes('corp-1', { useIndexedDB: true })
+      await store.fetchStockReturnNotes('corp-1', false, 1, 100)
 
       // Should load from cache
       expect(store.stockReturnNotes.length).toBeGreaterThanOrEqual(1)
@@ -133,7 +140,7 @@ describe('StockReturnNotes Store - Comprehensive Tests', () => {
       ;(store as any).lastFetchedCorporation = 'corp-1'
       ;(store as any).hasDataForCorporation = new Set(['corp-1'])
 
-      await store.fetchStockReturnNotes('corp-1', { useIndexedDB: true, force: false })
+      await store.fetchStockReturnNotes('corp-1', false, 1, 100)
 
       // needsSync should be checked when hasCached is true AND lastFetchedCorporation matches
       expect(vi.mocked(dbHelpers.needsSync)).toHaveBeenCalledWith(
@@ -150,11 +157,18 @@ describe('StockReturnNotes Store - Comprehensive Tests', () => {
       vi.mocked(dbHelpers.needsSync).mockResolvedValue(true)
       ;(global.$fetch as any).mockResolvedValue({
         data: mockReturnNotes,
+        pagination: {
+          page: 1,
+          pageSize: 100,
+          totalRecords: 2,
+          totalPages: 1,
+          hasMore: false,
+        },
       })
       ;(store as any).lastFetchedCorporation = 'corp-1'
       ;(store as any).hasDataForCorporation = new Set(['corp-1'])
 
-      await store.fetchStockReturnNotes('corp-1', { useIndexedDB: true })
+      await store.fetchStockReturnNotes('corp-1', false, 1, 100)
 
       // Should fetch from API because cache needs sync
       expect(global.$fetch).toHaveBeenCalled()
@@ -166,7 +180,7 @@ describe('StockReturnNotes Store - Comprehensive Tests', () => {
       vi.mocked(dbHelpers.getStockReturnNotes).mockResolvedValue([])
       ;(global.$fetch as any).mockRejectedValue(new Error('API Error'))
 
-      await store.fetchStockReturnNotes('corp-1', { force: true })
+      await store.fetchStockReturnNotes('corp-1', true, 1, 100)
 
       expect(store.error).toBeTruthy()
       expect(store.loading).toBe(false)
@@ -185,7 +199,7 @@ describe('StockReturnNotes Store - Comprehensive Tests', () => {
       ;(store as any).lastFetchedCorporation = 'corp-1'
       ;(store as any).hasDataForCorporation = new Set(['corp-1'])
 
-      await store.fetchStockReturnNotes('corp-1', { useIndexedDB: true })
+      await store.fetchStockReturnNotes('corp-1', false, 1, 100)
 
       // Return number should be normalized to simple format
       const note = store.stockReturnNotes.find((n) => n.uuid === 'rtn-1')
@@ -200,8 +214,8 @@ describe('StockReturnNotes Store - Comprehensive Tests', () => {
       ;(store as any).lastFetchedCorporation = 'corp-1'
       ;(store as any).hasDataForCorporation = new Set(['corp-1'])
 
-      // Don't specify useIndexedDB, should default to true
-      await store.fetchStockReturnNotes('corp-1')
+      // Don't specify force, should default to false and use IndexedDB
+      await store.fetchStockReturnNotes('corp-1', false, 1, 100)
 
       // Should try to load from IndexedDB
       expect(vi.mocked(dbHelpers.getStockReturnNotes)).toHaveBeenCalledWith('corp-1')

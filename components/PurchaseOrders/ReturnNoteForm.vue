@@ -1303,7 +1303,7 @@ const checkReceiptNotesAndCalculateShortfall = async (
     });
 
     // Fetch existing return notes for the same PO/CO (excluding the current one if editing)
-    await stockReturnNotesStore.fetchStockReturnNotes(corpUuid, { force: false });
+    await stockReturnNotesStore.fetchStockReturnNotes(corpUuid, false, 1, 100);
     const allReturnNotes = stockReturnNotesStore.stockReturnNotes.filter(
       (note: any) => note.corporation_uuid === corpUuid
     );
@@ -1542,7 +1542,7 @@ const recalculateMaxReturnQuantities = async (items: any[], sourceUuid: string, 
     });
 
     // Fetch existing return notes for the same PO/CO (excluding the current one if editing)
-    await stockReturnNotesStore.fetchStockReturnNotes(corpUuid, { force: false });
+    await stockReturnNotesStore.fetchStockReturnNotes(corpUuid, false, 1, 100);
     const allReturnNotes = stockReturnNotesStore.stockReturnNotes.filter(
       (note: any) => note.corporation_uuid === corpUuid
     );

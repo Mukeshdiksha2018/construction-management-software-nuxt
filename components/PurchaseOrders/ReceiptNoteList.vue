@@ -1208,7 +1208,7 @@ const checkExistingReturnNotesForShortfall = async (
 
   try {
     // Fetch existing return notes for this PO/CO
-    await stockReturnNotesStore.fetchStockReturnNotes(corpUuid, { force: false });
+    await stockReturnNotesStore.fetchStockReturnNotes(corpUuid, false, 1, 100);
     // Filter return notes for this corporation (getNotesForCorporation is not exported, so filter directly)
     const allReturnNotes = stockReturnNotesStore.stockReturnNotes.filter(
       (note: any) => note.corporation_uuid === corpUuid
@@ -1716,7 +1716,7 @@ const handleRaiseReturnNote = async () => {
   // Now automatically create the return note
   try {
     // Generate next return number
-    await stockReturnNotesStore.fetchStockReturnNotes(corpUuid);
+    await stockReturnNotesStore.fetchStockReturnNotes(corpUuid, false, 1, 100);
     const returnNumber = stockReturnNotesStore.generateNextReturnNumber(corpUuid);
 
     // Prepare return note items from shortfall items
@@ -1823,7 +1823,7 @@ const handleRaiseReturnNote = async () => {
 
     // Refresh return notes store if needed
     if (shouldUpdateStore && topBarCorpUuid) {
-      await stockReturnNotesStore.fetchStockReturnNotes(topBarCorpUuid, { force: true });
+      await stockReturnNotesStore.fetchStockReturnNotes(topBarCorpUuid, true, 1, 100);
     }
 
     // Fetch return note items to ensure they're available
@@ -2023,7 +2023,7 @@ const saveReturnNoteFromShortfall = async () => {
     if (shouldUpdateStore && topBarCorpUuid) {
       // Refresh return notes store to ensure the new return note is available for shortfall checking
       // Force refresh to get the latest data including the return note items
-      await stockReturnNotesStore.fetchStockReturnNotes(topBarCorpUuid, { force: true });
+      await stockReturnNotesStore.fetchStockReturnNotes(topBarCorpUuid, true, 1, 100);
     }
     
     // Also fetch return note items to ensure they're available for the shortfall check

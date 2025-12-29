@@ -404,7 +404,7 @@ const ensureStockReturnNotesForCorporation = async (
   }
 
   stockReturnNotesPromise = stockReturnNotesStore
-    .fetchStockReturnNotes(normalizedId, { force })
+    .fetchStockReturnNotes(normalizedId, force, 1, 100)
     .then(() => {
       lastFetchedStockReturnNotesSignature.value = signature;
     })

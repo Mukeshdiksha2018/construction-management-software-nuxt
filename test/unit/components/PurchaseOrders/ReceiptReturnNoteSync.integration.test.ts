@@ -57,7 +57,9 @@ vi.mock("@/stores/stockReturnNotes", () => {
     stockReturnNotes: stockReturnNotesState,
     loading: ref(false),
     error: ref(null),
+    paginationInfo: ref({}),
     fetchStockReturnNotes: fetchStockReturnNotesMock,
+    getPaginationInfo: vi.fn(() => null),
     createStockReturnNote: createStockReturnNoteMock,
     generateNextReturnNumber: generateNextReturnNumberMock,
   }));
