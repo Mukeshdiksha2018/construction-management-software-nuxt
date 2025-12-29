@@ -55,6 +55,12 @@ vi.mock("@/stores/stockReturnNotes", () => {
 });
 
 vi.mock("@/stores/purchaseOrders", () => {
+  const fetchPurchaseOrderMock = vi.fn().mockResolvedValue({
+    uuid: "po-1",
+    po_number: "PO-1",
+    project_uuid: "project-1",
+    total_po_amount: 1200,
+  });
   const usePurchaseOrdersStore = defineStore("purchaseOrders", () => ({
     purchaseOrders: ref([
       {
@@ -65,11 +71,19 @@ vi.mock("@/stores/purchaseOrders", () => {
       },
     ]),
     fetchPurchaseOrders: vi.fn(),
+    fetchPurchaseOrder: fetchPurchaseOrderMock,
+    updatePurchaseOrderInList: vi.fn(),
   }));
   return { usePurchaseOrdersStore };
 });
 
 vi.mock("@/stores/changeOrders", () => {
+  const fetchChangeOrderMock = vi.fn().mockResolvedValue({
+    uuid: "co-1",
+    co_number: "CO-1",
+    project_uuid: "project-1",
+    total_co_amount: 800,
+  });
   const useChangeOrdersStore = defineStore("changeOrders", () => ({
     changeOrders: ref([
       {
@@ -80,6 +94,8 @@ vi.mock("@/stores/changeOrders", () => {
       },
     ]),
     fetchChangeOrders: vi.fn(),
+    fetchChangeOrder: fetchChangeOrderMock,
+    updateChangeOrderInList: vi.fn(),
   }));
   return { useChangeOrdersStore };
 });
@@ -359,6 +375,13 @@ describe("ReceiptNoteList - Shortfall Sync with Return Notes", () => {
       corporation_uuid: "corp-1",
       return_number: "RTN-1",
     });
+    // Mock return note items API call
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/return-note-items")) {
+        return Promise.resolve({ data: [] });
+      }
+      return Promise.resolve({ data: [] });
+    });
   });
 
   afterEach(() => {
@@ -537,9 +560,15 @@ describe("ReceiptNoteList - Shortfall Sync with Return Notes", () => {
   });
 
   describe("Raise Return Note from Shortfall", () => {
-    it("should open return note form modal when user clicks 'Raise Return Note'", async () => {
+    it("should automatically save receipt note and create return note when user clicks 'Raise Return Note'", async () => {
       const wrapper = mountList();
       await flushPromises();
+
+      // Mock toast
+      const mockToastAdd = vi.fn();
+      vi.stubGlobal("useToast", () => ({
+        add: mockToastAdd,
+      }));
 
       // Open create modal and set shortfall
       const addButton = wrapper.findAll("button").find((btn) => btn.text().includes("Add new Receipt Note"));
@@ -567,13 +596,39 @@ describe("ReceiptNoteList - Shortfall Sync with Return Notes", () => {
             });
 
             if (raiseReturnButton && raiseReturnButton.exists()) {
+              // Clear previous mock calls
+              createStockReceiptNoteMock.mockClear();
+              createStockReturnNoteMock.mockClear();
+              mockToastAdd.mockClear();
+
               await raiseReturnButton.trigger("click");
               await flushPromises();
 
-              // Should open return note form modal
-              const returnNoteForm = wrapper.findComponent({ name: "ReturnNoteForm" });
-              // The modal might be rendered but hidden, so we check if the component exists
-              expect(returnNoteForm.exists() || wrapper.html().includes("return-note-form-stub")).toBe(true);
+              // Wait for async operations to complete
+              await new Promise(resolve => setTimeout(resolve, 100));
+              await flushPromises();
+
+              // Should save receipt note first (with suppressToast flag)
+              expect(createStockReceiptNoteMock).toHaveBeenCalled();
+              
+              // Should create return note automatically
+              expect(createStockReturnNoteMock).toHaveBeenCalled();
+              
+              // Should show success toast with combined message
+              expect(mockToastAdd).toHaveBeenCalledWith(
+                expect.objectContaining({
+                  title: "Success",
+                  description: "Receipt note saved and return note created successfully.",
+                  color: "success",
+                })
+              );
+              
+              // Should NOT open return note form modal (it's created automatically)
+              const returnNoteModals = wrapper.findAll(".u-modal-stub");
+              const returnNoteModal = returnNoteModals.find((modal) =>
+                modal.html().includes("return-note-form-stub") && !modal.classes().includes("hidden")
+              );
+              expect(returnNoteModal).toBeFalsy();
             } else {
               // If button not found, verify the shortfall modal was shown
               expect(wrapper.html()).toContain("Shortfall");
