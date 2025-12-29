@@ -991,7 +991,8 @@
                               :corporation-uuid="props.editingEstimate ? corpStore.selectedCorporation?.uuid : estimateCreationStore.selectedCorporationUuid"
                               :project-uuid="props.projectUuid"
                               :use-estimate-creation-store="!props.editingEstimate"
-                              :items="getMaterialItemOptionsForSequence(item)"
+                              :items="getMaterialItemOptionsForSequence(item, index)"
+                              :exclude-item-uuids="getSelectedItemUuidsArray(index)"
                               size="xs"
                               class="w-24"
                               :disabled="isReadOnly || item.is_preferred === true"
@@ -1005,7 +1006,8 @@
                               :corporation-uuid="props.editingEstimate ? corpStore.selectedCorporation?.uuid : estimateCreationStore.selectedCorporationUuid"
                               :project-uuid="props.projectUuid"
                               :use-estimate-creation-store="!props.editingEstimate"
-                              :items="getMaterialItemOptionsForItem(item)"
+                              :items="getMaterialItemOptionsForItem(item, index)"
+                              :exclude-item-uuids="getSelectedItemUuidsArray(index)"
                               size="xs"
                               class="w-32"
                               placeholder="Select item"
@@ -1806,34 +1808,47 @@ const updateLaborTotal = () => {
   // The total is computed automatically via laborTotalAmount computed property
 }
 
-// Helper functions to provide material items as options to ItemSelect and SequenceSelect
-// This ensures saved items are always available in the dropdown even if not in preferred items
-const getMaterialItemOptionsForItem = (currentItem: any) => {
-  // If the current item has an item_uuid but might not be in preferred items,
-  // create an option from the material item data itself
-  if (currentItem.item_uuid && currentItem.name) {
-    return [{
-      uuid: currentItem.item_uuid,
-      item_uuid: currentItem.item_uuid,
-      item_name: currentItem.name,
-      name: currentItem.name,
-      item_sequence: currentItem.sequence,
-      sequence: currentItem.sequence,
-      unit: currentItem.unit_label,
-      unit_uuid: currentItem.unit_uuid,
-      unit_price: currentItem.unit_price,
-      description: currentItem.description,
-      model_number: currentItem.model_number
-    }]
-  }
-  return []
+// Helper function to get already selected item UUIDs (excluding a specific index)
+const getSelectedItemUuids = (excludeIndex: number): Set<string> => {
+  const selectedUuids = new Set<string>()
+  materialItems.value.forEach((item: any, index: number) => {
+    if (index !== excludeIndex && item.item_uuid) {
+      const itemUuid = String(item.item_uuid).toLowerCase()
+      if (itemUuid) {
+        selectedUuids.add(itemUuid)
+      }
+    }
+  })
+  return selectedUuids
 }
 
-const getMaterialItemOptionsForSequence = (currentItem: any) => {
-  // If the current item has an item_uuid and sequence but might not be in preferred items,
+// Helper function to get already selected item UUIDs as an array (excluding a specific index)
+const getSelectedItemUuidsArray = (excludeIndex: number): string[] => {
+  const selectedUuids: string[] = []
+  materialItems.value.forEach((item: any, index: number) => {
+    if (index !== excludeIndex && item.item_uuid) {
+      const itemUuid = String(item.item_uuid)
+      if (itemUuid) {
+        selectedUuids.push(itemUuid)
+      }
+    }
+  })
+  return selectedUuids
+}
+
+// Helper functions to provide material items as options to ItemSelect and SequenceSelect
+// This ensures saved items are always available in the dropdown even if not in preferred items
+// Also filters out items that are already selected in other rows
+const getMaterialItemOptionsForItem = (currentItem: any, currentIndex: number) => {
+  // Get already selected item UUIDs (excluding current row)
+  const selectedUuids = getSelectedItemUuids(currentIndex)
+  
+  // If the current item has an item_uuid but might not be in preferred items,
   // create an option from the material item data itself
-  if (currentItem.item_uuid && currentItem.sequence) {
-    return [{
+  // Always include the current item even if it's "selected" (it's the current row)
+  const options: any[] = []
+  if (currentItem.item_uuid && currentItem.name) {
+    options.push({
       uuid: currentItem.item_uuid,
       item_uuid: currentItem.item_uuid,
       item_name: currentItem.name,
@@ -1845,9 +1860,51 @@ const getMaterialItemOptionsForSequence = (currentItem: any) => {
       unit_price: currentItem.unit_price,
       description: currentItem.description,
       model_number: currentItem.model_number
-    }]
+    })
   }
-  return []
+  
+  // Filter out items that are already selected in other rows
+  // The current item is always included (handled above)
+  return options.filter((item: any) => {
+    if (!item.item_uuid) return true // Include items without UUID
+    const itemUuid = String(item.item_uuid).toLowerCase()
+    // Include if not in selectedUuids (not selected in other rows) or if it's the current item
+    return !selectedUuids.has(itemUuid) || itemUuid === String(currentItem.item_uuid || '').toLowerCase()
+  })
+}
+
+const getMaterialItemOptionsForSequence = (currentItem: any, currentIndex: number) => {
+  // Get already selected item UUIDs (excluding current row)
+  const selectedUuids = getSelectedItemUuids(currentIndex)
+  
+  // If the current item has an item_uuid and sequence but might not be in preferred items,
+  // create an option from the material item data itself
+  // Always include the current item even if it's "selected" (it's the current row)
+  const options: any[] = []
+  if (currentItem.item_uuid && currentItem.sequence) {
+    options.push({
+      uuid: currentItem.item_uuid,
+      item_uuid: currentItem.item_uuid,
+      item_name: currentItem.name,
+      name: currentItem.name,
+      item_sequence: currentItem.sequence,
+      sequence: currentItem.sequence,
+      unit: currentItem.unit_label,
+      unit_uuid: currentItem.unit_uuid,
+      unit_price: currentItem.unit_price,
+      description: currentItem.description,
+      model_number: currentItem.model_number
+    })
+  }
+  
+  // Filter out items that are already selected in other rows
+  // The current item is always included (handled above)
+  return options.filter((item: any) => {
+    if (!item.item_uuid) return true // Include items without UUID
+    const itemUuid = String(item.item_uuid).toLowerCase()
+    // Include if not in selectedUuids (not selected in other rows) or if it's the current item
+    return !selectedUuids.has(itemUuid) || itemUuid === String(currentItem.item_uuid || '').toLowerCase()
+  })
 }
 
 // Material item management functions

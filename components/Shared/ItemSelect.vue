@@ -89,6 +89,7 @@ const props = withDefaults(defineProps<{
   items?: ExternalItemOption[]
   ui?: any
   useEstimateCreationStore?: boolean // If true, use estimateCreationStore instead of global store
+  excludeItemUuids?: string[] // Item UUIDs to exclude from options (e.g., already selected items)
 }>(), {
   placeholder: 'Select item',
   searchable: true,
@@ -98,6 +99,7 @@ const props = withDefaults(defineProps<{
   disabled: false,
   items: () => [],
   useEstimateCreationStore: false,
+  excludeItemUuids: () => [],
 })
 
 const emit = defineEmits<{
@@ -244,11 +246,21 @@ const itemOptions = computed<ItemOption[]>(() => {
     }
   })
   
+  // Create a set of excluded item UUIDs for quick lookup
+  const excludedUuidsSet = new Set(
+    (props.excludeItemUuids || []).map((uuid: string) => String(uuid).toLowerCase())
+  )
+  
   // Start with provided items, then add store items that aren't already in provided items
+  // Also exclude items that are in the excludeItemUuids list
   const mergedItems: ExternalItemOption[] = [...providedItems.value]
   storeItems.value.forEach((item: any) => {
     const key = String(item.uuid || item.item_uuid || item.value || '')
-    if (key && !providedItemsMap.has(key)) {
+    const keyLower = key.toLowerCase()
+    // Include if not in providedItems and not in excludedUuids
+    // Also check if it's the current modelValue (allow current selection)
+    const isCurrentValue = props.modelValue && String(props.modelValue).toLowerCase() === keyLower
+    if (key && !providedItemsMap.has(key) && (!excludedUuidsSet.has(keyLower) || isCurrentValue)) {
       mergedItems.push(item)
     }
   })
