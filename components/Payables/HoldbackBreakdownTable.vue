@@ -282,16 +282,27 @@ const filteredCostCodeRows = computed(() => {
 
 // Calculate total release amount (rounded to 2 decimal places)
 const totalReleaseAmount = computed(() => {
-  const total = costCodeRows.value.reduce((sum, row) => {
+  console.log('[HoldbackBreakdownTable] Calculating totalReleaseAmount from costCodeRows:', costCodeRows.value.length, 'rows');
+  
+  const total = costCodeRows.value.reduce((sum, row, index) => {
     const releaseAmount = parseFloat(String(row.releaseAmount || 0)) || 0
+    console.log(`[HoldbackBreakdownTable] Row ${index}: releaseAmount = ${releaseAmount}, cost_code_uuid = ${row.cost_code_uuid}`);
     return sum + releaseAmount
   }, 0)
+  
+  console.log('[HoldbackBreakdownTable] Raw total before rounding:', total);
+  
   // Round to 2 decimal places to avoid floating point precision issues
-  return Math.round(total * 100) / 100
+  const rounded = Math.round(total * 100) / 100
+  console.log('[HoldbackBreakdownTable] Rounded total:', rounded);
+  
+  return rounded
 })
 
 // Watch total release amount and emit to parent
-watch(totalReleaseAmount, (newTotal) => {
+watch(totalReleaseAmount, (newTotal, oldTotal) => {
+  console.log('[HoldbackBreakdownTable] totalReleaseAmount changed from', oldTotal, 'to', newTotal);
+  console.log('[HoldbackBreakdownTable] Emitting release-amounts-update with value:', newTotal);
   emit('release-amounts-update', newTotal)
 }, { immediate: true })
 

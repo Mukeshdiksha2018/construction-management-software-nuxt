@@ -1248,6 +1248,66 @@ const saveInvoice = async () => {
       }
     }
     
+    // If this is an AGAINST_HOLDBACK_AMOUNT invoice, ensure amount is set from financial_breakdown.totals.total_invoice_amount
+    if (invoiceType === 'AGAINST_HOLDBACK_AMOUNT') {
+      console.log('[VIL] AGAINST_HOLDBACK_AMOUNT: Starting amount calculation');
+      console.log('[VIL] Current formData.amount:', formData.amount);
+      console.log('[VIL] formData.financial_breakdown:', formData.financial_breakdown);
+      
+      if (formData.financial_breakdown && typeof formData.financial_breakdown === 'object') {
+        console.log('[VIL] financial_breakdown is an object');
+        console.log('[VIL] financial_breakdown.totals:', formData.financial_breakdown.totals);
+        
+        if (formData.financial_breakdown.totals) {
+          const totals = formData.financial_breakdown.totals;
+          console.log('[VIL] totals.total_invoice_amount:', totals.total_invoice_amount);
+          console.log('[VIL] totals.amount:', totals.amount);
+          console.log('[VIL] totals.item_total:', totals.item_total);
+          console.log('[VIL] totals.charges_total:', totals.charges_total);
+          console.log('[VIL] totals.tax_total:', totals.tax_total);
+          
+          // Calculate total from components if total_invoice_amount is not available
+          const itemTotal = parseFloat(totals.item_total || '0') || 0;
+          const chargesTotal = parseFloat(totals.charges_total || '0') || 0;
+          const taxTotal = parseFloat(totals.tax_total || '0') || 0;
+          const calculatedTotal = itemTotal + chargesTotal + taxTotal;
+          console.log('[VIL] Calculated total from components:', calculatedTotal, '(item_total:', itemTotal, '+ charges_total:', chargesTotal, '+ tax_total:', taxTotal, ')');
+          
+          const totalInvoiceAmount = totals.total_invoice_amount || 
+                                   totals.amount ||
+                                   (calculatedTotal > 0 ? calculatedTotal : null);
+          
+          console.log('[VIL] Selected totalInvoiceAmount:', totalInvoiceAmount);
+          
+          if (totalInvoiceAmount !== null && totalInvoiceAmount !== undefined && totalInvoiceAmount !== '') {
+            const amountValue = typeof totalInvoiceAmount === 'number' 
+              ? totalInvoiceAmount 
+              : (parseFloat(String(totalInvoiceAmount)) || 0);
+            
+            console.log('[VIL] Parsed amountValue:', amountValue);
+            console.log('[VIL] Previous formData.amount:', formData.amount);
+            
+            // Update the amount field to match the total_invoice_amount from financial breakdown
+            formData.amount = amountValue;
+            
+            console.log('[VIL] Updated formData.amount:', formData.amount);
+            console.log('[VIL] Final formData.financial_breakdown.totals:', formData.financial_breakdown.totals);
+          } else {
+            console.warn('[VIL] AGAINST_HOLDBACK_AMOUNT: totalInvoiceAmount is null/undefined/empty, cannot update amount');
+            console.warn('[VIL] totals.total_invoice_amount:', totals.total_invoice_amount);
+            console.warn('[VIL] totals.amount:', totals.amount);
+            console.warn('[VIL] calculatedTotal:', calculatedTotal);
+          }
+        } else {
+          console.warn('[VIL] AGAINST_HOLDBACK_AMOUNT: financial_breakdown.totals is missing');
+        }
+      } else {
+        console.warn('[VIL] AGAINST_HOLDBACK_AMOUNT: financial_breakdown is missing or not an object');
+        console.warn('[VIL] formData.financial_breakdown type:', typeof formData.financial_breakdown);
+        console.warn('[VIL] formData.financial_breakdown value:', formData.financial_breakdown);
+      }
+    }
+    
     
     let savedInvoice;
     if (invoiceForm.value.uuid) {

@@ -3880,31 +3880,60 @@ const handleHoldbackCostCodesUpdate = (value: any[]) => {
 
 // Handle holdback release amounts update
 const handleHoldbackReleaseAmountsUpdate = (totalReleaseAmount: number) => {
+  console.log('[VendorInvoiceForm] handleHoldbackReleaseAmountsUpdate called');
+  console.log('[VendorInvoiceForm] totalReleaseAmount received:', totalReleaseAmount);
+  
   // Round to 2 decimal places to avoid floating point precision issues
   const roundedTotal = Math.round(totalReleaseAmount * 100) / 100;
+  console.log('[VendorInvoiceForm] roundedTotal:', roundedTotal);
+  
   holdbackReleaseAmountTotal.value = roundedTotal;
+  console.log('[VendorInvoiceForm] holdbackReleaseAmountTotal.value set to:', holdbackReleaseAmountTotal.value);
   
   // Update financial_breakdown.totals.item_total to ensure it matches the release amount total
   // This ensures the FinancialBreakdown component has the correct item_total
   const updatedForm = { ...props.form };
+  console.log('[VendorInvoiceForm] Current form.financial_breakdown:', updatedForm.financial_breakdown);
+  
   if (!updatedForm.financial_breakdown || typeof updatedForm.financial_breakdown === 'string') {
     try {
       updatedForm.financial_breakdown = typeof updatedForm.financial_breakdown === 'string' 
         ? JSON.parse(updatedForm.financial_breakdown) 
         : { totals: {} };
     } catch (e) {
+      console.warn('[VendorInvoiceForm] Error parsing financial_breakdown:', e);
       updatedForm.financial_breakdown = { totals: {} };
     }
   }
   if (!updatedForm.financial_breakdown.totals) {
     updatedForm.financial_breakdown.totals = {};
   }
+  
+  console.log('[VendorInvoiceForm] Before update - financial_breakdown.totals.item_total:', updatedForm.financial_breakdown.totals.item_total);
   updatedForm.financial_breakdown.totals.item_total = roundedTotal;
+  console.log('[VendorInvoiceForm] After update - financial_breakdown.totals.item_total:', updatedForm.financial_breakdown.totals.item_total);
+  
+  // For holdback invoices, also recalculate the total invoice amount here
+  // Get current charges and tax from financial breakdown
+  const chargesTotal = parseFloat(updatedForm.financial_breakdown.totals.charges_total || '0') || 0;
+  const taxTotal = parseFloat(updatedForm.financial_breakdown.totals.tax_total || '0') || 0;
+  const calculatedTotal = roundedTotal + chargesTotal + taxTotal;
+  
+  console.log('[VendorInvoiceForm] Recalculating total in handleHoldbackReleaseAmountsUpdate:');
+  console.log('[VendorInvoiceForm]   item_total (from release):', roundedTotal);
+  console.log('[VendorInvoiceForm]   charges_total:', chargesTotal);
+  console.log('[VendorInvoiceForm]   tax_total:', taxTotal);
+  console.log('[VendorInvoiceForm]   calculatedTotal:', calculatedTotal);
+  
+  // Update the amount and total_invoice_amount
+  updatedForm.financial_breakdown.totals.amount = calculatedTotal;
+  updatedForm.financial_breakdown.totals.total_invoice_amount = calculatedTotal;
+  updatedForm.amount = calculatedTotal;
+  
+  console.log('[VendorInvoiceForm] Updated financial_breakdown.totals:', updatedForm.financial_breakdown.totals);
+  console.log('[VendorInvoiceForm] Updated form.amount:', updatedForm.amount);
   
   emit('update:form', updatedForm);
-  
-  // Don't update amount here - FinancialBreakdown component will calculate it based on item_total + charges + taxes
-  // The FinancialBreakdown component watches itemTotal and will automatically update the amount
 };
 
 // Helper function to update financial_breakdown for advance payment invoices
@@ -4416,22 +4445,14 @@ const handleFinancialBreakdownUpdate = (updates: Record<string, any>) => {
   // We just need to update the form with the updates
   const updatedForm = { ...props.form };
   
-  // Get the amount from financial_breakdown.totals.amount BEFORE updating the form
-  // This is the exact value displayed in FinancialBreakdown component
-  // Priority: 1. updates.financial_breakdown.totals.amount (the displayed value), 2. updates.amount (fallback)
-  let calculatedAmount: any = null;
+  const invoiceType = String(props.form.invoice_type || '').toUpperCase();
+  const isHoldbackInvoice = invoiceType === 'AGAINST_HOLDBACK_AMOUNT';
   
-  // First, try to get from updates.financial_breakdown.totals.amount (this is what's displayed)
-  const fb = updates.financial_breakdown;
-  if (fb && typeof fb === 'object' && fb.totals) {
-    // Use totals.amount which is the final calculated total displayed in FinancialBreakdown
-    // This is the exact same value shown in the "Total Invoice Amount" field in FinancialBreakdown
-    calculatedAmount = fb.totals.amount ?? fb.totals.total_invoice_amount;
-  }
-  
-  // Fallback to updates.amount if not found in financial_breakdown
-  if ((calculatedAmount === null || calculatedAmount === undefined || calculatedAmount === '') && updates.amount !== null && updates.amount !== undefined && updates.amount !== '') {
-    calculatedAmount = updates.amount;
+  if (isHoldbackInvoice) {
+    console.log('[VendorInvoiceForm] handleFinancialBreakdownUpdate for AGAINST_HOLDBACK_AMOUNT');
+    console.log('[VendorInvoiceForm] Current form.amount:', props.form.amount);
+    console.log('[VendorInvoiceForm] Current holdbackReleaseAmountTotal.value:', holdbackReleaseAmountTotal.value);
+    console.log('[VendorInvoiceForm] updates:', updates);
   }
   
   // Now update the form with all updates
@@ -4439,16 +4460,86 @@ const handleFinancialBreakdownUpdate = (updates: Record<string, any>) => {
     updatedForm[key] = updates[key];
   });
   
-  // Always update the amount field to match FinancialBreakdown's calculated total
-  // This is the single source of truth for the invoice amount
-  // Use the exact value from FinancialBreakdown (already rounded by FinancialBreakdown)
-  if (calculatedAmount !== null && calculatedAmount !== undefined && calculatedAmount !== '') {
-    const amountNum = parseNumericInput(calculatedAmount);
-    // Use the exact value from FinancialBreakdown - it's already rounded, so don't round again
-    updatedForm.amount = amountNum;
+  // For holdback invoices, ensure item_total matches the release amount total
+  // and recalculate amount from item_total + charges_total + tax_total
+  if (isHoldbackInvoice) {
+    // Ensure financial_breakdown structure exists
+    if (!updatedForm.financial_breakdown || typeof updatedForm.financial_breakdown === 'object') {
+      // If it's already an object, use it; otherwise initialize
+      if (typeof updatedForm.financial_breakdown === 'string') {
+        try {
+          updatedForm.financial_breakdown = JSON.parse(updatedForm.financial_breakdown);
+        } catch (e) {
+          updatedForm.financial_breakdown = { totals: {} };
+        }
+      }
+      if (!updatedForm.financial_breakdown || typeof updatedForm.financial_breakdown !== 'object') {
+        updatedForm.financial_breakdown = { totals: {} };
+      }
+    }
+    if (!updatedForm.financial_breakdown.totals) {
+      updatedForm.financial_breakdown.totals = {};
+    }
+    
+    // Use the release amount total as item_total (this is the source of truth for holdback invoices)
+    // ALWAYS use holdbackReleaseAmountTotal.value, not the value from updates
+    const releaseAmountTotal = holdbackReleaseAmountTotal.value || 0;
+    console.log('[VendorInvoiceForm] Using releaseAmountTotal from holdbackReleaseAmountTotal.value:', releaseAmountTotal);
+    
+    // Update item_total with the release amount total
+    updatedForm.financial_breakdown.totals.item_total = releaseAmountTotal;
+    console.log('[VendorInvoiceForm] Updated item_total from release amount total:', releaseAmountTotal);
+    
+    // Get charges and tax from the UPDATED form (after applying updates), not from the updates object
+    // This ensures we use the latest values
+    const chargesTotal = parseFloat(updatedForm.financial_breakdown.totals.charges_total || '0') || 0;
+    const taxTotal = parseFloat(updatedForm.financial_breakdown.totals.tax_total || '0') || 0;
+    const calculatedTotal = releaseAmountTotal + chargesTotal + taxTotal;
+    
+    console.log('[VendorInvoiceForm] Recalculated total for holdback invoice:');
+    console.log('[VendorInvoiceForm]   item_total (from release):', releaseAmountTotal);
+    console.log('[VendorInvoiceForm]   charges_total:', chargesTotal);
+    console.log('[VendorInvoiceForm]   tax_total:', taxTotal);
+    console.log('[VendorInvoiceForm]   calculatedTotal:', calculatedTotal);
+    
+    // Update the amount and total_invoice_amount
+    updatedForm.financial_breakdown.totals.amount = calculatedTotal;
+    updatedForm.financial_breakdown.totals.total_invoice_amount = calculatedTotal;
+    updatedForm.amount = calculatedTotal;
+    
+    console.log('[VendorInvoiceForm] Final updatedForm.amount:', updatedForm.amount);
+    console.log('[VendorInvoiceForm] Final updatedForm.financial_breakdown.totals:', updatedForm.financial_breakdown.totals);
   } else {
-    // If no calculated amount, set to 0
-    updatedForm.amount = 0;
+    // For non-holdback invoices, use the standard logic
+    // Get the amount from financial_breakdown.totals.amount BEFORE updating the form
+    // This is the exact value displayed in FinancialBreakdown component
+    // Priority: 1. updates.financial_breakdown.totals.amount (the displayed value), 2. updates.amount (fallback)
+    let calculatedAmount: any = null;
+    
+    // First, try to get from updates.financial_breakdown.totals.amount (this is what's displayed)
+    const fb = updates.financial_breakdown;
+    if (fb && typeof fb === 'object' && fb.totals) {
+      // Use totals.amount which is the final calculated total displayed in FinancialBreakdown
+      // This is the exact same value shown in the "Total Invoice Amount" field in FinancialBreakdown
+      calculatedAmount = fb.totals.amount ?? fb.totals.total_invoice_amount;
+    }
+    
+    // Fallback to updates.amount if not found in financial_breakdown
+    if ((calculatedAmount === null || calculatedAmount === undefined || calculatedAmount === '') && updates.amount !== null && updates.amount !== undefined && updates.amount !== '') {
+      calculatedAmount = updates.amount;
+    }
+    
+    // Always update the amount field to match FinancialBreakdown's calculated total
+    // This is the single source of truth for the invoice amount
+    // Use the exact value from FinancialBreakdown (already rounded by FinancialBreakdown)
+    if (calculatedAmount !== null && calculatedAmount !== undefined && calculatedAmount !== '') {
+      const amountNum = parseNumericInput(calculatedAmount);
+      // Use the exact value from FinancialBreakdown - it's already rounded, so don't round again
+      updatedForm.amount = amountNum;
+    } else {
+      // If no calculated amount, set to 0
+      updatedForm.amount = 0;
+    }
   }
   
   emit('update:form', updatedForm);
