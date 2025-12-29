@@ -162,7 +162,7 @@
       </UButton>
     </div>
 
-    <div v-if="changeOrders.length && hasPermission('co_view') && shouldShowPagination(filteredChangeOrders.length).value" class="mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+    <div v-if="changeOrders.length && hasPermission('co_view') && shouldShowServerPagination" class="mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
       <div class="flex items-center gap-2">
         <span class="text-sm text-gray-600">Show:</span>
         <USelect
@@ -175,9 +175,14 @@
           @change="updatePageSize(table)"
         />
       </div>
-      <UPagination v-bind="getPaginationProps(table)" />
+      <UPagination 
+        :default-page="serverPaginationPage"
+        :items-per-page="pagination.pageSize"
+        :total="serverPaginationTotal"
+        @update:page="handleServerPageChange"
+      />
       <div class="text-sm text-gray-600">
-        {{ getPageInfo(table, 'change orders').value }}
+        {{ serverPageInfo }}
       </div>
     </div>
 
@@ -621,6 +626,70 @@ const { openChangeOrderPrint } = useChangeOrderPrint()
 const shipViaStore = useShipViaStore()
 const projectAddressesStore = useProjectAddressesStore()
 const table = useTemplateRef<any>('table')
+
+// Server-side pagination support
+const serverPaginationInfo = computed(() => {
+  if (!selectedCorporationId.value) return null
+  return changeOrdersStore.getPaginationInfo(selectedCorporationId.value)
+})
+
+const serverPaginationTotal = computed(() => {
+  return serverPaginationInfo.value?.totalRecords || filteredChangeOrders.value.length
+})
+
+const serverPaginationPage = computed(() => {
+  if (!table.value?.tableApi) return 1
+  return (table.value.tableApi.getState().pagination.pageIndex || 0) + 1
+})
+
+const shouldShowServerPagination = computed(() => {
+  return serverPaginationTotal.value > 10
+})
+
+const serverPageInfo = computed(() => {
+  const pageIndex = table.value?.tableApi?.getState().pagination.pageIndex || 0
+  const pageSize = pagination.value.pageSize || 10
+  const total = serverPaginationTotal.value
+  const start = pageIndex * pageSize + 1
+  const end = Math.min((pageIndex + 1) * pageSize, total)
+  return `Showing ${start} to ${end} of ${total} change orders`
+})
+
+// Handle server-side pagination page changes
+const handleServerPageChange = async (newPage: number) => {
+  if (!table.value?.tableApi || !selectedCorporationId.value) return
+  
+  const pageIndex = newPage - 1
+  table.value.tableApi.setPageIndex(pageIndex)
+  
+  // Calculate which API page we need based on the table's page size
+  const tablePageSize = pagination.value.pageSize || 10
+  const apiPageSize = 100 // API page size
+  
+  // Check if we need to load this page
+  const paginationInfo = serverPaginationInfo.value
+  if (paginationInfo && paginationInfo.hasMore) {
+    // Check if we've already loaded enough data for this page
+    let loadedCount = changeOrders.value.filter((c: any) => 
+      String(c.corporation_uuid) === String(selectedCorporationId.value)
+    ).length
+    
+    const neededCount = pageIndex * tablePageSize + tablePageSize
+    if (neededCount > loadedCount) {
+      // Load more pages until we have enough data
+      let currentApiPage = Math.floor(loadedCount / apiPageSize) + 1
+      while (neededCount > loadedCount && paginationInfo.hasMore && currentApiPage <= paginationInfo.totalPages) {
+        await changeOrdersStore.fetchChangeOrders(selectedCorporationId.value, false, currentApiPage, apiPageSize)
+        const newLoadedCount = changeOrders.value.filter((c: any) => 
+          String(c.corporation_uuid) === String(selectedCorporationId.value)
+        ).length
+        if (newLoadedCount === loadedCount) break // No new data loaded
+        loadedCount = newLoadedCount
+        currentApiPage++
+      }
+    }
+  }
+}
 
 // Watch for corporation changes and fetch change orders
 watch(

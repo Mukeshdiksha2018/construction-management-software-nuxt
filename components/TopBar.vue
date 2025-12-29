@@ -163,108 +163,62 @@ const buildContextSignature = (corporationId: string) => {
 };
 
 /**
- * Fetch all pages of purchase orders for a corporation
+ * Fetch the first page of purchase orders for a corporation
+ * Additional pages will be fetched on-demand when users navigate to them
  */
-const fetchAllPurchaseOrdersPages = async (
+const fetchFirstPagePurchaseOrders = async (
   corporationId: string,
   force: boolean
 ): Promise<void> => {
   const pageSize = 100;
-  let currentPage = 1;
-  let hasMore = true;
-
-  while (hasMore) {
-    // When forcing refresh, always fetch from API (skip cache check)
-    // For subsequent pages, only force if we're forcing everything
-    await purchaseOrdersStore.fetchPurchaseOrders(
-      corporationId,
-      force, // Force refresh all pages when force=true
-      currentPage,
-      pageSize
-    );
-
-    const paginationInfo = purchaseOrdersStore.getPaginationInfo(corporationId);
-    if (paginationInfo) {
-      if (paginationInfo.hasMore && currentPage < paginationInfo.totalPages) {
-        currentPage++;
-        hasMore = true;
-      } else {
-        hasMore = false;
-      }
-    } else {
-      // If no pagination info, assume only one page was returned
-      hasMore = false;
-    }
-  }
+  const page = 1;
+  
+  // Only fetch the first page - components can load more pages on-demand
+  await purchaseOrdersStore.fetchPurchaseOrders(
+    corporationId,
+    force,
+    page,
+    pageSize
+  );
 };
 
 /**
- * Fetch all pages of change orders for a corporation
+ * Fetch the first page of change orders for a corporation
+ * Additional pages will be fetched on-demand when users navigate to them
  */
-const fetchAllChangeOrdersPages = async (
+const fetchFirstPageChangeOrders = async (
   corporationId: string,
   force: boolean
 ): Promise<void> => {
   const pageSize = 100;
-  let currentPage = 1;
-  let hasMore = true;
-
-  while (hasMore) {
-    // When forcing refresh, always fetch from API (skip cache check)
-    // For subsequent pages, only force if we're forcing everything
-    await changeOrdersStore.fetchChangeOrders(
-      corporationId,
-      force, // Force refresh all pages when force=true
-      currentPage,
-      pageSize
-    );
-
-    const paginationInfo = changeOrdersStore.getPaginationInfo(corporationId);
-    if (paginationInfo) {
-      if (paginationInfo.hasMore && currentPage < paginationInfo.totalPages) {
-        currentPage++;
-        hasMore = true;
-      } else {
-        hasMore = false;
-      }
-    } else {
-      // If no pagination info, assume only one page was returned
-      hasMore = false;
-    }
-  }
+  const page = 1;
+  
+  // Only fetch the first page - components can load more pages on-demand
+  await changeOrdersStore.fetchChangeOrders(
+    corporationId,
+    force,
+    page,
+    pageSize
+  );
 };
 
 /**
- * Fetch all pages of estimates for a corporation
+ * Fetch the first page of estimates for a corporation
+ * Additional pages will be fetched on-demand when users navigate to them
  */
-const fetchAllEstimatesPages = async (
+const fetchFirstPageEstimates = async (
   corporationId: string,
   force: boolean
 ): Promise<void> => {
   const pageSize = 100;
-  let currentPage = 1;
-  let hasMore = true;
-
-  while (hasMore) {
-    await estimatesStore.refreshEstimatesFromAPI(
-      corporationId,
-      currentPage,
-      pageSize
-    );
-
-    const paginationInfo = estimatesStore.getPaginationInfo(corporationId);
-    if (paginationInfo) {
-      if (paginationInfo.hasMore && currentPage < paginationInfo.totalPages) {
-        currentPage++;
-        hasMore = true;
-      } else {
-        hasMore = false;
-      }
-    } else {
-      // If no pagination info, assume only one page was returned
-      hasMore = false;
-    }
-  }
+  const page = 1;
+  
+  // Only fetch the first page - components can load more pages on-demand
+  await estimatesStore.refreshEstimatesFromAPI(
+    corporationId,
+    page,
+    pageSize
+  );
 };
 
 const ensurePurchaseOrdersForCorporation = async (
@@ -289,7 +243,7 @@ const ensurePurchaseOrdersForCorporation = async (
     return purchaseOrdersPromise;
   }
 
-  purchaseOrdersPromise = fetchAllPurchaseOrdersPages(normalizedId, force)
+  purchaseOrdersPromise = fetchFirstPagePurchaseOrders(normalizedId, force)
     .then(() => {
       lastFetchedPurchaseOrdersSignature.value = signature;
     })
@@ -370,7 +324,7 @@ const ensureChangeOrdersForCorporation = async (
     return changeOrdersPromise;
   }
 
-  changeOrdersPromise = fetchAllChangeOrdersPages(normalizedId, force)
+  changeOrdersPromise = fetchFirstPageChangeOrders(normalizedId, force)
     .then(() => {
       lastFetchedChangeOrdersSignature.value = signature;
     })
@@ -529,9 +483,10 @@ const ensureEstimatesForCorporation = async (
     return estimatesPromise;
   }
 
-  // Fetch all pages of estimates from API and update both store and IndexedDB
+  // Fetch the first page of estimates from API and update both store and IndexedDB
   // This ensures the store is updated reactively for the Estimates component
-  estimatesPromise = fetchAllEstimatesPages(normalizedId, force)
+  // Additional pages will be fetched on-demand when users navigate to them
+  estimatesPromise = fetchFirstPageEstimates(normalizedId, force)
     .then(() => {
       lastFetchedEstimatesSignature.value = signature;
     })

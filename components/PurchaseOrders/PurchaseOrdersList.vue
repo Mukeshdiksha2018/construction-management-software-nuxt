@@ -315,6 +315,31 @@
           </div>
         </template>
       </UTable>
+      
+      <!-- Server-side Pagination -->
+      <div v-if="shouldShowServerPagination" class="mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div class="flex items-center gap-2">
+          <span class="text-sm text-gray-600">Show:</span>
+          <USelect
+            v-model="pagination.pageSize"
+            :items="pageSizeOptions"
+            icon="i-heroicons-list-bullet"
+            size="sm"
+            variant="outline"
+            class="w-32"
+            @change="updatePageSize(table)"
+          />
+        </div>
+        <UPagination 
+          :default-page="serverPaginationPage"
+          :items-per-page="pagination.pageSize"
+          :total="paginationTotal"
+          @update:page="handleServerPageChange"
+        />
+        <div class="text-sm text-gray-600">
+          {{ serverPageInfo }}
+        </div>
+      </div>
     </div>
 
     <div v-else-if="!hasPermission('po_view') && isReady && !loading" class="text-center py-12">
@@ -937,6 +962,115 @@ const isSaveDraftButtonDisabled = computed(() => {
 
 // Computed
 const selectedCorporationId = computed(() => corporationStore.selectedCorporationId)
+
+// Server-side pagination support
+const serverPaginationInfo = computed(() => {
+  if (!selectedCorporationId.value) return null
+  return purchaseOrdersStore.getPaginationInfo(selectedCorporationId.value)
+})
+
+// Check if any filters are active
+const hasActiveFilters = computed(() => {
+  const useFilterInputs = selectedStatusFilter.value === null || selectedStatusFilter.value === undefined
+  const activeCorporation = useFilterInputs ? filterCorporation.value : appliedFilters.value.corporation
+  const activeProject = useFilterInputs ? filterProject.value : appliedFilters.value.project
+  const activeVendor = useFilterInputs ? filterVendor.value : appliedFilters.value.vendor
+  const activeLocation = useFilterInputs ? filterLocation.value : appliedFilters.value.location
+  const activeStatus = useFilterInputs ? filterStatus.value : appliedFilters.value.status
+  
+  return !!(selectedStatusFilter.value || activeCorporation || activeProject || activeVendor || activeLocation || activeStatus)
+})
+
+// Total records: use filtered length when filters are active, otherwise use server total
+const paginationTotal = computed(() => {
+  if (hasActiveFilters.value) {
+    // When filters are active, paginate based on filtered data
+    return filteredPurchaseOrders.value.length
+  }
+  // When no filters, use server total to show all available records
+  return serverPaginationInfo.value?.totalRecords || filteredPurchaseOrders.value.length
+})
+
+// Server total (for display purposes - shows total available in DB)
+const serverPaginationTotal = computed(() => {
+  return serverPaginationInfo.value?.totalRecords || 0
+})
+
+const serverPaginationPage = computed(() => {
+  if (!table.value?.tableApi) return 1
+  return (table.value.tableApi.getState().pagination.pageIndex || 0) + 1
+})
+
+const shouldShowServerPagination = computed(() => {
+  // Show pagination if we have filtered data or server total indicates more records
+  const filteredCount = filteredPurchaseOrders.value.length
+  const serverTotal = serverPaginationTotal.value
+  return filteredCount > 10 || (serverTotal > 0 && serverTotal > filteredCount)
+})
+
+const serverPageInfo = computed(() => {
+  const pageIndex = table.value?.tableApi?.getState().pagination.pageIndex || 0
+  const pageSize = pagination.value.pageSize || 10
+  const filteredCount = filteredPurchaseOrders.value.length
+  const serverTotal = serverPaginationTotal.value
+  
+  // Calculate start/end based on filtered data
+  const start = Math.min(pageIndex * pageSize + 1, filteredCount)
+  const end = Math.min((pageIndex + 1) * pageSize, filteredCount)
+  
+  // Show filtered count, but also show server total if different (indicates more records available)
+  if (hasActiveFilters.value) {
+    if (serverTotal > filteredCount) {
+      return `Showing ${start} to ${end} of ${filteredCount} filtered (${serverTotal} total) purchase orders`
+    }
+    return `Showing ${start} to ${end} of ${filteredCount} purchase orders`
+  } else {
+    // No filters: show server total
+    return `Showing ${start} to ${end} of ${serverTotal || filteredCount} purchase orders`
+  }
+})
+
+// Handle server-side pagination page changes
+const handleServerPageChange = async (newPage: number) => {
+  if (!table.value?.tableApi || !selectedCorporationId.value) return
+  
+  const pageIndex = newPage - 1
+  table.value.tableApi.setPageIndex(pageIndex)
+  
+  // If filters are active, we're doing client-side pagination on filtered data
+  // No need to load more from API
+  if (hasActiveFilters.value) {
+    return
+  }
+  
+  // No filters: load more data from API if needed
+  const tablePageSize = pagination.value.pageSize || 10
+  const apiPageSize = 100 // API page size
+  
+  // Check if we need to load this page
+  const paginationInfo = serverPaginationInfo.value
+  if (paginationInfo && paginationInfo.hasMore) {
+    // Check if we've already loaded enough data for this page
+    let loadedCount = purchaseOrders.value.filter((po: any) => 
+      String(po.corporation_uuid) === String(selectedCorporationId.value)
+    ).length
+    
+    const neededCount = pageIndex * tablePageSize + tablePageSize
+    if (neededCount > loadedCount) {
+      // Load more pages until we have enough data
+      let currentApiPage = Math.floor(loadedCount / apiPageSize) + 1
+      while (neededCount > loadedCount && paginationInfo.hasMore && currentApiPage <= paginationInfo.totalPages) {
+        await purchaseOrdersStore.fetchPurchaseOrders(selectedCorporationId.value, false, currentApiPage, apiPageSize)
+        const newLoadedCount = purchaseOrders.value.filter((po: any) => 
+          String(po.corporation_uuid) === String(selectedCorporationId.value)
+        ).length
+        if (newLoadedCount === loadedCount) break // No new data loaded
+        loadedCount = newLoadedCount
+        currentApiPage++
+      }
+    }
+  }
+}
 
 const corporationNameByUuid = computed<Record<string, string>>(() => {
   const list = corporationStore.corporations || []
@@ -3679,6 +3813,20 @@ watch(showFormModal, (isOpen, wasOpen) => {
     isFormValid.value = false
   }
 });
+
+// Watch for filter changes to reset pagination to page 1
+watch([selectedStatusFilter, filterCorporation, filterProject, filterVendor, filterLocation, filterStatus, appliedFilters], () => {
+  if (table.value?.tableApi) {
+    table.value.tableApi.setPageIndex(0)
+  }
+}, { deep: true })
+
+// Watch for page size changes to reset to page 1
+watch(() => pagination.value.pageSize, () => {
+  if (table.value?.tableApi) {
+    table.value.tableApi.setPageIndex(0)
+  }
+})
 
 // Watch for corporation filter changes to fetch projects
 watch(() => filterCorporation.value, async (newCorpUuid, oldCorpUuid) => {
