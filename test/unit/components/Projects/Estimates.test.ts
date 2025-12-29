@@ -267,8 +267,10 @@ describe("Estimates", () => {
       estimates: [...originalEstimates],
       loading: false,
       error: null,
+      paginationInfo: { value: {} },
       fetchEstimates: vi.fn().mockResolvedValue(undefined),
       refreshEstimatesFromAPI: vi.fn().mockResolvedValue(undefined),
+      getPaginationInfo: vi.fn(() => null),
       deleteEstimate: vi.fn().mockResolvedValue(true),
     } as any);
 
@@ -401,8 +403,10 @@ describe("Estimates", () => {
         estimates: [],
         loading: true,
         error: null,
+        paginationInfo: { value: {} },
         fetchEstimates: vi.fn().mockResolvedValue(undefined),
         refreshEstimatesFromAPI: vi.fn().mockResolvedValue(undefined),
+        getPaginationInfo: vi.fn(() => null),
         deleteEstimate: vi.fn().mockResolvedValue(true),
       } as any);
 
@@ -419,8 +423,10 @@ describe("Estimates", () => {
         estimates: [],
         loading: false,
         error: "Failed to load estimates",
+        paginationInfo: { value: {} },
         fetchEstimates: vi.fn().mockResolvedValue(undefined),
         refreshEstimatesFromAPI: vi.fn().mockResolvedValue(undefined),
+        getPaginationInfo: vi.fn(() => null),
         deleteEstimate: vi.fn().mockResolvedValue(true),
       } as any);
 
@@ -444,8 +450,10 @@ describe("Estimates", () => {
         estimates: [],
         loading: false,
         error: null,
+        paginationInfo: { value: {} },
         fetchEstimates: vi.fn().mockResolvedValue(undefined),
         refreshEstimatesFromAPI: vi.fn().mockResolvedValue(undefined),
+        getPaginationInfo: vi.fn(() => null),
         deleteEstimate: vi.fn().mockResolvedValue(true),
       } as any);
 
@@ -719,8 +727,10 @@ describe("Estimates", () => {
         estimates: mockEstimates,
         loading: false,
         error: "Failed to delete estimate",
+        paginationInfo: { value: {} },
         fetchEstimates: vi.fn().mockResolvedValue(undefined),
         refreshEstimatesFromAPI: vi.fn().mockResolvedValue(undefined),
+        getPaginationInfo: vi.fn(() => null),
         deleteEstimate: vi.fn().mockRejectedValue(new Error('Failed to delete estimate')),
       } as any;
 
@@ -744,8 +754,10 @@ describe("Estimates", () => {
         estimates: [],
         loading: false,
         error: "Failed to fetch estimates",
+        paginationInfo: { value: {} },
         fetchEstimates: vi.fn().mockRejectedValue(new Error("Network error")),
         refreshEstimatesFromAPI: vi.fn().mockResolvedValue(undefined),
+        getPaginationInfo: vi.fn(() => null),
         deleteEstimate: vi.fn().mockResolvedValue(true),
       } as any);
 
@@ -759,8 +771,10 @@ describe("Estimates", () => {
         estimates: [],
         loading: false,
         error: null,
+        paginationInfo: { value: {} },
         fetchEstimates: vi.fn().mockResolvedValue(undefined),
         refreshEstimatesFromAPI: vi.fn().mockResolvedValue(undefined),
+        getPaginationInfo: vi.fn(() => null),
         deleteEstimate: vi.fn().mockResolvedValue(true),
       } as any);
 
@@ -925,8 +939,10 @@ describe("Estimates", () => {
         estimates: [incompleteEstimate],
         loading: false,
         error: null,
+        paginationInfo: { value: {} },
         fetchEstimates: vi.fn().mockResolvedValue(undefined),
         refreshEstimatesFromAPI: vi.fn().mockResolvedValue(undefined),
+        getPaginationInfo: vi.fn(() => null),
         deleteEstimate: vi.fn().mockResolvedValue(true),
       } as any);
 
@@ -956,8 +972,10 @@ describe("Estimates", () => {
         estimates: largeEstimatesList,
         loading: false,
         error: null,
+        paginationInfo: { value: {} },
         fetchEstimates: vi.fn().mockResolvedValue(undefined),
         refreshEstimatesFromAPI: vi.fn().mockResolvedValue(undefined),
+        getPaginationInfo: vi.fn(() => null),
         deleteEstimate: vi.fn().mockResolvedValue(true),
       } as any);
 
@@ -991,8 +1009,10 @@ describe("Estimates", () => {
         estimates: [...originalEstimates],
         loading: false,
         error: null,
+        paginationInfo: { value: {} },
         fetchEstimates: vi.fn().mockResolvedValue(undefined),
         refreshEstimatesFromAPI: vi.fn().mockResolvedValue(undefined),
+        getPaginationInfo: vi.fn(() => null),
         deleteEstimate: vi.fn().mockResolvedValue(true),
       } as any);
     });
@@ -1156,8 +1176,10 @@ describe("Estimates", () => {
         estimates: estimatesWithMissingFinal,
         loading: false,
         error: null,
+        paginationInfo: { value: {} },
         fetchEstimates: vi.fn().mockResolvedValue(undefined),
         refreshEstimatesFromAPI: vi.fn().mockResolvedValue(undefined),
+        getPaginationInfo: vi.fn(() => null),
         deleteEstimate: vi.fn().mockResolvedValue(true),
       } as any);
 
@@ -1196,8 +1218,10 @@ describe("Estimates", () => {
         estimates: estimatesWithZeroAmount,
         loading: false,
         error: null,
+        paginationInfo: { value: {} },
         fetchEstimates: vi.fn().mockResolvedValue(undefined),
         refreshEstimatesFromAPI: vi.fn().mockResolvedValue(undefined),
+        getPaginationInfo: vi.fn(() => null),
         deleteEstimate: vi.fn().mockResolvedValue(true),
       } as any);
 

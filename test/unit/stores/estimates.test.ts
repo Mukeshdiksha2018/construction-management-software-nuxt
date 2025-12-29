@@ -128,15 +128,22 @@ describe('Estimates Store', () => {
         },
       ];
 
-      // Mock API response
+      // Mock API response with pagination
       vi.mocked(global.$fetch).mockResolvedValue({
         data: mockEstimates,
+        pagination: {
+          page: 1,
+          pageSize: 100,
+          totalRecords: 1,
+          totalPages: 1,
+          hasMore: false,
+        },
       });
 
       const { dbHelpers } = await import("@/utils/indexedDb");
       vi.mocked(dbHelpers.storeEstimates).mockResolvedValue(undefined);
 
-      await estimatesStore.refreshEstimatesFromAPI("test-corp-uuid");
+      await estimatesStore.refreshEstimatesFromAPI("test-corp-uuid", 1, 100);
 
       expect(global.$fetch).toHaveBeenCalledWith("/api/estimates", {
         method: "GET",
@@ -144,6 +151,10 @@ describe('Estimates Store', () => {
       });
       expect(dbHelpers.storeEstimates).toHaveBeenCalledWith(mockEstimates);
       expect(estimatesStore.estimates).toEqual(mockEstimates);
+      // Verify pagination info is stored
+      const paginationInfo = estimatesStore.getPaginationInfo("test-corp-uuid");
+      expect(paginationInfo).toBeTruthy();
+      expect(paginationInfo?.totalRecords).toBe(1);
       // Loading should be false after successful refresh
       expect(estimatesStore.loading).toBe(false);
       expect(estimatesStore.error).toBe(null);
@@ -152,7 +163,7 @@ describe('Estimates Store', () => {
     it("should handle API errors during refresh", async () => {
       vi.mocked(global.$fetch).mockRejectedValue(new Error("API Error"));
 
-      await estimatesStore.refreshEstimatesFromAPI("test-corp-uuid");
+      await estimatesStore.refreshEstimatesFromAPI("test-corp-uuid", 1, 100);
 
       // The method sets error state when API fails
       expect(estimatesStore.error).toBe("Failed to refresh estimates");
@@ -168,7 +179,7 @@ describe('Estimates Store', () => {
       );
 
       const refreshPromise =
-        estimatesStore.refreshEstimatesFromAPI("test-corp-uuid");
+        estimatesStore.refreshEstimatesFromAPI("test-corp-uuid", 1, 100);
 
       // The method sets loading state to true during refresh
       expect(estimatesStore.loading).toBe(true);

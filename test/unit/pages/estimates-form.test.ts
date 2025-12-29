@@ -146,7 +146,9 @@ describe("Estimate Form Page", () => {
       getEstimateByUuid: vi.fn().mockReturnValue(mockEstimate),
       createEstimate: vi.fn().mockResolvedValue(true),
       updateEstimate: vi.fn().mockResolvedValue(true),
+      paginationInfo: { value: {} },
       refreshEstimatesFromAPI: vi.fn().mockResolvedValue(undefined),
+      getPaginationInfo: vi.fn(() => null),
       fetchEstimates: vi.fn().mockResolvedValue(undefined),
       estimates: [], // Empty estimates array - will be set per test as needed
     } as any);
@@ -245,6 +247,9 @@ describe("Estimate Form Page", () => {
         getEstimateByUuid: vi.fn().mockReturnValue(null),
         createEstimate: vi.fn().mockResolvedValue(true),
         updateEstimate: vi.fn().mockResolvedValue(true),
+        paginationInfo: { value: {} },
+        refreshEstimatesFromAPI: vi.fn().mockResolvedValue(undefined),
+        getPaginationInfo: vi.fn(() => null),
       } as any);
 
       // Ensure IDB also returns null to trigger error path
@@ -644,7 +649,9 @@ describe("Estimate Form Page", () => {
         getEstimateByUuid: vi.fn().mockReturnValue(null),
         createEstimate: vi.fn().mockResolvedValue(true),
         updateEstimate: vi.fn().mockResolvedValue(true),
+        paginationInfo: { value: {} },
         refreshEstimatesFromAPI: vi.fn().mockResolvedValue(undefined),
+        getPaginationInfo: vi.fn(() => null),
         fetchEstimates: vi.fn().mockResolvedValue(undefined),
         estimates: [], // No existing estimates, so should generate ES-1
       } as any);
@@ -699,6 +706,9 @@ describe("Estimate Form Page", () => {
         getEstimateByUuid: vi.fn().mockReturnValue(null),
         createEstimate: vi.fn().mockResolvedValue(true),
         updateEstimate: vi.fn().mockResolvedValue(true),
+        paginationInfo: { value: {} },
+        refreshEstimatesFromAPI: vi.fn().mockResolvedValue(undefined),
+        getPaginationInfo: vi.fn(() => null),
       } as any);
 
       wrapper = createWrapper({ id: "non-existent" });
@@ -745,7 +755,9 @@ describe("Estimate Form Page", () => {
         getEstimateByUuid: vi.fn().mockReturnValue(null),
         createEstimate: vi.fn().mockResolvedValue(true),
         updateEstimate: vi.fn().mockResolvedValue(true),
+        paginationInfo: { value: {} },
         refreshEstimatesFromAPI: mockRefreshEstimates,
+        getPaginationInfo: vi.fn(() => null),
         fetchEstimates: mockFetchEstimates,
       } as any);
 
@@ -785,7 +797,9 @@ describe("Estimate Form Page", () => {
         getEstimateByUuid: vi.fn().mockReturnValue(mockEstimate),
         createEstimate: vi.fn().mockResolvedValue(true),
         updateEstimate: vi.fn().mockResolvedValue(true),
+        paginationInfo: { value: {} },
         refreshEstimatesFromAPI: mockRefreshEstimates,
+        getPaginationInfo: vi.fn(() => null),
         fetchEstimates: mockFetchEstimates,
       } as any);
 
@@ -932,6 +946,9 @@ describe("Estimate Form Page", () => {
         }),
         createEstimate: vi.fn().mockResolvedValue(true),
         updateEstimate: vi.fn().mockResolvedValue(true),
+        paginationInfo: { value: {} },
+        refreshEstimatesFromAPI: vi.fn().mockResolvedValue(undefined),
+        getPaginationInfo: vi.fn(() => null),
       } as any);
 
       wrapper = createWrapper({ id: "estimate-1" });
@@ -951,6 +968,9 @@ describe("Estimate Form Page", () => {
           throw new Error("Save failed");
         }),
         updateEstimate: vi.fn().mockResolvedValue(true),
+        paginationInfo: { value: {} },
+        refreshEstimatesFromAPI: vi.fn().mockResolvedValue(undefined),
+        getPaginationInfo: vi.fn(() => null),
       } as any);
 
       wrapper = createWrapper({ id: "new" });
@@ -996,6 +1016,9 @@ describe("Estimate Form Page", () => {
         getEstimateByUuid: vi.fn().mockReturnValue(mockEstimate),
         createEstimate: vi.fn().mockResolvedValue(true),
         updateEstimate: vi.fn().mockResolvedValue(true),
+        paginationInfo: { value: {} },
+        refreshEstimatesFromAPI: vi.fn().mockResolvedValue(undefined),
+        getPaginationInfo: vi.fn(() => null),
       } as any);
 
       wrapper = createWrapper({ id: "estimate-1" });
@@ -1040,6 +1063,9 @@ describe("Estimate Form Page", () => {
         getEstimateByUuid: vi.fn().mockReturnValue(null),
         createEstimate: vi.fn().mockResolvedValue(true),
         updateEstimate: vi.fn().mockResolvedValue(true),
+        paginationInfo: { value: {} },
+        refreshEstimatesFromAPI: vi.fn().mockResolvedValue(undefined),
+        getPaginationInfo: vi.fn(() => null),
       } as any);
 
       wrapper = createWrapper({ id: "estimate-1" });
@@ -1077,7 +1103,9 @@ describe("Estimate Form Page", () => {
         getEstimateByUuid: vi.fn().mockReturnValue(mockEstimate),
         createEstimate: vi.fn().mockResolvedValue(true),
         updateEstimate: vi.fn().mockResolvedValue(true),
+        paginationInfo: { value: {} },
         refreshEstimatesFromAPI: mockRefreshEstimates,
+        getPaginationInfo: vi.fn(() => null),
         fetchEstimates: mockFetchEstimates,
       } as any);
 
@@ -1115,7 +1143,9 @@ describe("Estimate Form Page", () => {
         getEstimateByUuid: vi.fn().mockReturnValue(mockEstimate),
         createEstimate: vi.fn().mockResolvedValue(false),
         updateEstimate: vi.fn().mockResolvedValue(false),
+        paginationInfo: { value: {} },
         refreshEstimatesFromAPI: vi.fn().mockResolvedValue(undefined),
+        getPaginationInfo: vi.fn(() => null),
         fetchEstimates: vi.fn().mockResolvedValue(undefined),
       } as any);
 
@@ -1144,7 +1174,9 @@ describe("Estimate Form Page", () => {
         getEstimateByUuid: vi.fn().mockReturnValue(null),
         createEstimate: mockCreateEstimate,
         updateEstimate: vi.fn().mockResolvedValue(true),
+        paginationInfo: { value: {} },
         refreshEstimatesFromAPI: mockRefreshEstimates,
+        getPaginationInfo: vi.fn(() => null),
         fetchEstimates: mockFetchEstimates,
       } as any);
 
@@ -1191,7 +1223,9 @@ describe("Estimate Form Page", () => {
         getEstimateByUuid: vi.fn().mockReturnValue(mockEstimate),
         createEstimate: vi.fn().mockResolvedValue(true),
         updateEstimate: mockUpdateEstimate,
+        paginationInfo: { value: {} },
         refreshEstimatesFromAPI: mockRefreshEstimates,
+        getPaginationInfo: vi.fn(() => null),
         fetchEstimates: mockFetchEstimates,
       } as any);
 
@@ -1229,7 +1263,9 @@ describe("Estimate Form Page", () => {
         getEstimateByUuid: vi.fn().mockReturnValue(mockEstimate),
         createEstimate: vi.fn().mockResolvedValue(true),
         updateEstimate: mockUpdateEstimate,
+        paginationInfo: { value: {} },
         refreshEstimatesFromAPI: mockRefreshEstimates,
+        getPaginationInfo: vi.fn(() => null),
         fetchEstimates: mockFetchEstimates,
       } as any);
 
@@ -1264,7 +1300,9 @@ describe("Estimate Form Page", () => {
         getEstimateByUuid: vi.fn().mockReturnValue(null),
         createEstimate: vi.fn().mockResolvedValue(true),
         updateEstimate: vi.fn().mockResolvedValue(true),
+        paginationInfo: { value: {} },
         refreshEstimatesFromAPI: vi.fn().mockResolvedValue(undefined),
+        getPaginationInfo: vi.fn(() => null),
         fetchEstimates: vi.fn().mockResolvedValue(undefined),
       } as any);
 
@@ -1491,7 +1529,9 @@ describe("Estimate Form Page", () => {
         getEstimateByUuid: vi.fn().mockReturnValue(mockEstimate),
         createEstimate: vi.fn().mockResolvedValue(true),
         updateEstimate: updateEstimateMock,
+        paginationInfo: { value: {} },
         refreshEstimatesFromAPI: mockRefreshEstimates,
+        getPaginationInfo: vi.fn(() => null),
         fetchEstimates: mockFetchEstimates,
       } as any);
 
@@ -1530,7 +1570,9 @@ describe("Estimate Form Page", () => {
         getEstimateByUuid: vi.fn().mockReturnValue(null),
         createEstimate: createEstimateMock,
         updateEstimate: vi.fn().mockResolvedValue(true),
+        paginationInfo: { value: {} },
         refreshEstimatesFromAPI: mockRefreshEstimates,
+        getPaginationInfo: vi.fn(() => null),
         fetchEstimates: mockFetchEstimates,
       } as any);
 
