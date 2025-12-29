@@ -761,6 +761,7 @@ const columns = [
     accessorKey: 'email',
     header: 'Email',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: any }) => {
       return h('div', { class: 'flex items-center gap-3' }, [
         h('div', { class: 'w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center overflow-hidden' }, 
@@ -785,6 +786,7 @@ const columns = [
     accessorKey: 'status',
     header: 'Status',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: any }) => {
       const statusConfig = {
         pending: { class: 'bg-warning/10 text-warning', label: 'Pending' },
@@ -804,6 +806,7 @@ const columns = [
     accessorKey: 'roleId',
     header: 'Role',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: any }) => {
       const role = roleStore.roles.find(r => r.id === row.original.roleId);
       return h('span', { class: 'text-sm text-default' }, role ? role.role_name : 'No role assigned');
@@ -813,6 +816,7 @@ const columns = [
     accessorKey: 'createdAt',
     header: 'Created',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: any }) => {
       return h('span', { class: 'text-sm text-muted' }, formatDate(row.original.createdAt));
     }
@@ -821,6 +825,7 @@ const columns = [
     accessorKey: 'lastSignIn',
     header: 'Last Sign In',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: any }) => {
       if (!row.original.lastSignIn) {
         return h('span', { class: 'text-sm text-muted' }, 'Never');
@@ -832,6 +837,7 @@ const columns = [
     accessorKey: 'actions',
     header: 'Actions',
     enableSorting: false,
+    meta: { class: { th: 'text-right sticky right-0 z-10 w-32', td: 'text-right sticky right-0 w-32' } },
     cell: ({ row }: { row: any }) => {
       const buttons = [];
       

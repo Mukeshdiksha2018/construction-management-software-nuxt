@@ -369,6 +369,7 @@ const columns = [
     accessorKey: 'role_name',
     header: 'Role Name',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: { original: any } }) => {
       const isSuperAdminRole = row.original.role_name === 'Super Admin';
       const isDisabled = isSuperAdminRole && !isCurrentUserSuperAdmin.value;
@@ -401,6 +402,7 @@ const columns = [
     accessorKey: 'user_count',
     header: 'Users',
     enableSorting: false,
+    meta: { class: { th: 'text-center', td: 'text-center' } },
     cell: ({ row }: { row: { original: any } }) => {
       const isSuperAdminRole = row.original.role_name === 'Super Admin';
       const isDisabled = isSuperAdminRole && !isCurrentUserSuperAdmin.value;
@@ -416,6 +418,7 @@ const columns = [
     accessorKey: 'status',
     header: 'Status',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: { original: any } }) => {
       const isSuperAdminRole = row.original.role_name === 'Super Admin';
       const isDisabled = isSuperAdminRole && !isCurrentUserSuperAdmin.value;
@@ -440,6 +443,7 @@ const columns = [
     accessorKey: 'created_at',
     header: 'Created',
     enableSorting: false,
+    meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: { original: any } }) => {
       const isSuperAdminRole = row.original.role_name === 'Super Admin';
       const isDisabled = isSuperAdminRole && !isCurrentUserSuperAdmin.value;
@@ -453,6 +457,7 @@ const columns = [
     accessorKey: 'actions',
     header: 'Actions',
     enableSorting: false,
+    meta: { class: { th: 'text-right sticky right-0 z-10 w-32', td: 'text-right sticky right-0 w-32' } },
     cell: ({ row }: { row: { original: any } }) => {
       const isSuperAdminRole = row.original.role_name === 'Super Admin';
       const isDisabled = isSuperAdminRole && !isCurrentUserSuperAdmin.value;
