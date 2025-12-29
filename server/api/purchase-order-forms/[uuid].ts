@@ -39,12 +39,18 @@ export default defineEventHandler(async (event) => {
       const decoratedData = decoratePurchaseOrderRecord({ ...data });
       
       // Add metadata fields for easy access in the list view
+      // Always set these fields, even if null, for consistency
       if ((data as any).project) {
         (decoratedData as any).project_name = (data as any).project.project_name || null;
         (decoratedData as any).project_id = (data as any).project.project_id || null;
+      } else {
+        (decoratedData as any).project_name = null;
+        (decoratedData as any).project_id = null;
       }
       if ((data as any).vendor) {
         (decoratedData as any).vendor_name = (data as any).vendor.vendor_name || null;
+      } else {
+        (decoratedData as any).vendor_name = null;
       }
       
       // If this is a LABOR PO, fetch labor items

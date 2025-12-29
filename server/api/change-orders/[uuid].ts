@@ -43,15 +43,23 @@ export default defineEventHandler(async (event) => {
       const decorated = decorateChangeOrderRecord(data as any);
       
       // Add metadata fields for easy access in the list view
+      // Always set these fields, even if null, for consistency
       if ((data as any).project) {
         (decorated as any).project_name = (data as any).project.project_name || null;
         (decorated as any).project_id = (data as any).project.project_id || null;
+      } else {
+        (decorated as any).project_name = null;
+        (decorated as any).project_id = null;
       }
       if ((data as any).vendor) {
         (decorated as any).vendor_name = (data as any).vendor.vendor_name || null;
+      } else {
+        (decorated as any).vendor_name = null;
       }
       if ((data as any).purchase_order) {
         (decorated as any).po_number = (data as any).purchase_order.po_number || null;
+      } else {
+        (decorated as any).po_number = null;
       }
       
       return { data: decorated };
