@@ -2614,8 +2614,14 @@ const fetchPOItems = async (poUuid: string) => {
     // Wait for next tick to ensure component state is updated
     await nextTick();
     
+    // Filter out items where to_be_invoiced is zero
+    const filteredItems = mappedItems.filter((item: any) => {
+      const toBeInvoiced = parseFloat(String(item.to_be_invoiced ?? 0)) || 0;
+      return toBeInvoiced > 0;
+    });
+    
     // Create a completely new array with new object references to ensure Vue reactivity
-    poItems.value = mappedItems.map(item => ({ ...item }));
+    poItems.value = filteredItems.map(item => ({ ...item }));
     
     // Immediately sync poItems to form.po_invoice_items for saving
     // This ensures the data is available even if the watcher hasn't fired yet
