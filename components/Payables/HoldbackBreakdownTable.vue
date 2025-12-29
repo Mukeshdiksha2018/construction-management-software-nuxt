@@ -260,7 +260,7 @@ const getOriginalIndex = (rowId: string | undefined): number => {
 const filteredCostCodeRows = computed(() => {
   return costCodeRows.value.filter((row) => {
     // If no cost code or retainage amount, keep the row (user might be adding it)
-    if (!row.cost_code_uuid || !row.retainageAmount) {
+    if (!row.cost_code_uuid || !row.retainageAmount || row.retainageAmount === 0) {
       return true
     }
     
@@ -271,9 +271,12 @@ const filteredCostCodeRows = computed(() => {
     // Calculate remaining amount using original index
     const remaining = getRemainingReleaseAmount(row, originalIndex)
     
-    // Filter out rows where remaining amount is zero or less
-    // Keep rows with positive remaining amount
-    return remaining > 0
+    // Filter out rows where remaining amount is exactly zero
+    // Keep rows with:
+    // - Positive remaining amount (remaining > 0)
+    // - Negative remaining amount (over by, for error display)
+    // Filter out rows with zero remaining (remaining === 0)
+    return remaining !== 0
   })
 })
 
@@ -735,9 +738,14 @@ const processItems = async () => {
     // If we have saved data (modelValue), merge it with the rows
     if (Array.isArray(props.modelValue) && props.modelValue.length > 0) {
       const savedRowsMap = new Map<string, any>()
+      const savedRowsWithoutCostCode: any[] = [] // Store rows without cost_code_uuid
+      
       props.modelValue.forEach((savedRow: any) => {
         if (savedRow.cost_code_uuid) {
           savedRowsMap.set(savedRow.cost_code_uuid, savedRow)
+        } else {
+          // Preserve rows without cost_code_uuid (user-added empty rows)
+          savedRowsWithoutCostCode.push(savedRow)
         }
       })
 
@@ -765,7 +773,7 @@ const processItems = async () => {
         }
       })
 
-      // Add any saved rows that don't exist in current cost codes (user-added rows)
+      // Add any saved rows that don't exist in current cost codes (user-added rows with cost codes)
       savedRowsMap.forEach((savedRow, costCodeUuid) => {
         if (!costCodeMap.has(costCodeUuid)) {
           rows.push({
@@ -783,6 +791,24 @@ const processItems = async () => {
             gl_account_uuid: savedRow.gl_account_uuid || null
           })
         }
+      })
+
+      // Add saved rows without cost_code_uuid (user-added empty rows)
+      savedRowsWithoutCostCode.forEach((savedRow) => {
+        rows.push({
+          id: savedRow.id || `holdback-row-${rows.length}-${Date.now()}`,
+          cost_code_uuid: savedRow.cost_code_uuid || null,
+          cost_code_number: savedRow.cost_code_number || '',
+          cost_code_name: savedRow.cost_code_name || '',
+          cost_code_label: savedRow.cost_code_label || 
+            [savedRow.cost_code_number, savedRow.cost_code_name].filter(Boolean).join(' ').trim() || null,
+          totalAmount: savedRow.totalAmount !== undefined ? savedRow.totalAmount : (savedRow.total_amount !== undefined ? savedRow.total_amount : 0),
+          retainageAmount: savedRow.retainageAmount !== undefined ? savedRow.retainageAmount : (savedRow.retainage_amount !== undefined ? savedRow.retainage_amount : 0),
+          releaseAmount: savedRow.releaseAmount !== undefined && savedRow.releaseAmount !== null
+            ? savedRow.releaseAmount
+            : (savedRow.release_amount !== undefined && savedRow.release_amount !== null ? savedRow.release_amount : 0),
+          gl_account_uuid: savedRow.gl_account_uuid || null
+        })
       })
     }
 
@@ -1041,10 +1067,14 @@ onMounted(async () => {
   await processItems()
 })
 
-// Expose validation error to parent component
+// Expose validation error and helper methods to parent component
 defineExpose({
   hasValidationError: hasExceededReleaseAmount,
   hasExceededReleaseAmount,
+  filteredCostCodeRows,
+  getOriginalIndex,
+  getRemainingReleaseAmount,
+  costCodeRows,
 })
 </script>
 
