@@ -262,10 +262,17 @@ const initialRemainingAmounts = ref<Map<string, number>>(new Map())
 // Filter out rows where remaining amount is zero
 // Only filter based on initial remaining (at population time), not current remaining (after user input)
 // This prevents rows from disappearing when user types a release amount equal to available amount
+// IMPORTANT: When viewing an existing invoice (currentInvoiceUuid is set), show all rows regardless of remaining amount
 const filteredCostCodeRows = computed(() => {
   return costCodeRows.value.filter((row) => {
     // If no cost code or retainage amount, keep the row (user might be adding it)
     if (!row.cost_code_uuid || !row.retainageAmount || row.retainageAmount === 0) {
+      return true
+    }
+    
+    // When viewing an existing invoice, show all rows regardless of remaining amount
+    // This ensures saved holdback breakdown is visible even if all amounts were fully released
+    if (props.currentInvoiceUuid) {
       return true
     }
     
