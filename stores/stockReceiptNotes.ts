@@ -43,8 +43,17 @@ interface StockReceiptNoteResponse {
   error?: string;
 }
 
+export interface PaginationInfo {
+  page: number;
+  pageSize: number;
+  totalRecords: number;
+  totalPages: number;
+  hasMore: boolean;
+}
+
 interface StockReceiptNotesResponse {
   data: StockReceiptNote[];
+  pagination?: PaginationInfo;
   error?: string;
 }
 
@@ -81,6 +90,10 @@ export const useStockReceiptNotesStore = defineStore(
     const error = ref<string | null>(null);
     const lastFetchedCorporation = ref<string | null>(null);
     const hasDataForCorporation = ref<Set<string>>(new Set());
+    
+    // Pagination state
+    const paginationInfo = ref<Record<string, PaginationInfo>>({});
+    const loadedPages = ref<Record<string, Set<number>>>({});
 
     const replaceCorporationNotes = (
       corporationUuid: string,

@@ -42,8 +42,17 @@ interface StockReturnNoteResponse {
   error?: string;
 }
 
+export interface PaginationInfo {
+  page: number;
+  pageSize: number;
+  totalRecords: number;
+  totalPages: number;
+  hasMore: boolean;
+}
+
 interface StockReturnNotesResponse {
   data: StockReturnNote[];
+  pagination?: PaginationInfo;
   error?: string;
 }
 
@@ -80,6 +89,10 @@ export const useStockReturnNotesStore = defineStore(
     const error = ref<string | null>(null);
     const lastFetchedCorporation = ref<string | null>(null);
     const hasDataForCorporation = ref<Set<string>>(new Set());
+    
+    // Pagination state
+    const paginationInfo = ref<Record<string, PaginationInfo>>({});
+    const loadedPages = ref<Record<string, Set<number>>>({});
 
     const replaceCorporationNotes = (
       corporationUuid: string,
@@ -121,20 +134,26 @@ export const useStockReturnNotesStore = defineStore(
 
     const fetchStockReturnNotes = async (
       corporationUuid: string,
-      options: { force?: boolean; useIndexedDB?: boolean } = {}
+      forceRefresh = false,
+      page = 1,
+      pageSize = 100
     ) => {
       if (!corporationUuid) {
         return;
       }
 
-      const { force = false, useIndexedDB = true } = options;
+      const corpKey = corporationUuid;
+      if (!loadedPages.value[corpKey]) {
+        loadedPages.value[corpKey] = new Set();
+      }
 
-      if (useIndexedDB && !force) {
+      // For first page or force refresh, check if we should use IndexedDB
+      if (page === 1 && !forceRefresh) {
         await fetchFromIndexedDB(corporationUuid);
       }
 
-      let shouldFetch = force;
-      if (!shouldFetch) {
+      let shouldFetch = forceRefresh;
+      if (!shouldFetch && page === 1) {
         const hasCached = hasDataForCorporation.value.has(corporationUuid);
         shouldFetch =
           !hasCached || lastFetchedCorporation.value !== corporationUuid;
@@ -146,6 +165,9 @@ export const useStockReturnNotesStore = defineStore(
             5
           );
         }
+      } else if (!shouldFetch && page > 1) {
+        // For subsequent pages, only fetch if not already loaded
+        shouldFetch = !loadedPages.value[corpKey].has(page);
       }
 
       if (!shouldFetch) {
@@ -156,8 +178,8 @@ export const useStockReturnNotesStore = defineStore(
       error.value = null;
       try {
         const response = await $fetch<
-          StockReturnNotesResponse | StockReturnNote[] | { data?: StockReturnNote[] }
-        >(`/api/stock-return-notes?corporation_uuid=${corporationUuid}`);
+          StockReturnNotesResponse | StockReturnNote[] | { data?: StockReturnNote[]; pagination?: PaginationInfo }
+        >(`/api/stock-return-notes?corporation_uuid=${corporationUuid}&page=${page}&page_size=${pageSize}`);
 
         const notes = Array.isArray(response)
           ? response
@@ -171,11 +193,35 @@ export const useStockReturnNotesStore = defineStore(
           return_number: normalizeReturnNumber(note.return_number),
         }));
 
-        const sorted = sortNotes(normalizedNotes);
-        replaceCorporationNotes(corporationUuid, sorted);
+        // For first page, replace; for subsequent pages, merge
+        if (page === 1) {
+          const sorted = sortNotes(normalizedNotes);
+          replaceCorporationNotes(corporationUuid, sorted);
+          await dbHelpers.saveStockReturnNotes(corporationUuid, sorted);
+        } else {
+          const existingUuids = new Set(
+            getNotesForCorporation(corporationUuid).map((n) => n.uuid)
+          );
+          const newNotes = normalizedNotes.filter(
+            (note) => note.uuid && !existingUuids.has(note.uuid)
+          );
+          if (newNotes.length > 0) {
+            const existing = getNotesForCorporation(corporationUuid);
+            const sorted = sortNotes([...existing, ...newNotes]);
+            replaceCorporationNotes(corporationUuid, sorted);
+          }
+        }
+
+        // Store pagination info
+        if ((response as any)?.pagination) {
+          paginationInfo.value[corpKey] = (response as any).pagination;
+        }
+
+        // Mark this page as loaded
+        loadedPages.value[corpKey].add(page);
+
         lastFetchedCorporation.value = corporationUuid;
         hasDataForCorporation.value.add(corporationUuid);
-        await dbHelpers.saveStockReturnNotes(corporationUuid, sorted);
       } catch (err: any) {
         console.error("[StockReturnNotes] fetch error:", err);
         error.value =
@@ -185,6 +231,10 @@ export const useStockReturnNotesStore = defineStore(
       } finally {
         loading.value = false;
       }
+    };
+
+    const getPaginationInfo = (corporationUuid: string): PaginationInfo | null => {
+      return paginationInfo.value[corporationUuid] || null;
     };
 
     const getNoteByUuid = (uuid: string) =>
@@ -409,7 +459,9 @@ export const useStockReturnNotesStore = defineStore(
       stockReturnNotes: readonly(stockReturnNotes),
       loading: readonly(loading),
       error: readonly(error),
+      paginationInfo: readonly(paginationInfo),
       fetchStockReturnNotes,
+      getPaginationInfo,
       createStockReturnNote,
       updateStockReturnNote,
       deleteStockReturnNote,
