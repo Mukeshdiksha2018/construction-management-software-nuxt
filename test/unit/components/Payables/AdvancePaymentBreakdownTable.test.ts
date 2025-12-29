@@ -538,7 +538,7 @@ describe("AdvancePaymentBreakdownTable.vue", () => {
   });
 
   describe("Previously Adjusted Amounts", () => {
-    it("displays previously adjusted amounts when previouslyAdjustedCostCodes prop is provided", async () => {
+    it("displays remaining to be adjusted amount correctly when previouslyAdjustedCostCodes prop is provided", async () => {
       mockFetch.mockResolvedValueOnce({
         data: [
           {
@@ -586,11 +586,11 @@ describe("AdvancePaymentBreakdownTable.vue", () => {
 
       await flushPromises();
 
-      // Should display sum of previously adjusted amounts: 200 + 150 = 350
-      expect(wrapper.text()).toContain("$350.00");
+      // Should display remaining to be adjusted: 500 - (200 + 150) = 150
+      expect(wrapper.text()).toContain("$150.00");
     });
 
-    it("sums previously adjusted amounts across multiple invoices for same cost code", async () => {
+    it("calculates remaining to be adjusted correctly when summing previously adjusted amounts across multiple invoices for same cost code", async () => {
       mockFetch.mockResolvedValueOnce({
         data: [
           {
@@ -643,8 +643,8 @@ describe("AdvancePaymentBreakdownTable.vue", () => {
 
       await flushPromises();
 
-      // Should display sum: 100 + 150 + 50 = 300
-      expect(wrapper.text()).toContain("$300.00");
+      // Should display remaining to be adjusted: 500 - (100 + 150 + 50) = 200
+      expect(wrapper.text()).toContain("$200.00");
     });
 
     it("displays remaining to be adjusted amount correctly", async () => {
