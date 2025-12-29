@@ -1933,7 +1933,14 @@ const fetchItems = async (sourceUuid: string | null, sourceType: string | null) 
               if (rni.item_uuid) {
                 const itemUuidKey = String(rni.item_uuid).trim().toLowerCase();
                 returnNoteItemsMap.set(itemUuidKey, rni);
-              } else {
+              }
+              // Also map by base_item_uuid if it exists and is different
+              if (rni.base_item_uuid && rni.base_item_uuid !== rni.item_uuid) {
+                const baseItemUuidKey = String(rni.base_item_uuid).trim().toLowerCase();
+                // Only set if not already in map (item_uuid takes precedence)
+                if (!returnNoteItemsMap.has(baseItemUuidKey)) {
+                  returnNoteItemsMap.set(baseItemUuidKey, rni);
+                }
               }
             });
             
@@ -1993,11 +2000,30 @@ const fetchItems = async (sourceUuid: string | null, sourceType: string | null) 
       }
       
       // Filter transformed items to only include those that are in the return note
+      // Check multiple UUID fields to match against includedItemUuids
       const filteredTransformed = transformed.filter((item) => {
-        const itemUuid = item.uuid || item.base_item_uuid || item.item_uuid;
+        // Try multiple UUID fields in order of preference
+        const itemUuid = item.item_uuid || item.base_item_uuid || item.uuid;
         if (!itemUuid) return false;
         const itemUuidKey = String(itemUuid).trim().toLowerCase();
-        return includedItemUuids.has(itemUuidKey);
+        if (includedItemUuids.has(itemUuidKey)) {
+          return true;
+        }
+        // Also check base_item_uuid if it's different
+        if (item.base_item_uuid && item.base_item_uuid !== itemUuid) {
+          const baseItemUuidKey = String(item.base_item_uuid).trim().toLowerCase();
+          if (includedItemUuids.has(baseItemUuidKey)) {
+            return true;
+          }
+        }
+        // Also check uuid if it's different (for PO/CO item UUIDs)
+        if (item.uuid && item.uuid !== itemUuid) {
+          const uuidKey = String(item.uuid).trim().toLowerCase();
+          if (includedItemUuids.has(uuidKey)) {
+            return true;
+          }
+        }
+        return false;
       });
       
       // Merge return note items with filtered transformed PO/CO items

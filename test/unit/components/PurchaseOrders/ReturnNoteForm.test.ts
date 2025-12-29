@@ -1225,9 +1225,14 @@ describe("ReturnNoteForm", () => {
 
       mockFetch.mockImplementation((url: string, options?: any) => {
         if (url.includes("/api/return-note-items")) {
-          return Promise.resolve({
-            data: returnNoteItems,
-          });
+          // Check if the query includes the correct return_note_uuid
+          const query = options?.query || {};
+          if (query.return_note_uuid === "rtn-1" || url.includes("rtn-1")) {
+            return Promise.resolve({
+              data: returnNoteItems,
+            });
+          }
+          return Promise.resolve({ data: [] });
         }
         return Promise.resolve({ data: [] });
       });
@@ -1247,6 +1252,9 @@ describe("ReturnNoteForm", () => {
       // Wait for watchers and async operations (watcher has immediate: true)
       await flushPromises();
       await wrapper.vm.$nextTick();
+      await new Promise(resolve => setTimeout(resolve, 100)); // Give more time for async operations
+      await flushPromises();
+      await wrapper.vm.$nextTick();
       await flushPromises();
       await wrapper.vm.$nextTick();
       await flushPromises();
@@ -1254,6 +1262,13 @@ describe("ReturnNoteForm", () => {
 
       // Verify fetchPurchaseOrderItemsMock was called
       expect(fetchPurchaseOrderItemsMock).toHaveBeenCalledWith("po-1");
+
+      // Verify mockFetch was called for return-note-items
+      const returnNoteItemsCalls = mockFetch.mock.calls.filter((call: any) => 
+        call[0]?.includes?.("/api/return-note-items") || 
+        (typeof call[0] === 'string' && call[0].includes("/api/return-note-items"))
+      );
+      expect(returnNoteItemsCalls.length).toBeGreaterThan(0);
 
       // Access returnItems from component's internal state (it's a ref)
       const vm = wrapper.vm as any;
@@ -1338,9 +1353,14 @@ describe("ReturnNoteForm", () => {
           });
         }
         if (url.includes("/api/return-note-items")) {
-          return Promise.resolve({
-            data: returnNoteItems,
-          });
+          // Check if the query includes the correct return_note_uuid
+          const query = options?.query || {};
+          if (query.return_note_uuid === "rtn-1" || url.includes("rtn-1")) {
+            return Promise.resolve({
+              data: returnNoteItems,
+            });
+          }
+          return Promise.resolve({ data: [] });
         }
         return Promise.resolve({ data: [] });
       });
@@ -1358,6 +1378,9 @@ describe("ReturnNoteForm", () => {
       });
 
       // Wait for watchers and async operations (watcher has immediate: true)
+      await flushPromises();
+      await wrapper.vm.$nextTick();
+      await new Promise(resolve => setTimeout(resolve, 100)); // Give more time for async operations
       await flushPromises();
       await wrapper.vm.$nextTick();
       await flushPromises();
@@ -1480,11 +1503,16 @@ describe("ReturnNoteForm", () => {
 
       fetchPurchaseOrderItemsMock.mockResolvedValue(allPOItems);
 
-      mockFetch.mockImplementation((url: string) => {
+      mockFetch.mockImplementation((url: string, options?: any) => {
         if (url.includes("/api/return-note-items")) {
-          return Promise.resolve({
-            data: returnNoteItems,
-          });
+          // Check if the query includes the correct return_note_uuid
+          const query = options?.query || {};
+          if (query.return_note_uuid === "rtn-1" || url.includes("rtn-1")) {
+            return Promise.resolve({
+              data: returnNoteItems,
+            });
+          }
+          return Promise.resolve({ data: [] });
         }
         return Promise.resolve({ data: [] });
       });
@@ -1502,6 +1530,9 @@ describe("ReturnNoteForm", () => {
       });
 
       // Wait for watchers and async operations (watcher has immediate: true)
+      await flushPromises();
+      await wrapper.vm.$nextTick();
+      await new Promise(resolve => setTimeout(resolve, 100)); // Give more time for async operations
       await flushPromises();
       await wrapper.vm.$nextTick();
       await flushPromises();
