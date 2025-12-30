@@ -1364,6 +1364,93 @@ describe("ChangeOrderForm.vue", () => {
       expect(lastEvent.labor_co_items[0].cost_code_uuid).toBe("cc-1");
     });
 
+    it("preserves all labor CO items when editing one item", async () => {
+      const mockLaborPOItems = [
+        {
+          uuid: "lpo-1",
+          cost_code_uuid: "cc-1",
+          cost_code_number: "01-001",
+          cost_code_name: "General Requirements",
+          po_amount: 5000,
+        },
+        {
+          uuid: "lpo-2",
+          cost_code_uuid: "cc-2",
+          cost_code_number: "02-001",
+          cost_code_name: "Site Preparation",
+          po_amount: 3000,
+        },
+        {
+          uuid: "lpo-3",
+          cost_code_uuid: "cc-3",
+          cost_code_number: "03-001",
+          cost_code_name: "Foundation",
+          po_amount: 8000,
+        },
+      ];
+
+      mockLaborChangeOrderResourcesStore.getLaborPOItems.mockReturnValue(
+        mockLaborPOItems as any[]
+      );
+
+      const wrapper = mountForm({
+        co_type: "LABOR",
+        original_purchase_order_uuid: "po-1",
+        project_uuid: "proj-1",
+        vendor_uuid: "vendor-1",
+        labor_co_items: [],
+      });
+
+      await wrapper.vm.$nextTick();
+      const vm: any = wrapper.vm;
+
+      // Initially, all PO items should be displayed
+      expect(vm.laborCODisplayItems.length).toBe(3);
+      expect(vm.laborCODisplayItems[0].co_amount).toBe(null);
+      expect(vm.laborCODisplayItems[1].co_amount).toBe(null);
+      expect(vm.laborCODisplayItems[2].co_amount).toBe(null);
+
+      // Edit the first item
+      await vm.handleLaborCoAmountChange({
+        index: 0,
+        numericValue: 4500,
+      });
+
+      await wrapper.vm.$nextTick();
+
+      // After editing, all items should still be displayed
+      expect(vm.laborCODisplayItems.length).toBe(3);
+
+      // Check that form data was updated correctly
+      const updateEvents = wrapper.emitted("update:form");
+      expect(updateEvents).toBeTruthy();
+      const lastEvent = updateEvents![updateEvents!.length - 1]?.[0] as any;
+      expect(Array.isArray(lastEvent.labor_co_items)).toBe(true);
+      expect(lastEvent.labor_co_items.length).toBe(1); // Only the edited item is in form data
+      expect(lastEvent.labor_co_items[0].co_amount).toBe(4500);
+
+      // Simulate props update (since parent component would update props)
+      await wrapper.setProps({
+        form: {
+          ...wrapper.props().form,
+          labor_co_items: lastEvent.labor_co_items,
+        },
+      });
+
+      await wrapper.vm.$nextTick();
+
+      // Now the display items should reflect the edited amount
+      expect(vm.laborCODisplayItems.length).toBe(3);
+      expect(vm.laborCODisplayItems[0].co_amount).toBe(4500);
+      expect(vm.laborCODisplayItems[0].cost_code_uuid).toBe("cc-1");
+
+      // Other items should remain unchanged (null co_amount)
+      expect(vm.laborCODisplayItems[1].co_amount).toBe(null);
+      expect(vm.laborCODisplayItems[1].cost_code_uuid).toBe("cc-2");
+      expect(vm.laborCODisplayItems[2].co_amount).toBe(null);
+      expect(vm.laborCODisplayItems[2].cost_code_uuid).toBe("cc-3");
+    });
+
     it("removes labor CO row", async () => {
       const mockLaborPOItems = [
         {
