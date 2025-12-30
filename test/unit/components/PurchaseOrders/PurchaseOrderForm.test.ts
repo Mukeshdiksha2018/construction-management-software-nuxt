@@ -4587,6 +4587,4 @@ describe("server/api/purchase-order-forms", () => {
     expect(selectWithMetadataSpy).toHaveBeenCalled();
   });
 
-  describe('Master Items Import Functionality', () => {
-  });
 });
