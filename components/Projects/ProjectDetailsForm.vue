@@ -290,6 +290,8 @@
                             size="sm"
                             class="w-full"
                             :disabled="readonly"
+                            @focus="showAreaRoomsHelper = true"
+                            @blur="showAreaRoomsHelper = false"
                             @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9.]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"
                             @update:model-value="(value) => handleFormUpdate('area_sq_ft', value)"
                           />
@@ -312,6 +314,8 @@
                             size="sm"
                             class="w-full"
                             :disabled="readonly"
+                            @focus="showAreaRoomsHelper = true"
+                            @blur="showAreaRoomsHelper = false"
                             @keypress="(e: KeyboardEvent) => { if (e.key && !/[0-9]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Tab' && e.key !== 'Enter') e.preventDefault(); }"
                             @update:model-value="(value) => handleFormUpdate('no_of_rooms', value)"
                           />
@@ -319,7 +323,7 @@
                       </div>
 
                       <!-- Helper: either Area or Rooms (spans under both fields) -->
-                      <div class="mt-1">
+                      <div v-if="showAreaRoomsHelper" class="mt-1">
                         <p class="inline-flex items-center gap-1 text-[10px] font-medium text-primary-700 dark:text-primary-200">
                           <UIcon name="i-heroicons-information-circle" class="w-3 h-3" />
                           <span>Enter either Area (Sq ft) or Number of Rooms; you don't need to fill both.</span>
@@ -1272,6 +1276,9 @@ const fileUploadErrorMessage = computed(() => {
 // Panel references
 const leftPanel = ref<HTMLElement | null>(null);  // Left panel containing 3 rows in column layout
 const rightPanel = ref<HTMLElement | null>(null); // Right panel: File Upload
+
+// Area/Rooms helper text visibility
+const showAreaRoomsHelper = ref(false);
 
 // Corporation change handler
 const handleCorporationChange = (corporation: any) => {
