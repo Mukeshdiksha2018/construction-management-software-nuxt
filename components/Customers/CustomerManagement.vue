@@ -277,7 +277,7 @@ const pagination = ref({
 
 // Column pinning state
 const columnPinning = ref({
-  left: ['profile_image', 'customer_full_name'],
+  left: ['profile_image_url', 'customer_full_name'],
   right: ['actions']
 });
 
@@ -335,17 +335,33 @@ const columns: TableColumn<any>[] = [
     meta: { class: { th: 'text-left', td: 'text-left' } },
     cell: ({ row }: { row: { original: any } }) => {
       const imageUrl = row.original.profile_image_url;
-      if (imageUrl) {
-        return h('img', {
-          src: imageUrl,
-          alt: 'Profile',
-          class: 'w-10 h-10 rounded-full object-cover'
-        });
-      }
-      return h('div', {
-        class: 'w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center'
-      }, [
-        h('span', { class: 'text-gray-400 text-xs' }, 'N/A')
+      const firstName = row.original.first_name || '';
+      const lastName = row.original.last_name || '';
+      const fullName = [firstName, lastName].filter(Boolean).join(' ') || 'N/A';
+
+      return h('div', { class: 'flex items-center gap-2' }, [
+        h('div', { class: 'w-6 h-6 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center overflow-hidden' },
+          imageUrl && imageUrl.trim() !== ''
+            ? h('img', {
+                src: imageUrl,
+                alt: 'Profile',
+                class: 'w-6 h-6 rounded-full object-cover'
+              })
+            : h('svg', {
+                class: 'w-3 h-3 text-primary-600 dark:text-primary-400',
+                fill: 'none',
+                viewBox: '0 0 24 24',
+                stroke: 'currentColor'
+              }, [
+                h('path', {
+                  'stroke-linecap': 'round',
+                  'stroke-linejoin': 'round',
+                  'stroke-width': '2',
+                  d: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'
+                })
+              ])
+        ),
+        h('div', { class: 'text-sm text-default' }, fullName)
       ]);
     }
   },
