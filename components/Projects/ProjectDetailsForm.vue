@@ -240,9 +240,9 @@
                       Estimated Completion <span class="text-red-500">*</span>
                     </label>
                     <UPopover v-model:open="estimatedCompletionDatePopoverOpen" :disabled="readonly">
-                      <UButton 
-                        color="neutral" 
-                        variant="outline" 
+                      <UButton
+                        color="neutral"
+                        variant="outline"
                         icon="i-heroicons-calendar-days"
                         class="w-full justify-start"
                         size="sm"
@@ -251,7 +251,7 @@
                         {{ estimatedCompletionDateDisplayText }}
                       </UButton>
                       <template #content>
-                        <UCalendar v-model="estimatedCompletionDateValue" class="p-2" :disabled="readonly" @update:model-value="estimatedCompletionDatePopoverOpen = false" />
+                        <UCalendar v-model="estimatedCompletionDateValue" class="p-2" :disabled="readonly" :min-value="startDateValue" @update:model-value="estimatedCompletionDatePopoverOpen = false" />
                       </template>
                     </UPopover>
                   </div>
