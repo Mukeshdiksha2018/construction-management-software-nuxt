@@ -311,7 +311,6 @@ const selectCostCode = (costCodeUuid: string) => {
 
 // Select items when modal opens
 watch(() => props.open, (newValue) => {
-  console.log('[MasterItemsModal] Modal open changed:', newValue, 'Items count:', props.items.length);
   if (newValue && props.items.length > 0) {
     // Reset cost code selection
     selectedCostCodeUuid.value = null
@@ -329,12 +328,10 @@ watch(() => props.open, (newValue) => {
         })
         .filter((id): id is string => id !== null);
       
-      console.log('[MasterItemsModal] Preselecting items:', itemIds.length, 'of', props.items.length);
       selectedItems.value = new Set(itemIds);
     } else {
       // Select all items by default for initial import
       const itemIds = props.items.map((item, index) => getItemId(item, index));
-      console.log('[MasterItemsModal] Selecting all items:', itemIds);
       selectedItems.value = new Set(itemIds);
     }
     
@@ -350,23 +347,10 @@ watch(() => props.open, (newValue) => {
 
 // Watch items prop changes
 watch(() => props.items, (newItems) => {
-  console.log('[MasterItemsModal] Items changed:', newItems.length, 'items');
   if (newItems.length > 0) {
     const firstItem = newItems[0];
-    console.log('[MasterItemsModal] First item:', firstItem);
-    console.log('[MasterItemsModal] First item keys:', Object.keys(firstItem));
-    
     // Debug item fields
     const display = firstItem.display_metadata || {};
-    console.log('[MasterItemsModal] Item fields:', {
-      item_label: firstItem.item_label || display.item_label,
-      item_name: firstItem.item_name || display.item_name,
-      item_description: firstItem.item_description || display.item_description,
-      name: firstItem.name,
-      description: firstItem.description,
-      po_description: firstItem.po_description || display.po_description,
-      display_metadata: display,
-    });
   }
 }, { immediate: true, deep: true })
 
@@ -458,7 +442,6 @@ const handleConfirm = () => {
   const selected = props.items.filter((item, index) => 
     selectedItems.value.has(getItemId(item, index))
   )
-  console.log('[MasterItemsModal] Confirming selection:', selected.length, 'items');
   emit('confirm', selected)
   isOpen.value = false
 }
@@ -523,9 +506,19 @@ const tableColumns = computed<TableColumn<MasterItem>[]>(() => [
     meta: { class: { th: 'w-48 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted', td: 'px-4 py-3 align-middle' } },
     cell: ({ row }: { row: { original: MasterItem } }) => {
       const item = row.original
-      return h('div', { class: 'text-xs font-medium truncate' },
-        item.item_label || item.item_description || item.item_name || item.description || '-'
-      )
+      const displayValue = item.item_name || '-'
+      // Debug logging for first few items
+      if (row.index < 3) {
+        console.log('Item column render:', {
+          index: row.index,
+          item_name: item.item_name,
+          item_label: item.item_label,
+          item_description: item.item_description,
+          description: item.description,
+          displayValue
+        })
+      }
+      return h('div', { class: 'text-xs font-medium truncate' }, displayValue)
     }
   },
   {
@@ -535,9 +528,18 @@ const tableColumns = computed<TableColumn<MasterItem>[]>(() => [
     meta: { class: { th: 'w-48 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted', td: 'px-4 py-3 align-middle' } },
     cell: ({ row }: { row: { original: MasterItem } }) => {
       const item = row.original
-      return h('div', { class: 'text-xs text-muted truncate' },
-        item.po_description || item.description || '-'
-      )
+      const description = item.po_description || item.description
+      const displayValue = description || '-'
+      // Debug logging for first few items
+      if (row.index < 3) {
+        console.log('Description column render:', {
+          index: row.index,
+          po_description: item.po_description,
+          description: item.description,
+          displayValue
+        })
+      }
+      return h('div', { class: 'text-xs text-muted truncate' }, displayValue)
     }
   },
   {

@@ -411,6 +411,19 @@ export const usePurchaseOrderResourcesStore = defineStore(
           state.preferredItemsPromise = null;
         }
 
+        // Debug: log what we're returning
+        if (state.preferredItems.length > 0) {
+          console.log('[purchaseOrderResources] Returning preferred items:', state.preferredItems.length, 'items');
+          const firstItem = state.preferredItems[0];
+          console.log('[purchaseOrderResources] First item fields:', {
+            item_name: firstItem.item_name,
+            description: firstItem.description,
+            item_label: firstItem.item_label,
+            name: firstItem.name,
+            uuid: firstItem.uuid || firstItem.item_uuid
+          });
+        }
+
         return state.preferredItems;
       })();
 
