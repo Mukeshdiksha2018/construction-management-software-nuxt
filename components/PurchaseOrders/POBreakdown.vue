@@ -165,9 +165,19 @@ const formatCurrencyCompact = (amount: number, showEmpty: boolean = false) => {
 }
 
 const getItemType = (item: any) => {
-  // Check metadata first, then item fields
+  // Check metadata first (preserves original data), then item fields
+  // Skip empty/corrupted values
   const metadata = item?.metadata || item?.display_metadata || {}
-  return metadata?.item_type_label || item?.item_type_label || item?.item_type || item?.type || '—'
+
+  const candidates = [
+    metadata?.item_type_label,
+    item?.display_metadata?.item_type_label,
+    item?.item_type_label,
+    item?.item_type,
+    item?.type
+  ].filter(candidate => candidate && candidate.trim() !== '' && candidate !== '—')
+
+  return candidates[0] || '—'
 }
 
 const getSequence = (item: any) => {
@@ -187,17 +197,21 @@ const getSequence = (item: any) => {
 
 const getItemName = (item: any) => {
   // The API returns raw database data - item_name is a direct column in purchase_order_items_list table
-  // Priority: item.item_name (direct database field) > metadata.item_name (from JSONB) > item.name (if sequence exists)
+  // Priority: metadata.item_name (from JSONB - this preserves original data) > item.item_name (direct database field) > item.name (if sequence exists)
+  // But skip corrupted values (when the value equals the description - this indicates corruption from completed POs)
   const metadata = item?.metadata || item?.display_metadata || {}
-  
-  // First check the direct database field - this is the primary source
-  let itemName = item?.item_name || ''
-  
-  // If item_name is empty, check metadata (JSONB field)
-  if (!itemName) {
-    itemName = metadata?.item_name || ''
+
+  // First check metadata (JSONB field) - this should contain the original item name
+  let itemName = ''
+  if (metadata?.item_name && metadata.item_name !== item?.description) {
+    itemName = metadata.item_name
   }
-  
+
+  // If metadata doesn't have it or is corrupted, check the direct database field
+  if (!itemName && item?.item_name && item.item_name !== item?.description) {
+    itemName = item.item_name
+  }
+
   // If we have sequence but still no item_name, try item.name (preferred items may use 'name' field)
   if (!itemName) {
     const hasSequence = getSequence(item) && getSequence(item) !== '—'
@@ -205,10 +219,9 @@ const getItemName = (item: any) => {
       itemName = item?.name || ''
     }
   }
-  
-  // Return the item name - trust item.item_name if it exists (even if it matches description)
-  // item_name and description can legitimately be the same value
-  return itemName || ''
+
+  // Return the item name
+  return itemName || '—'
 }
 
 const getGoodsAmount = (item: any) => {
@@ -395,16 +408,29 @@ const totalAmount = computed(() => {
 })
 
 const fetchItems = async () => {
-  if (!props.poUuid) {
-    error.value = 'PO UUID is required'
-    return
-  }
-
   loading.value = true
   error.value = null
 
   try {
+    // Always fetch from API as the source of truth (like PurchaseOrderForm and POItemsTableWithEstimates)
+    if (!props.poUuid) {
+      error.value = 'PO UUID is required'
+      return
+    }
+
+    console.log('[POBreakdown] [fetchItems] Fetching items for PO:', props.poUuid)
     const fetchedItems = await purchaseOrderResourcesStore.fetchPurchaseOrderItems(props.poUuid)
+    console.log('[POBreakdown] [fetchItems] Fetched items:', {
+      count: fetchedItems?.length || 0,
+      items: fetchedItems?.slice(0, 2).map(item => ({
+        id: item.id,
+        uuid: item.uuid,
+        item_name: item.item_name,
+        description: item.description,
+        metadata: item.metadata,
+        item_type_label: item.item_type_label
+      }))
+    })
     items.value = Array.isArray(fetchedItems) ? fetchedItems : []
   } catch (err: any) {
     console.error('[POBreakdown] Failed to fetch PO items:', err)
