@@ -42,8 +42,8 @@ export default defineAppConfig({
         },
         pinned: {
           true: {
-            th: "sticky bg-primary-50 dark:bg-primary-900/50 data-[pinned=left]:left-0 data-[pinned=right]:right-0 backdrop-blur-sm",
-            td: "sticky bg-primary-50 dark:bg-primary-900/50 data-[pinned=left]:left-0 data-[pinned=right]:right-0 backdrop-blur-sm",
+            th: "sticky bg-gray-100 dark:bg-gray-800/50 data-[pinned=left]:left-0 data-[pinned=right]:right-0",
+            td: "sticky data-[pinned=left]:left-0 data-[pinned=right]:right-0",
           },
         },
         sticky: {

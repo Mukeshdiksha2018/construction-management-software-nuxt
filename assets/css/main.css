@@ -61,10 +61,7 @@
 
 :root {
   --ui-radius: 0.5rem;
-
-  /* Global font configuration */
-  --font-family: 'Poppins', sans-serif;
-
+  
   /* Ensure primary colors are set (already defined above, but ensure they persist) */
   --color-primary-50: #f0f4f8;
   --color-primary-100: #d9e3ed;
@@ -112,7 +109,7 @@ html, html.dark, html.light, body {
   --color-indigo-800: #2a4058 !important;
   --color-indigo-900: #25364a !important;
   --color-indigo-950: #1a2532 !important;
-
+  
   --color-primary-50: #f0f4f8 !important;
   --color-primary-100: #d9e3ed !important;
   --color-primary-200: #b8c9db !important;
@@ -125,13 +122,5 @@ html, html.dark, html.light, body {
   --color-primary-900: #25364a !important;
   --color-primary-950: #1a2532 !important;
   --color-primary: #3D5C7C !important;
-
-  /* Global font configuration */
-  font-family: 'Poppins', sans-serif !important;
-}
-
-/* Apply font to all elements */
-* {
-  font-family: 'Poppins', sans-serif !important;
 }
 
