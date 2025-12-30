@@ -1,15 +1,15 @@
 <template>
   <!-- Desktop Sidebar - Hidden on mobile and tablets -->
-  <div class="hidden lg:flex h-screen bg-brand-600 dark:bg-brand-800">
+  <div class="hidden lg:flex h-screen bg-gradient-to-br from-purple-300/40 via-purple-200/30 to-indigo-300/40">
     <!-- Sidebar -->
     <aside
-      class="text-white flex flex-col transition-all duration-300 border-r border-brand-700 dark:border-brand-900"
+      class="text-slate-700 dark:text-slate-200 flex flex-col transition-all duration-300 border-r border-slate-200 dark:border-slate-700"
       :class="isExpanded ? 'w-56' : 'w-16'"
       aria-label="Sidebar"
       @mouseenter="handleMouseEnter"
       @mouseleave="handleMouseLeave"
     >
-      <div class="p-4 text-lg font-bold border-b border-brand-700 dark:border-brand-900 truncate text-white">
+      <div class="p-4 text-lg font-bold border-b border-slate-200 dark:border-slate-700 truncate text-slate-800 dark:text-slate-100">
         <span v-if="isExpanded">Nimble Property Management</span>
         <span v-else>NPM</span>
       </div>
@@ -19,8 +19,8 @@
           <!-- Show loading skeleton while permissions are being loaded -->
           <div v-if="!isReady" class="space-y-1">
             <div v-for="i in 8" :key="i" class="flex items-center px-3 py-3">
-              <div class="w-5 h-5 bg-brand-500 dark:bg-brand-700 rounded animate-pulse"></div>
-              <div v-if="isExpanded" class="ml-3 h-4 bg-brand-500 dark:bg-brand-700 rounded animate-pulse flex-1"></div>
+              <div class="w-5 h-5 bg-slate-300 dark:bg-slate-600 rounded animate-pulse"></div>
+              <div v-if="isExpanded" class="ml-3 h-4 bg-slate-300 dark:bg-slate-600 rounded animate-pulse flex-1"></div>
             </div>
           </div>
           
@@ -33,17 +33,17 @@
               class="group flex items-center px-3 py-2 rounded-lg transition-all duration-200"
               :class="[
                 item.class,
-                isActiveRoute(item.to) 
-                  ? 'bg-white text-brand-600 dark:text-brand-700 font-semibold shadow-md' 
-                  : 'text-white/90 hover:bg-brand-500 dark:hover:bg-brand-700 hover:text-white'
+                isActiveRoute(item.to)
+                  ? 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100 font-semibold shadow-sm'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-100'
               ]"
             >
               <UIcon 
                 :name="item.icon" 
                 class="w-5 h-5 flex-shrink-0 transition-colors duration-200"
-                :class="isActiveRoute(item.to) 
-                  ? 'text-brand-600 dark:text-brand-700' 
-                  : 'text-white/80 group-hover:text-white'"
+                :class="isActiveRoute(item.to)
+                  ? 'text-slate-900 dark:text-slate-100'
+                  : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-100'"
               />
               <span v-if="isExpanded" class="ml-3 truncate text-md">{{ item.label }}</span>
             </NuxtLink>
