@@ -83,11 +83,8 @@
         ]"
       >
         <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            To be raised ({{ toBeRaisedStats.count }})
-          </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(toBeRaisedStats.totalValue) }}
+          <div class="text-base font-bold text-gray-900 dark:text-white">
+            To Be Raised
           </div>
         </div>
       </div>
