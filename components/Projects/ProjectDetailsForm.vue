@@ -256,22 +256,6 @@
                     </UPopover>
                   </div>
 
-                  <!-- Estimated Amount -->
-                  <div>
-                    <label class="block text-xs font-medium text-default mb-1 flex items-center gap-1">
-                      Estimated Amount
-                    </label>
-                    <UInput
-                      :model-value="estimatedAmountDisplay"
-                      size="sm"
-                      class="w-full"
-                      disabled
-                    />
-                    <p class="text-xs mt-1" :class="estimateStatusMetadata.class">
-                      {{ estimateStatusMetadata.helper }}
-                    </p>
-                  </div>
-
                   <!-- Contingency % -->
                   <div>
                     <label class="block text-xs font-medium text-default mb-1 flex items-center gap-1">
@@ -338,9 +322,26 @@
                       <div class="mt-1">
                         <p class="inline-flex items-center gap-1 text-[10px] font-medium text-primary-700 dark:text-primary-200">
                           <UIcon name="i-heroicons-information-circle" class="w-3 h-3" />
-                          <span>Enter either Area (Sq ft) or Number of Rooms; you don’t need to fill both.</span>
+                          <span>Enter either Area (Sq ft) or Number of Rooms; you don't need to fill both.</span>
                         </p>
                       </div>
+                    </div>
+                  </div>
+
+                  <!-- Estimated Amount -->
+                  <div>
+                    <label class="block text-xs font-medium text-default mb-1 flex items-center gap-1">
+                      Estimated Amount
+                    </label>
+                    <UInput
+                      :model-value="estimatedAmountDisplay"
+                      size="sm"
+                      class="w-full"
+                      disabled
+                    />
+                    <div v-if="estimateStatusMetadata.helper" class="flex items-start gap-1 text-xs mt-1" :class="estimateStatusMetadata.class">
+                      <UIcon name="i-heroicons-information-circle" class="w-3 h-3 flex-shrink-0 mt-0.5" />
+                      <span>{{ estimateStatusMetadata.helper }}</span>
                     </div>
                   </div>
                   </template>
