@@ -273,22 +273,22 @@ describe("PurchaseOrdersList.vue - To Be Raised Functionality", () => {
   };
 
   describe("To Be Raised Stat Card", () => {
-    it("should render the 'To be raised' stat card", () => {
+    it("should render the 'To Be Raised' stat card", () => {
       const wrapper = mountList();
       const html = wrapper.html();
-      expect(html).toContain("To be raised");
+      expect(html).toContain("To Be Raised");
     });
 
-    it("should toggle status filter when 'To be raised' stat is clicked", async () => {
+    it("should toggle status filter when 'To Be Raised' stat is clicked", async () => {
       const wrapper = mountList();
       const vm: any = wrapper.vm;
       
       // Initially no status filter should be selected
       expect(vm.selectedStatusFilter).toBe(null);
       
-      // Find and click the "To be raised" stat card
-      const toBeRaisedCard = wrapper.find('[data-testid="to-be-raised-stat"]') || 
-        wrapper.findAll('div').find((d: any) => d.text().includes('To be raised'));
+      // Find and click the "To Be Raised" stat card
+      const toBeRaisedCard = wrapper.find('[data-testid="to-be-raised-stat"]') ||
+        wrapper.findAll('div').find((d: any) => d.text().includes('To Be Raised'));
       
       // Simulate click by calling the method directly
       await vm.toggleStatusFilter('ToBeRaised');
@@ -314,7 +314,7 @@ describe("PurchaseOrdersList.vue - To Be Raised Functionality", () => {
   });
 
   describe("To Be Raised Table Display", () => {
-    it("should show 'To be raised' section when ToBeRaised status filter is selected", async () => {
+    it("should show 'To Be Raised' section when ToBeRaised status filter is selected", async () => {
       const wrapper = mountList();
       const vm: any = wrapper.vm;
       
