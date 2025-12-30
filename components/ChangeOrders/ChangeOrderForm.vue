@@ -1107,7 +1107,7 @@ const updateForm = (fields: Record<string, any>) => {
       updatedForm[key] = fields[key];
     }
   });
-  
+
   emit('update:form', updatedForm);
 }
 
@@ -1447,7 +1447,7 @@ watch([() => props.form.uuid, () => props.form.co_type], async ([coUuid, coType]
 const laborCOItemsMap = computed(() => {
   const map = new Map<string, any>()
   // Check saved items from store (when editing existing CO)
-  const savedItems = props.form?.uuid 
+  const savedItems = props.form?.uuid
     ? laborChangeOrderItemsStore.getItemsByChangeOrder(String(props.form.uuid))
     : []
   // Also check form data (for new COs or unsaved changes)
@@ -1464,91 +1464,85 @@ const laborCOItemsMap = computed(() => {
 })
 
 const laborCODisplayItems = computed(() => {
-  // For existing change orders (has uuid), use saved items from labor_change_order_items_list
-  // For new change orders, use original PO items and merge with form data
-  const savedItems = props.form?.uuid 
-    ? laborChangeOrderItemsStore.getItemsByChangeOrder(String(props.form.uuid))
-    : []
-  
-  // If editing existing CO, use saved items directly
-  if (props.form?.uuid && savedItems.length > 0) {
-    return savedItems.map((row: any, idx: number) => ({
-      id: row?.uuid || row?.id || `labor-${row.cost_code_uuid || idx}`,
-      cost_code_uuid: row?.cost_code_uuid || null,
-      cost_code_number: row?.cost_code_number || '',
-      cost_code_name: row?.cost_code_name || '',
-      cost_code_label: row?.cost_code_label || [row?.cost_code_number, row?.cost_code_name].filter(Boolean).join(' ').trim(),
-      division_name: row?.division_name || null,
-      po_amount: row?.po_amount ?? 0,
-      co_amount: row?.co_amount ?? null,
-      uuid: row?.uuid,
-    }))
-  }
-  
-  // For new COs, use original PO items and merge with form data
-  const source = Array.isArray(laborPOItems.value) ? laborPOItems.value : []
-  
-  // Check if labor_co_items is pre-populated (e.g., from exceeded quantities)
-  // If so, only show items that are in labor_co_items
-  const laborCoItemsList = Array.isArray((props.form as any)?.labor_co_items) ? (props.form as any).labor_co_items : []
-  const hasPrePopulatedLaborCoItems = laborCoItemsList.length > 0
-  
-  // Build set of labor_co_items cost_code_uuids for filtering
-  const laborCoItemsCostCodeUuids = new Set<string>()
-  if (hasPrePopulatedLaborCoItems) {
-    laborCoItemsList.forEach((item: any) => {
-      if (item.cost_code_uuid) {
-        laborCoItemsCostCodeUuids.add(String(item.cost_code_uuid).toLowerCase())
-      }
-    })
-  }
-  
-  // Filter source to only include items in labor_co_items if pre-populated
-  const filteredSource = hasPrePopulatedLaborCoItems
-    ? source.filter((row: any) => {
-        const costCodeUuid = String(row?.cost_code_uuid || '').toLowerCase()
-        return costCodeUuid && laborCoItemsCostCodeUuids.has(costCodeUuid)
-      })
-    : source
-  
-  return filteredSource.map((row: any, idx: number) => {
-    const base = {
-      id: row?.uuid || row?.id || `labor-${row.cost_code_uuid || idx}`,
-      cost_code_uuid: row?.cost_code_uuid || null,
-      cost_code_number: row?.cost_code_number || '',
-      cost_code_name: row?.cost_code_name || '',
-      cost_code_label: row?.cost_code_label || [row?.cost_code_number, row?.cost_code_name].filter(Boolean).join(' ').trim(),
-      division_name: row?.division_name || null,
-      po_amount: row?.po_amount ?? 0,
+  // For existing COs, use labor_co_items from form, or fall back to saved items from store
+  if (props.form?.uuid) {
+    const laborCoItemsList = Array.isArray((props.form as any)?.labor_co_items) ? (props.form as any).labor_co_items : []
+    if (laborCoItemsList.length > 0) {
+      return laborCoItemsList.map((row: any, idx: number) => ({
+        id: row?.uuid || row?.id || `labor-${row.cost_code_uuid || idx}`,
+        cost_code_uuid: row?.cost_code_uuid || null,
+        cost_code_number: row?.cost_code_number || '',
+        cost_code_name: row?.cost_code_name || '',
+        cost_code_label: row?.cost_code_label || [row?.cost_code_number, row?.cost_code_name].filter(Boolean).join(' ').trim(),
+        division_name: row?.division_name || null,
+        po_amount: row?.po_amount ?? 0,
+        co_amount: row?.co_amount ?? null,
+        uuid: row?.uuid,
+      }))
+    } else {
+      // Fall back to saved items from store for existing COs
+      const savedItems = laborChangeOrderItemsStore.getItemsByChangeOrder(String(props.form.uuid))
+      return savedItems.map((row: any, idx: number) => ({
+        id: row?.uuid || row?.id || `labor-${row.cost_code_uuid || idx}`,
+        cost_code_uuid: row?.cost_code_uuid || null,
+        cost_code_number: row?.cost_code_number || '',
+        cost_code_name: row?.cost_code_name || '',
+        cost_code_label: row?.cost_code_label || [row?.cost_code_number, row?.cost_code_name].filter(Boolean).join(' ').trim(),
+        division_name: row?.division_name || null,
+        po_amount: row?.po_amount ?? 0,
+        co_amount: row?.co_amount ?? null,
+        uuid: row?.uuid,
+      }))
     }
-    const matched = laborCOItemsMap.value.get(String(base.cost_code_uuid || ''))
+  }
+
+  // For new COs, always use original PO items as base, then merge with edited amounts
+  const source = Array.isArray(laborPOItems.value) ? laborPOItems.value : []
+
+  return source.map((row: any, idx: number) => {
+    // Check if this item has been edited (stored in labor_co_items)
+    const laborCoItemsList = Array.isArray((props.form as any)?.labor_co_items) ? (props.form as any).labor_co_items : []
+    const editedItem = laborCoItemsList.find((item: any) => String(item.cost_code_uuid) === String(row.cost_code_uuid))
+
     return {
-      ...base,
-      co_amount: matched?.co_amount ?? null,
-      uuid: matched?.uuid,
+      id: row?.uuid || row?.id || `labor-${row.cost_code_uuid || idx}`,
+      cost_code_uuid: row?.cost_code_uuid || null,
+      cost_code_number: row?.cost_code_number || '',
+      cost_code_name: row?.cost_code_name || '',
+      cost_code_label: row?.cost_code_number && row?.cost_code_name ? `${row.cost_code_number} ${row.cost_code_name}`.trim() : '',
+      division_name: row?.division_name || null,
+      po_amount: row?.po_amount ?? 0,
+      co_amount: editedItem?.co_amount ?? null,
+      uuid: row?.uuid,
     }
   })
 })
 
 const updateLaborCoItemsAt = (costCodeUuid: string, fields: Record<string, any>) => {
-  const list = Array.isArray((props.form as any)?.labor_co_items) ? [...(props.form as any).labor_co_items] : []
-  const existingIndex = list.findIndex((it: any) => String(it.cost_code_uuid) === String(costCodeUuid))
+  const currentList = Array.isArray((props.form as any)?.labor_co_items) ? [...(props.form as any).labor_co_items] : []
+
+  const existingIndex = currentList.findIndex((it: any) => String(it.cost_code_uuid) === String(costCodeUuid))
+
   const recordBase = {
     cost_code_uuid: costCodeUuid || null,
-    order_index: list.length,
+    order_index: currentList.length,
   }
+
+  const updatedList = [...currentList]
   if (existingIndex >= 0) {
-    list[existingIndex] = { ...list[existingIndex], ...recordBase, ...fields }
+    updatedList[existingIndex] = { ...updatedList[existingIndex], ...recordBase, ...fields }
   } else {
-    list.push({ ...recordBase, ...fields })
+    updatedList.push({ ...recordBase, ...fields })
   }
-  updateForm({ labor_co_items: list })
+
+  updateForm({ labor_co_items: updatedList })
 }
 
 const handleLaborCoAmountChange = ({ index, numericValue }: { index: number; numericValue: number }) => {
   const item = laborCODisplayItems.value[index]
   if (!item || !item.cost_code_uuid) return
-  updateLaborCoItemsAt(String(item.cost_code_uuid), { 
+
+  updateLaborCoItemsAt(String(item.cost_code_uuid), {
     co_amount: numericValue,
     cost_code_number: item.cost_code_number,
     cost_code_name: item.cost_code_name,
@@ -1561,6 +1555,7 @@ const handleLaborCoAmountChange = ({ index, numericValue }: { index: number; num
 const removeLaborCoRow = (index: number) => {
   const item = laborCODisplayItems.value[index]
   if (!item || !item.cost_code_uuid) return
+
   const list = Array.isArray((props.form as any)?.labor_co_items) ? [...(props.form as any).labor_co_items] : []
   const filtered = list.filter((it: any) => String(it.cost_code_uuid) !== String(item.cost_code_uuid))
   updateForm({ labor_co_items: filtered })
