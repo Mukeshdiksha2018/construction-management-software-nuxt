@@ -870,5 +870,6 @@ describe('PurchaseOrdersMasterItemsSelectionModal', () => {
       // Should display fallback '-' when no item name/description is available
       expect(wrapper.text()).toContain('-')
     })
+
   })
 })

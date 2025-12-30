@@ -14,11 +14,12 @@ export default defineEventHandler(async (event) => {
 
     const supabase = supabaseServer;
 
-    // First, fetch cost code configurations
+    // First, fetch active cost code configurations only
     const { data: configData, error: configError } = await supabase
       .from("cost_code_configurations")
       .select("*")
       .eq("corporation_uuid", corporationUuid)
+      .neq("is_active", false)  // Filter out inactive configurations
       .order("order_number", { ascending: true });
 
     if (configError) {

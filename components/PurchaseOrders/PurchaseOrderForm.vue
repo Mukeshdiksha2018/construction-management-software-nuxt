@@ -3854,7 +3854,8 @@ watch(
     if (corpUuid) {
       // Check if corporation is different from TopBar's - if so, force refresh
       const isDifferentFromTopBar = corpUuid !== corpStore.selectedCorporation?.uuid;
-      const shouldForceRefresh = switchedFromMaster !== switchedToMaster || isDifferentFromTopBar;
+      // Always force refresh when switching to master import to ensure we get latest data
+      const shouldForceRefresh = true; // switchedFromMaster !== switchedToMaster || isDifferentFromTopBar;
       
       // Ensure preferred items are fetched when switching to master import
       await purchaseOrderResourcesStore.ensurePreferredItems({

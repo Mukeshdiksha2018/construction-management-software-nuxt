@@ -347,12 +347,31 @@ export const usePurchaseOrderResourcesStore = defineStore(
           const configs = state.costCodeConfigurations;
           const flattened: any[] = [];
 
-          configs.forEach((config) => {
+          // Configurations are already filtered at API level, but keep as safety net
+          const activeConfigs = configs;
+
+          activeConfigs.forEach((config) => {
             const preferredItems = Array.isArray(config?.preferred_items)
               ? config.preferred_items
               : [];
 
             preferredItems.forEach((item: any) => {
+              // Skip inactive preferred items - check status field (Active/Inactive)
+              if (item.status === 'Inactive' || item.status === 'inactive' || item.status === 'disabled' || item.status === 'Disabled') {
+                return;
+              }
+
+              // Also check for other inactive indicators
+              if (item.is_active === false || item.is_active === 0) {
+                return;
+              }
+
+              // Check for active field
+              if (item.active === false || item.active === 0) {
+                return;
+              }
+
+
               if (
                 !projectUuid ||
                 !item?.project_uuid ||
