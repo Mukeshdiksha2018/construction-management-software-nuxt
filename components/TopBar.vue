@@ -1,5 +1,5 @@
 <template>
-  <header class="w-full bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
+  <header class="w-full bg-gradient-to-br from-purple-300/40 via-purple-200/30 to-indigo-300/40 border-b border-indigo-200/50 dark:border-indigo-800/50">
     <nav class="flex items-center justify-between px-3 lg:px-4 py-2">
       <!-- Left side: Empty spacer to balance layout -->
       <div class="flex items-center gap-2 flex-shrink-0 w-[200px]">
@@ -54,7 +54,7 @@
             <UButton
               variant="soft"
               color="neutral"
-              class="group flex items-center gap-3 px-3 py-1 rounded-lg transition-colors hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+              class="group flex items-center gap-3 px-3 py-1 rounded-lg transition-colors bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm hover:bg-white dark:hover:bg-gray-900/95"
             >
               <!-- User Avatar -->
               <div class="w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center overflow-hidden ring-2 ring-indigo-200 dark:ring-indigo-800 group-hover:ring-indigo-400 dark:group-hover:ring-indigo-600 transition-colors">
