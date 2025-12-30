@@ -2242,6 +2242,9 @@ const transformPreferredItemToPoItem = (item: any, index: number) => {
     sequence: itemSequence, // Include sequence for SequenceSelect
     item_sequence: itemSequence, // Also include as item_sequence for compatibility
     item_uuid: item?.item_uuid || item?.uuid || null,
+    item_name: item?.item_name || item?.name || item?.label || '',
+    item_label: item?.item_label || item?.item_name || item?.name || item?.label || '',
+    item_description: item?.item_description || item?.description || '',
     name: item?.item_name || item?.name || item?.label || '',
     description: item?.description || '',
     approval_checks: null,
@@ -2267,6 +2270,10 @@ const transformPreferredItemToPoItem = (item: any, index: number) => {
       item_type_label: itemTypeLabel,
       sequence: itemSequence, // Preserve sequence in display_metadata
       location_display: '',
+      item_label: item?.item_label || item?.item_name || item?.name || item?.label || '',
+      item_name: item?.item_name || item?.name || item?.label || '',
+      item_description: item?.item_description || item?.description || '',
+      po_description: item?.description || '',
       unit_label: unitLabel,
       unit_uuid: unitUuid,
       model_number: item?.model_number || '',

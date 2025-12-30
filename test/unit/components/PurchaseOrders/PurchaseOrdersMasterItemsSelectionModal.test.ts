@@ -818,12 +818,57 @@ describe('PurchaseOrdersMasterItemsSelectionModal', () => {
 
     it('displays selected cost code label', async () => {
       const vm = wrapper.vm as any
-      
+
       // Select first cost code
       vm.selectCostCode('cc-uuid-1')
       await wrapper.vm.$nextTick()
-      
+
       expect(vm.selectedCostCodeLabel).toContain('CC-001')
+    })
+
+    it('displays item names and descriptions correctly', async () => {
+      const vm = wrapper.vm as any
+
+      // Select first cost code to show items
+      vm.selectCostCode('cc-uuid-1')
+      await wrapper.vm.$nextTick()
+
+      // The item name should be 'Concrete' from item_label/item_name
+      expect(wrapper.text()).toContain('Concrete')
+
+      // The description should be '3000 PSI Concrete' from po_description/description
+      expect(wrapper.text()).toContain('3000 PSI Concrete')
+    })
+
+    it('displays fallback values when item fields are missing', async () => {
+      const vm = wrapper.vm as any
+
+      // Create a mock item with missing name fields
+      const mockItemWithMissingFields = [{
+        id: 'item-missing',
+        uuid: 'item-missing-uuid',
+        item_uuid: 'item-missing-uuid',
+        cost_code_uuid: 'cc-uuid-1',
+        cost_code_label: 'CC-001',
+        cost_code_number: '001',
+        // No item_label, item_name, item_description, description, po_description
+        po_unit_price: 100,
+        unit_price: 100,
+        uom: 'EA',
+        po_quantity: 5,
+        quantity: 5,
+      }]
+
+      await wrapper.setProps({
+        items: mockItemWithMissingFields
+      })
+
+      // Select the cost code
+      vm.selectCostCode('cc-uuid-1')
+      await wrapper.vm.$nextTick()
+
+      // Should display fallback '-' when no item name/description is available
+      expect(wrapper.text()).toContain('-')
     })
   })
 })
