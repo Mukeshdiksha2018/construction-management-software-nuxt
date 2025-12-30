@@ -54,10 +54,10 @@
             <UButton
               variant="soft"
               color="neutral"
-              class="group flex items-center gap-3 px-3 py-1 rounded-lg transition-colors hover:bg-brand-50 dark:hover:bg-brand-900/20"
+              class="group flex items-center gap-3 px-3 py-1 rounded-lg transition-colors hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
             >
               <!-- User Avatar -->
-              <div class="w-8 h-8 rounded-full bg-brand-50 dark:bg-brand-900/30 flex items-center justify-center overflow-hidden ring-2 ring-brand-200 dark:ring-brand-800 group-hover:ring-brand-400 dark:group-hover:ring-brand-600 transition-colors">
+              <div class="w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center overflow-hidden ring-2 ring-indigo-200 dark:ring-indigo-800 group-hover:ring-indigo-400 dark:group-hover:ring-indigo-600 transition-colors">
                 <UAvatar
                   v-if="currentUser?.imageUrl && currentUser.imageUrl.trim() !== ''"
                   :src="currentUser.imageUrl"
@@ -66,7 +66,7 @@
                 />
                 <svg
                   v-else
-                  class="w-4 h-4 text-brand-600 dark:text-brand-400"
+                  class="w-4 h-4 text-indigo-600 dark:text-indigo-400"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -93,7 +93,7 @@
               <!-- Dropdown Arrow -->
               <UIcon
                 name="lucide:chevron-down"
-                class="w-4 h-4 text-muted group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors"
+                class="w-4 h-4 text-muted group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors"
               />
             </UButton>
           </UDropdownMenu>
