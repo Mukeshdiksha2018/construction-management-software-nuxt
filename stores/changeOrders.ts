@@ -429,7 +429,13 @@ export const useChangeOrdersStore = defineStore('changeOrders', () => {
     }
   }
 
-  const fetchChangeOrders = async (corporationUuid: string, forceRefresh = false, page = 1, pageSize = 100) => {
+  const fetchChangeOrders = async (
+    corporationUuid: string,
+    forceRefresh = false,
+    page = 1,
+    pageSize = 100,
+    filters: { project_uuid?: string; vendor_uuid?: string } = {}
+  ) => {
     if (process.server) return
 
     const shouldFetch = shouldFetchData(corporationUuid)
@@ -472,7 +478,21 @@ export const useChangeOrdersStore = defineStore('changeOrders', () => {
 
     loading.value = true
     try {
-      const response = await $fetch<ChangeOrdersResponse>(`/api/change-orders?corporation_uuid=${corporationUuid}&page=${page}&page_size=${pageSize}`)
+      // Build query string with filters
+      const queryParams = new URLSearchParams({
+        corporation_uuid: corporationUuid,
+        page: page.toString(),
+        page_size: pageSize.toString()
+      });
+
+      if (filters.project_uuid) {
+        queryParams.append('project_uuid', filters.project_uuid);
+      }
+      if (filters.vendor_uuid) {
+        queryParams.append('vendor_uuid', filters.vendor_uuid);
+      }
+
+      const response = await $fetch<ChangeOrdersResponse>(`/api/change-orders?${queryParams.toString()}`)
       if (response?.error) throw new Error(response.error)
 
       const orders = Array.isArray(response?.data) ? response.data : []

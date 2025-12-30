@@ -884,38 +884,15 @@ const rejectedStats = computed(() => {
 })
 
 const filteredChangeOrders = computed<any[]>(() => {
-  // First filter by TopBar's corporation (the list should only show COs for TopBar's corporation)
-  let filtered = Array.isArray(changeOrders.value)
-    ? changeOrders.value.filter((c: any) =>
-        String(c.corporation_uuid) === String(selectedCorporationId.value)
-      )
-    : []
+  // Get change orders from store (API filtering is already applied)
+  let filtered = Array.isArray(changeOrders.value) ? [...changeOrders.value] : []
 
-  // Apply applied filters
-  if (appliedFilters.value.corporation) {
-    filtered = filtered.filter((c: any) =>
-      String(c.corporation_uuid) === String(appliedFilters.value.corporation)
-    )
-  }
-
-  if (appliedFilters.value.project) {
-    filtered = filtered.filter((c: any) =>
-      String(c.project_uuid) === String(appliedFilters.value.project)
-    )
-  }
-
-  if (appliedFilters.value.vendor) {
-    filtered = filtered.filter((c: any) =>
-      String(c.vendor_uuid) === String(appliedFilters.value.vendor)
-    )
-  }
-
-  // Apply status filter if selected
+  // Apply status filter if selected (client-side since status filtering isn't in API yet)
   if (selectedStatusFilter.value) {
     filtered = filtered.filter((c: any) => c.status === selectedStatusFilter.value)
   }
 
-  // Apply text search filter
+  // Apply text search filter (client-side)
   const text = globalFilter.value.trim().toLowerCase()
   if (text) {
     filtered = filtered.filter((row: any) =>
@@ -959,6 +936,17 @@ const handleShowResults = async () => {
     vendor: filterVendor.value,
   }
 
+  // Fetch change orders with filters applied
+  const filters = {
+    project_uuid: appliedFilters.value.project,
+    vendor_uuid: appliedFilters.value.vendor,
+  };
+
+  const corporationUuid = appliedFilters.value.corporation || selectedCorporationId.value;
+  if (corporationUuid) {
+    await changeOrdersStore.fetchChangeOrders(corporationUuid, true, 1, 100, filters);
+  }
+
   // Clear table page when filters change
   if (table.value?.tableApi) {
     table.value.tableApi.setPageIndex(0)
@@ -974,6 +962,11 @@ const handleClearFilters = () => {
     corporation: undefined,
     project: undefined,
     vendor: undefined,
+  }
+
+  // Refetch data for the original corporation without filters
+  if (selectedCorporationId.value) {
+    changeOrdersStore.fetchChangeOrders(selectedCorporationId.value, true);
   }
 
   // Clear table page when filters are cleared

@@ -393,7 +393,7 @@ export default defineEventHandler(async (event: H3Event) => {
 
   try {
     if (method === "GET") {
-      const { corporation_uuid, uuid, purchase_order_uuid, change_order_uuid, project_uuid } = query;
+      const { corporation_uuid, uuid, purchase_order_uuid, change_order_uuid, project_uuid, vendor_uuid } = query;
 
       if (uuid) {
         const { data, error } = await supabaseServer
@@ -450,6 +450,12 @@ export default defineEventHandler(async (event: H3Event) => {
       if (project_uuid) {
         countQuery = countQuery.eq("project_uuid", project_uuid as string);
         dataQuery = dataQuery.eq("project_uuid", project_uuid as string);
+      }
+
+      // Filter by vendor_uuid if provided (filter by received_by field)
+      if (vendor_uuid) {
+        countQuery = countQuery.eq("received_by", vendor_uuid as string);
+        dataQuery = dataQuery.eq("received_by", vendor_uuid as string);
       }
 
       // Get total count for pagination metadata

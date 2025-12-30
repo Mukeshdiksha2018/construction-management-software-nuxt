@@ -136,7 +136,8 @@ export const useStockReturnNotesStore = defineStore(
       corporationUuid: string,
       forceRefresh = false,
       page = 1,
-      pageSize = 100
+      pageSize = 100,
+      filters: { project_uuid?: string; vendor_uuid?: string } = {}
     ) => {
       if (!corporationUuid) {
         return;
@@ -177,9 +178,23 @@ export const useStockReturnNotesStore = defineStore(
       loading.value = true;
       error.value = null;
       try {
+        // Build query string with filters
+        const queryParams = new URLSearchParams({
+          corporation_uuid: corporationUuid,
+          page: page.toString(),
+          page_size: pageSize.toString()
+        });
+
+        if (filters.project_uuid) {
+          queryParams.append('project_uuid', filters.project_uuid);
+        }
+        if (filters.vendor_uuid) {
+          queryParams.append('vendor_uuid', filters.vendor_uuid);
+        }
+
         const response = await $fetch<
           StockReturnNotesResponse | StockReturnNote[] | { data?: StockReturnNote[]; pagination?: PaginationInfo }
-        >(`/api/stock-return-notes?corporation_uuid=${corporationUuid}&page=${page}&page_size=${pageSize}`);
+        >(`/api/stock-return-notes?${queryParams.toString()}`);
 
         const notes = Array.isArray(response)
           ? response

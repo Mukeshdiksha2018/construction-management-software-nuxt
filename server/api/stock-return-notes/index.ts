@@ -481,7 +481,7 @@ export default defineEventHandler(async (event: H3Event) => {
 
   try {
     if (method === "GET") {
-      const { corporation_uuid, uuid } = query;
+      const { corporation_uuid, uuid, project_uuid, vendor_uuid } = query;
 
       if (uuid) {
         const { data, error } = await supabaseServer
@@ -510,11 +510,24 @@ export default defineEventHandler(async (event: H3Event) => {
       const offset = (page - 1) * pageSize;
 
       // Get total count for pagination metadata
-      const { count, error: countError } = await supabaseServer
+      let countQuery = supabaseServer
         .from("stock_return_notes")
         .select("*", { count: "exact", head: true })
         .eq("corporation_uuid", corpUuid)
         .eq("is_active", true);
+
+      // Apply optional filters
+      if (project_uuid) {
+        countQuery = countQuery.eq("project_uuid", project_uuid as string);
+      }
+      if (vendor_uuid) {
+        // For return notes, vendor filtering is more complex since it depends on the return type
+        // We'll need to join with purchase orders or change orders to filter by vendor
+        // For now, let's implement a simpler approach - filter by vendor_uuid if it exists directly on return notes
+        countQuery = countQuery.eq("returned_by", vendor_uuid as string); // Assuming vendor_uuid maps to returned_by
+      }
+
+      const { count, error: countError } = await countQuery;
 
       if (countError) {
         console.error("[StockReturnNotes] GET count error:", countError);
@@ -528,11 +541,24 @@ export default defineEventHandler(async (event: H3Event) => {
       const totalPages = Math.ceil(totalRecords / pageSize);
 
       // Fetch paginated data
-      const { data, error } = await supabaseServer
+      let dataQuery = supabaseServer
         .from("stock_return_notes")
         .select("*")
         .eq("corporation_uuid", corpUuid)
-        .eq("is_active", true)
+        .eq("is_active", true);
+
+      // Apply optional filters
+      if (project_uuid) {
+        dataQuery = dataQuery.eq("project_uuid", project_uuid as string);
+      }
+      if (vendor_uuid) {
+        // For return notes, vendor filtering is more complex since it depends on the return type
+        // We'll need to join with purchase orders or change orders to filter by vendor
+        // For now, let's implement a simpler approach - filter by returned_by if it matches vendor_uuid
+        dataQuery = dataQuery.eq("returned_by", vendor_uuid as string);
+      }
+
+      const { data, error } = await dataQuery
         .order("entry_date", { ascending: false })
         .order("created_at", { ascending: false })
         .range(offset, offset + pageSize - 1);

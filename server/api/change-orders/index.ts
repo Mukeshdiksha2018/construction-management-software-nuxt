@@ -128,7 +128,7 @@ export default defineEventHandler(async (event) => {
 
   try {
     if (method === "GET") {
-      const { corporation_uuid, uuid } = query;
+      const { corporation_uuid, uuid, project_uuid, vendor_uuid } = query;
 
       if (uuid) {
         const { data, error } = await supabaseServer
@@ -152,11 +152,21 @@ export default defineEventHandler(async (event) => {
       const offset = (page - 1) * pageSize;
 
       // Get total count for pagination metadata
-      const { count, error: countError } = await supabaseServer
+      let countQuery = supabaseServer
         .from("change_orders")
         .select("*", { count: "exact", head: true })
         .eq("corporation_uuid", corporation_uuid as string)
         .eq("is_active", true);
+
+      // Apply optional filters
+      if (project_uuid) {
+        countQuery = countQuery.eq("project_uuid", project_uuid as string);
+      }
+      if (vendor_uuid) {
+        countQuery = countQuery.eq("vendor_uuid", vendor_uuid as string);
+      }
+
+      const { count, error: countError } = await countQuery;
 
       if (countError) throw createError({ statusCode: 500, statusMessage: countError.message });
 
@@ -164,7 +174,7 @@ export default defineEventHandler(async (event) => {
       const totalPages = Math.ceil(totalRecords / pageSize);
 
       // Fetch paginated data
-      const { data, error } = await supabaseServer
+      let dataQuery = supabaseServer
         .from("change_orders")
         .select(`
           *,
@@ -183,7 +193,17 @@ export default defineEventHandler(async (event) => {
           )
         `)
         .eq("corporation_uuid", corporation_uuid as string)
-        .eq("is_active", true)
+        .eq("is_active", true);
+
+      // Apply optional filters
+      if (project_uuid) {
+        dataQuery = dataQuery.eq("project_uuid", project_uuid as string);
+      }
+      if (vendor_uuid) {
+        dataQuery = dataQuery.eq("vendor_uuid", vendor_uuid as string);
+      }
+
+      const { data, error } = await dataQuery
         .order("created_at", { ascending: false })
         .range(offset, offset + pageSize - 1);
 

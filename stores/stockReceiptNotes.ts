@@ -149,7 +149,7 @@ export const useStockReceiptNotesStore = defineStore(
 
     const fetchStockReceiptNotes = async (
       corporationUuid: string,
-      options: { force?: boolean; useIndexedDB?: boolean } = {}
+      options: { force?: boolean; useIndexedDB?: boolean; filters?: { project_uuid?: string; vendor_uuid?: string } } = {}
     ) => {
       if (!corporationUuid) {
         return;
@@ -183,9 +183,22 @@ export const useStockReceiptNotesStore = defineStore(
       loading.value = true;
       error.value = null;
       try {
+        // Build query string with filters
+        const queryParams = new URLSearchParams({
+          corporation_uuid: corporationUuid
+        });
+
+        const { filters } = options;
+        if (filters?.project_uuid) {
+          queryParams.append('project_uuid', filters.project_uuid);
+        }
+        if (filters?.vendor_uuid) {
+          queryParams.append('vendor_uuid', filters.vendor_uuid);
+        }
+
         const response = await $fetch<
           StockReceiptNotesResponse | StockReceiptNote[] | { data?: StockReceiptNote[] }
-        >(`/api/stock-receipt-notes?corporation_uuid=${corporationUuid}`);
+        >(`/api/stock-receipt-notes?${queryParams.toString()}`);
 
         const notes = Array.isArray(response)
           ? response

@@ -632,45 +632,17 @@ const returnedStats = computed(() => {
 });
 
 const filteredReturnNotes = computed(() => {
+  // Get return notes from store (API filtering is already applied)
   let list = [...returnNotes.value];
 
-  // Apply applied filters
-  if (appliedFilters.value.corporation) {
-    list = list.filter(
-      (note) => String(note.corporation_uuid) === String(appliedFilters.value.corporation)
-    );
-  }
-
-  if (appliedFilters.value.project) {
-    list = list.filter(
-      (note) => String(note.project_uuid) === String(appliedFilters.value.project)
-    );
-  }
-
-  if (appliedFilters.value.vendor) {
-    // Get vendor UUID from purchase order or change order
-    list = list.filter((note) => {
-      const returnType = note.return_type || 'purchase_order';
-      let vendorUuid: string | null = null;
-
-      if (returnType === 'change_order') {
-        const co = changeOrderLookup.value.get(note.change_order_uuid || "");
-        vendorUuid = co?.vendorUuid || null;
-      } else {
-        const po = purchaseOrderLookup.value.get(note.purchase_order_uuid || "");
-        vendorUuid = po?.vendorUuid || null;
-      }
-
-      return vendorUuid && String(vendorUuid) === String(appliedFilters.value.vendor);
-    });
-  }
-
+  // Apply status filter if selected (client-side since status filtering isn't in API yet)
   if (selectedStatusFilter.value) {
     list = list.filter(
       (note) => (note.status || "Returned") === selectedStatusFilter.value
     );
   }
 
+  // Apply text search filter (client-side)
   const filter = globalFilter.value.trim().toLowerCase();
   if (filter) {
     list = list.filter((note) => {
@@ -1398,6 +1370,17 @@ const handleShowResults = async () => {
     vendor: filterVendor.value,
   };
 
+  // Fetch return notes with filters applied
+  const filters = {
+    project_uuid: appliedFilters.value.project,
+    vendor_uuid: appliedFilters.value.vendor,
+  };
+
+  const corporationUuid = appliedFilters.value.corporation || selectedCorporationId.value;
+  if (corporationUuid) {
+    await stockReturnNotesStore.fetchStockReturnNotes(corporationUuid, true, 1, 100, filters);
+  }
+
   // Clear table page when filters change
   resetTablePage();
 };
@@ -1412,6 +1395,11 @@ const handleClearFilters = () => {
     project: undefined,
     vendor: undefined,
   };
+
+  // Refetch data for the original corporation without filters
+  if (selectedCorporationId.value) {
+    stockReturnNotesStore.fetchStockReturnNotes(selectedCorporationId.value, true);
+  }
 
   // Clear table page when filters are cleared
   resetTablePage();
