@@ -288,7 +288,6 @@ const selectCostCode = (costCodeUuid: string) => {
 
 // Select items when modal opens
 watch(() => props.open, (newValue) => {
-  console.log('[EstimateItemsModal] Modal open changed:', newValue, 'Items count:', props.items.length);
   if (newValue && props.items.length > 0) {
     // Reset cost code selection
     selectedCostCodeUuid.value = null
@@ -317,12 +316,10 @@ watch(() => props.open, (newValue) => {
         })
         .filter((id): id is string => id !== null);
       
-      console.log('[EstimateItemsModal] Preselecting items:', itemIds.length, 'of', props.items.length);
       selectedItems.value = new Set(itemIds);
     } else {
       // Select all items by default
       const itemIds = props.items.map((item, index) => getItemId(item, index));
-      console.log('[EstimateItemsModal] Selecting all items:', itemIds);
       selectedItems.value = new Set(itemIds);
     }
     
@@ -338,37 +335,12 @@ watch(() => props.open, (newValue) => {
 
 // Watch items prop changes
 watch(() => props.items, (newItems) => {
-  console.log('[EstimateItemsModal] Items changed:', newItems.length, 'items');
-  if (newItems.length > 0 && newItems[0]) {
-    const firstItem = newItems[0];
-    console.log('[EstimateItemsModal] First item:', firstItem);
-    console.log('[EstimateItemsModal] First item keys:', Object.keys(firstItem));
-    
-    // Debug cost code fields (including display_metadata)
-    const display = firstItem.display_metadata || {};
-    console.log('[EstimateItemsModal] display_metadata object:', display);
-    console.log('[EstimateItemsModal] display_metadata keys:', display ? Object.keys(display) : 'no display_metadata');
-    console.log('[EstimateItemsModal] Cost Code fields:', {
-      cost_code_label: firstItem.cost_code_label || display.cost_code_label,
-      cost_code_number: firstItem.cost_code_number || display.cost_code_number,
-      cost_code_name: firstItem.cost_code_name || display.cost_code_name,
-      cost_code_description: firstItem.cost_code_description || display.cost_code_description,
-      cost_code: firstItem.cost_code,
-      cost_code_uuid: firstItem.cost_code_uuid,
-      display_metadata_exists: !!firstItem.display_metadata,
-      display_metadata_content: display,
-    });
-    
-    // Show first 3 items cost code info
-    newItems.slice(0, 3).forEach((item, index) => {
-      const costCodeLabel = item.cost_code_label || 
-        (item.cost_code_number || item.cost_code_name 
-          ? [item.cost_code_number, item.cost_code_name].filter(Boolean).join(' ').trim()
-          : null);
-      console.log(`[EstimateItemsModal] Item ${index}:`, {
-        cost_code: costCodeLabel || item.cost_code || '-',
-      });
-    });
+  // Initialize selection when items change
+  if (newItems.length > 0 && selectedItems.value.size === 0) {
+    // Auto-select first cost code if none selected
+    if (costCodeAccordionItems.value.length > 0 && !selectedCostCodeUuid.value) {
+      selectedCostCodeUuid.value = costCodeAccordionItems.value[0].costCodeUuid
+    }
   }
 }, { immediate: true, deep: true })
 
@@ -460,7 +432,6 @@ const handleConfirm = () => {
   const selected = props.items.filter((item, index) => 
     selectedItems.value.has(getItemId(item, index))
   )
-  console.log('[EstimateItemsModal] Confirming selection:', selected.length, 'items');
   emit('confirm', selected)
   isOpen.value = false
 }
@@ -525,9 +496,9 @@ const tableColumns = computed<TableColumn<EstimateItem>[]>(() => [
     meta: { class: { th: 'w-48 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted', td: 'px-4 py-3 align-middle' } },
     cell: ({ row }: { row: { original: EstimateItem } }) => {
       const item = row.original
-      return h('div', { class: 'text-xs font-medium truncate' },
-        item.item_label || item.item_description || item.item_name || item.description || '-'
-      )
+      // For estimate items, use name field; for master items, use item_name
+      const displayValue = item.name || item.item_name || '-'
+      return h('div', { class: 'text-xs font-medium truncate' }, displayValue)
     }
   },
   {
@@ -537,9 +508,10 @@ const tableColumns = computed<TableColumn<EstimateItem>[]>(() => [
     meta: { class: { th: 'w-48 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted', td: 'px-4 py-3 align-middle' } },
     cell: ({ row }: { row: { original: EstimateItem } }) => {
       const item = row.original
-      return h('div', { class: 'text-xs text-muted truncate' },
-        item.po_description || item.description || '-'
-      )
+      // For estimate items, use description field; for master items, use po_description || description
+      const description = item.po_description || item.description
+      const displayValue = description || '-'
+      return h('div', { class: 'text-xs text-muted truncate' }, displayValue)
     }
   },
   {

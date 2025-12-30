@@ -2168,16 +2168,6 @@ const getPreferredItemsSignature = (items: any[]) =>
     .join('|');
 
 const transformPreferredItemToPoItem = (item: any, index: number) => {
-  // Debug raw database values
-  if (index < 3) {
-    console.log('[transformPreferredItemToPoItem] Raw database item:', {
-      index,
-      item_name: item?.item_name,
-      description: item?.description,
-      name: item?.name,
-      label: item?.label
-    });
-  }
   
   const costCodeNumber = item?.cost_code_number || '';
   const costCodeName = item?.cost_code_name || '';
@@ -2230,7 +2220,7 @@ const transformPreferredItemToPoItem = (item: any, index: number) => {
 
   const modelNumber = item?.model_number || '';
 
-  const result = {
+  return {
     id: item?.id || `${item?.cost_code_uuid || 'master'}-${index}`,
     cost_code_uuid: item?.cost_code_uuid || item?.cost_code_configuration_uuid || null,
     cost_code_number: costCodeNumber,
@@ -2280,19 +2270,6 @@ const transformPreferredItemToPoItem = (item: any, index: number) => {
       model_number: item?.model_number || '',
     },
   };
-
-  // Debug transformed values for first few items
-  if (index < 3) {
-    console.log('[transformPreferredItemToPoItem] Transformed item:', {
-      index,
-      item_name: result.item_name,
-      item_description: result.item_description,
-      description: result.description,
-      po_description: result.display_metadata?.po_description
-    });
-  }
-
-  return result;
 };
 
 const applyPreferredItemsToForm = (preferredItems: any[], { force = false } = {}) => {

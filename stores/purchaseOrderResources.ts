@@ -75,7 +75,15 @@ const toArray = (value: any) => {
   return [];
 };
 
-const transformEstimateMaterialItemsToPoItems = (flattened: any[]) => {
+const transformEstimateMaterialItemsToPoItems = (flattened: any[], preferredItems: any[] = []) => {
+  // Create a lookup map for preferred items by item_uuid
+  const preferredItemsByUuid = new Map();
+  preferredItems.forEach(item => {
+    if (item.item_uuid) {
+      preferredItemsByUuid.set(item.item_uuid, item);
+    }
+  });
+
   return flattened.map((entry: any) => {
     const unitPrice = normalizeNumber(entry.unit_price, 0);
     const quantity = normalizeNumber(entry.quantity, 0);
@@ -95,6 +103,22 @@ const transformEstimateMaterialItemsToPoItems = (flattened: any[]) => {
     // Extract sequence for SequenceSelect matching
     const sequence = entry.sequence || entry.item_sequence || "";
 
+    // Try to get proper item name from preferred items if available
+    let itemName = entry.name || "";
+    let itemDescription = entry.description || "";
+
+    if (entry.item_uuid && preferredItemsByUuid.has(entry.item_uuid)) {
+      const preferredItem = preferredItemsByUuid.get(entry.item_uuid);
+      // Use preferred item name if it's better than estimate name
+      if (preferredItem.item_name && (!itemName || itemName.length < preferredItem.item_name.length)) {
+        itemName = preferredItem.item_name;
+      }
+      // Use preferred item description if estimate doesn't have one
+      if (preferredItem.description && !itemDescription) {
+        itemDescription = preferredItem.description;
+      }
+    }
+
     return {
       cost_code_uuid: entry.cost_code_uuid || null,
       item_type_uuid:
@@ -103,7 +127,8 @@ const transformEstimateMaterialItemsToPoItems = (flattened: any[]) => {
       sequence: sequence, // Include sequence for SequenceSelect
       item_sequence: sequence, // Also include as item_sequence for compatibility
       item_uuid: typeof entry.item_uuid === "string" ? entry.item_uuid : null,
-      description: entry.description || entry.name || "",
+      name: itemName, // Enhanced item name from preferred items if available
+      description: itemDescription, // Enhanced description from preferred items if available
       model_number: entry.model_number || null,
       location_uuid:
         entry.location && typeof entry.location === "string"
@@ -411,18 +436,6 @@ export const usePurchaseOrderResourcesStore = defineStore(
           state.preferredItemsPromise = null;
         }
 
-        // Debug: log what we're returning
-        if (state.preferredItems.length > 0) {
-          console.log('[purchaseOrderResources] Returning preferred items:', state.preferredItems.length, 'items');
-          const firstItem = state.preferredItems[0];
-          console.log('[purchaseOrderResources] First item fields:', {
-            item_name: firstItem.item_name,
-            description: firstItem.description,
-            item_label: firstItem.item_label,
-            name: firstItem.name,
-            uuid: firstItem.uuid || firstItem.item_uuid
-          });
-        }
 
         return state.preferredItems;
       })();
@@ -478,6 +491,13 @@ export const usePurchaseOrderResourcesStore = defineStore(
       state.estimateItemsMap[key] = estimateState;
 
       try {
+        // Ensure preferred items are loaded first so we can enrich estimate items
+        await ensurePreferredItems({
+          corporationUuid,
+          projectUuid,
+          force: false,
+        });
+
         // Fetch estimate line items directly from API - scoped to this store only
         // NOTE: This does NOT affect any global stores or update IndexedDB
         const { apiFetch } = useApiClient();
@@ -584,7 +604,11 @@ export const usePurchaseOrderResourcesStore = defineStore(
           });
         });
 
-        const poItems = transformEstimateMaterialItemsToPoItems(flattened);
+        // Fetch preferred items to enrich estimate items with proper names
+        const projectState = getOrCreateProjectState(corporationUuid, projectUuid);
+        const preferredItems = projectState.preferredItems || [];
+
+        const poItems = transformEstimateMaterialItemsToPoItems(flattened, preferredItems);
 
         estimateState.rawItems = flattened;
         estimateState.poItems = poItems;

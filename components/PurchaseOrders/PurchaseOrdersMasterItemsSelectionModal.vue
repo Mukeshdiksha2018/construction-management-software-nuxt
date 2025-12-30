@@ -506,18 +506,17 @@ const tableColumns = computed<TableColumn<MasterItem>[]>(() => [
     meta: { class: { th: 'w-48 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted', td: 'px-4 py-3 align-middle' } },
     cell: ({ row }: { row: { original: MasterItem } }) => {
       const item = row.original
-      const displayValue = item.item_name || '-'
-      // Debug logging for first few items
-      if (row.index < 3) {
-        console.log('Item column render:', {
-          index: row.index,
-          item_name: item.item_name,
-          item_label: item.item_label,
-          item_description: item.item_description,
-          description: item.description,
-          displayValue
-        })
+      // Handle both estimate items (name field) and master items (item_name field)
+      // Make sure we don't accidentally show description in item column
+      let itemName = ''
+      if (item.item_name && item.item_name !== item.description && item.item_name !== item.po_description) {
+        // Master items: use item_name if it's not the same as description
+        itemName = item.item_name
+      } else if (item.name && item.name !== item.description && item.name !== item.po_description) {
+        // Estimate items: use name if it's not the same as description
+        itemName = item.name
       }
+      const displayValue = itemName || '-'
       return h('div', { class: 'text-xs font-medium truncate' }, displayValue)
     }
   },
@@ -528,18 +527,17 @@ const tableColumns = computed<TableColumn<MasterItem>[]>(() => [
     meta: { class: { th: 'w-48 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted', td: 'px-4 py-3 align-middle' } },
     cell: ({ row }: { row: { original: MasterItem } }) => {
       const item = row.original
-      const description = item.po_description || item.description
-      const displayValue = description || '-'
-      // Debug logging for first few items
-      if (row.index < 3) {
-        console.log('Description column render:', {
-          index: row.index,
-          po_description: item.po_description,
-          description: item.description,
-          displayValue
-        })
+      // For master items: use po_description, for estimate items: use description
+      // NO fallback to item name - if no description exists, show empty
+      let description = ''
+      if (item.po_description) {
+        // Master items have po_description
+        description = item.po_description
+      } else if (item.description && item.description !== item.name && item.description !== item.item_name) {
+        // Estimate items use description, but make sure it's not accidentally the item name
+        description = item.description
       }
-      return h('div', { class: 'text-xs text-muted truncate' }, displayValue)
+      return h('div', { class: 'text-xs text-muted truncate' }, description || '-')
     }
   },
   {
