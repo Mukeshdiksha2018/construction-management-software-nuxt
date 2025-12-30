@@ -1,11 +1,4 @@
 export default defineAppConfig({
-  // Build-time configuration (evaluated at build time, cannot be overridden)
-  build: {
-    buildDate: new Date().toISOString(),
-    buildEnv: process.env.NODE_ENV || 'development',
-    // This is determined at build time and bundled into the app
-    baseUrl: "",
-  },
   ui: {
     colors: {
       primary: "brand",
@@ -43,7 +36,7 @@ export default defineAppConfig({
         pinned: {
           true: {
             th: "sticky bg-gray-100 dark:bg-gray-800/50 data-[pinned=left]:left-0 data-[pinned=right]:right-0",
-            td: "sticky data-[pinned=left]:left-0 data-[pinned=right]:right-0",
+            td: "sticky bg-default/75 data-[pinned=left]:left-0 data-[pinned=right]:right-0",
           },
         },
         sticky: {
