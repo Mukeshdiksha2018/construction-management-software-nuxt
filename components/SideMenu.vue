@@ -1,15 +1,15 @@
 <template>
   <!-- Desktop Sidebar - Hidden on mobile and tablets -->
-  <div class="hidden lg:flex h-screen bg-indigo-600 dark:bg-indigo-800">
+  <div class="hidden lg:flex h-screen bg-gradient-to-br from-purple-300/40 via-purple-200/30 to-indigo-300/40">
     <!-- Sidebar -->
     <aside
-      class="text-white flex flex-col transition-all duration-300 border-r border-indigo-700 dark:border-indigo-900"
+      class="text-indigo-900 dark:text-indigo-100 flex flex-col transition-all duration-300 border-r border-indigo-200 dark:border-indigo-800"
       :class="isExpanded ? 'w-56' : 'w-16'"
       aria-label="Sidebar"
       @mouseenter="handleMouseEnter"
       @mouseleave="handleMouseLeave"
     >
-      <div class="p-4 text-lg font-bold border-b border-indigo-700 dark:border-indigo-900 truncate text-white">
+      <div class="p-4 text-lg font-bold border-b border-indigo-200 dark:border-indigo-800 truncate text-indigo-900 dark:text-indigo-100">
         <span v-if="isExpanded">Nimble Property Management</span>
         <span v-else>NPM</span>
       </div>
@@ -19,8 +19,8 @@
           <!-- Show loading skeleton while permissions are being loaded -->
           <div v-if="!isReady" class="space-y-1">
             <div v-for="i in 8" :key="i" class="flex items-center px-3 py-3">
-              <div class="w-5 h-5 bg-indigo-500 dark:bg-indigo-700 rounded animate-pulse"></div>
-              <div v-if="isExpanded" class="ml-3 h-4 bg-indigo-500 dark:bg-indigo-700 rounded animate-pulse flex-1"></div>
+              <div class="w-5 h-5 bg-indigo-300 dark:bg-indigo-600 rounded animate-pulse"></div>
+              <div v-if="isExpanded" class="ml-3 h-4 bg-indigo-300 dark:bg-indigo-600 rounded animate-pulse flex-1"></div>
             </div>
           </div>
           
@@ -34,16 +34,16 @@
               :class="[
                 item.class,
                 isActiveRoute(item.to)
-                  ? 'bg-white text-indigo-600 dark:text-indigo-700 font-semibold shadow-md'
-                  : 'text-white/90 hover:bg-indigo-500 dark:hover:bg-indigo-700 hover:text-white'
+                  ? 'bg-indigo-200 dark:bg-indigo-800 text-indigo-900 dark:text-indigo-100 font-semibold shadow-sm'
+                  : 'text-indigo-800 dark:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 hover:text-indigo-900 dark:hover:text-indigo-100'
               ]"
             >
               <UIcon 
                 :name="item.icon" 
                 class="w-5 h-5 flex-shrink-0 transition-colors duration-200"
                 :class="isActiveRoute(item.to)
-                  ? 'text-indigo-600 dark:text-indigo-700'
-                  : 'text-white/80 group-hover:text-white'"
+                  ? 'text-indigo-900 dark:text-indigo-100'
+                  : 'text-indigo-700 dark:text-indigo-300 group-hover:text-indigo-900 dark:group-hover:text-indigo-100'"
               />
               <span v-if="isExpanded" class="ml-3 truncate text-md">{{ item.label }}</span>
             </NuxtLink>
