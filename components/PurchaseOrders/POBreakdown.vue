@@ -197,19 +197,19 @@ const getSequence = (item: any) => {
 
 const getItemName = (item: any) => {
   // The API returns raw database data - item_name is a direct column in purchase_order_items_list table
-  // Priority: metadata.item_name (from JSONB - this preserves original data) > item.item_name (direct database field) > item.name (if sequence exists)
+  // Priority: item.item_name (direct database field) > metadata.item_name (from JSONB - preserves original data) > item.name (if sequence exists)
   // But skip corrupted values (when the value equals the description - this indicates corruption from completed POs)
   const metadata = item?.metadata || item?.display_metadata || {}
 
-  // First check metadata (JSONB field) - this should contain the original item name
+  // First check the direct database field (item_name) - this is the primary source
   let itemName = ''
-  if (metadata?.item_name && metadata.item_name !== item?.description) {
-    itemName = metadata.item_name
+  if (item?.item_name && item.item_name !== item?.description) {
+    itemName = item.item_name
   }
 
-  // If metadata doesn't have it or is corrupted, check the direct database field
-  if (!itemName && item?.item_name && item.item_name !== item?.description) {
-    itemName = item.item_name
+  // If direct field is corrupted or missing, check metadata (JSONB field) - this preserves original data
+  if (!itemName && metadata?.item_name && metadata.item_name !== item?.description) {
+    itemName = metadata.item_name
   }
 
   // If we have sequence but still no item_name, try item.name (preferred items may use 'name' field)
