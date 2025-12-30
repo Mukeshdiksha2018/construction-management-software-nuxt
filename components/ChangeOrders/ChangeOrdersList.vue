@@ -104,6 +104,70 @@
       </UButton>
     </div>
 
+    <!-- Filters -->
+    <div v-if="isReady && !loading" class="mb-3 px-4 py-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+      <div class="flex flex-col sm:flex-row gap-4 items-end">
+        <!-- Filters Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 flex-1 items-end">
+          <!-- Corporation Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Corporation</label>
+            <CorporationSelect
+              v-model="filterCorporation"
+              placeholder="All Corporations"
+              size="sm"
+              class="w-full"
+            />
+          </div>
+
+          <!-- Project Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Project</label>
+            <ProjectSelect
+              v-model="filterProject"
+              :corporation-uuid="filterCorporation || undefined"
+              placeholder="All Projects"
+              size="sm"
+              class="w-full"
+              :disabled="!filterCorporation"
+            />
+          </div>
+
+          <!-- Vendor Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Vendor</label>
+            <VendorSelect
+              v-model="filterVendor"
+              :corporation-uuid="filterCorporation || selectedCorporationId || undefined"
+              placeholder="All Vendors"
+              size="sm"
+              class="w-full"
+              :disabled="!filterCorporation && !selectedCorporationId"
+            />
+          </div>
+        </div>
+
+        <!-- Show and Clear Buttons - Stacked -->
+        <div class="flex-shrink-0 flex flex-col gap-2">
+          <UButton
+            color="primary"
+            size="sm"
+            @click="handleShowResults"
+          >
+            Show
+          </UButton>
+          <UButton
+            color="neutral"
+            variant="outline"
+            size="sm"
+            @click="handleClearFilters"
+          >
+            Clear
+          </UButton>
+        </div>
+      </div>
+    </div>
+
     <div v-if="loading && !loadingRowUuid && !changeOrders.length">
       <div class="text-center py-12">
         <div class="text-gray-400 mb-4">
@@ -433,6 +497,9 @@ import { useLaborChangeOrderItemsStore } from '@/stores/laborChangeOrderItems'
 import { useChangeOrderPrint } from '@/composables/useChangeOrderPrint'
 import { useShipViaStore } from '@/stores/freight'
 import { useProjectAddressesStore } from '@/stores/projectAddresses'
+import ProjectSelect from '@/components/Shared/ProjectSelect.vue'
+import VendorSelect from '@/components/Shared/VendorSelect.vue'
+import CorporationSelect from '@/components/Shared/CorporationSelect.vue'
 
 const UButton = resolveComponent('UButton')
 const UTooltip = resolveComponent('UTooltip')
@@ -449,6 +516,18 @@ const { pagination, paginationOptions, pageSizeOptions, updatePageSize, getPagin
 const selectedRows = ref<any[]>([])
 const globalFilter = ref('')
 const selectedStatusFilter = ref<string | null>(null)
+
+// Filter state (temporary - not applied until Show Results is clicked)
+const filterCorporation = ref<string | undefined>(undefined)
+const filterProject = ref<string | undefined>(undefined)
+const filterVendor = ref<string | undefined>(undefined)
+
+// Applied filters (set when "Show Results" is clicked)
+const appliedFilters = ref({
+  corporation: undefined as string | undefined,
+  project: undefined as string | undefined,
+  vendor: undefined as string | undefined,
+})
 const showFormModal = ref(false)
 const saving = ref(false)
 const loadingDetail = ref(false)
@@ -806,27 +885,46 @@ const rejectedStats = computed(() => {
 
 const filteredChangeOrders = computed<any[]>(() => {
   // First filter by TopBar's corporation (the list should only show COs for TopBar's corporation)
-  let filtered = Array.isArray(changeOrders.value) 
-    ? changeOrders.value.filter((c: any) => 
+  let filtered = Array.isArray(changeOrders.value)
+    ? changeOrders.value.filter((c: any) =>
         String(c.corporation_uuid) === String(selectedCorporationId.value)
       )
     : []
-  
+
+  // Apply applied filters
+  if (appliedFilters.value.corporation) {
+    filtered = filtered.filter((c: any) =>
+      String(c.corporation_uuid) === String(appliedFilters.value.corporation)
+    )
+  }
+
+  if (appliedFilters.value.project) {
+    filtered = filtered.filter((c: any) =>
+      String(c.project_uuid) === String(appliedFilters.value.project)
+    )
+  }
+
+  if (appliedFilters.value.vendor) {
+    filtered = filtered.filter((c: any) =>
+      String(c.vendor_uuid) === String(appliedFilters.value.vendor)
+    )
+  }
+
   // Apply status filter if selected
   if (selectedStatusFilter.value) {
     filtered = filtered.filter((c: any) => c.status === selectedStatusFilter.value)
   }
-  
+
   // Apply text search filter
   const text = globalFilter.value.trim().toLowerCase()
   if (text) {
     filtered = filtered.filter((row: any) =>
-      [row.co_number, row.status]
+      [row.co_number, row.status, row.project_name, row.vendor_name]
         .filter(Boolean)
         .some((v: string) => String(v).toLowerCase().includes(text))
     )
   }
-  
+
   return filtered
 })
 
@@ -839,7 +937,7 @@ const toggleStatusFilter = (status: string) => {
   } else {
     selectedStatusFilter.value = status
   }
-  
+
   if (table.value?.tableApi) {
     table.value.tableApi.setPageIndex(0)
   }
@@ -847,7 +945,38 @@ const toggleStatusFilter = (status: string) => {
 
 const clearStatusFilter = () => {
   selectedStatusFilter.value = null
-  
+
+  if (table.value?.tableApi) {
+    table.value.tableApi.setPageIndex(0)
+  }
+}
+
+// Filter handlers
+const handleShowResults = async () => {
+  appliedFilters.value = {
+    corporation: filterCorporation.value,
+    project: filterProject.value,
+    vendor: filterVendor.value,
+  }
+
+  // Clear table page when filters change
+  if (table.value?.tableApi) {
+    table.value.tableApi.setPageIndex(0)
+  }
+}
+
+const handleClearFilters = () => {
+  filterCorporation.value = undefined
+  filterProject.value = undefined
+  filterVendor.value = undefined
+
+  appliedFilters.value = {
+    corporation: undefined,
+    project: undefined,
+    vendor: undefined,
+  }
+
+  // Clear table page when filters are cleared
   if (table.value?.tableApi) {
     table.value.tableApi.setPageIndex(0)
   }

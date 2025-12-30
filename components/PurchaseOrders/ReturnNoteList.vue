@@ -59,6 +59,70 @@
       </UButton>
     </div>
 
+    <!-- Filters -->
+    <div v-if="isReady && !loading" class="mb-3 px-4 py-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+      <div class="flex flex-col sm:flex-row gap-4 items-end">
+        <!-- Filters Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 flex-1 items-end">
+          <!-- Corporation Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Corporation</label>
+            <CorporationSelect
+              v-model="filterCorporation"
+              placeholder="All Corporations"
+              size="sm"
+              class="w-full"
+            />
+          </div>
+
+          <!-- Project Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Project</label>
+            <ProjectSelect
+              v-model="filterProject"
+              :corporation-uuid="filterCorporation || undefined"
+              placeholder="All Projects"
+              size="sm"
+              class="w-full"
+              :disabled="!filterCorporation"
+            />
+          </div>
+
+          <!-- Vendor Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Vendor</label>
+            <VendorSelect
+              v-model="filterVendor"
+              :corporation-uuid="filterCorporation || selectedCorporationId || undefined"
+              placeholder="All Vendors"
+              size="sm"
+              class="w-full"
+              :disabled="!filterCorporation && !selectedCorporationId"
+            />
+          </div>
+        </div>
+
+        <!-- Show and Clear Buttons - Stacked -->
+        <div class="flex-shrink-0 flex flex-col gap-2">
+          <UButton
+            color="primary"
+            size="sm"
+            @click="handleShowResults"
+          >
+            Show
+          </UButton>
+          <UButton
+            color="neutral"
+            variant="outline"
+            size="sm"
+            @click="handleClearFilters"
+          >
+            Clear
+          </UButton>
+        </div>
+      </div>
+    </div>
+
     <div v-if="loading" class="space-y-2">
       <div class="relative overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
         <div class="bg-gray-50 dark:bg-gray-700">
@@ -288,6 +352,7 @@ import { usePurchaseOrdersStore } from "@/stores/purchaseOrders";
 import { usePurchaseOrderResourcesStore } from "@/stores/purchaseOrderResources";
 import { useChangeOrdersStore } from "@/stores/changeOrders";
 import { useProjectsStore } from "@/stores/projects";
+import { useVendorStore } from "@/stores/vendors";
 import { useUserProfilesStore } from "@/stores/userProfiles";
 import { usePermissions } from "@/composables/usePermissions";
 import { useDateFormat } from "@/composables/useDateFormat";
@@ -295,6 +360,9 @@ import { useCurrencyFormat } from "@/composables/useCurrencyFormat";
 import { useUTCDateFormat } from "@/composables/useUTCDateFormat";
 import { useTableStandard } from "@/composables/useTableStandard";
 import type { TableColumn } from "@nuxt/ui";
+import ProjectSelect from "@/components/Shared/ProjectSelect.vue";
+import VendorSelect from "@/components/Shared/VendorSelect.vue";
+import CorporationSelect from "@/components/Shared/CorporationSelect.vue";
 
 const UButton = resolveComponent("UButton");
 const UTooltip = resolveComponent("UTooltip");
@@ -318,6 +386,7 @@ const purchaseOrdersStore = usePurchaseOrdersStore();
 const purchaseOrderResourcesStore = usePurchaseOrderResourcesStore();
 const changeOrdersStore = useChangeOrdersStore();
 const projectsStore = useProjectsStore();
+const vendorStore = useVendorStore();
 const userProfilesStore = useUserProfilesStore();
 const { hasPermission, isReady } = usePermissions();
 const { formatDate } = useDateFormat();
@@ -344,6 +413,19 @@ const columnPinning = ref({
 
 const globalFilter = ref("");
 const selectedStatusFilter = ref<string | null>(null);
+
+// Filter state (temporary - not applied until Show Results is clicked)
+const filterCorporation = ref<string | undefined>(undefined);
+const filterProject = ref<string | undefined>(undefined);
+const filterVendor = ref<string | undefined>(undefined);
+
+// Applied filters (set when "Show Results" is clicked)
+const appliedFilters = ref({
+  corporation: undefined as string | undefined,
+  project: undefined as string | undefined,
+  vendor: undefined as string | undefined,
+});
+
 const showDeleteModal = ref(false);
 const returnNoteToDelete = ref<any>(null);
 const showFormModal = ref(false);
@@ -497,6 +579,17 @@ const changeOrderLookup = computed(() => {
   return map;
 });
 
+const vendorLookup = computed(() => {
+  const map = new Map<string, string>();
+  const list = vendorStore.vendors ?? [];
+  list.forEach((vendor: any) => {
+    if (vendor?.uuid) {
+      map.set(vendor.uuid, vendor.vendor_name || vendor.uuid);
+    }
+  });
+  return map;
+});
+
 const userLookup = computed(() => {
   const map = new Map<string, { name: string; imageUrl?: string }>();
   const list = userProfilesStore.users ?? [];
@@ -541,6 +634,37 @@ const returnedStats = computed(() => {
 const filteredReturnNotes = computed(() => {
   let list = [...returnNotes.value];
 
+  // Apply applied filters
+  if (appliedFilters.value.corporation) {
+    list = list.filter(
+      (note) => String(note.corporation_uuid) === String(appliedFilters.value.corporation)
+    );
+  }
+
+  if (appliedFilters.value.project) {
+    list = list.filter(
+      (note) => String(note.project_uuid) === String(appliedFilters.value.project)
+    );
+  }
+
+  if (appliedFilters.value.vendor) {
+    // Get vendor UUID from purchase order or change order
+    list = list.filter((note) => {
+      const returnType = note.return_type || 'purchase_order';
+      let vendorUuid: string | null = null;
+
+      if (returnType === 'change_order') {
+        const co = changeOrderLookup.value.get(note.change_order_uuid || "");
+        vendorUuid = co?.vendorUuid || null;
+      } else {
+        const po = purchaseOrderLookup.value.get(note.purchase_order_uuid || "");
+        vendorUuid = po?.vendorUuid || null;
+      }
+
+      return vendorUuid && String(vendorUuid) === String(appliedFilters.value.vendor);
+    });
+  }
+
   if (selectedStatusFilter.value) {
     list = list.filter(
       (note) => (note.status || "Returned") === selectedStatusFilter.value
@@ -563,10 +687,26 @@ const filteredReturnNotes = computed(() => {
       }
       const projectName =
         projectLookup.value.get(note.project_uuid || "") || "";
+      const vendorName = (() => {
+        const returnType = note.return_type || 'purchase_order';
+        let vendorUuid: string | null = null;
+
+        if (returnType === 'change_order') {
+          const co = changeOrderLookup.value.get(note.change_order_uuid || "");
+          vendorUuid = co?.vendorUuid || null;
+        } else {
+          const po = purchaseOrderLookup.value.get(note.purchase_order_uuid || "");
+          vendorUuid = po?.vendorUuid || null;
+        }
+
+        return vendorUuid ? (vendorLookup.value.get(vendorUuid) || "") : "";
+      })();
+
       return (
         note.return_number?.toLowerCase().includes(filter) ||
         orderNumber.toLowerCase().includes(filter) ||
         projectName.toLowerCase().includes(filter) ||
+        vendorName.toLowerCase().includes(filter) ||
         note.status?.toLowerCase().includes(filter)
       );
     });
@@ -1247,6 +1387,33 @@ const toggleStatusFilter = (status: string) => {
 
 const clearStatusFilter = () => {
   selectedStatusFilter.value = null;
+  resetTablePage();
+};
+
+// Filter handlers
+const handleShowResults = async () => {
+  appliedFilters.value = {
+    corporation: filterCorporation.value,
+    project: filterProject.value,
+    vendor: filterVendor.value,
+  };
+
+  // Clear table page when filters change
+  resetTablePage();
+};
+
+const handleClearFilters = () => {
+  filterCorporation.value = undefined;
+  filterProject.value = undefined;
+  filterVendor.value = undefined;
+
+  appliedFilters.value = {
+    corporation: undefined,
+    project: undefined,
+    vendor: undefined,
+  };
+
+  // Clear table page when filters are cleared
   resetTablePage();
 };
 
