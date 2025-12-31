@@ -1,8 +1,8 @@
 <template>
   <div>
     <!-- Status Stat Cards with Add New Button and Search Bar -->
-    <div v-if="isReady && !loading" class="flex items-center gap-4 mb-4">
-      <div class="flex flex-row flex-1 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
+    <div v-if="isReady && !loading" class="flex items-start gap-4 mb-4">
+      <div class="flex flex-row flex-[3] rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
       <!-- Summary Section (Highlighted) -->
       <div
         @click="clearStatusFilter()"
@@ -105,28 +105,28 @@
       </div>
       </div>
 
-      <!-- Add New Button -->
-      <UButton
-        v-if="hasPermission('project_estimates_create')"
-        icon="i-heroicons-plus"
-        color="primary"
-        size="xs"
-        @click="addNewEstimate"
-      >
-        Add New Estimate
-      </UButton>
-    </div>
-
-    <!-- Search Bar -->
-    <div class="max-w-sm">
-      <UInput
-        v-model="globalFilter"
-        placeholder="Search estimates..."
-        icon="i-heroicons-magnifying-glass"
-        variant="subtle"
-        size="xs"
-        class="w-full"
-      />
+      <!-- Add New Button and Search Bar -->
+      <div class="flex flex-col gap-2 flex-1">
+        <UButton
+          v-if="hasPermission('project_estimates_create')"
+          icon="i-heroicons-plus"
+          color="primary"
+          size="xs"
+          @click="addNewEstimate"
+        >
+          Add New Estimate
+        </UButton>
+        <div class="max-w-sm">
+          <UInput
+            v-model="globalFilter"
+            placeholder="Search estimates..."
+            icon="i-heroicons-magnifying-glass"
+            variant="subtle"
+            size="xs"
+            class="w-full"
+          />
+        </div>
+      </div>
     </div>
     </div>
 
