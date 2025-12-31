@@ -183,20 +183,32 @@
       </div>
       </div>
 
-      <!-- Add New Button -->
-      <UButton
-        v-if="hasPermission('project_create')"
-        icon="i-heroicons-plus"
-        color="primary"
-        size="xs"
-        @click="addNewProject"
-      >
-        Add New Project
-      </UButton>
+      <!-- Add New Button and Filter Toggle -->
+      <div class="flex flex-col gap-2">
+        <UButton
+          v-if="hasPermission('project_create')"
+          icon="i-heroicons-plus"
+          color="primary"
+          size="xs"
+          @click="addNewProject"
+        >
+          Add New Project
+        </UButton>
+        <UButton
+          icon="i-heroicons-adjustments-horizontal"
+          variant="outline"
+          size="xs"
+          color="gray"
+          @click="toggleFilters"
+          :class="{ 'bg-gray-100 dark:bg-gray-700': showFilters }"
+        >
+          Filters
+        </UButton>
+      </div>
     </div>
 
     <!-- Filters Panel -->
-    <div v-if="isReady" class="mb-4 px-4 py-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+    <div v-if="showFilters && isReady" class="mb-4 px-4 py-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
       <div class="flex flex-col sm:flex-row gap-4 items-end">
         <!-- Filters Grid -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 flex-1 items-end">
@@ -684,6 +696,7 @@ const {
 const selectedProjects = ref<any[]>([])
 const globalFilter = ref('')
 const selectedStatusFilter = ref<string | null>(null)
+const showFilters = ref(false)
 
 // Filter state
 const filterCorporation = ref('')
@@ -1207,6 +1220,10 @@ const columns: TableColumn<any>[] = [
 ];
 
 // Methods
+
+const toggleFilters = () => {
+  showFilters.value = !showFilters.value
+}
 
 const applyFilters = () => {
   // Filters are reactive, so this is just for UI consistency
