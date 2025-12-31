@@ -7,18 +7,21 @@
       <div
         @click="clearStatusFilter()"
         :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
-          selectedStatusFilter === null 
-            ? 'bg-amber-50 dark:bg-amber-900/20' 
+          'flex-1 px-3 py-2 cursor-pointer transition-colors flex items-center justify-center',
+          selectedStatusFilter === null
+            ? 'bg-amber-50 dark:bg-amber-900/20'
             : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
         ]"
       >
         <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            Summary ({{ allStats.count }})
+          <div class="flex items-center gap-2 mb-1">
+            <UIcon name="i-heroicons-document-text" class="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            <div class="text-lg font-bold text-gray-900 dark:text-white">
+              {{ allStats.count }}
+            </div>
           </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(allStats.totalValue) }}
+          <div class="text-xs text-gray-600 dark:text-gray-400">
+            Summary
           </div>
         </div>
       </div>
@@ -30,18 +33,21 @@
       <div
         @click="toggleStatusFilter('Shipment')"
         :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
+          'flex-1 px-3 py-2 cursor-pointer transition-colors flex items-center justify-center',
           selectedStatusFilter === 'Shipment'
             ? 'bg-gray-100 dark:bg-gray-700'
             : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
         ]"
       >
         <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            Shipment ({{ shipmentStats.count }})
+          <div class="flex items-center gap-2 mb-1">
+            <UIcon name="i-heroicons-truck" class="w-5 h-5 text-orange-600 dark:text-orange-400" />
+            <div class="text-lg font-bold text-gray-900 dark:text-white">
+              {{ shipmentStats.count }}
+            </div>
           </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(shipmentStats.totalValue) }}
+          <div class="text-xs text-gray-600 dark:text-gray-400">
+            Shipment
           </div>
         </div>
       </div>
@@ -53,18 +59,21 @@
       <div
         @click="toggleStatusFilter('Received')"
         :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
+          'flex-1 px-3 py-2 cursor-pointer transition-colors flex items-center justify-center',
           selectedStatusFilter === 'Received'
             ? 'bg-gray-100 dark:bg-gray-700'
             : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
         ]"
       >
         <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            Received ({{ receivedStats.count }})
+          <div class="flex items-center gap-2 mb-1">
+            <UIcon name="i-heroicons-check-circle" class="w-5 h-5 text-green-600 dark:text-green-400" />
+            <div class="text-lg font-bold text-gray-900 dark:text-white">
+              {{ receivedStats.count }}
+            </div>
           </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(receivedStats.totalValue) }}
+          <div class="text-xs text-gray-600 dark:text-gray-400">
+            Received
           </div>
         </div>
       </div>
