@@ -105,7 +105,7 @@
       </div>
       </div>
 
-      <!-- Add New Button and Search Bar -->
+      <!-- Add New Button and Filter Toggle -->
       <div class="flex flex-col gap-2 flex-1">
         <UButton
           v-if="hasPermission('project_estimates_create')"
@@ -116,18 +116,100 @@
         >
           Add New Estimate
         </UButton>
-        <div class="max-w-sm">
-          <UInput
-            v-model="globalFilter"
-            placeholder="Search estimates..."
-            icon="i-heroicons-magnifying-glass"
-            variant="subtle"
-            size="xs"
-            class="w-full"
-          />
-        </div>
+        <UButton
+          icon="i-heroicons-adjustments-horizontal"
+          variant="outline"
+          size="xs"
+          color="gray"
+          @click="toggleFilters"
+          :class="{ 'bg-gray-100 dark:bg-gray-700': showFilters }"
+        >
+          Filters
+        </UButton>
       </div>
     </div>
+    </div>
+
+    <!-- Filters Panel -->
+    <div v-if="showFilters && isReady" class="mb-4 px-4 py-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+      <div class="flex flex-col sm:flex-row gap-4 items-end">
+        <!-- Filters Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 flex-1 items-end">
+          <!-- Corporation Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Corporation</label>
+            <CorporationSelect
+              v-model="filterCorporation"
+              placeholder="All Corporations"
+              size="sm"
+              class="w-full"
+            />
+          </div>
+
+          <!-- Project Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Project</label>
+            <ProjectSelect
+              v-model="filterProject"
+              :corporation-uuid="filterCorporation || selectedCorporationId || undefined"
+              placeholder="All Projects"
+              size="sm"
+              class="w-full"
+              :disabled="!filterCorporation && !selectedCorporationId"
+            />
+          </div>
+
+          <!-- Customer Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Customer</label>
+            <CustomerSelect
+              v-model="filterCustomer"
+              :corporation-uuid="filterCorporation || selectedCorporationId || undefined"
+              placeholder="All Customers"
+              size="sm"
+              class="w-full"
+              :disabled="!filterCorporation && !selectedCorporationId"
+            />
+          </div>
+
+          <!-- Status Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Status</label>
+            <USelect
+              v-model="filterStatus"
+              :items="[
+                { label: 'Draft', value: 'Draft' },
+                { label: 'Ready for Approval', value: 'Ready' },
+                { label: 'Approved', value: 'Approved' }
+              ]"
+              placeholder="All Statuses"
+              size="sm"
+              variant="outline"
+              clearable
+              class="w-full"
+            />
+          </div>
+        </div>
+
+        <!-- Show and Clear Buttons -->
+        <div class="flex-shrink-0 flex flex-col gap-2">
+          <UButton
+            color="primary"
+            size="sm"
+            @click="applyFilters"
+          >
+            Apply
+          </UButton>
+          <UButton
+            color="neutral"
+            variant="outline"
+            size="sm"
+            @click="clearFilters"
+          >
+            Clear
+          </UButton>
+        </div>
+      </div>
     </div>
 
     <!-- Estimates Table -->
@@ -380,6 +462,8 @@ import { useApiClient } from '@/composables/useApiClient'
 import type { TableColumn } from '@nuxt/ui'
 import AuditLogSlideover from '@/components/AuditLogs/AuditLogSlideover.vue'
 import EstimatePreview from '@/components/Projects/EstimatePreview.vue'
+import CustomerSelect from '@/components/Shared/CustomerSelect.vue'
+import ProjectSelect from '@/components/Shared/ProjectSelect.vue'
 
 // Local declaration to satisfy TS for auto-imported useToast
 declare function useToast(): { add: (opts: any) => void }
@@ -437,6 +521,13 @@ const {
 const selectedEstimates = ref<any[]>([])
 const globalFilter = ref('')
 const selectedStatusFilter = ref<string | null>(null)
+const showFilters = ref(false)
+
+// Filter state
+const filterCorporation = ref('')
+const filterProject = ref('')
+const filterCustomer = ref('')
+const filterStatus = ref('')
 const showPreviewModal = ref(false)
 const previewEstimate = ref<any>(null)
 const showDeleteModal = ref(false)
@@ -516,12 +607,29 @@ const approvedStats = computed(() => {
 
 const filteredEstimates = computed(() => {
   let filtered = [...estimates.value]
-  
+
   // Apply status filter if selected
   if (selectedStatusFilter.value) {
     filtered = filtered.filter(e => e.status === selectedStatusFilter.value)
   }
-  
+
+  // Apply additional filters
+  if (filterCorporation.value) {
+    filtered = filtered.filter(e => e.corporation_uuid === filterCorporation.value)
+  }
+
+  if (filterProject.value) {
+    filtered = filtered.filter(e => e.project_uuid === filterProject.value)
+  }
+
+  if (filterCustomer.value) {
+    filtered = filtered.filter(e => e.project?.customer_uuid === filterCustomer.value)
+  }
+
+  if (filterStatus.value) {
+    filtered = filtered.filter(e => e.status === filterStatus.value)
+  }
+
   // Apply global filter if provided
   if (globalFilter.value.trim()) {
     const searchTerm = globalFilter.value.toLowerCase().trim()
@@ -531,12 +639,12 @@ const filteredEstimates = computed(() => {
         e.project?.project_name || '',
         e.status || '',
       ]
-      return searchableFields.some(field => 
+      return searchableFields.some(field =>
         field.toLowerCase().includes(searchTerm)
       )
     })
   }
-  
+
   return filtered
 })
 
@@ -803,6 +911,29 @@ const columns: TableColumn<any>[] = [
 ];
 
 // Methods
+const toggleFilters = () => {
+  showFilters.value = !showFilters.value
+}
+
+const applyFilters = () => {
+  // Apply filters to the estimates list
+  console.log('Applying filters:', {
+    corporation: filterCorporation.value,
+    project: filterProject.value,
+    customer: filterCustomer.value,
+    status: filterStatus.value
+  })
+  // Note: The filtering logic will be handled by the computed filteredEstimates
+}
+
+const clearFilters = () => {
+  filterCorporation.value = ''
+  filterProject.value = ''
+  filterCustomer.value = ''
+  filterStatus.value = ''
+  applyFilters()
+}
+
 const toggleStatusFilter = (status: string) => {
   if (selectedStatusFilter.value === status) {
     // If clicking the same status, clear the filter

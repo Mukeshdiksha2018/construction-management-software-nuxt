@@ -183,7 +183,7 @@
       </div>
       </div>
 
-      <!-- Add New Button and Search Bar -->
+      <!-- Add New Button and Filter Toggle -->
       <div class="flex flex-col gap-2 flex-1">
         <UButton
           v-if="hasPermission('project_create')"
@@ -194,15 +194,94 @@
         >
           Add New Project
         </UButton>
-        <div class="max-w-sm">
-          <UInput
-            v-model="globalFilter"
-            placeholder="Search projects..."
-            icon="i-heroicons-magnifying-glass"
-            variant="subtle"
-            size="xs"
-            class="w-full"
-          />
+        <UButton
+          icon="i-heroicons-adjustments-horizontal"
+          variant="outline"
+          size="xs"
+          color="gray"
+          @click="toggleFilters"
+          :class="{ 'bg-gray-100 dark:bg-gray-700': showFilters }"
+        >
+          Filters
+        </UButton>
+      </div>
+    </div>
+
+    <!-- Filters Panel -->
+    <div v-if="showFilters && isReady" class="mb-4 px-4 py-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+      <div class="flex flex-col sm:flex-row gap-4 items-end">
+        <!-- Filters Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 flex-1 items-end">
+          <!-- Corporation Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Corporation</label>
+            <CorporationSelect
+              v-model="filterCorporation"
+              placeholder="All Corporations"
+              size="sm"
+              class="w-full"
+            />
+          </div>
+
+          <!-- Project Type Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Project Type</label>
+            <USelect
+              v-model="filterProjectType"
+              :items="projectTypesStore.getActiveProjectTypes.map(pt => ({ label: pt.name, value: pt.uuid }))"
+              placeholder="All Types"
+              size="sm"
+              variant="outline"
+              clearable
+              class="w-full"
+            />
+          </div>
+
+          <!-- Service Type Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Service Type</label>
+            <USelect
+              v-model="filterServiceType"
+              :items="serviceTypesStore.getActiveServiceTypes.map(st => ({ label: st.name, value: st.uuid }))"
+              placeholder="All Services"
+              size="sm"
+              variant="outline"
+              clearable
+              class="w-full"
+            />
+          </div>
+
+          <!-- Customer Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Customer</label>
+            <CustomerSelect
+              v-model="filterCustomer"
+              :corporation-uuid="filterCorporation || selectedCorporationId || undefined"
+              placeholder="All Customers"
+              size="sm"
+              class="w-full"
+              :disabled="!filterCorporation && !selectedCorporationId"
+            />
+          </div>
+        </div>
+
+        <!-- Show and Clear Buttons -->
+        <div class="flex-shrink-0 flex flex-col gap-2">
+          <UButton
+            color="primary"
+            size="sm"
+            @click="applyFilters"
+          >
+            Apply
+          </UButton>
+          <UButton
+            color="neutral"
+            variant="outline"
+            size="sm"
+            @click="clearFilters"
+          >
+            Clear
+          </UButton>
         </div>
       </div>
     </div>
@@ -557,6 +636,7 @@ import { useAuditLog } from '@/composables/useAuditLog'
 import { usePermissions } from '@/composables/usePermissions'
 import type { TableColumn } from '@nuxt/ui'
 import AuditLogSlideover from '@/components/AuditLogs/AuditLogSlideover.vue'
+import CustomerSelect from '@/components/Shared/CustomerSelect.vue'
 
 // Resolve components for table columns
 const UButton = resolveComponent('UButton')
@@ -615,6 +695,13 @@ const {
 const selectedProjects = ref<any[]>([])
 const globalFilter = ref('')
 const selectedStatusFilter = ref<string | null>(null)
+const showFilters = ref(false)
+
+// Filter state
+const filterCorporation = ref('')
+const filterProjectType = ref('')
+const filterServiceType = ref('')
+const filterCustomer = ref('')
 const showPreviewModal = ref(false)
 const previewProject = ref<any>(null)
 const showDeleteModal = ref(false)
@@ -807,12 +894,47 @@ const projectEstimateStatusMap = computed(() => {
 
 const filteredProjects = computed(() => {
   let filtered = [...projects.value]
-  
+
   // Apply status filter if selected
   if (selectedStatusFilter.value) {
     filtered = filtered.filter(p => p.project_status === selectedStatusFilter.value)
   }
-  
+
+  // Apply additional filters
+  if (filterCorporation.value) {
+    filtered = filtered.filter(p => p.corporation_uuid === filterCorporation.value)
+  }
+
+  if (filterProjectType.value) {
+    filtered = filtered.filter(p => p.project_type_uuid === filterProjectType.value)
+  }
+
+  if (filterServiceType.value) {
+    filtered = filtered.filter(p => p.service_type_uuid === filterServiceType.value)
+  }
+
+  if (filterCustomer.value) {
+    filtered = filtered.filter(p => p.customer_uuid === filterCustomer.value)
+  }
+
+  // Apply global filter if provided
+  if (globalFilter.value.trim()) {
+    const searchTerm = globalFilter.value.toLowerCase().trim()
+    filtered = filtered.filter(p => {
+      const searchableFields = [
+        p.project_id || '',
+        p.project_name || '',
+        p.project_status || '',
+        projectTypeNameByUuid.value[p.project_type_uuid] || '',
+        serviceTypeNameByUuid.value[p.service_type_uuid] || '',
+        corporationNameByUuid.value[p.corporation_uuid] || ''
+      ]
+      return searchableFields.some(field =>
+        field.toLowerCase().includes(searchTerm)
+      )
+    })
+  }
+
   return filtered
 })
 
@@ -1097,6 +1219,29 @@ const columns: TableColumn<any>[] = [
 ];
 
 // Methods
+const toggleFilters = () => {
+  showFilters.value = !showFilters.value
+}
+
+const applyFilters = () => {
+  // Apply filters to the projects list
+  console.log('Applying filters:', {
+    corporation: filterCorporation.value,
+    projectType: filterProjectType.value,
+    serviceType: filterServiceType.value,
+    customer: filterCustomer.value
+  })
+  // Note: The filtering logic will be handled by the computed filteredProjects
+}
+
+const clearFilters = () => {
+  filterCorporation.value = ''
+  filterProjectType.value = ''
+  filterServiceType.value = ''
+  filterCustomer.value = ''
+  applyFilters()
+}
+
 const toggleStatusFilter = (status: string) => {
   if (selectedStatusFilter.value === status) {
     // If clicking the same status, clear the filter
