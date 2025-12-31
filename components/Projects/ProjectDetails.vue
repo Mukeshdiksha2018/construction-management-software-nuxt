@@ -183,32 +183,20 @@
       </div>
       </div>
 
-      <!-- Add New Button and Filter Toggle -->
-      <div class="flex flex-col gap-2 flex-1">
-        <UButton
-          v-if="hasPermission('project_create')"
-          icon="i-heroicons-plus"
-          color="primary"
-          size="xs"
-          @click="addNewProject"
-        >
-          Add New Project
-        </UButton>
-        <UButton
-          icon="i-heroicons-adjustments-horizontal"
-          variant="outline"
-          size="xs"
-          color="gray"
-          @click="toggleFilters"
-          :class="{ 'bg-gray-100 dark:bg-gray-700': showFilters }"
-        >
-          Filters
-        </UButton>
-      </div>
+      <!-- Add New Button -->
+      <UButton
+        v-if="hasPermission('project_create')"
+        icon="i-heroicons-plus"
+        color="primary"
+        size="xs"
+        @click="addNewProject"
+      >
+        Add New Project
+      </UButton>
     </div>
 
     <!-- Filters Panel -->
-    <div v-if="showFilters && isReady" class="mb-4 px-4 py-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+    <div v-if="isReady" class="mb-4 px-4 py-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
       <div class="flex flex-col sm:flex-row gap-4 items-end">
         <!-- Filters Grid -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 flex-1 items-end">
@@ -637,6 +625,7 @@ import { usePermissions } from '@/composables/usePermissions'
 import type { TableColumn } from '@nuxt/ui'
 import AuditLogSlideover from '@/components/AuditLogs/AuditLogSlideover.vue'
 import CustomerSelect from '@/components/Shared/CustomerSelect.vue'
+import CorporationSelect from '@/components/Shared/CorporationSelect.vue'
 
 // Resolve components for table columns
 const UButton = resolveComponent('UButton')
@@ -695,7 +684,6 @@ const {
 const selectedProjects = ref<any[]>([])
 const globalFilter = ref('')
 const selectedStatusFilter = ref<string | null>(null)
-const showFilters = ref(false)
 
 // Filter state
 const filterCorporation = ref('')
@@ -1219,27 +1207,12 @@ const columns: TableColumn<any>[] = [
 ];
 
 // Methods
-const toggleFilters = () => {
-  showFilters.value = !showFilters.value
-}
-
-const applyFilters = () => {
-  // Apply filters to the projects list
-  console.log('Applying filters:', {
-    corporation: filterCorporation.value,
-    projectType: filterProjectType.value,
-    serviceType: filterServiceType.value,
-    customer: filterCustomer.value
-  })
-  // Note: The filtering logic will be handled by the computed filteredProjects
-}
 
 const clearFilters = () => {
   filterCorporation.value = ''
   filterProjectType.value = ''
   filterServiceType.value = ''
   filterCustomer.value = ''
-  applyFilters()
 }
 
 const toggleStatusFilter = (status: string) => {
