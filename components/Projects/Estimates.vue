@@ -7,18 +7,21 @@
       <div
         @click="clearStatusFilter()"
         :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
-          selectedStatusFilter === null 
-            ? 'bg-amber-50 dark:bg-amber-900/20' 
+          'flex-1 px-3 py-2 cursor-pointer transition-colors flex items-center justify-center',
+          selectedStatusFilter === null
+            ? 'bg-amber-50 dark:bg-amber-900/20'
             : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
         ]"
       >
         <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            Summary ({{ allEstimatesStats.count }})
+          <div class="flex items-center gap-2 mb-1">
+            <UIcon name="i-heroicons-document-text" class="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            <div class="text-lg font-bold text-gray-900 dark:text-white">
+              {{ allEstimatesStats.count }}
+            </div>
           </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(allEstimatesStats.totalValue) }}
+          <div class="text-xs text-gray-600 dark:text-gray-400">
+            Total
           </div>
         </div>
       </div>
@@ -30,18 +33,21 @@
       <div
         @click="toggleStatusFilter('Draft')"
         :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
+          'flex-1 px-3 py-2 cursor-pointer transition-colors flex items-center justify-center',
           selectedStatusFilter === 'Draft'
             ? 'bg-gray-100 dark:bg-gray-700'
             : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
         ]"
       >
         <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            Drafting… ({{ draftStats.count }})
+          <div class="flex items-center gap-2 mb-1">
+            <UIcon name="i-heroicons-clock" class="w-5 h-5 text-amber-600 dark:text-amber-400" />
+            <div class="text-lg font-bold text-gray-900 dark:text-white">
+              {{ draftStats.count }}
+            </div>
           </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(draftStats.totalValue) }}
+          <div class="text-xs text-gray-600 dark:text-gray-400">
+            Drafting…
           </div>
         </div>
       </div>
@@ -53,18 +59,21 @@
       <div
         @click="toggleStatusFilter('Ready')"
         :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
+          'flex-1 px-3 py-2 cursor-pointer transition-colors flex items-center justify-center',
           selectedStatusFilter === 'Ready'
             ? 'bg-gray-100 dark:bg-gray-700'
             : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
         ]"
       >
         <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            For Approval ({{ readyStats.count }})
+          <div class="flex items-center gap-2 mb-1">
+            <UIcon name="i-heroicons-eye" class="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <div class="text-lg font-bold text-gray-900 dark:text-white">
+              {{ readyStats.count }}
+            </div>
           </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(readyStats.totalValue) }}
+          <div class="text-xs text-gray-600 dark:text-gray-400">
+            For Approval
           </div>
         </div>
       </div>
@@ -76,45 +85,49 @@
       <div
         @click="toggleStatusFilter('Approved')"
         :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
+          'flex-1 px-3 py-2 cursor-pointer transition-colors flex items-center justify-center',
           selectedStatusFilter === 'Approved'
             ? 'bg-gray-100 dark:bg-gray-700'
             : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
         ]"
       >
         <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            Approved ({{ approvedStats.count }})
+          <div class="flex items-center gap-2 mb-1">
+            <UIcon name="i-heroicons-check-circle" class="w-5 h-5 text-green-600 dark:text-green-400" />
+            <div class="text-lg font-bold text-gray-900 dark:text-white">
+              {{ approvedStats.count }}
+            </div>
           </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(approvedStats.totalValue) }}
+          <div class="text-xs text-gray-600 dark:text-gray-400">
+            Approved
           </div>
         </div>
       </div>
       </div>
-      
-      <!-- Add New Button and Search Bar Stacked -->
-      <div class="flex flex-col gap-2">
-        <UButton
-          v-if="hasPermission('project_estimates_create')"
-          icon="i-heroicons-plus"
-          color="primary"
-          size="xs"
-          @click="addNewEstimate"
-        >
-          Add New Estimate
-        </UButton>
-        <div class="max-w-sm">
-          <UInput
-            v-model="globalFilter"
-            placeholder="Search estimates..."
-            icon="i-heroicons-magnifying-glass"
-            variant="subtle"
-            size="xs"
-            class="w-full"
-          />
-        </div>
-      </div>
+
+      <!-- Add New Button -->
+      <UButton
+        v-if="hasPermission('project_estimates_create')"
+        icon="i-heroicons-plus"
+        color="primary"
+        size="xs"
+        @click="addNewEstimate"
+      >
+        Add New Estimate
+      </UButton>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="max-w-sm">
+      <UInput
+        v-model="globalFilter"
+        placeholder="Search estimates..."
+        icon="i-heroicons-magnifying-glass"
+        variant="subtle"
+        size="xs"
+        class="w-full"
+      />
+    </div>
     </div>
 
     <!-- Estimates Table -->
