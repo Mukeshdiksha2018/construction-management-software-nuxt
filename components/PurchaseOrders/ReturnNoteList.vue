@@ -21,7 +21,7 @@
             </div>
           </div>
           <div class="text-xs text-gray-600 dark:text-gray-400">
-            Summary
+            Total
           </div>
         </div>
       </div>
