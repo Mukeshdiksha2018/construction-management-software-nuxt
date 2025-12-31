@@ -1208,6 +1208,11 @@ const columns: TableColumn<any>[] = [
 
 // Methods
 
+const applyFilters = () => {
+  // Filters are reactive, so this is just for UI consistency
+  console.log('Filters applied')
+}
+
 const clearFilters = () => {
   filterCorporation.value = ''
   filterProjectType.value = ''

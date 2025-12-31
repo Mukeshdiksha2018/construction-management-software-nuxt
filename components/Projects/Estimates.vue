@@ -116,7 +116,6 @@
         Add New Estimate
       </UButton>
     </div>
-    </div>
 
     <!-- Filters Panel -->
     <div v-if="isReady" class="mb-4 px-4 py-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
@@ -899,6 +898,11 @@ const columns: TableColumn<any>[] = [
 ];
 
 // Methods
+const applyFilters = () => {
+  // Filters are reactive, so this is just for UI consistency
+  console.log('Filters applied')
+}
+
 const clearFilters = () => {
   filterCorporation.value = ''
   filterProject.value = ''
