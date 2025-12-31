@@ -315,9 +315,9 @@ describe("ReturnNoteList", () => {
     await flushPromises();
 
     // Find status filter cards - they should exist in the template
-    // The new structure uses divs instead of UPageCard, so we verify by checking for Summary text
+    // The new structure uses divs instead of UPageCard, so we verify by checking for Total text
     // Only "Returned" status card exists now (no "Waiting" status)
-    expect(wrapper.html()).toContain("Summary");
+    expect(wrapper.html()).toContain("Total");
     expect(wrapper.html()).toContain("Returned");
     expect(wrapper.html()).not.toContain("Waiting");
   });
@@ -575,7 +575,7 @@ describe("ReturnNoteList", () => {
       await flushPromises();
 
       const html = wrapper.html();
-      expect(html).toContain("Summary");
+      expect(html).toContain("Total");
       expect(html).toContain("Returned");
       expect(html).not.toContain("Waiting");
     });

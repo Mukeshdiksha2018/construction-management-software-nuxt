@@ -1,24 +1,27 @@
 <template>
   <div>
     <!-- Status Stat Cards with Add New Button and Search Bar -->
-    <div v-if="isReady && !loading" class="flex items-center gap-4 mb-4">
-      <div class="flex flex-row flex-1 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
+    <div v-if="isReady && !loading" class="flex items-start gap-4 mb-4">
+      <div class="flex flex-row flex-[3] rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
       <!-- Summary Section (Highlighted) -->
       <div
         @click="clearStatusFilter()"
         :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
-          selectedStatusFilter === null 
-            ? 'bg-amber-50 dark:bg-amber-900/20' 
+          'flex-1 px-3 py-2 cursor-pointer transition-colors flex items-center justify-center',
+          selectedStatusFilter === null
+            ? 'bg-amber-50 dark:bg-amber-900/20'
             : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
         ]"
       >
         <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            Summary ({{ allEstimatesStats.count }})
+          <div class="flex items-center gap-2 mb-1">
+            <UIcon name="i-heroicons-document-text" class="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            <div class="text-lg font-bold text-gray-900 dark:text-white">
+              {{ allEstimatesStats.count }}
+            </div>
           </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(allEstimatesStats.totalValue) }}
+          <div class="text-xs text-gray-600 dark:text-gray-400">
+            Total
           </div>
         </div>
       </div>
@@ -30,18 +33,21 @@
       <div
         @click="toggleStatusFilter('Draft')"
         :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
+          'flex-1 px-3 py-2 cursor-pointer transition-colors flex items-center justify-center',
           selectedStatusFilter === 'Draft'
             ? 'bg-gray-100 dark:bg-gray-700'
             : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
         ]"
       >
         <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            Drafting… ({{ draftStats.count }})
+          <div class="flex items-center gap-2 mb-1">
+            <UIcon name="i-heroicons-clock" class="w-5 h-5 text-amber-600 dark:text-amber-400" />
+            <div class="text-lg font-bold text-gray-900 dark:text-white">
+              {{ draftStats.count }}
+            </div>
           </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(draftStats.totalValue) }}
+          <div class="text-xs text-gray-600 dark:text-gray-400">
+            Drafting…
           </div>
         </div>
       </div>
@@ -53,18 +59,21 @@
       <div
         @click="toggleStatusFilter('Ready')"
         :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
+          'flex-1 px-3 py-2 cursor-pointer transition-colors flex items-center justify-center',
           selectedStatusFilter === 'Ready'
             ? 'bg-gray-100 dark:bg-gray-700'
             : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
         ]"
       >
         <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            For Approval ({{ readyStats.count }})
+          <div class="flex items-center gap-2 mb-1">
+            <UIcon name="i-heroicons-eye" class="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <div class="text-lg font-bold text-gray-900 dark:text-white">
+              {{ readyStats.count }}
+            </div>
           </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(readyStats.totalValue) }}
+          <div class="text-xs text-gray-600 dark:text-gray-400">
+            For Approval
           </div>
         </div>
       </div>
@@ -76,24 +85,27 @@
       <div
         @click="toggleStatusFilter('Approved')"
         :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
+          'flex-1 px-3 py-2 cursor-pointer transition-colors flex items-center justify-center',
           selectedStatusFilter === 'Approved'
             ? 'bg-gray-100 dark:bg-gray-700'
             : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
         ]"
       >
         <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            Approved ({{ approvedStats.count }})
+          <div class="flex items-center gap-2 mb-1">
+            <UIcon name="i-heroicons-check-circle" class="w-5 h-5 text-green-600 dark:text-green-400" />
+            <div class="text-lg font-bold text-gray-900 dark:text-white">
+              {{ approvedStats.count }}
+            </div>
           </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(approvedStats.totalValue) }}
+          <div class="text-xs text-gray-600 dark:text-gray-400">
+            Approved
           </div>
         </div>
       </div>
       </div>
-      
-      <!-- Add New Button and Search Bar Stacked -->
+
+      <!-- Add New Button and Filter Toggle -->
       <div class="flex flex-col gap-2">
         <UButton
           v-if="hasPermission('project_estimates_create')"
@@ -104,15 +116,97 @@
         >
           Add New Estimate
         </UButton>
-        <div class="max-w-sm">
-          <UInput
-            v-model="globalFilter"
-            placeholder="Search estimates..."
-            icon="i-heroicons-magnifying-glass"
-            variant="subtle"
-            size="xs"
-            class="w-full"
-          />
+        <UButton
+          icon="i-heroicons-adjustments-horizontal"
+          variant="outline"
+          size="xs"
+          color="gray"
+          @click="toggleFilters"
+          :class="{ 'bg-gray-100 dark:bg-gray-700': showFilters }"
+        >
+          Filters
+        </UButton>
+      </div>
+    </div>
+
+    <!-- Filters Panel -->
+    <div v-if="showFilters && isReady" class="mb-4 px-4 py-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+      <div class="flex flex-col sm:flex-row gap-4 items-end">
+        <!-- Filters Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 flex-1 items-end">
+          <!-- Corporation Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Corporation</label>
+            <CorporationSelect
+              v-model="filterCorporation"
+              placeholder="All Corporations"
+              size="sm"
+              class="w-full"
+            />
+          </div>
+
+          <!-- Project Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Project</label>
+            <ProjectSelect
+              v-model="filterProject"
+              :corporation-uuid="filterCorporation || selectedCorporationId || undefined"
+              placeholder="All Projects"
+              size="sm"
+              class="w-full"
+              :disabled="!filterCorporation && !selectedCorporationId"
+            />
+          </div>
+
+          <!-- Customer Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Customer</label>
+            <CustomerSelect
+              v-model="filterCustomer"
+              :corporation-uuid="filterCorporation || selectedCorporationId || undefined"
+              placeholder="All Customers"
+              size="sm"
+              class="w-full"
+              :disabled="!filterCorporation && !selectedCorporationId"
+            />
+          </div>
+
+          <!-- Status Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Status</label>
+            <USelect
+              v-model="filterStatus"
+              :items="[
+                { label: 'Draft', value: 'Draft' },
+                { label: 'Ready for Approval', value: 'Ready' },
+                { label: 'Approved', value: 'Approved' }
+              ]"
+              placeholder="All Statuses"
+              size="sm"
+              variant="outline"
+              clearable
+              class="w-full"
+            />
+          </div>
+        </div>
+
+        <!-- Show and Clear Buttons -->
+        <div class="flex-shrink-0 flex flex-col gap-2">
+          <UButton
+            color="primary"
+            size="sm"
+            @click="applyFilters"
+          >
+            Apply
+          </UButton>
+          <UButton
+            color="neutral"
+            variant="outline"
+            size="sm"
+            @click="clearFilters"
+          >
+            Clear
+          </UButton>
         </div>
       </div>
     </div>
@@ -367,6 +461,9 @@ import { useApiClient } from '@/composables/useApiClient'
 import type { TableColumn } from '@nuxt/ui'
 import AuditLogSlideover from '@/components/AuditLogs/AuditLogSlideover.vue'
 import EstimatePreview from '@/components/Projects/EstimatePreview.vue'
+import CustomerSelect from '@/components/Shared/CustomerSelect.vue'
+import ProjectSelect from '@/components/Shared/ProjectSelect.vue'
+import CorporationSelect from '@/components/Shared/CorporationSelect.vue'
 
 // Local declaration to satisfy TS for auto-imported useToast
 declare function useToast(): { add: (opts: any) => void }
@@ -424,6 +521,13 @@ const {
 const selectedEstimates = ref<any[]>([])
 const globalFilter = ref('')
 const selectedStatusFilter = ref<string | null>(null)
+const showFilters = ref(false)
+
+// Filter state
+const filterCorporation = ref('')
+const filterProject = ref('')
+const filterCustomer = ref('')
+const filterStatus = ref('')
 const showPreviewModal = ref(false)
 const previewEstimate = ref<any>(null)
 const showDeleteModal = ref(false)
@@ -503,12 +607,29 @@ const approvedStats = computed(() => {
 
 const filteredEstimates = computed(() => {
   let filtered = [...estimates.value]
-  
+
   // Apply status filter if selected
   if (selectedStatusFilter.value) {
     filtered = filtered.filter(e => e.status === selectedStatusFilter.value)
   }
-  
+
+  // Apply additional filters
+  if (filterCorporation.value) {
+    filtered = filtered.filter(e => e.corporation_uuid === filterCorporation.value)
+  }
+
+  if (filterProject.value) {
+    filtered = filtered.filter(e => e.project_uuid === filterProject.value)
+  }
+
+  if (filterCustomer.value) {
+    filtered = filtered.filter(e => e.project?.customer_uuid === filterCustomer.value)
+  }
+
+  if (filterStatus.value) {
+    filtered = filtered.filter(e => e.status === filterStatus.value)
+  }
+
   // Apply global filter if provided
   if (globalFilter.value.trim()) {
     const searchTerm = globalFilter.value.toLowerCase().trim()
@@ -518,12 +639,12 @@ const filteredEstimates = computed(() => {
         e.project?.project_name || '',
         e.status || '',
       ]
-      return searchableFields.some(field => 
+      return searchableFields.some(field =>
         field.toLowerCase().includes(searchTerm)
       )
     })
   }
-  
+
   return filtered
 })
 
@@ -790,6 +911,22 @@ const columns: TableColumn<any>[] = [
 ];
 
 // Methods
+const toggleFilters = () => {
+  showFilters.value = !showFilters.value
+}
+
+const applyFilters = () => {
+  // Filters are reactive, so this is just for UI consistency
+  console.log('Filters applied')
+}
+
+const clearFilters = () => {
+  filterCorporation.value = ''
+  filterProject.value = ''
+  filterCustomer.value = ''
+  filterStatus.value = ''
+}
+
 const toggleStatusFilter = (status: string) => {
   if (selectedStatusFilter.value === status) {
     // If clicking the same status, clear the filter

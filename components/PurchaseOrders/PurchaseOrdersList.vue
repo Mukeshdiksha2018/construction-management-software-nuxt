@@ -7,18 +7,21 @@
       <div
         @click="clearStatusFilter()"
         :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
-          selectedStatusFilter === null 
-            ? 'bg-amber-50 dark:bg-amber-900/20' 
+          'flex-1 px-3 py-2 cursor-pointer transition-colors flex items-center justify-center',
+          selectedStatusFilter === null
+            ? 'bg-amber-50 dark:bg-amber-900/20'
             : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
         ]"
       >
         <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            Summary ({{ allPOStats.count }})
+          <div class="flex items-center gap-2 mb-1">
+            <UIcon name="i-heroicons-document-text" class="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            <div class="text-lg font-bold text-gray-900 dark:text-white">
+              {{ allPOStats.count }}
+            </div>
           </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(allPOStats.totalValue) }}
+          <div class="text-xs text-gray-600 dark:text-gray-400">
+            Total
           </div>
         </div>
       </div>
@@ -30,18 +33,21 @@
       <div
         @click="toggleStatusFilter('Draft')"
         :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
+          'flex-1 px-3 py-2 cursor-pointer transition-colors flex items-center justify-center',
           selectedStatusFilter === 'Draft'
             ? 'bg-gray-100 dark:bg-gray-700'
             : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
         ]"
       >
         <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            Pending ({{ draftStats.count }})
+          <div class="flex items-center gap-2 mb-1">
+            <UIcon name="i-heroicons-clock" class="w-5 h-5 text-amber-600 dark:text-amber-400" />
+            <div class="text-lg font-bold text-gray-900 dark:text-white">
+              {{ draftStats.count }}
+            </div>
           </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(draftStats.totalValue) }}
+          <div class="text-xs text-gray-600 dark:text-gray-400">
+            Pending
           </div>
         </div>
       </div>
@@ -53,18 +59,21 @@
       <div
         @click="toggleStatusFilter('Ready')"
         :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
+          'flex-1 px-3 py-2 cursor-pointer transition-colors flex items-center justify-center',
           selectedStatusFilter === 'Ready'
             ? 'bg-gray-100 dark:bg-gray-700'
             : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
         ]"
       >
         <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            To be approved ({{ readyStats.count }})
+          <div class="flex items-center gap-2 mb-1">
+            <UIcon name="i-heroicons-eye" class="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <div class="text-lg font-bold text-gray-900 dark:text-white">
+              {{ readyStats.count }}
+            </div>
           </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(readyStats.totalValue) }}
+          <div class="text-xs text-gray-600 dark:text-gray-400">
+            To be approved
           </div>
         </div>
       </div>
@@ -76,14 +85,20 @@
       <div
         @click="toggleStatusFilter('ToBeRaised')"
         :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
+          'flex-1 px-3 py-2 cursor-pointer transition-colors flex items-center justify-center',
           selectedStatusFilter === 'ToBeRaised'
             ? 'bg-gray-100 dark:bg-gray-700'
             : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
         ]"
       >
         <div class="flex flex-col items-center text-center">
-          <div class="text-base font-bold text-gray-900 dark:text-white">
+          <div class="flex items-center gap-2 mb-1">
+            <UIcon name="i-heroicons-plus-circle" class="w-5 h-5 text-green-600 dark:text-green-400" />
+            <div class="text-lg font-bold text-gray-900 dark:text-white">
+              {{ toBeRaisedStats.count }}
+            </div>
+          </div>
+          <div class="text-xs text-gray-600 dark:text-gray-400">
             To Be Raised
           </div>
         </div>

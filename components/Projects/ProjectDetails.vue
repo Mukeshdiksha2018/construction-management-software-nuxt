@@ -1,24 +1,27 @@
 <template>
   <div>
     <!-- Status Stat Cards with Add New Button and Search Bar -->
-    <div v-if="isReady && !loading" class="flex items-center gap-4 mb-4">
-      <div class="flex flex-row flex-1 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
+    <div v-if="isReady && !loading" class="flex items-start gap-4 mb-4">
+      <div class="flex flex-row flex-[3] rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
       <!-- Summary Section (Highlighted) -->
       <div
         @click="clearStatusFilter()"
         :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
-          selectedStatusFilter === null 
-            ? 'bg-amber-50 dark:bg-amber-900/20' 
+          'flex-1 px-3 py-2 cursor-pointer transition-colors flex items-center justify-center',
+          selectedStatusFilter === null
+            ? 'bg-amber-50 dark:bg-amber-900/20'
             : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
         ]"
       >
         <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            Summary ({{ allProjectsStats.count }})
+          <div class="flex items-center gap-2 mb-1">
+            <UIcon name="i-heroicons-document-text" class="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            <div class="text-lg font-bold text-gray-900 dark:text-white">
+              {{ allProjectsStats.count }}
+            </div>
           </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(allProjectsStats.totalValue) }}
+          <div class="text-xs text-gray-600 dark:text-gray-400">
+            Total
           </div>
         </div>
       </div>
@@ -30,18 +33,21 @@
       <div
         @click="toggleStatusFilter('Pending')"
         :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
+          'flex-1 px-3 py-2 cursor-pointer transition-colors flex items-center justify-center',
           selectedStatusFilter === 'Pending'
             ? 'bg-gray-100 dark:bg-gray-700'
             : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
         ]"
       >
         <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            Pending ({{ pendingStats.count }})
+          <div class="flex items-center gap-2 mb-1">
+            <UIcon name="i-heroicons-clock" class="w-5 h-5 text-amber-600 dark:text-amber-400" />
+            <div class="text-lg font-bold text-gray-900 dark:text-white">
+              {{ pendingStats.count }}
+            </div>
           </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(pendingStats.totalValue) }}
+          <div class="text-xs text-gray-600 dark:text-gray-400">
+            Pending
           </div>
         </div>
       </div>
@@ -53,18 +59,21 @@
       <div
         @click="toggleStatusFilter('Bidding')"
         :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
+          'flex-1 px-3 py-2 cursor-pointer transition-colors flex items-center justify-center',
           selectedStatusFilter === 'Bidding'
             ? 'bg-gray-100 dark:bg-gray-700'
             : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
         ]"
       >
         <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            Bidding ({{ biddingStats.count }})
+          <div class="flex items-center gap-2 mb-1">
+            <UIcon name="i-heroicons-banknotes" class="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <div class="text-lg font-bold text-gray-900 dark:text-white">
+              {{ biddingStats.count }}
+            </div>
           </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(biddingStats.totalValue) }}
+          <div class="text-xs text-gray-600 dark:text-gray-400">
+            Bidding
           </div>
         </div>
       </div>
@@ -76,18 +85,21 @@
       <div
         @click="toggleStatusFilter('Started')"
         :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
+          'flex-1 px-3 py-2 cursor-pointer transition-colors flex items-center justify-center',
           selectedStatusFilter === 'Started'
             ? 'bg-gray-100 dark:bg-gray-700'
             : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
         ]"
       >
         <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            Started ({{ startedStats.count }})
+          <div class="flex items-center gap-2 mb-1">
+            <UIcon name="i-heroicons-play-circle" class="w-5 h-5 text-green-600 dark:text-green-400" />
+            <div class="text-lg font-bold text-gray-900 dark:text-white">
+              {{ startedStats.count }}
+            </div>
           </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(startedStats.totalValue) }}
+          <div class="text-xs text-gray-600 dark:text-gray-400">
+            Started
           </div>
         </div>
       </div>
@@ -99,18 +111,21 @@
       <div
         @click="toggleStatusFilter('In Progress')"
         :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
+          'flex-1 px-3 py-2 cursor-pointer transition-colors flex items-center justify-center',
           selectedStatusFilter === 'In Progress'
             ? 'bg-gray-100 dark:bg-gray-700'
             : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
         ]"
       >
         <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            In Progress ({{ inProgressStats.count }})
+          <div class="flex items-center gap-2 mb-1">
+            <UIcon name="i-heroicons-play" class="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <div class="text-lg font-bold text-gray-900 dark:text-white">
+              {{ inProgressStats.count }}
+            </div>
           </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(inProgressStats.totalValue) }}
+          <div class="text-xs text-gray-600 dark:text-gray-400">
+            In Progress
           </div>
         </div>
       </div>
@@ -122,18 +137,21 @@
       <div
         @click="toggleStatusFilter('Completed')"
         :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
+          'flex-1 px-3 py-2 cursor-pointer transition-colors flex items-center justify-center',
           selectedStatusFilter === 'Completed'
             ? 'bg-gray-100 dark:bg-gray-700'
             : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
         ]"
       >
         <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            Completed ({{ completedStats.count }})
+          <div class="flex items-center gap-2 mb-1">
+            <UIcon name="i-heroicons-check-circle" class="w-5 h-5 text-green-600 dark:text-green-400" />
+            <div class="text-lg font-bold text-gray-900 dark:text-white">
+              {{ completedStats.count }}
+            </div>
           </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(completedStats.totalValue) }}
+          <div class="text-xs text-gray-600 dark:text-gray-400">
+            Completed
           </div>
         </div>
       </div>
@@ -145,24 +163,27 @@
       <div
         @click="toggleStatusFilter('On Hold')"
         :class="[
-          'flex-1 px-4 py-2 cursor-pointer transition-colors flex items-center justify-center',
+          'flex-1 px-3 py-2 cursor-pointer transition-colors flex items-center justify-center',
           selectedStatusFilter === 'On Hold'
             ? 'bg-gray-100 dark:bg-gray-700'
             : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
         ]"
       >
         <div class="flex flex-col items-center text-center">
-          <div class="text-sm text-gray-700 dark:text-gray-300">
-            On Hold ({{ onHoldStats.count }})
+          <div class="flex items-center gap-2 mb-1">
+            <UIcon name="i-heroicons-pause" class="w-5 h-5 text-orange-600 dark:text-orange-400" />
+            <div class="text-lg font-bold text-gray-900 dark:text-white">
+              {{ onHoldStats.count }}
+            </div>
           </div>
-          <div class="text-base font-bold text-gray-900 dark:text-white mt-1">
-            {{ formatCurrency(onHoldStats.totalValue) }}
+          <div class="text-xs text-gray-600 dark:text-gray-400">
+            On Hold
           </div>
         </div>
       </div>
       </div>
-      
-      <!-- Add New Button and Search Bar Stacked -->
+
+      <!-- Add New Button and Filter Toggle -->
       <div class="flex flex-col gap-2">
         <UButton
           v-if="hasPermission('project_create')"
@@ -173,15 +194,94 @@
         >
           Add New Project
         </UButton>
-        <div class="max-w-sm">
-          <UInput
-            v-model="globalFilter"
-            placeholder="Search projects..."
-            icon="i-heroicons-magnifying-glass"
-            variant="subtle"
-            size="xs"
-            class="w-full"
-          />
+        <UButton
+          icon="i-heroicons-adjustments-horizontal"
+          variant="outline"
+          size="xs"
+          color="gray"
+          @click="toggleFilters"
+          :class="{ 'bg-gray-100 dark:bg-gray-700': showFilters }"
+        >
+          Filters
+        </UButton>
+      </div>
+    </div>
+
+    <!-- Filters Panel -->
+    <div v-if="showFilters && isReady" class="mb-4 px-4 py-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+      <div class="flex flex-col sm:flex-row gap-4 items-end">
+        <!-- Filters Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 flex-1 items-end">
+          <!-- Corporation Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Corporation</label>
+            <CorporationSelect
+              v-model="filterCorporation"
+              placeholder="All Corporations"
+              size="sm"
+              class="w-full"
+            />
+          </div>
+
+          <!-- Project Type Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Project Type</label>
+            <USelect
+              v-model="filterProjectType"
+              :items="projectTypesStore.getActiveProjectTypes.map(pt => ({ label: pt.name, value: pt.uuid }))"
+              placeholder="All Types"
+              size="sm"
+              variant="outline"
+              clearable
+              class="w-full"
+            />
+          </div>
+
+          <!-- Service Type Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Service Type</label>
+            <USelect
+              v-model="filterServiceType"
+              :items="serviceTypesStore.getActiveServiceTypes.map(st => ({ label: st.name, value: st.uuid }))"
+              placeholder="All Services"
+              size="sm"
+              variant="outline"
+              clearable
+              class="w-full"
+            />
+          </div>
+
+          <!-- Customer Filter -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Customer</label>
+            <CustomerSelect
+              v-model="filterCustomer"
+              :corporation-uuid="filterCorporation || selectedCorporationId || undefined"
+              placeholder="All Customers"
+              size="sm"
+              class="w-full"
+              :disabled="!filterCorporation && !selectedCorporationId"
+            />
+          </div>
+        </div>
+
+        <!-- Show and Clear Buttons -->
+        <div class="flex-shrink-0 flex flex-col gap-2">
+          <UButton
+            color="primary"
+            size="sm"
+            @click="applyFilters"
+          >
+            Apply
+          </UButton>
+          <UButton
+            color="neutral"
+            variant="outline"
+            size="sm"
+            @click="clearFilters"
+          >
+            Clear
+          </UButton>
         </div>
       </div>
     </div>
@@ -536,6 +636,8 @@ import { useAuditLog } from '@/composables/useAuditLog'
 import { usePermissions } from '@/composables/usePermissions'
 import type { TableColumn } from '@nuxt/ui'
 import AuditLogSlideover from '@/components/AuditLogs/AuditLogSlideover.vue'
+import CustomerSelect from '@/components/Shared/CustomerSelect.vue'
+import CorporationSelect from '@/components/Shared/CorporationSelect.vue'
 
 // Resolve components for table columns
 const UButton = resolveComponent('UButton')
@@ -594,6 +696,13 @@ const {
 const selectedProjects = ref<any[]>([])
 const globalFilter = ref('')
 const selectedStatusFilter = ref<string | null>(null)
+const showFilters = ref(false)
+
+// Filter state
+const filterCorporation = ref('')
+const filterProjectType = ref('')
+const filterServiceType = ref('')
+const filterCustomer = ref('')
 const showPreviewModal = ref(false)
 const previewProject = ref<any>(null)
 const showDeleteModal = ref(false)
@@ -786,12 +895,47 @@ const projectEstimateStatusMap = computed(() => {
 
 const filteredProjects = computed(() => {
   let filtered = [...projects.value]
-  
+
   // Apply status filter if selected
   if (selectedStatusFilter.value) {
     filtered = filtered.filter(p => p.project_status === selectedStatusFilter.value)
   }
-  
+
+  // Apply additional filters
+  if (filterCorporation.value) {
+    filtered = filtered.filter(p => p.corporation_uuid === filterCorporation.value)
+  }
+
+  if (filterProjectType.value) {
+    filtered = filtered.filter(p => p.project_type_uuid === filterProjectType.value)
+  }
+
+  if (filterServiceType.value) {
+    filtered = filtered.filter(p => p.service_type_uuid === filterServiceType.value)
+  }
+
+  if (filterCustomer.value) {
+    filtered = filtered.filter(p => p.customer_uuid === filterCustomer.value)
+  }
+
+  // Apply global filter if provided
+  if (globalFilter.value.trim()) {
+    const searchTerm = globalFilter.value.toLowerCase().trim()
+    filtered = filtered.filter(p => {
+      const searchableFields = [
+        p.project_id || '',
+        p.project_name || '',
+        p.project_status || '',
+        projectTypeNameByUuid.value[p.project_type_uuid] || '',
+        serviceTypeNameByUuid.value[p.service_type_uuid] || '',
+        corporationNameByUuid.value[p.corporation_uuid] || ''
+      ]
+      return searchableFields.some(field =>
+        field.toLowerCase().includes(searchTerm)
+      )
+    })
+  }
+
   return filtered
 })
 
@@ -1076,6 +1220,23 @@ const columns: TableColumn<any>[] = [
 ];
 
 // Methods
+
+const toggleFilters = () => {
+  showFilters.value = !showFilters.value
+}
+
+const applyFilters = () => {
+  // Filters are reactive, so this is just for UI consistency
+  console.log('Filters applied')
+}
+
+const clearFilters = () => {
+  filterCorporation.value = ''
+  filterProjectType.value = ''
+  filterServiceType.value = ''
+  filterCustomer.value = ''
+}
+
 const toggleStatusFilter = (status: string) => {
   if (selectedStatusFilter.value === status) {
     // If clicking the same status, clear the filter

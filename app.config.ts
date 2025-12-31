@@ -374,10 +374,10 @@ export default defineAppConfig({
     button: {
       slots: {
         base: [
-          "rounded-md font-medium inline-flex items-center disabled:cursor-not-allowed aria-disabled:cursor-not-allowed disabled:opacity-75 aria-disabled:opacity-75",
+          "rounded-md font-medium inline-flex items-center justify-center disabled:cursor-not-allowed aria-disabled:cursor-not-allowed disabled:opacity-75 aria-disabled:opacity-75",
           "transition-colors",
         ],
-        label: "truncate",
+        label: "truncate text-center",
         leadingIcon: "shrink-0",
         leadingAvatar: "shrink-0",
         leadingAvatarSize: "",
@@ -471,7 +471,7 @@ export default defineAppConfig({
           color: "primary",
           variant: "solid",
           class:
-            "text-white bg-[#2782EC] hover:bg-[#1f6fd4] active:bg-[#1f6fd4] disabled:bg-[#2782EC] aria-disabled:bg-[#2782EC] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2782EC] shadow-md hover:shadow-lg transition-all",
+            "text-white bg-gradient-to-br from-purple-600 via-purple-500 to-indigo-600 hover:from-purple-700 hover:via-purple-600 hover:to-indigo-700 active:from-purple-800 active:via-purple-700 active:to-indigo-800 disabled:bg-gradient-to-br disabled:from-purple-600/50 disabled:via-purple-500/50 disabled:to-indigo-600/50 aria-disabled:bg-gradient-to-br aria-disabled:from-purple-600/50 aria-disabled:via-purple-500/50 aria-disabled:to-indigo-600/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500 shadow-md hover:shadow-lg transition-all",
         },
         {
           color: "primary",

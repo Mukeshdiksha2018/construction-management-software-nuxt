@@ -383,7 +383,7 @@ describe("ReceiptNoteList - Comprehensive Tests", () => {
     it("should display statistics cards", () => {
       const wrapper = mountList();
 
-      expect(wrapper.text()).toContain("Summary");
+      expect(wrapper.text()).toContain("Total");
       expect(wrapper.text()).toContain("Shipment");
       expect(wrapper.text()).toContain("Received");
     });
@@ -391,17 +391,11 @@ describe("ReceiptNoteList - Comprehensive Tests", () => {
     it("should calculate statistics correctly", () => {
       const wrapper = mountList();
 
-      // All GRNs: 3 items, total: 250 + 500 + 300 = 1050
-      // The formatCurrencyAbbreviated formats numbers >= 1000 with abbreviations
+      // All GRNs: 3 items
+      // Stats now only show counts, no currency values
       expect(wrapper.text()).toContain("3");
-      // Check for the total amount (might be formatted as $1050.00, $1,050.00, or $1.0k)
-      const text = wrapper.text();
-      expect(
-        text.includes("1050") || 
-        text.includes("1,050") || 
-        text.includes("1.0k") || 
-        text.includes("1k")
-      ).toBe(true);
+      expect(wrapper.text()).toContain("2"); // Shipment count
+      expect(wrapper.text()).toContain("1"); // Received count
     });
 
     it("should filter statistics by status", () => {

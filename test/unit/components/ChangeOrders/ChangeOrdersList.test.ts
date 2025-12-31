@@ -808,8 +808,8 @@ describe("ChangeOrdersList.vue", () => {
   describe("Status Stat Cards", () => {
     it("renders status stat cards when permissions are ready", () => {
       const wrapper = mountList();
-      // Check for the new horizontal bar structure with Summary section
-      expect(wrapper.html()).toContain("Summary");
+      // Check for the new horizontal bar structure with Total section
+      expect(wrapper.html()).toContain("Total");
       expect(wrapper.html()).toContain("Pending");
       expect(wrapper.html()).toContain("To be approved");
       // Approved and Rejected cards have been removed to match PurchaseOrdersList
@@ -822,7 +822,7 @@ describe("ChangeOrdersList.vue", () => {
       // In production, when isReady is false, the cards won't render due to v-if
       const wrapper = mountList();
       // With isReady true (as mocked), cards should render
-      expect(wrapper.html()).toContain("Summary");
+      expect(wrapper.html()).toContain("Total");
       expect(wrapper.html()).toContain("Pending");
       expect(wrapper.html()).toContain("To be approved");
       // Approved and Rejected cards have been removed to match PurchaseOrdersList
